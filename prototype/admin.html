@@ -4,153 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Festacol examination administration prototype">
-  <title>Festacol · Examination Operations</title>
-
+  <title>Festacol · Admin Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link href="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <style type="text/tailwindcss">
-    @theme{
-      --font-sans:"DM Sans",sans-serif;
-      --font-display:"Manrope",sans-serif;
-      --font-serif:"Manrope",sans-serif;
-    }
-    html{scroll-behavior:smooth}
-    body{background:#f4f4f4;color:#111}
-    .page-enter{animation:page-enter .18s ease-out}
-    @keyframes page-enter{from{opacity:.25;transform:translateY(4px)}to{opacity:1;transform:none}}
-    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
-  </style>
-  <style>
-    :root{
-      --canvas:#f4f4f4;
-      --paper:#ffffff;
-      --ink:#101010;
-      --ink-soft:#292929;
-      --muted:#686868;
-      --muted-2:#8a8a8a;
-      --line:#d4d4d4;
-      --line-soft:#e5e5e5;
-      --line-strong:#111111;
-      --well:#eeeeee;
-      --shadow:0 1px 2px rgba(0,0,0,.035),0 14px 34px rgba(0,0,0,.045);
-      --shadow-float:0 18px 55px rgba(0,0,0,.10);
-    }
-    *{box-sizing:border-box}
-    html{background:var(--canvas)}
-    body{margin:0;background:var(--canvas);color:var(--ink)}
-    body,button,input,select,textarea{font-family:"DM Sans",sans-serif}
-    h1,h2,h3,h4,.font-display{font-family:"Manrope",sans-serif}
-    ::selection{background:#111;color:#fff}
-    :focus-visible{outline:3px solid #111;outline-offset:3px}
-    .focus-inverse:focus-visible{outline-color:#fff}
-    .admin-sidebar{background:#0d0d0d;border-right:1px solid #272727}
-    .sidebar-link{display:flex;min-height:44px;align-items:center;gap:11px;border-radius:11px;padding:0 12px;color:#b8b8b8;font-size:14px;font-weight:600;letter-spacing:-.01em;transition:background-color .15s,color .15s,transform .15s}
-    .sidebar-link:hover{background:#202020;color:#fff}
-    .sidebar-link[aria-current="page"]{background:#fff;color:#111;box-shadow:0 4px 14px rgba(0,0,0,.16)}
-    .sidebar-link .fb-icon{width:18px;height:18px;flex:0 0 auto;opacity:.82}
-    .sidebar-link[aria-current="page"] .fb-icon{opacity:1}
-    .topbar{background:rgba(244,244,244,.94);backdrop-filter:saturate(140%) blur(14px);border-bottom:1px solid var(--line)}
-    .surface{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
-    .surface-flat{background:#fff;border:1px solid var(--line);border-radius:14px}
-    .surface-strong{background:#fff;border:1px solid #111;border-radius:14px;box-shadow:var(--shadow)}
-    .ink-panel{background:#111;color:#fff;border:1px solid #111;border-radius:14px;box-shadow:var(--shadow-float)}
-    .metric-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
-    .metric-strip>div{min-width:0;padding:17px 18px;border-right:1px solid var(--line)}
-    .metric-strip>div:last-child{border-right:0}
-    .metric-value{font-family:"Manrope",sans-serif;font-size:28px;font-weight:800;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
-    .eyebrow{font-size:11px;font-weight:700;line-height:1.3;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
-    .page-title{font-family:"Manrope",sans-serif;font-size:clamp(1.65rem,2.4vw,2.45rem);font-weight:800;line-height:1.07;letter-spacing:-.045em;color:#111}
-    .section-title{font-family:"Manrope",sans-serif;font-size:18px;font-weight:800;line-height:1.2;letter-spacing:-.025em}
-    .muted{color:var(--muted)}
-    .status-dot{display:inline-block;width:7px;height:7px;border-radius:999px;background:currentColor}
-    .status-badge{display:inline-flex;min-height:27px;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;background:#fff;padding:3px 9px;font-size:11px;font-weight:700;line-height:1;text-transform:capitalize;color:#303030}
-    .status-badge[data-status="open"],.status-badge[data-status="submitted"]{background:#111;border-color:#111;color:#fff}
-    .status-badge[data-status="draft"]{border-style:dashed;border-color:#777}
-    .status-badge[data-status="closed"]{background:#e8e8e8;color:#555}
-    .admin-table{width:100%;border-collapse:collapse}
-    .admin-table th{padding:11px 14px;border-bottom:1px solid var(--line);background:#f7f7f7;color:#6b6b6b;font-size:11px;font-weight:700;letter-spacing:.08em;text-align:left;text-transform:uppercase;white-space:nowrap}
-    .admin-table td{padding:14px;border-bottom:1px solid var(--line-soft);vertical-align:middle;font-size:13px;color:#252525}
-    .admin-table tbody tr:last-child td{border-bottom:0}
-    .admin-table tbody tr:hover{background:#fafafa}
-    .control{min-height:44px;width:100%;border:1px solid #cfcfcf;border-radius:10px;background:#fff;padding:10px 12px;color:#111;font-size:14px;line-height:1.35;transition:border-color .15s,box-shadow .15s,background-color .15s}
-    .control:hover{border-color:#8d8d8d}
-    .control:focus{border-color:#111;outline:0;box-shadow:0 0 0 3px rgba(17,17,17,.10)}
-    .control[aria-invalid="true"]{border-color:#111;box-shadow:0 0 0 2px #111}
-    textarea.control{min-height:92px;resize:vertical}
-    .segmented{display:grid;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#eeeeee}
-    .segmented button{min-height:40px;border-radius:8px;padding:0 12px;color:#5f5f5f;font-size:13px;font-weight:700;transition:background-color .15s,color .15s,box-shadow .15s}
-    .segmented button[aria-pressed="true"]{background:#111;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.16)}
-    .mode-card{min-height:122px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px;text-align:left;transition:border-color .15s,box-shadow .15s,transform .15s}
-    .mode-card:hover{border-color:#777;transform:translateY(-1px)}
-    .mode-card[aria-pressed="true"]{border-color:#111;background:#111;color:#fff;box-shadow:0 12px 28px rgba(0,0,0,.14)}
-    .mode-card[aria-pressed="true"] .muted,.mode-card[aria-pressed="true"] .eyebrow{color:#bdbdbd}
-    .subject-option{display:flex;min-height:48px;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;cursor:pointer;transition:border-color .15s,background-color .15s,box-shadow .15s}
-    .subject-option:hover{border-color:#999}
-    .subject-option:has(input:checked){border-color:#111;background:#111;color:#fff;box-shadow:0 5px 18px rgba(0,0,0,.10)}
-    .subject-option input{width:16px;height:16px;accent-color:#111}
-    .icon-button{display:grid;width:42px;height:42px;place-items:center;border:1px solid var(--line);border-radius:10px;background:#fff;color:#111;transition:background-color .15s,border-color .15s,transform .15s}
-    .icon-button:hover{background:#eeeeee;border-color:#aaa}
-    .icon-button:active,.admin-page button:active,.admin-page a:active{transform:translateY(1px)}
-    .fb-icon{display:inline-block;width:18px;height:18px;flex:0 0 auto;color:currentColor}
-    .attention-row{display:flex;align-items:flex-start;gap:13px;padding:15px 16px}
-    .attention-row+.attention-row{border-top:1px solid var(--line-soft)}
-    .queue-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:15px 16px}
-    .queue-row+.queue-row{border-top:1px solid var(--line-soft)}
-    .control-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0}
-    .control-row+.control-row{border-top:1px solid var(--line-soft)}
-    .empty-state{display:grid;place-items:center;min-height:220px;padding:28px;text-align:center}
-    .qr-frame{display:grid;place-items:center;aspect-ratio:1/1;width:min(100%,280px);margin-inline:auto;border:1px solid #111;border-radius:12px;background:#fff;padding:16px}
-    .qr-frame svg{width:100%;height:auto;display:block}
-    .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
-    .apexcharts-tooltip{border:1px solid #d4d4d4!important;border-radius:10px!important;box-shadow:0 12px 30px rgba(0,0,0,.08)!important}
-    .apexcharts-tooltip-title{background:#f4f4f4!important;border-bottom:1px solid #d4d4d4!important}
-    .apexcharts-xaxistooltip,.apexcharts-yaxistooltip{display:none!important}
-    @media(max-width:1023px){.topbar{padding-top:max(0px,env(safe-area-inset-top))}}
-    @media(max-width:900px){.metric-strip>div{border-right:0;border-bottom:1px solid var(--line)}.metric-strip>div:last-child{border-bottom:0}}
-    @media(max-width:639px){.metric-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-strip>div:nth-child(odd){border-right:1px solid var(--line)}.metric-strip>div:last-child{border-right:0}.admin-table th,.admin-table td{padding-inline:11px}}
-    @media(prefers-reduced-motion:reduce){.mode-card:hover{transform:none}.admin-page button:active,.admin-page a:active{transform:none}}
-  </style>
+  <style type="text/tailwindcss">@theme{--font-sans:"DM Sans",sans-serif;--font-display:"Manrope",sans-serif}html{scroll-behavior:smooth}.page-enter{animation:page-enter .2s ease-out}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}</style>
+  <link rel="stylesheet" href="./assets/festacol.css">
 </head>
-<body class="admin-page min-h-dvh font-sans antialiased">
-  <a href="#admin-root" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-lg focus:bg-black focus:px-4 focus:py-3 focus:text-sm focus:font-bold focus:text-white">Skip to main content</a>
+<body class="app-page admin-page min-h-dvh font-sans antialiased">
+  <a href="#admin-root" class="skip-link">Skip to main content</a>
 
-  <aside class="admin-sidebar fixed inset-y-0 left-0 z-40 hidden w-72 flex-col text-white lg:flex" aria-label="Administration navigation">
-    <div class="border-b border-neutral-800 px-5 py-5">
-      <a href="./admin.html?page=overview" data-admin-route="overview" class="focus-inverse inline-flex items-center gap-3 rounded-lg focus:outline-none"><span class="grid size-10 place-items-center rounded-lg bg-white font-display text-sm font-extrabold text-black" aria-hidden="true">F</span><span class="min-w-0"><strong class="block font-display text-[15px] font-extrabold tracking-[-.03em]">Festacol</strong><span class="block text-xs text-neutral-400">Examination operations</span></span></a>
+  <aside class="nav-rail fixed inset-y-0 left-0 z-40 hidden w-64 flex-col lg:flex" aria-label="Administration navigation">
+    <div class="px-4 pb-3 pt-5">
+      <a href="./admin.html?page=overview" data-admin-route="overview" class="flex items-center gap-3 rounded-xl px-2 py-2">
+        <span class="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 font-display text-sm font-extrabold text-white shadow-lg shadow-blue-200" aria-hidden="true">F</span>
+        <span class="min-w-0"><strong class="block font-display text-[15px] font-extrabold tracking-[-.03em] text-slate-900">Festacol</strong><span class="block text-[11px] font-semibold text-slate-500">Academic operations</span></span>
+      </a>
     </div>
-    <nav class="flex-1 overflow-y-auto px-3 py-5" aria-label="Admin pages">
-      <p class="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Monitor</p>
+    <nav class="flex-1 overflow-y-auto px-3 pb-4" aria-label="Admin pages">
+      <p class="eyebrow px-3 pb-2 pt-3">Workspace</p>
       <div class="flex flex-col gap-1">
-        <a href="./admin.html?page=overview" data-admin-route="overview" class="sidebar-link"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 12 8-8 8 8M6 10.5V19a1 1 0 0 0 1 1h3v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h3a1 1 0 0 0 1-1v-8.5"/></svg>Overview</a>
-        <a href="./admin.html?page=sessions" data-admin-route="sessions" class="sidebar-link"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10h16m-8-3V4M7 7V4m10 3V4M5 20h14a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1Zm3-7h.01v.01H8V13Zm4 0h.01v.01H12V13Zm4 0h.01v.01H16V13Zm-8 4h.01v.01H8V17Zm4 0h.01v.01H12V17Zm4 0h.01v.01H16V17Z"/></svg>Exam sessions</a>
-        <a href="./admin.html?page=candidates" data-admin-route="candidates" class="sidebar-link"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4.5 17H4a1 1 0 0 1-1-1 3 3 0 0 1 3-3h1m0-3.05A2.5 2.5 0 1 1 9 5.5M19.5 17h.5a1 1 0 0 0 1-1 3 3 0 0 0-3-3h-1m0-3.05a2.5 2.5 0 1 0-2-4.45m.5 13.5h-7a1 1 0 0 1-1-1 3 3 0 0 1 3-3h3a3 3 0 0 1 3 3 1 1 0 0 1-1 1Zm-1-9.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z"/></svg>Candidates</a>
+        <a href="./admin.html?page=overview" data-admin-route="overview" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 12 8-8 8 8M6 10.5V19a1 1 0 0 0 1 1h3v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h3a1 1 0 0 0 1-1v-8.5"/></svg></span>Overview</a>
+        <a href="./admin.html?page=users" data-admin-route="users" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4.5 17H4a1 1 0 0 1-1-1 3 3 0 0 1 3-3h1m0-3.05A2.5 2.5 0 1 1 9 5.5M19.5 17h.5a1 1 0 0 0 1-1 3 3 0 0 0-3-3h-1m0-3.05a2.5 2.5 0 1 0-2-4.45m.5 13.5h-7a1 1 0 0 1-1-1 3 3 0 0 1 3-3h3a3 3 0 0 1 3 3 1 1 0 0 1-1 1Zm-1-9.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z"/></svg></span>Users</a>
+        <a href="./admin.html?page=exams" data-admin-route="exams" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M12.1429 11v9m0-9c-2.50543-.7107-3.19099-1.39543-6.13657-1.34968-.48057.00746-.86348.38718-.86348.84968v7.2884c0 .4824.41455.8682.91584.8617 2.77491-.0362 3.45995.6561 6.08421 1.3499m0-9c2.5053-.7107 3.1067-1.39542 6.0523-1.34968.4806.00746.9477.38718.9477.84968v7.2884c0 .4824-.4988.8682-1 .8617-2.775-.0362-3.3758.6561-6 1.3499m2-14c0 1.10457-.8955 2-2 2-1.1046 0-2-.89543-2-2s.8954-2 2-2c1.1045 0 2 .89543 2 2Z"/></svg></span>Exams</a>
+        <a href="./admin.html?page=classes" data-admin-route="classes" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="m7.14284 11 4.99996-6 5 6m-9.99996 0h-3v8H20.1428v-8h-3m-9.99996 0H3.14285l3-4h4.33735l-3.33736 4Zm9.99996 0h4l-3-4h-4.3374l3.3374 4Zm-3 2c0 1.1046-.8954 2-2 2-1.1045 0-2-.8954-2-2s.8955-2 2-2c1.1046 0 2 .8954 2 2Z"/></svg></span>Classes</a>
+        <a href="./admin.html?page=questions" data-admin-route="questions" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.529 9.988a2.502 2.502 0 1 1 5 .191A2.441 2.441 0 0 1 12 12.582V14m-.01 3.008H12M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span>Questions</a>
+        <a href="./admin.html?page=reports" data-admin-route="reports" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6.025A7.5 7.5 0 1 0 17.975 14H10V6.025Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 3c-.169 0-.334.014-.5.025V11h7.975c.011-.166.025-.331.025-.5A7.5 7.5 0 0 0 13.5 3Z"/></svg></span>Reports</a>
       </div>
-      <p class="mt-6 px-3 pb-2 text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Build</p>
-      <div class="flex flex-col gap-1">
-        <a href="./admin.html?page=create" data-admin-route="create" class="sidebar-link"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7 7V5"/></svg>Create session</a>
-        <a href="./admin.html?page=questions" data-admin-route="questions" class="sidebar-link"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M12.1429 11v9m0-9c-2.50543-.7107-3.19099-1.39543-6.13657-1.34968-.48057.00746-.86348.38718-.86348.84968v7.2884c0 .4824.41455.8682.91584.8617 2.77491-.0362 3.45995.6561 6.08421 1.3499m0-9c2.5053-.7107 3.1067-1.39542 6.0523-1.34968.4806.00746.9477.38718.9477.84968v7.2884c0 .4824-.4988.8682-1 .8617-2.775-.0362-3.3758.6561-6 1.3499m2-14c0 1.10457-.8955 2-2 2-1.1046 0-2-.89543-2-2s.8954-2 2-2c1.1045 0 2 .89543 2 2Z"/></svg>Question bank</a>
-      </div>
-      <p class="mt-6 px-3 pb-2 text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">System</p>
-      <a href="./admin.html?page=settings" data-admin-route="settings" class="sidebar-link"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13v-2a1 1 0 0 0-1-1h-.757l-.707-1.707.535-.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 0l-.536.535L14 4.757V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v.757l-1.707.707-.536-.535a1 1 0 0 0-1.414 0L4.929 6.343a1 1 0 0 0 0 1.414l.536.536L4.757 10H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h.757l.707 1.707-.535.536a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414 0l.536-.535 1.707.707V20a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-.757l1.707-.708.536.536a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0 0-1.414l-.535-.536.707-1.707H20a1 1 0 0 0 1-1Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>Settings</a>
+      <p class="eyebrow px-3 pb-2 pt-7">System</p>
+      <a href="./admin.html?page=settings" data-admin-route="settings" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13v-2a1 1 0 0 0-1-1h-.757l-.707-1.707.535-.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 0l-.536.535L14 4.757V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v.757l-1.707.707-.536-.535a1 1 0 0 0-1.414 0L4.929 6.343a1 1 0 0 0 0 1.414l.536.536L4.757 10H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h.757l.707 1.707-.535.536a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414 0l.536-.535 1.707.707V20a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-.757l1.707-.708.536.536a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0 0-1.414l-.535-.536.707-1.707H20a1 1 0 0 0 1-1Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg></span>Settings</a>
     </nav>
-    <div class="border-t border-neutral-800 p-4"><div class="rounded-xl border border-neutral-800 bg-neutral-950 p-3"><div class="flex items-center gap-2 text-xs font-semibold text-neutral-300"><span class="size-2 rounded-full bg-white" aria-hidden="true"></span> Browser-local prototype</div><p class="mt-2 text-[11px] leading-5 text-neutral-500">Sessions and attempts are stored on this origin. Dynamic links remain portable.</p></div></div>
+    <div class="p-3"><div class="rounded-2xl bg-gradient-to-br from-blue-50 to-teal-50 p-3.5 ring-1 ring-inset ring-blue-100"><div class="flex items-center gap-2"><span class="size-2 rounded-full bg-teal-500" aria-hidden="true"></span><strong class="text-xs text-slate-800">Prototype workspace</strong></div><p class="mt-1.5 text-[11px] leading-5 text-slate-500">Browser-local data with portable exam links.</p></div></div>
   </aside>
 
-  <div class="min-h-dvh lg:pl-72">
-    <header class="topbar sticky top-0 z-30"><div class="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8"><button type="button" data-drawer-target="admin-mobile-drawer" data-drawer-show="admin-mobile-drawer" aria-controls="admin-mobile-drawer" class="icon-button lg:hidden" aria-label="Open administration navigation"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5 7h14M5 12h14M5 17h14"/></svg></button><div class="min-w-0 flex-1"><p id="admin-breadcrumb" class="text-[11px] font-bold uppercase tracking-[.10em] text-neutral-500">Administration / Overview</p><h1 id="admin-page-label" class="truncate font-display text-[17px] font-extrabold tracking-[-.03em] text-black">Overview</h1></div><div class="hidden items-center gap-2 sm:flex"><a href="./index.html" target="_blank" rel="noopener" class="inline-flex min-h-10 items-center rounded-lg border border-neutral-300 bg-white px-3 text-xs font-bold text-black hover:border-neutral-500 hover:bg-neutral-50">Student entry</a><a href="./admin.html?page=create" data-admin-route="create" class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-black px-3 text-xs font-bold text-white hover:bg-neutral-800"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7 7V5"/></svg>New session</a></div></div></header>
-    <div id="admin-alert" class="mx-auto hidden max-w-[1500px] px-4 pt-4 sm:px-6 lg:px-8" role="status" aria-live="polite"></div>
-    <main id="admin-root" tabindex="-1" class="mx-auto max-w-[1500px] px-4 py-6 outline-none sm:px-6 sm:py-7 lg:px-8 lg:py-8"></main>
+  <div class="min-h-dvh lg:pl-64">
+    <header class="glassbar sticky top-0 z-30">
+      <div class="mx-auto flex min-h-16 max-w-[1540px] items-center gap-3 px-4 sm:px-6 lg:px-7">
+        <button type="button" data-drawer-target="admin-mobile-drawer" data-drawer-show="admin-mobile-drawer" aria-controls="admin-mobile-drawer" class="icon-btn lg:hidden" aria-label="Open administration navigation"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5 7h14M5 12h14M5 17h14"/></svg></button>
+        <div class="min-w-0 flex-1"><p id="admin-breadcrumb" class="eyebrow">Administration / Overview</p><h1 id="admin-page-label" class="truncate font-display text-[17px] font-extrabold tracking-[-.03em] text-slate-900">Overview</h1></div>
+        <div class="hidden w-full max-w-xs md:block"><label for="admin-global-search" class="sr-only">Search administration</label><div class="relative"><svg class="fb-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m21 21-3.5-3.5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg><input id="admin-global-search" class="field h-10 min-h-10 pl-10" placeholder="Search users, exams, classes…"></div></div>
+        <button type="button" class="icon-btn hidden sm:grid" aria-label="Notifications"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5.365V3m0 2.365a5.338 5.338 0 0 1 5.133 5.368v1.8c0 2.386 1.867 2.982 1.867 4.175 0 .593 0 1.292-.538 1.292H5.538C5 18 5 17.301 5 16.708c0-1.193 1.867-1.789 1.867-4.175v-1.8A5.338 5.338 0 0 1 12 5.365ZM8.733 18c.094.852.306 1.54.944 2.112a3.48 3.48 0 0 0 4.646 0c.638-.572 1.236-1.26 1.33-2.112h-6.92Z"/></svg></button>
+        <button id="admin-quick-create" type="button" class="btn btn-primary"><svg class="fb-icon fb-icon-sm" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7 7V5"/></svg><span class="hidden sm:inline">Create exam</span><span class="sm:hidden">Create</span></button>
+        <button type="button" id="admin-profile-button" class="avatar size-10 text-xs" aria-label="Administrator profile">AD</button>
+      </div>
+    </header>
+
+    <div id="admin-alert" class="mx-auto hidden max-w-[1540px] px-4 pt-4 sm:px-6 lg:px-7" aria-live="polite"></div>
+    <main id="admin-root" tabindex="-1" class="mx-auto max-w-[1540px] px-4 py-5 outline-none sm:px-6 sm:py-6 lg:px-7 lg:py-7"></main>
   </div>
 
-  <div id="admin-mobile-drawer" class="admin-sidebar fixed left-0 top-0 z-50 h-screen w-80 -translate-x-full overflow-y-auto p-4 text-white transition-transform" tabindex="-1" aria-labelledby="admin-mobile-drawer-label"><div class="mb-5 flex items-center justify-between gap-3 border-b border-neutral-800 pb-4"><div><h2 id="admin-mobile-drawer-label" class="font-display text-lg font-extrabold">Festacol</h2><p class="text-xs text-neutral-400">Examination operations</p></div><button type="button" data-drawer-hide="admin-mobile-drawer" aria-controls="admin-mobile-drawer" class="focus-inverse grid size-10 place-items-center rounded-lg border border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-900" aria-label="Close navigation"><svg class="fb-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/></svg></button></div><nav class="flex flex-col gap-1" aria-label="Mobile admin pages"><a href="./admin.html?page=overview" data-admin-route="overview" class="sidebar-link">Overview</a><a href="./admin.html?page=sessions" data-admin-route="sessions" class="sidebar-link">Exam sessions</a><a href="./admin.html?page=candidates" data-admin-route="candidates" class="sidebar-link">Candidates</a><a href="./admin.html?page=create" data-admin-route="create" class="sidebar-link">Create session</a><a href="./admin.html?page=questions" data-admin-route="questions" class="sidebar-link">Question bank</a><a href="./admin.html?page=settings" data-admin-route="settings" class="sidebar-link">Settings</a></nav></div>
+  <div id="admin-mobile-drawer" class="nav-rail fixed left-0 top-0 z-50 h-screen w-80 -translate-x-full overflow-y-auto p-4 transition-transform" tabindex="-1" aria-labelledby="admin-mobile-drawer-label">
+    <div class="mb-4 flex items-center justify-between"><div><h2 id="admin-mobile-drawer-label" class="font-display text-lg font-extrabold text-slate-900">Festacol Admin</h2><p class="text-xs text-slate-500">Academic operations</p></div><button type="button" data-drawer-hide="admin-mobile-drawer" aria-controls="admin-mobile-drawer" class="icon-btn" aria-label="Close navigation"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/></svg></button></div>
+    <nav class="flex flex-col gap-1" aria-label="Mobile admin pages">
+      <a href="./admin.html?page=overview" data-admin-route="overview" class="nav-link">Overview</a><a href="./admin.html?page=users" data-admin-route="users" class="nav-link">Users</a><a href="./admin.html?page=exams" data-admin-route="exams" class="nav-link">Exams</a><a href="./admin.html?page=classes" data-admin-route="classes" class="nav-link">Classes</a><a href="./admin.html?page=questions" data-admin-route="questions" class="nav-link">Questions</a><a href="./admin.html?page=reports" data-admin-route="reports" class="nav-link">Reports</a><a href="./admin.html?page=settings" data-admin-route="settings" class="nav-link">Settings</a>
+    </nav>
+  </div>
+
+  <div id="admin-modal" class="modal-shell" data-open="false" aria-hidden="true"><div class="modal-backdrop" data-modal-close></div><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title"><div id="admin-modal-content"></div></section></div>
+  <div id="admin-drawer-scrim" class="drawer-scrim" data-open="false"></div><aside id="admin-detail-drawer" class="drawer-panel" data-open="false" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Administration details"><div id="admin-detail-content" class="h-full overflow-y-auto"></div></aside>
+  <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
-  <script src="./js/session-store.js"></script>
-  <script src="./js/question-data.js"></script>
-  <script src="./js/qr.js"></script>
-  <script src="./js/admin-app.js"></script>
+  <script src="./js/session-store.js"></script><script src="./js/question-data.js"></script><script src="./js/qr.js"></script><script src="./js/admin-core-a.js"></script><script src="./js/admin-core-b.js"></script><script src="./js/admin-pages-a.js"></script><script src="./js/admin-pages-b.js"></script><script src="./js/admin-workflows-a.js"></script><script src="./js/admin-workflows-b.js"></script><script src="./js/admin-details.js"></script><script src="./js/admin-app.js"></script>
 </body>
 </html>
