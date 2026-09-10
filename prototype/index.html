@@ -3,163 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Festacol student examination experience prototype">
-  <title>Festacol · Student Examinations</title>
-
+  <meta name="description" content="Festacol dynamic student examination session">
+  <title>Festacol · Examination Session</title>
   <link href="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="min-h-screen bg-white font-sans text-black antialiased selection:bg-black selection:text-white">
-  <a href="#page-root" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-black focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a>
-
-  <div id="standard-shell" class="min-h-screen bg-white">
-    <header id="standard-header" class="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 backdrop-blur-sm">
-      <div class="mx-auto flex min-h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <button type="button" data-view="home" class="flex min-h-11 items-center gap-3 rounded-lg px-1 text-left focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2" aria-label="Festacol examination home">
-          <span class="grid size-8 place-items-center rounded-lg bg-black text-xs font-black tracking-tight text-white" aria-hidden="true">F</span>
-          <span class="text-base font-bold tracking-tight">Festacol</span>
-        </button>
-
-        <nav class="hidden flex-1 items-center gap-1 md:flex" aria-label="Student examination navigation">
-          <button type="button" data-view="home" data-nav-link class="min-h-11 rounded-lg px-3 text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2">Exams</button>
-          <button type="button" data-view="requests" data-nav-link class="min-h-11 rounded-lg px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2">Exam Requests</button>
-          <button type="button" data-view="history" data-nav-link class="min-h-11 rounded-lg px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2">Exam History</button>
-        </nav>
-
-        <button id="mobile-nav-trigger" type="button" data-dropdown-toggle="mobile-nav-menu" class="ml-auto inline-flex min-h-11 items-center rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-black hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 md:hidden" aria-label="Open student navigation">Menu</button>
-
-        <div id="mobile-nav-menu" class="z-50 hidden w-52 divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white shadow-lg">
-          <ul class="py-2 text-sm text-neutral-700" aria-label="Mobile student navigation">
-            <li><button type="button" data-view="home" class="block w-full px-4 py-3 text-left font-medium hover:bg-neutral-100 focus:bg-neutral-100 focus:outline-none">Exams</button></li>
-            <li><button type="button" data-view="requests" class="block w-full px-4 py-3 text-left font-medium hover:bg-neutral-100 focus:bg-neutral-100 focus:outline-none">Exam Requests</button></li>
-            <li><button type="button" data-view="history" class="block w-full px-4 py-3 text-left font-medium hover:bg-neutral-100 focus:bg-neutral-100 focus:outline-none">Exam History</button></li>
-          </ul>
-        </div>
-
-        <div class="ml-0 flex items-center gap-3 md:ml-auto" aria-label="Signed in student">
-          <div class="hidden text-right sm:block">
-            <strong class="block text-xs font-bold text-black">Maya Adeyemi</strong>
-            <span class="text-xs text-neutral-500">SS 2 Science</span>
-          </div>
-          <span class="grid size-9 place-items-center rounded-full bg-black text-xs font-bold text-white" aria-hidden="true">MA</span>
+<body class="min-h-dvh bg-neutral-100 font-sans text-black antialiased selection:bg-black selection:text-white">
+  <a href="#app" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-black focus:px-4 focus:py-3 focus:text-sm focus:font-bold focus:text-white">Skip to examination</a>
+  <div id="app" tabindex="-1" class="min-h-dvh outline-none" aria-live="polite">
+    <main class="min-h-dvh bg-black text-white">
+      <div class="mx-auto flex min-h-dvh max-w-7xl items-center justify-center p-6">
+        <div class="max-w-md text-center">
+          <span class="mx-auto grid size-14 place-items-center rounded-2xl bg-white text-lg font-black text-black">F</span>
+          <p class="mt-8 text-xs font-bold uppercase tracking-widest text-neutral-500">Festacol examinations</p>
+          <h1 class="mt-4 font-serif text-4xl font-bold">Resolving your session…</h1>
+          <p class="mt-4 text-sm leading-7 text-neutral-400">Reading the exact examination configuration from this link.</p>
         </div>
       </div>
-    </header>
-
-    <main id="page-root" tabindex="-1" class="outline-none"></main>
-  </div>
-
-  <div id="exam-app" class="hidden min-h-screen bg-white" aria-hidden="true">
-    <header class="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 backdrop-blur-sm">
-      <div class="mx-auto grid min-h-20 max-w-7xl grid-cols-12 items-center gap-3 px-4 sm:px-6 lg:min-h-16 lg:px-8">
-        <div class="col-span-7 min-w-0 lg:col-span-5">
-          <strong class="block truncate text-sm font-bold tracking-tight">Mathematics · First Term Examination</strong>
-          <span class="hidden text-xs text-neutral-500 sm:block">Maya Adeyemi · SS 2 Science · FC/26/1048</span>
-        </div>
-
-        <div class="col-span-5 hidden lg:col-span-3 lg:block" aria-label="Examination progress">
-          <div class="mb-2 flex justify-between gap-3 text-xs text-neutral-500">
-            <span id="header-progress-label">Question 1 of 20</span>
-            <span id="header-answer-count">0 answered</span>
-          </div>
-          <div id="header-progress-segments" class="flex gap-1" aria-hidden="true"></div>
-        </div>
-
-        <div class="col-span-5 flex items-center justify-end gap-2 lg:col-span-4">
-          <button id="mobile-question-trigger" type="button" data-drawer-target="question-drawer" data-drawer-show="question-drawer" data-drawer-placement="right" aria-controls="question-drawer" class="hidden min-h-11 items-center rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-black hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 max-lg:inline-flex">Questions</button>
-
-          <div id="timer-chip" role="timer" aria-live="off" aria-label="60 minutes remaining" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-bold tabular-nums text-black">
-            <svg class="size-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-            <span id="timer-text">60:00</span>
-          </div>
-
-          <button id="save-chip" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-black hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2" aria-label="Answer save status. Saved. Click to preview connectivity states.">
-            <svg class="size-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.5 11.5 11 14l4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-            <span id="save-status" class="hidden sm:inline">Saved</span>
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <div id="connectivity-banner" class="mx-auto mt-3 hidden max-w-7xl px-4 sm:px-6 lg:px-8" role="status" aria-live="polite"></div>
-
-    <main class="mx-auto grid max-w-7xl grid-cols-12 gap-6 px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pt-8">
-      <section class="col-span-12 min-w-0 lg:col-span-9" aria-label="Current examination question">
-        <article class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-          <div id="question-root" class="min-h-96 p-5 motion-safe:transition-opacity sm:p-8 lg:min-h-128 lg:p-10"></div>
-
-          <footer class="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200 bg-neutral-50 p-3 sm:p-4 lg:static">
-            <div class="flex flex-1 flex-wrap gap-2 sm:flex-none">
-              <button id="flag-button" type="button" aria-pressed="false" class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-black hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 sm:flex-none">
-                <svg class="size-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 14v7M5 4.971v9.541c5.6-5.538 8.4 2.64 14-.086v-9.54C13.4 7.61 10.6-.568 5 4.97Z"/></svg>
-                <span>Flag</span>
-              </button>
-              <button id="clear-button" type="button" class="min-h-11 flex-1 rounded-lg px-3 text-xs font-semibold text-black hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none">Clear response</button>
-            </div>
-            <div class="flex flex-1 gap-2 sm:flex-none">
-              <button id="previous-button" type="button" class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 text-sm font-semibold text-black hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none">
-                <svg class="size-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12l4-4m-4 4 4 4"/></svg>
-                <span class="hidden sm:inline">Previous</span>
-              </button>
-              <button id="next-button" type="button" class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 sm:flex-none">
-                <span>Next</span>
-                <svg class="size-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5m14 0-4 4m4-4-4-4"/></svg>
-              </button>
-            </div>
-          </footer>
-        </article>
-      </section>
-
-      <aside class="col-span-3 hidden lg:block" aria-label="Question navigator">
-        <div class="sticky top-24 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-          <div class="border-b border-neutral-200 p-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h2 class="text-sm font-bold">Questions</h2>
-              <span id="navigator-summary" class="text-xs text-neutral-500">0 / 20 answered</span>
-            </div>
-            <div class="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1" role="group" aria-label="Filter questions">
-              <button type="button" data-filter="all" class="min-h-9 rounded-md bg-white px-2 text-xs font-semibold text-black shadow-sm focus:outline-none focus:ring-2 focus:ring-black">All</button>
-              <button type="button" data-filter="unanswered" class="min-h-9 rounded-md px-2 text-xs font-medium text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">Unanswered</button>
-              <button type="button" data-filter="flagged" class="min-h-9 rounded-md px-2 text-xs font-medium text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">Flagged</button>
-            </div>
-          </div>
-          <div class="p-4">
-            <div id="desktop-question-grid" class="grid grid-cols-5 gap-2"></div>
-            <div class="mt-5 space-y-2 border-t border-neutral-200 pt-4 text-xs text-neutral-600" aria-label="Question status legend">
-              <div class="flex items-center gap-2"><span class="size-5 rounded border-2 border-black bg-white" aria-hidden="true"></span> Current</div>
-              <div class="flex items-center gap-2"><span class="size-5 rounded bg-black" aria-hidden="true"></span> Answered</div>
-              <div class="flex items-center gap-2"><span class="size-5 rounded border border-neutral-400 bg-white" aria-hidden="true"></span> Unanswered</div>
-              <div class="flex items-center gap-2"><span class="size-5 rounded border-2 border-dashed border-neutral-500 bg-white" aria-hidden="true"></span> Incomplete</div>
-              <div class="flex items-center gap-2"><svg class="size-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 14v7M5 4.971v9.541c5.6-5.538 8.4 2.64 14-.086v-9.54C13.4 7.61 10.6-.568 5 4.97Z"/></svg> Flagged</div>
-            </div>
-            <p class="mt-4 text-xs leading-5 text-neutral-500">Use Tab to move through controls. Space or Enter activates the focused response.</p>
-          </div>
-        </div>
-      </aside>
     </main>
-
-    <div id="question-drawer" class="fixed right-0 top-0 z-40 h-screen w-80 translate-x-full overflow-y-auto border-l border-neutral-200 bg-white p-5 transition-transform motion-reduce:transition-none" tabindex="-1" aria-labelledby="question-drawer-label">
-      <div class="mb-4 flex items-center justify-between gap-3 border-b border-neutral-200 pb-4">
-        <div>
-          <h2 id="question-drawer-label" class="text-base font-bold">Questions</h2>
-          <span id="mobile-navigator-summary" class="text-xs text-neutral-500">0 / 20 answered</span>
-        </div>
-        <button type="button" data-drawer-hide="question-drawer" aria-controls="question-drawer" class="grid size-11 place-items-center rounded-lg text-neutral-600 hover:bg-neutral-100 hover:text-black focus:outline-none focus:ring-2 focus:ring-black" aria-label="Close question navigator">
-          <svg class="size-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/></svg>
-        </button>
-      </div>
-      <div class="mb-4 grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1" role="group" aria-label="Filter mobile question navigator">
-        <button type="button" data-filter="all" class="min-h-10 rounded-md bg-white px-2 text-xs font-semibold text-black shadow-sm focus:outline-none focus:ring-2 focus:ring-black">All</button>
-        <button type="button" data-filter="unanswered" class="min-h-10 rounded-md px-2 text-xs font-medium text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">Unanswered</button>
-        <button type="button" data-filter="flagged" class="min-h-10 rounded-md px-2 text-xs font-medium text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">Flagged</button>
-      </div>
-      <div id="mobile-question-grid" class="grid grid-cols-5 gap-2"></div>
-    </div>
   </div>
-
-  <div id="global-announcer" class="sr-only" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
-  <script src="./js/question-loader.js"></script>
+  <script src="./js/session-store.js"></script>
+  <script src="./js/question-data.js"></script>
+  <script src="./js/student-app.js"></script>
 </body>
 </html>

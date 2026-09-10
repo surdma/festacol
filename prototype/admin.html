@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Festacol examination session studio prototype">
+  <title>Festacol · Exam Session Studio</title>
+  <link href="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="min-h-dvh bg-neutral-100 font-sans text-black antialiased selection:bg-black selection:text-white">
+  <a href="#admin-root" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-black focus:px-4 focus:py-3 focus:text-sm focus:font-bold focus:text-white">Skip to session workspace</a>
+
+  <div class="min-h-dvh lg:grid lg:grid-cols-12">
+    <aside class="border-b border-neutral-800 bg-black text-white lg:col-span-3 lg:min-h-dvh lg:border-b-0 lg:border-r xl:col-span-2">
+      <div class="flex items-center justify-between gap-4 px-5 py-5 lg:block lg:px-6 lg:py-7">
+        <a href="./admin.html" class="inline-flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
+          <span class="grid size-10 place-items-center rounded-xl bg-white text-sm font-black text-black" aria-hidden="true">F</span>
+          <span>
+            <strong class="block text-base font-bold tracking-tight">Festacol</strong>
+            <span class="block text-xs text-neutral-400">Exam Session Studio</span>
+          </span>
+        </a>
+        <span class="rounded-full border border-neutral-700 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-neutral-300 lg:mt-8 lg:inline-flex">Prototype</span>
+      </div>
+
+      <nav class="hidden px-4 pb-7 lg:block" aria-label="Session studio">
+        <div class="rounded-2xl bg-white px-4 py-4 text-black">
+          <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Workspace</p>
+          <p class="mt-2 font-serif text-xl font-bold leading-tight">Build the exact exam candidates should enter.</p>
+        </div>
+        <div class="mt-6 space-y-1 text-sm">
+          <a href="#create-session" class="flex min-h-11 items-center rounded-xl bg-neutral-900 px-4 font-semibold text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-white">Create session</a>
+          <a href="#saved-sessions" class="flex min-h-11 items-center rounded-xl px-4 font-medium text-neutral-300 hover:bg-neutral-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">Saved sessions</a>
+          <a href="#local-attempts" class="flex min-h-11 items-center rounded-xl px-4 font-medium text-neutral-300 hover:bg-neutral-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">Local attempts</a>
+        </div>
+      </nav>
+
+      <div class="hidden border-t border-neutral-800 px-6 py-6 text-xs leading-5 text-neutral-400 lg:block">
+        Session links carry their configuration so a QR can resolve on another device. Production authorization still requires a signed server token.
+      </div>
+    </aside>
+
+    <main id="admin-root" tabindex="-1" class="outline-none lg:col-span-9 xl:col-span-10">
+      <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <header class="mb-8 grid gap-6 border-b-2 border-black pb-8 lg:grid-cols-12 lg:items-end">
+          <div class="lg:col-span-8">
+            <p class="text-xs font-black uppercase tracking-widest text-neutral-500">Session control</p>
+            <h1 class="mt-3 max-w-4xl font-serif text-4xl font-bold leading-none tracking-tight text-black sm:text-5xl lg:text-6xl">Create an exam link that carries its own rules.</h1>
+            <p class="mt-5 max-w-2xl text-base leading-7 text-neutral-600">Set the class, exam format, subjects, timing and question count once. The student link reads those exact settings—no class or subject guessing.</p>
+          </div>
+          <div class="lg:col-span-4 lg:flex lg:justify-end">
+            <a href="./index.html" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-black bg-white px-5 text-sm font-bold text-black transition hover:-translate-y-0.5 hover:bg-black hover:text-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none sm:w-auto">Open student entry</a>
+          </div>
+        </header>
+
+        <div id="admin-alert" class="mb-6 hidden" role="status" aria-live="polite"></div>
+
+        <section id="create-session" class="grid gap-6 lg:grid-cols-12" aria-labelledby="create-heading">
+          <div class="overflow-hidden rounded-3xl border-2 border-black bg-white shadow-xl shadow-neutral-300/40 lg:col-span-8">
+            <div class="grid gap-4 border-b-2 border-black bg-black px-5 py-6 text-white sm:px-7 lg:grid-cols-12 lg:items-end">
+              <div class="lg:col-span-8">
+                <p class="text-xs font-bold uppercase tracking-widest text-neutral-400">01 · Configure</p>
+                <h2 id="create-heading" class="mt-2 font-serif text-3xl font-bold tracking-tight">New examination session</h2>
+              </div>
+              <p class="text-sm leading-6 text-neutral-300 lg:col-span-4">Every choice below becomes part of the dynamic student link.</p>
+            </div>
+
+            <form id="session-form" class="space-y-8 p-5 sm:p-7" novalidate>
+              <fieldset>
+                <legend class="text-sm font-black uppercase tracking-widest text-neutral-500">Candidate class</legend>
+                <p class="mt-2 text-sm leading-6 text-neutral-600">Select who this session is intended for. Qualifier and WAEC modes enforce their valid class automatically.</p>
+                <div id="class-options" class="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-neutral-100 p-1.5" role="group" aria-label="Candidate class">
+                  <button type="button" data-class-level="SS1" class="min-h-12 rounded-xl bg-black px-4 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2">SS1</button>
+                  <button type="button" data-class-level="SS2" class="min-h-12 rounded-xl px-4 text-sm font-bold text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">SS2</button>
+                  <button type="button" data-class-level="SS3" class="min-h-12 rounded-xl px-4 text-sm font-bold text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">SS3</button>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend class="text-sm font-black uppercase tracking-widest text-neutral-500">Exam format</legend>
+                <div id="mode-options" class="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button type="button" data-mode="qualifier" class="group min-h-32 rounded-2xl border-2 border-black bg-black p-5 text-left text-white shadow-lg shadow-neutral-300 transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="true">
+                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-400">Placement</span>
+                    <strong class="mt-3 block font-serif text-2xl leading-tight">SS1 qualifier</strong>
+                    <span class="mt-2 block text-sm leading-5 text-neutral-300">Broad aptitude session for Science, Arts or Social Science placement.</span>
+                  </button>
+                  <button type="button" data-mode="mixed" class="group min-h-32 rounded-2xl border-2 border-neutral-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="false">
+                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-500">Combined</span>
+                    <strong class="mt-3 block font-serif text-2xl leading-tight">Mixed subjects</strong>
+                    <span class="mt-2 block text-sm leading-5 text-neutral-600">One timed session assembled from two or more selected subjects.</span>
+                  </button>
+                  <button type="button" data-mode="single" class="group min-h-32 rounded-2xl border-2 border-neutral-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="false">
+                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-500">Focused</span>
+                    <strong class="mt-3 block font-serif text-2xl leading-tight">Single subject</strong>
+                    <span class="mt-2 block text-sm leading-5 text-neutral-600">A focused examination drawn only from one subject domain.</span>
+                  </button>
+                  <button type="button" data-mode="waec" class="group min-h-32 rounded-2xl border-2 border-neutral-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="false">
+                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-500">SS3 only</span>
+                    <strong class="mt-3 block font-serif text-2xl leading-tight">WAEC subject practice</strong>
+                    <span class="mt-2 block text-sm leading-5 text-neutral-600">Subject-specific senior-school practice session for SS3 candidates.</span>
+                  </button>
+                </div>
+              </fieldset>
+
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <label for="session-title" class="mb-2 block text-sm font-bold text-black">Session title</label>
+                  <input id="session-title" name="title" type="text" maxlength="40" value="SS1 Placement Qualifier" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 text-base text-black placeholder:text-neutral-400 focus:border-black focus:ring-black" required>
+                </div>
+                <div>
+                  <label for="duration" class="mb-2 block text-sm font-bold text-black">Duration</label>
+                  <div class="relative">
+                    <input id="duration" name="duration" type="number" min="5" max="240" value="60" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 pr-20 text-base font-semibold text-black focus:border-black focus:ring-black" required>
+                    <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold uppercase tracking-wider text-neutral-500">minutes</span>
+                  </div>
+                </div>
+                <div>
+                  <label for="question-count" class="mb-2 block text-sm font-bold text-black">Questions</label>
+                  <div class="relative">
+                    <input id="question-count" name="questionCount" type="number" min="1" max="100" value="12" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 pr-20 text-base font-semibold text-black focus:border-black focus:ring-black" required>
+                    <span id="available-count" class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold uppercase tracking-wider text-neutral-500">12 ready</span>
+                  </div>
+                </div>
+              </div>
+
+              <fieldset id="subject-fieldset" class="hidden">
+                <legend class="text-sm font-black uppercase tracking-widest text-neutral-500">Subjects</legend>
+                <p id="subject-help" class="mt-2 text-sm leading-6 text-neutral-600">Choose the subjects included in this examination.</p>
+                <div id="subject-options" class="mt-4 grid gap-2 sm:grid-cols-2"></div>
+              </fieldset>
+
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label for="starts-at" class="mb-2 block text-sm font-bold text-black">Opens at <span class="font-normal text-neutral-500">optional</span></label>
+                  <input id="starts-at" name="startsAt" type="datetime-local" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 text-sm text-black focus:border-black focus:ring-black">
+                </div>
+                <div>
+                  <label for="ends-at" class="mb-2 block text-sm font-bold text-black">Closes at <span class="font-normal text-neutral-500">optional</span></label>
+                  <input id="ends-at" name="endsAt" type="datetime-local" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 text-sm text-black focus:border-black focus:ring-black">
+                </div>
+              </div>
+
+              <div>
+                <label for="instructions" class="mb-2 block text-sm font-bold text-black">Candidate note <span class="font-normal text-neutral-500">optional</span></label>
+                <textarea id="instructions" name="instructions" rows="3" maxlength="80" class="block w-full resize-y rounded-xl border-2 border-neutral-300 bg-white p-4 text-sm leading-6 text-black placeholder:text-neutral-400 focus:border-black focus:ring-black" placeholder="Example: Bring a calculator. You may review questions before final submission."></textarea>
+              </div>
+
+              <div class="flex flex-col gap-3 border-t-2 border-black pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p id="form-summary" class="max-w-xl text-sm leading-6 text-neutral-600">SS1 qualifier · 12 questions · 60 minutes</p>
+                <button id="create-button" type="submit" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-black px-6 text-sm font-bold text-white shadow-lg shadow-neutral-300 transition hover:-translate-y-0.5 hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none">
+                  <svg class="size-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z"/><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z"/></svg>
+                  Create link &amp; QR
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <aside class="lg:col-span-4" aria-label="Session preview">
+            <div class="sticky top-6 overflow-hidden rounded-3xl border-2 border-black bg-black text-white shadow-2xl shadow-neutral-400/40">
+              <div class="border-b border-neutral-800 px-5 py-5">
+                <p class="text-xs font-black uppercase tracking-widest text-neutral-500">02 · Preview</p>
+                <h2 class="mt-2 font-serif text-2xl font-bold">Candidate access</h2>
+              </div>
+              <div class="p-5 sm:p-6">
+                <div id="session-spec" class="space-y-4"></div>
+
+                <div id="link-empty" class="mt-6 rounded-2xl border border-dashed border-neutral-700 bg-neutral-950 p-5 text-center">
+                  <svg class="mx-auto size-8 text-neutral-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z"/><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z"/></svg>
+                  <p class="mt-3 text-sm font-bold text-neutral-300">Link not created yet</p>
+                  <p class="mt-2 text-xs leading-5 text-neutral-500">Complete a valid configuration to create the exact candidate URL.</p>
+                </div>
+
+                <div id="link-result" class="mt-6 hidden">
+                  <div class="rounded-2xl bg-white p-4 text-black">
+                    <div id="qr-code" class="mx-auto max-w-64" aria-label="QR code for examination session"></div>
+                  </div>
+                  <p class="mt-4 break-all rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-xs leading-5 text-neutral-400" id="session-link"></p>
+                  <div class="mt-3 grid grid-cols-2 gap-2">
+                    <button id="copy-link" type="button" class="min-h-11 rounded-xl border border-neutral-700 px-3 text-sm font-bold text-white hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-white">Copy link</button>
+                    <a id="open-link" href="#" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-3 text-sm font-bold text-black hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white">Open student page</a>
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-neutral-800 bg-neutral-950 px-5 py-4 text-xs leading-5 text-neutral-500">
+                Prototype security note: the configuration is encoded in the URL for portability. Production should issue a signed or opaque server token.
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section id="saved-sessions" class="mt-12 border-t-2 border-black pt-8" aria-labelledby="saved-heading">
+          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p class="text-xs font-black uppercase tracking-widest text-neutral-500">Session registry</p>
+              <h2 id="saved-heading" class="mt-2 font-serif text-3xl font-bold tracking-tight">Saved in this browser</h2>
+            </div>
+            <p class="max-w-xl text-sm leading-6 text-neutral-600">These records help the prototype reopen or close links created on this browser. The link itself remains portable across devices.</p>
+          </div>
+          <div id="saved-session-list" class="overflow-hidden rounded-3xl border-2 border-black bg-white"></div>
+        </section>
+
+        <section id="local-attempts" class="mt-12 border-t-2 border-black pt-8" aria-labelledby="attempts-heading">
+          <div class="mb-5 grid gap-3 lg:grid-cols-12 lg:items-end">
+            <div class="lg:col-span-7">
+              <p class="text-xs font-black uppercase tracking-widest text-neutral-500">Prototype evidence</p>
+              <h2 id="attempts-heading" class="mt-2 font-serif text-3xl font-bold tracking-tight">Attempts recorded on this browser</h2>
+            </div>
+            <p class="text-sm leading-6 text-neutral-600 lg:col-span-5">Cross-device candidate submissions cannot appear here without a backend. This list only proves the local prototype identity and attempt workflow.</p>
+          </div>
+          <div id="attempt-list" class="overflow-hidden rounded-3xl border-2 border-black bg-white"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
+  <script src="./js/session-store.js"></script>
+  <script src="./js/question-data.js"></script>
+  <script src="./js/qr.js"></script>
+  <script src="./js/admin.js"></script>
+</body>
+</html>
