@@ -13,10 +13,16 @@
     warn: '<svg class="size-5 shrink-0" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 13V8m0 8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>'
   });
 
-  const BTN_PRIMARY = 'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-bold text-white shadow-sm transition duration-200 hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none';
-  const BTN_LIGHT = 'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-black transition duration-200 hover:border-black hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none';
-  const BADGE = 'inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-xs font-bold';
-  const FIELD = 'block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 text-base text-black placeholder:text-neutral-400 transition duration-200 hover:border-neutral-500 focus:border-black focus:outline-none focus:ring-4 focus:ring-neutral-200 motion-reduce:transition-none';
+  const BTN_PRIMARY = 'btn btn-primary';
+  const BTN_LIGHT = 'btn btn-secondary';
+  const BADGE = 'badge';
+  const FIELD = 'exam-field';
+  const ART = Object.freeze({
+    student: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/woman-laptop-chart.svg',
+    question: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/man-question-marks.svg',
+    auth: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/authentication-form-fields.svg',
+    connect: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/people-connecting.svg'
+  });
 
   let payload = null;
   let session = null;
@@ -134,42 +140,33 @@
     });
   };
 
-  const pageBrand = (inverse = false) => `
+  const pageBrand = () => `
     <div class="flex items-center gap-3">
-      <span class="grid size-10 place-items-center rounded-xl ${inverse ? 'bg-white text-black' : 'bg-black text-white'} text-sm font-black tracking-tight" aria-hidden="true">F</span>
+      <span class="brand-mark" aria-hidden="true">F</span>
       <div>
-        <strong class="block text-sm font-black tracking-tight">Festacol</strong>
-        <span class="block text-xs ${inverse ? 'text-neutral-400' : 'text-neutral-500'}">Student examination</span>
+        <strong class="block font-display text-sm font-extrabold tracking-[-.025em] text-slate-950">Festacol</strong>
+        <span class="block text-[11px] font-semibold text-slate-500">Examination workspace</span>
       </div>
     </div>`;
 
-  const shell = (content, options = {}) => {
-    root.innerHTML = `
-      <main class="min-h-dvh ${options.dark ? 'bg-black text-white' : 'bg-neutral-100 text-black'}">
-        ${content}
-      </main>`;
+  const shell = (content) => {
+    root.innerHTML = `<main class="min-h-dvh text-slate-900">${content}</main>`;
+  };
+
+  const dashboardUrl = () => {
+    const target = new URL('./student.html', location.href);
+    target.search = '';
+    if (token) target.searchParams.set('session', token);
+    return target.href;
   };
 
   const renderFatal = (eyebrow, title, detail) => {
     stopClock();
     shell(`
-      <div class="mx-auto grid min-h-dvh max-w-7xl grid-cols-12 lg:border-x lg:border-neutral-800">
-        <section class="col-span-12 flex min-h-72 flex-col justify-between bg-black p-6 text-white sm:p-10 lg:col-span-5 lg:min-h-dvh lg:p-12">
-          ${pageBrand(true)}
-          <div class="max-w-md py-12">
-            <p class="text-xs font-bold uppercase tracking-widest text-neutral-400">${escapeText(eyebrow)}</p>
-            <h1 class="mt-5 font-serif text-5xl font-bold leading-none tracking-tight sm:text-6xl">Exam access.</h1>
-            <p class="mt-6 max-w-sm text-sm leading-7 text-neutral-300">Festacol opens the exact examination encoded in the link issued by your school.</p>
-          </div>
-          <span class="text-xs text-neutral-500">No class, subject or exam type is assumed.</span>
-        </section>
-        <section class="col-span-12 flex items-center bg-white p-6 sm:p-10 lg:col-span-7 lg:min-h-dvh lg:p-16">
-          <div class="w-full max-w-xl">
-            <span class="${BADGE} border-neutral-300 bg-neutral-50 text-neutral-700">${escapeText(eyebrow)}</span>
-            <h2 class="mt-6 font-serif text-4xl font-bold tracking-tight text-black sm:text-5xl">${escapeText(title)}</h2>
-            <p class="mt-5 max-w-lg text-base leading-8 text-neutral-600">${escapeText(detail)}</p>
-            <div class="mt-8 border-l-4 border-black bg-neutral-100 p-5 text-sm leading-6 text-neutral-700">Open the exact dynamic examination link or scan the QR code provided by your school.</div>
-          </div>
+      <div class="mx-auto flex min-h-dvh max-w-6xl items-center px-4 py-10 sm:px-6 lg:px-8">
+        <section class="surface-raised grid w-full overflow-hidden lg:grid-cols-[1fr_340px]">
+          <div class="p-6 sm:p-10 lg:p-12">${pageBrand()}<span class="badge badge-danger mt-10">${escapeText(eyebrow)}</span><h1 class="mt-5 max-w-2xl font-display text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">${escapeText(title)}</h1><p class="mt-4 max-w-xl text-base leading-7 text-slate-600">${escapeText(detail)}</p><div class="alert alert-info mt-7 max-w-xl"><span>Open the exact dynamic examination link or scan the QR code issued by your school. Festacol never guesses your class, subject or paper.</span></div><a href="./student.html" class="btn btn-primary mt-7">Go to student dashboard</a></div>
+          <div class="illustration-well m-4 grid min-h-72 place-items-center p-6 lg:m-5"><img src="${ART.question}" alt="Student looking for the correct examination access" class="h-64 w-full object-contain"></div>
         </section>
       </div>`);
   };
@@ -177,180 +174,80 @@
   const renderAccess = () => {
     const gate = availability();
     if (!gate.allowed) return renderFatal('Session unavailable', gate.title, gate.detail);
-
-    shell(`
-      <div class="mx-auto grid min-h-dvh max-w-7xl grid-cols-12 bg-white lg:border-x lg:border-neutral-300">
-        <section class="relative col-span-12 flex min-h-96 flex-col justify-between overflow-hidden bg-black p-6 text-white sm:p-10 lg:col-span-5 lg:min-h-dvh lg:p-12">
-          <div class="relative z-10">${pageBrand(true)}</div>
-          <div class="relative z-10 py-12">
-            <div class="flex flex-wrap gap-2">
-              <span class="${BADGE} border-neutral-700 bg-neutral-900 text-neutral-200">${escapeText(session.classLevel)}</span>
-              <span class="${BADGE} border-neutral-700 bg-neutral-900 text-neutral-200">${escapeText(modeLabel())}</span>
-            </div>
-            <p class="mt-10 text-xs font-bold uppercase tracking-widest text-neutral-500">Session ${escapeText(session.id)}</p>
-            <h1 class="mt-4 max-w-lg font-serif text-5xl font-bold leading-none tracking-tight sm:text-6xl lg:text-7xl">${escapeText(session.title)}</h1>
-            <p class="mt-7 max-w-md text-base leading-7 text-neutral-300">${escapeText(examDescriptor())}</p>
-          </div>
-          <div class="relative z-10 grid grid-cols-3 border-t border-neutral-800 pt-6">
-            <div><span class="block text-2xl font-black tabular-nums">${session.durationMinutes}</span><span class="text-xs text-neutral-500">minutes</span></div>
-            <div><span class="block text-2xl font-black tabular-nums">${questions.length}</span><span class="text-xs text-neutral-500">questions</span></div>
-            <div><span class="block text-2xl font-black">${escapeText(session.classLevel)}</span><span class="text-xs text-neutral-500">class</span></div>
-          </div>
-        </section>
-
-        <section class="col-span-12 flex items-center bg-white p-6 sm:p-10 lg:col-span-7 lg:min-h-dvh lg:p-16">
-          <div class="w-full max-w-xl lg:mx-auto">
-            <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Candidate identification</p>
-            <h2 class="mt-4 font-serif text-4xl font-bold tracking-tight sm:text-5xl">Enter your full name.</h2>
-            <p class="mt-4 max-w-lg text-base leading-7 text-neutral-600">Your full name is recorded with this examination attempt on this device so the submission can be identified.</p>
-
-            <form id="identity-form" class="mt-10" novalidate>
-              <label for="student-name" class="mb-3 block text-sm font-bold text-black">Full name</label>
-              <input id="student-name" name="studentName" type="text" autocomplete="name" class="${FIELD}" placeholder="e.g. Amina Yusuf Bello" value="${escapeText(state.studentName)}" aria-describedby="student-name-help student-name-error">
-              <p id="student-name-help" class="mt-3 text-sm leading-6 text-neutral-500">Enter your first name and at least one other name as they should appear on this attempt.</p>
-              <p id="student-name-error" class="mt-3 hidden text-sm font-bold text-black" role="alert"></p>
-
-              <div class="mt-8 rounded-2xl border-2 border-black bg-neutral-50 p-5">
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <div><span class="text-xs font-bold uppercase tracking-wider text-neutral-500">Exam type</span><strong class="mt-1 block text-sm">${escapeText(modeLabel())}</strong></div>
-                  <div><span class="text-xs font-bold uppercase tracking-wider text-neutral-500">Coverage</span><strong class="mt-1 block text-sm">${escapeText(examDescriptor())}</strong></div>
-                </div>
-              </div>
-
-              <button type="submit" class="${BTN_PRIMARY} mt-8 w-full sm:w-auto">Continue to instructions</button>
-            </form>
-          </div>
-        </section>
-      </div>`);
-
-    document.getElementById('identity-form').addEventListener('submit', (event) => {
-      event.preventDefault();
-      const input = document.getElementById('student-name');
-      const error = document.getElementById('student-name-error');
-      const name = Store.sanitizeName(input.value);
-      const parts = name.split(/\s+/u).filter((part) => part.length >= 2);
-      if (parts.length < 2) {
-        error.textContent = 'Enter your full name using at least two names.';
-        error.classList.remove('hidden');
-        input.setAttribute('aria-invalid', 'true');
-        input.focus();
-        return;
-      }
-      state.studentName = name;
-      state.view = state.startedAt ? 'exam' : 'briefing';
-      persist();
-      render();
-    });
+    shell(`<div class="mx-auto flex min-h-dvh max-w-5xl items-center px-4 py-10 sm:px-6"><section class="surface-brand grid w-full overflow-hidden md:grid-cols-[1fr_280px]"><div class="p-7 sm:p-9">${pageBrand()}<span class="badge badge-warning mt-8">Identity required</span><h1 class="mt-4 font-display text-3xl font-extrabold text-slate-950 sm:text-4xl">Continue from your student dashboard.</h1><p class="mt-3 max-w-xl text-sm leading-6 text-slate-600">Your full name is collected before the exam workspace opens so this attempt can be identified consistently.</p><a href="${escapeText(dashboardUrl())}" class="btn btn-primary btn-lg mt-6">Open student dashboard</a></div><div class="illustration-well m-4 grid place-items-center p-5"><img src="${ART.auth}" alt="Secure student identification form" class="h-52 w-full object-contain"></div></section></div>`);
   };
 
   const renderBriefing = () => {
     shell(`
-      <div class="min-h-dvh bg-neutral-100">
-        <header class="border-b border-neutral-300 bg-white">
-          <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
-            ${pageBrand(false)}
-            <div class="flex items-center gap-3">
-              <div class="hidden text-right sm:block"><strong class="block text-sm">${escapeText(state.studentName)}</strong><span class="text-xs text-neutral-500">${escapeText(session.classLevel)}</span></div>
-              <span class="grid size-10 place-items-center rounded-full bg-black text-xs font-black text-white" aria-hidden="true">${escapeText(initials(state.studentName))}</span>
-            </div>
-          </div>
-        </header>
-
-        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-          <div class="grid grid-cols-12 gap-6">
-            <section class="col-span-12 overflow-hidden rounded-3xl bg-black text-white lg:col-span-8">
-              <div class="p-7 sm:p-10 lg:p-12">
-                <div class="flex flex-wrap gap-2">
-                  <span class="${BADGE} border-neutral-700 bg-neutral-900 text-white">${escapeText(session.classLevel)}</span>
-                  <span class="${BADGE} border-neutral-700 bg-neutral-900 text-white">${escapeText(modeLabel())}</span>
-                  <span class="${BADGE} border-neutral-700 bg-neutral-900 text-white">Session ${escapeText(session.id)}</span>
-                </div>
-                <h1 class="mt-10 max-w-3xl font-serif text-5xl font-bold leading-none tracking-tight sm:text-6xl">${escapeText(session.title)}</h1>
-                <p class="mt-6 max-w-2xl text-base leading-8 text-neutral-300">${escapeText(examDescriptor())}</p>
-              </div>
-              <div class="grid grid-cols-2 border-t border-neutral-800 sm:grid-cols-4">
-                ${[
-                  ['Duration', `${session.durationMinutes} min`],
-                  ['Questions', String(questions.length)],
-                  ['Class', session.classLevel],
-                  ['Identity', state.studentName]
-                ].map(([label, value]) => `<div class="border-b border-neutral-800 p-5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><span class="block text-xs uppercase tracking-wider text-neutral-500">${escapeText(label)}</span><strong class="mt-2 block truncate text-sm text-white">${escapeText(value)}</strong></div>`).join('')}
-              </div>
+      <div class="min-h-dvh">
+        <header class="exam-header"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">${pageBrand()}<div class="flex items-center gap-3"><div class="hidden text-right sm:block"><strong class="block text-sm text-slate-900">${escapeText(state.studentName)}</strong><span class="text-xs text-slate-500">${escapeText(session.classLevel)}</span></div><span class="avatar size-10 text-xs">${escapeText(initials(state.studentName))}</span></div></div></header>
+        <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-9 lg:px-8">
+          <div class="grid gap-5 lg:grid-cols-[1.35fr_.65fr]">
+            <section class="surface-brand relative overflow-hidden p-6 sm:p-8 lg:p-10">
+              <div class="relative z-10 max-w-2xl"><div class="flex flex-wrap gap-2"><span class="badge badge-brand">${escapeText(session.classLevel)}</span><span class="badge badge-success">${escapeText(modeLabel())}</span><span class="badge badge-neutral">Session ${escapeText(session.id)}</span></div><p class="eyebrow mt-8">Ready to begin</p><h1 class="mt-2 max-w-2xl font-display text-4xl font-extrabold leading-tight tracking-tight text-slate-950 sm:text-5xl">${escapeText(session.title)}</h1><p class="mt-4 max-w-xl text-base leading-7 text-slate-600">${escapeText(examDescriptor())}</p><div class="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">${[['Duration',`${session.durationMinutes} min`],['Questions',String(questions.length)],['Class',session.classLevel],['Candidate',state.studentName]].map(([label,value])=>`<div class="mini-metric"><span>${escapeText(label)}</span><strong>${escapeText(value)}</strong></div>`).join('')}</div></div>
+              <img src="${ART.student}" alt="Student prepared to take a computer based examination" class="pointer-events-none absolute -bottom-10 -right-3 hidden h-72 w-60 object-contain opacity-90 xl:block">
             </section>
-
-            <aside class="col-span-12 rounded-3xl border-2 border-black bg-white p-6 lg:col-span-4 lg:p-8">
-              <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Before you begin</p>
-              <ol class="mt-6 space-y-5 text-sm leading-6 text-neutral-700">
-                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-black text-xs font-black text-white">1</span><span>The timer starts only after you press <strong>Start examination</strong>.</span></li>
-                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-black text-xs font-black text-white">2</span><span>Your answers are saved on this device as you move between questions.</span></li>
-                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-black text-xs font-black text-white">3</span><span>You can flag questions and review them before final submission.</span></li>
-              </ol>
-              ${session.instructions ? `<div class="mt-7 border-l-4 border-black bg-neutral-100 p-4 text-sm leading-6 text-neutral-700"><strong class="block text-black">School instruction</strong><span class="mt-1 block">${escapeText(session.instructions)}</span></div>` : ''}
-              ${session.mode === 'qualifier' ? `<div class="mt-7 rounded-2xl bg-neutral-950 p-5 text-sm leading-6 text-neutral-300"><strong class="block text-white">Placement qualifier</strong><span class="mt-1 block">This session is configured to support later Science, Arts or Social Science stream-placement review. The prototype does not calculate that placement on the device.</span></div>` : ''}
-              <button id="start-exam" type="button" class="${BTN_PRIMARY} mt-8 w-full">Start examination</button>
-              <button id="change-name" type="button" class="mt-3 min-h-11 w-full text-sm font-bold text-neutral-600 underline decoration-neutral-300 underline-offset-4 hover:text-black focus:outline-none focus:ring-2 focus:ring-black">Change candidate name</button>
-            </aside>
+            <aside class="surface-raised p-5 sm:p-6"><p class="eyebrow">Before you begin</p><h2 class="mt-2 font-display text-xl font-extrabold text-slate-950">Three things to know</h2><ol class="mt-5 grid gap-4 text-sm leading-6 text-slate-600">${['The timer starts only after you press Start examination.','Responses save on this device as you move between questions.','Flag anything you want to revisit before final submission.'].map((item,index)=>`<li class="flex gap-3"><span class="step-index shrink-0 text-blue-700">${index+1}</span><span>${item}</span></li>`).join('')}</ol>${session.instructions?`<div class="alert alert-warning mt-5"><span><strong class="block">School instruction</strong>${escapeText(session.instructions)}</span></div>`:''}${session.mode==='qualifier'?`<div class="alert alert-info mt-3"><span><strong class="block">Placement qualifier</strong>This paper supports later stream-placement review; the browser does not calculate placement.</span></div>`:''}<button id="start-exam" type="button" class="btn btn-primary btn-lg mt-6 w-full">Start examination</button><button id="change-name" type="button" class="btn btn-quiet mt-2 w-full">Change student name</button></aside>
           </div>
         </div>
       </div>`);
-
     document.getElementById('start-exam').addEventListener('click', () => {
-      state.startedAt = Date.now();
-      state.endAt = state.startedAt + session.durationMinutes * 60_000;
+      const now = Date.now();
+      state.startedAt = state.startedAt || now;
+      state.endAt = state.endAt || now + session.durationMinutes * 60_000;
       state.attemptId = state.attemptId || `${session.id}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       state.view = 'exam';
-      persist();
-      ensureAttemptRecord(false);
-      render();
+      persist(); ensureAttemptRecord(false); render();
     });
-    document.getElementById('change-name').addEventListener('click', () => {
-      state.view = 'access';
-      persist();
-      render();
-    });
+    document.getElementById('change-name').addEventListener('click', () => { state.studentName = ''; state.view = 'access'; persist(); location.href = dashboardUrl(); });
   };
 
   const renderTriangleDiagram = () => `
-    <figure class="mb-8 max-w-2xl rounded-2xl border-2 border-black bg-neutral-50 p-6">
-      <svg class="h-auto w-full text-black" viewBox="0 0 560 280" role="img" aria-labelledby="triangle-title triangle-desc">
+    <figure class="surface-soft mb-8 max-w-2xl p-6">
+      <svg class="h-auto w-full text-slate-800" viewBox="0 0 560 280" role="img" aria-labelledby="triangle-title triangle-desc">
         <title id="triangle-title">Triangle ABC</title>
         <desc id="triangle-desc">A triangle with A at the left base, B at the right base and C at the top. Angle A is 50 degrees and angle B is 65 degrees.</desc>
         <path d="M80 230 L480 230 L300 45 Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
         <text x="62" y="255" font-size="22" fill="currentColor">A</text><text x="488" y="255" font-size="22" fill="currentColor">B</text><text x="292" y="32" font-size="22" fill="currentColor">C</text>
         <text x="120" y="215" font-size="20" fill="currentColor">50°</text><text x="410" y="215" font-size="20" fill="currentColor">65°</text>
       </svg>
-      <figcaption class="mt-4 text-sm font-semibold text-neutral-600">Figure for this question</figcaption>
+      <figcaption class="mt-4 text-sm font-semibold text-slate-500">Figure for this question</figcaption>
     </figure>`;
 
   const renderTable = (table) => `
-    <div class="mb-8 overflow-hidden rounded-2xl border-2 border-black">
-      <table class="w-full text-left text-sm"><thead class="bg-black text-white"><tr>${table.headers.map((header) => `<th scope="col" class="px-4 py-3 font-bold">${escapeText(header)}</th>`).join('')}</tr></thead><tbody class="divide-y divide-neutral-200">${table.rows.map((row) => `<tr>${row.map((cell) => `<td class="px-4 py-3 text-neutral-700">${escapeText(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <div class="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <table class="w-full text-left text-sm"><thead class="bg-slate-50 text-slate-700"><tr>${table.headers.map((header) => `<th scope="col" class="px-4 py-3 font-bold">${escapeText(header)}</th>`).join('')}</tr></thead><tbody class="divide-y divide-neutral-200">${table.rows.map((row) => `<tr>${row.map((cell) => `<td class="px-4 py-3 text-slate-700">${escapeText(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>
     </div>`;
 
   const renderOptions = (question, inputType) => {
     const response = responseFor(question);
     const selected = inputType === 'checkbox' ? (Array.isArray(response) ? response : []) : [response];
-    return `<fieldset class="space-y-3"><legend class="sr-only">Answer choices</legend>${question.options.map((option, index) => {
+    return `<fieldset class="flex flex-col gap-3"><legend class="sr-only">Answer choices</legend>${question.options.map((option, index) => {
       const checked = selected.includes(index);
-      return `<label class="group flex min-h-16 cursor-pointer items-center gap-4 rounded-2xl border-2 ${checked ? 'border-black bg-black text-white shadow-lg' : 'border-neutral-300 bg-white text-black hover:border-black hover:bg-neutral-50'} px-5 py-4 transition duration-200 focus-within:ring-4 focus-within:ring-neutral-200 motion-reduce:transition-none">
+      return `<label class="exam-choice">
         <input class="sr-only" type="${inputType}" name="question-${question.id}" value="${index}" ${checked ? 'checked' : ''}>
-        <span class="grid size-9 shrink-0 place-items-center rounded-full border-2 ${checked ? 'border-white bg-white text-black' : 'border-neutral-400 bg-white text-black'} text-xs font-black">${String.fromCharCode(65 + index)}</span>
-        <span class="text-base font-semibold leading-6">${escapeText(option)}</span>
+        <span class="answer-marker" aria-hidden="true">${String.fromCharCode(65 + index)}</span>
+        <span class="min-w-0 flex-1 pt-0.5 text-base font-semibold leading-6">${escapeText(option)}</span>
+        <span class="mt-1 hidden text-[10px] font-bold uppercase tracking-[.12em] opacity-60 sm:block">${inputType === 'checkbox' ? 'Select' : 'Choose one'}</span>
       </label>`;
     }).join('')}</fieldset>`;
   };
 
   const renderBoolean = (question) => {
     const response = responseFor(question);
-    return `<fieldset class="grid gap-3 sm:grid-cols-2"><legend class="sr-only">True or false</legend>${[[true, 'True'], [false, 'False']].map(([value, label]) => {
+    return `<fieldset class="grid gap-3 sm:grid-cols-2"><legend class="sr-only">True or false</legend>${[[true, 'True'], [false, 'False']].map(([value, label], index) => {
       const checked = response === value;
-      return `<label class="flex min-h-20 cursor-pointer items-center justify-center rounded-2xl border-2 ${checked ? 'border-black bg-black text-white shadow-lg' : 'border-neutral-300 bg-white text-black hover:border-black'} px-6 text-lg font-black transition duration-200 focus-within:ring-4 focus-within:ring-neutral-200 motion-reduce:transition-none"><input class="sr-only" type="radio" name="question-${question.id}" value="${value}" ${checked ? 'checked' : ''}>${label}</label>`;
+      return `<label class="exam-choice min-h-20 items-center">
+        <input class="sr-only" type="radio" name="question-${question.id}" value="${value}" ${checked ? 'checked' : ''}>
+        <span class="answer-marker" aria-hidden="true">${index === 0 ? 'T' : 'F'}</span>
+        <span class="text-lg font-extrabold">${label}</span>
+      </label>`;
     }).join('')}</fieldset>`;
   };
 
   const renderFill = (question) => {
     const response = responseFor(question) || {};
-    return `<div class="rounded-2xl border-2 border-black bg-neutral-50 p-6"><div class="flex flex-wrap items-baseline gap-2 text-lg font-semibold leading-10">${question.fillTemplate.map((part) => part.text ? `<span>${escapeText(part.text)}</span>` : `<span class="inline-block min-w-48"><label class="sr-only" for="q${question.id}-${part.blank}">Answer for blank</label><input id="q${question.id}-${part.blank}" data-blank="${part.blank}" type="text" autocomplete="off" value="${escapeText(response[part.blank] || '')}" placeholder="${escapeText(part.placeholder || 'answer')}" class="block min-h-11 w-full border-0 border-b-2 border-black bg-transparent px-2 py-1 text-center text-base font-bold text-black placeholder:text-neutral-400 focus:border-black focus:outline-none focus:ring-0"></span>`).join('')}</div></div>`;
+    return `<div class="exam-card p-5 sm:p-6"><p class="eyebrow">Typed response</p><div class="mt-4 flex flex-wrap items-baseline gap-2 text-base font-semibold leading-10 sm:text-lg">${question.fillTemplate.map((part) => part.text ? `<span>${escapeText(part.text)}</span>` : `<span class="inline-block min-w-48 flex-1"><label class="sr-only" for="q${question.id}-${part.blank}">Answer for blank</label><input id="q${question.id}-${part.blank}" data-blank="${part.blank}" type="text" autocomplete="off" value="${escapeText(response[part.blank] || '')}" placeholder="${escapeText(part.placeholder || 'Type your answer')}" class="exam-field"></span>`).join('')}</div></div>`;
   };
 
   const renderQuestionBody = (question) => {
@@ -381,9 +278,9 @@
       timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       const timerBox = document.getElementById('timer-box');
       if (timerBox) {
-        timerBox.className = remaining <= 5 * 60_000
-          ? 'flex min-h-12 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black tabular-nums text-black ring-4 ring-white/20'
-          : 'flex min-h-12 items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 text-sm font-black tabular-nums text-white';
+        timerBox.className = 'timer-pill';
+        timerBox.dataset.urgent = String(remaining <= 10 * 60_000 && remaining > 5 * 60_000);
+        timerBox.dataset.critical = String(remaining <= 5 * 60_000);
       }
       if (remaining <= 0 && !state.submittedAt) completeSubmission(true);
     }
@@ -399,9 +296,7 @@
     const status = questionStatus(question);
     const active = index === state.activeQuestion;
     const flagged = state.flagged.includes(question.id);
-    const base = 'relative grid size-11 place-items-center rounded-xl border text-xs font-black transition duration-150 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black motion-reduce:transition-none';
-    const cls = active ? 'border-white bg-white text-black' : status === 'answered' ? 'border-neutral-600 bg-neutral-800 text-white hover:bg-neutral-700' : status === 'incomplete' ? 'border-dashed border-neutral-400 bg-black text-white' : 'border-neutral-700 bg-black text-neutral-400 hover:border-white hover:text-white';
-    return `<button type="button" data-question-index="${index}" class="${base} ${cls}" aria-label="Question ${index + 1}, ${status}${flagged ? ', flagged' : ''}">${index + 1}${flagged ? '<span class="absolute -right-1 -top-1 size-2 rounded-full bg-white ring-2 ring-black" aria-hidden="true"></span>' : ''}</button>`;
+    return `<button type="button" data-question-index="${index}" class="question-map-button" data-state="${status}" data-current="${active}" data-flagged="${flagged}" aria-current="${active ? 'step' : 'false'}" aria-label="Question ${index + 1}, ${status}${flagged ? ', flagged' : ''}">${index + 1}</button>`;
   };
 
   const renderNavigator = () => {
@@ -447,140 +342,50 @@
   };
 
   const renderExam = () => {
-    state.view = 'exam';
-    persist();
+    state.view = 'exam'; persist();
     const question = currentQuestion();
     shell(`
-      <div class="min-h-dvh bg-neutral-100">
-        <header class="sticky top-0 z-30 bg-black text-white shadow-xl">
+      <div class="min-h-dvh">
+        <header class="exam-header">
           <div class="mx-auto grid max-w-7xl grid-cols-12 items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
-            <div class="col-span-7 flex min-w-0 items-center gap-3 lg:col-span-5">
-              <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-sm font-black text-black" aria-hidden="true">F</span>
-              <div class="min-w-0"><strong class="block truncate text-sm font-black">${escapeText(session.title)}</strong><span class="block truncate text-xs text-neutral-400">${escapeText(state.studentName)} · ${escapeText(session.classLevel)}</span></div>
-            </div>
-            <div class="col-span-5 hidden text-center lg:col-span-3 lg:block"><span id="current-subject" class="text-xs font-bold uppercase tracking-widest text-neutral-400">${escapeText(question.subject)}</span><strong id="exam-progress" class="mt-1 block text-sm">${state.activeQuestion + 1} / ${questions.length}</strong></div>
-            <div class="col-span-5 flex items-center justify-end gap-2 lg:col-span-4">
-              <button id="mobile-nav" type="button" class="min-h-12 rounded-xl border border-neutral-700 bg-neutral-900 px-3 text-xs font-bold text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-white lg:hidden">Questions</button>
-              <div id="timer-box" class="flex min-h-12 items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 text-sm font-black tabular-nums text-white">${ICON.clock}<span id="timer-text">--:--</span></div>
-              <div class="hidden min-h-12 items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 text-xs font-bold text-neutral-300 sm:flex">${ICON.check}<span id="save-status">${escapeText(state.saveStatus)}</span></div>
-            </div>
+            <div class="col-span-7 flex min-w-0 items-center gap-3 lg:col-span-5"><span class="brand-mark shrink-0" aria-hidden="true">F</span><div class="min-w-0"><strong class="block truncate text-sm font-extrabold text-slate-950">${escapeText(session.title)}</strong><span class="block truncate text-xs text-slate-500">${escapeText(state.studentName)} · ${escapeText(session.classLevel)}</span></div></div>
+            <div class="col-span-3 hidden text-center lg:block"><span id="current-subject" class="eyebrow">${escapeText(question.subject)}</span><strong id="exam-progress" class="mt-1 block text-sm tabular-nums text-slate-800">${state.activeQuestion + 1} / ${questions.length}</strong></div>
+            <div class="col-span-5 flex items-center justify-end gap-2 lg:col-span-4"><button id="mobile-nav" type="button" class="btn btn-secondary btn-sm lg:hidden">Questions</button><div id="timer-box" role="timer" aria-label="Remaining examination time" class="timer-pill">${ICON.clock}<span id="timer-text">--:--</span></div><div role="status" aria-live="polite" class="hidden min-h-10 items-center gap-2 rounded-xl bg-emerald-50 px-3 text-xs font-bold text-emerald-700 sm:flex">${ICON.check}<span id="save-status">${escapeText(state.saveStatus)}</span></div></div>
           </div>
+          <div class="h-1 bg-slate-100"><div class="h-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300" style="width:${Math.round((state.activeQuestion + 1)/questions.length*100)}%"></div></div>
         </header>
-
-        <div class="mx-auto grid max-w-7xl grid-cols-12 gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          <section class="col-span-12 min-w-0 lg:col-span-9">
-            <article class="overflow-hidden rounded-3xl border-2 border-black bg-white shadow-xl shadow-neutral-300/50">
-              <div class="border-b-2 border-black bg-neutral-50 px-6 py-4 sm:px-8">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-3"><span class="grid size-9 place-items-center rounded-full bg-black text-xs font-black text-white">${state.activeQuestion + 1}</span><div><span class="block text-xs font-bold uppercase tracking-widest text-neutral-500">${escapeText(question.subject)}</span><span class="text-xs text-neutral-500">${escapeText(question.label)}</span></div></div>
-                  <span id="answered-count" class="${BADGE} border-neutral-300 bg-white text-neutral-600">${answeredCount()} answered</span>
-                </div>
-              </div>
-              <div class="p-6 sm:p-8 lg:p-10">
-                ${question.passage ? `<div class="mb-8 border-l-4 border-black bg-neutral-100 p-5"><p class="text-xs font-black uppercase tracking-widest text-neutral-500">Read the passage</p><p class="mt-3 max-w-3xl text-base leading-8 text-neutral-700">${escapeText(question.passage)}</p></div>` : ''}
-                <h1 class="max-w-4xl font-serif text-3xl font-bold leading-tight tracking-tight text-black sm:text-4xl">${escapeText(question.prompt)}</h1>
-                ${question.instruction ? `<p class="mt-4 text-sm font-bold text-neutral-600">${escapeText(question.instruction)}</p>` : ''}
-                <div class="mt-9">${renderQuestionBody(question)}</div>
-              </div>
-              <footer class="flex flex-wrap items-center justify-between gap-3 border-t-2 border-black bg-white p-4 sm:p-5">
-                <div class="flex flex-1 gap-2 sm:flex-none">
-                  <button id="flag" type="button" class="${state.flagged.includes(question.id) ? 'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-bold text-white sm:flex-none' : BTN_LIGHT + ' flex-1 sm:flex-none'}" aria-pressed="${state.flagged.includes(question.id)}">${ICON.flag}${state.flagged.includes(question.id) ? 'Flagged' : 'Flag'}</button>
-                  <button id="clear" type="button" class="min-h-12 flex-1 rounded-xl px-4 text-sm font-bold text-neutral-600 underline decoration-neutral-300 underline-offset-4 hover:text-black focus:outline-none focus:ring-2 focus:ring-black sm:flex-none">Clear</button>
-                </div>
-                <div class="flex flex-1 gap-2 sm:flex-none">
-                  <button id="previous" type="button" class="${BTN_LIGHT} flex-1 sm:flex-none" ${state.activeQuestion === 0 ? 'disabled' : ''}>Previous</button>
-                  <button id="next" type="button" class="${BTN_PRIMARY} flex-1 sm:flex-none">${state.activeQuestion === questions.length - 1 ? 'Review answers' : 'Next'}</button>
-                </div>
-              </footer>
-            </article>
-          </section>
-
-          <aside id="desktop-navigator" class="col-span-3 hidden lg:block">
-            <div class="sticky top-24 overflow-hidden rounded-3xl bg-black p-5 text-white shadow-xl">
-              <div class="border-b border-neutral-800 pb-5"><p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Question map</p><div class="mt-2 flex items-end justify-between"><strong class="font-serif text-3xl">${questions.length}</strong><span class="text-xs text-neutral-400">${answeredCount()} complete</span></div></div>
-              <div class="mt-5 grid grid-cols-3 gap-1 rounded-xl bg-neutral-900 p-1" role="group" aria-label="Question filters">
-                ${['all','unanswered','flagged'].map((filter) => `<button type="button" data-filter="${filter}" class="min-h-10 rounded-lg ${state.filter === filter ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'} px-2 text-xs font-bold capitalize focus:outline-none focus:ring-2 focus:ring-white">${filter}</button>`).join('')}
-              </div>
-              <div id="question-grid" class="mt-5 grid grid-cols-5 gap-2"></div>
-              <button id="review-now" type="button" class="mt-6 min-h-12 w-full rounded-xl bg-white px-4 text-sm font-black text-black hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">Review answers</button>
-            </div>
-          </aside>
+        <div class="mx-auto grid max-w-7xl grid-cols-12 gap-5 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+          <section class="col-span-12 min-w-0 lg:col-span-9"><article class="exam-card overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 sm:px-7"><div class="flex items-center gap-3"><span class="question-number">${String(state.activeQuestion+1).padStart(2,'0')}</span><div><span class="eyebrow">${escapeText(question.subject)}</span><span class="mt-0.5 block text-xs text-slate-500">${escapeText(question.label)}</span></div></div><span id="answered-count" class="badge badge-success">${answeredCount()} answered</span></div>
+            <div class="p-5 sm:p-7 lg:p-9">${question.passage?`<div class="surface-soft mb-7 border-l-4 border-l-blue-500 p-5"><p class="eyebrow text-blue-700">Read the passage</p><p class="mt-3 max-w-3xl text-base leading-8 text-slate-700">${escapeText(question.passage)}</p></div>`:''}<h1 class="max-w-4xl font-display text-2xl font-extrabold leading-snug tracking-tight text-slate-950 sm:text-3xl">${escapeText(question.prompt)}</h1>${question.instruction?`<p class="mt-3 text-sm font-semibold text-slate-600">${escapeText(question.instruction)}</p>`:''}<div class="mt-7">${renderQuestionBody(question)}</div></div>
+            <footer class="exam-footer sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white/95 p-3 backdrop-blur-xl sm:static sm:p-4"><div class="flex flex-1 gap-2 sm:flex-none"><button id="flag" type="button" class="btn ${state.flagged.includes(question.id)?'btn-warning':'btn-secondary'} flex-1 sm:flex-none" aria-pressed="${state.flagged.includes(question.id)}">${ICON.flag}${state.flagged.includes(question.id)?'Flagged':'Flag'}</button><button id="clear" type="button" class="btn btn-quiet flex-1 sm:flex-none">Clear</button></div><div class="flex flex-1 gap-2 sm:flex-none"><button id="previous" type="button" class="btn btn-secondary flex-1 sm:flex-none" ${state.activeQuestion===0?'disabled':''}>Previous</button><button id="next" type="button" class="btn btn-primary flex-1 sm:flex-none">${state.activeQuestion===questions.length-1?'Review answers':'Next'}</button></div></footer>
+          </article></section>
+          <aside class="col-span-3 hidden lg:block"><div class="surface sticky top-24 p-4"><div class="flex items-end justify-between border-b border-slate-200 pb-4"><div><p class="eyebrow">Question map</p><strong class="mt-1 block font-display text-2xl font-extrabold text-slate-950">${questions.length}</strong></div><span class="text-xs font-semibold text-slate-500">${answeredCount()} complete</span></div><div class="segmented mt-4 w-full grid-cols-3" role="group" aria-label="Question filters">${['all','unanswered','flagged'].map(filter=>`<button type="button" data-filter="${filter}" aria-pressed="${state.filter===filter}">${filter}</button>`).join('')}</div><div id="question-grid" class="mt-4 grid grid-cols-5 gap-2"></div><button id="review-now" type="button" class="btn btn-secondary mt-5 w-full">Review answers</button></div></aside>
         </div>
-
-        <div id="mobile-drawer" class="fixed inset-0 z-50 hidden bg-black/70 p-4 lg:hidden" aria-hidden="true">
-          <div class="ml-auto h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-black p-5 text-white shadow-2xl">
-            <div class="flex items-center justify-between border-b border-neutral-800 pb-4"><div><p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Question map</p><strong class="mt-1 block text-lg">${answeredCount()} / ${questions.length} answered</strong></div><button id="close-mobile-nav" type="button" class="grid size-11 place-items-center rounded-xl border border-neutral-700 hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Close question map"><svg class="size-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/></svg></button></div>
-            <div class="mt-5 grid grid-cols-3 gap-1 rounded-xl bg-neutral-900 p-1">${['all','unanswered','flagged'].map((filter) => `<button type="button" data-filter="${filter}" class="min-h-10 rounded-lg ${state.filter === filter ? 'bg-white text-black' : 'text-neutral-400'} px-2 text-xs font-bold capitalize">${filter}</button>`).join('')}</div>
-            <div id="mobile-question-grid" class="mt-5 grid grid-cols-5 gap-2"></div>
-            <button id="mobile-review" type="button" class="mt-6 min-h-12 w-full rounded-xl bg-white px-4 text-sm font-black text-black">Review answers</button>
-          </div>
-        </div>
+        <div id="mobile-drawer" class="fixed inset-0 z-50 hidden bg-slate-950/35 p-3 backdrop-blur-sm lg:hidden" aria-hidden="true"><div class="ml-auto h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl"><div class="flex items-center justify-between border-b border-slate-200 pb-4"><div><p class="eyebrow">Question map</p><strong class="mt-1 block text-lg text-slate-950">${answeredCount()} / ${questions.length} answered</strong></div><button id="close-mobile-nav" type="button" class="icon-btn" aria-label="Close question map">${ICON.warn.replace('M12 13V8m0 8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z','M6 18 17.94 6M18 18 6.06 6')}</button></div><div class="segmented mt-4 grid w-full grid-cols-3">${['all','unanswered','flagged'].map(filter=>`<button type="button" data-filter="${filter}" aria-pressed="${state.filter===filter}">${filter}</button>`).join('')}</div><div id="mobile-question-grid" class="mt-5 grid grid-cols-5 gap-2"></div><button id="mobile-review" type="button" class="btn btn-primary mt-6 w-full">Review answers</button></div></div>
       </div>`);
-
     renderNavigator();
-    const mobileGrid = document.getElementById('mobile-question-grid');
-    if (mobileGrid) {
-      mobileGrid.innerHTML = document.getElementById('question-grid').innerHTML;
-      mobileGrid.querySelectorAll('[data-question-index]').forEach((button) => button.addEventListener('click', () => {
-        state.activeQuestion = Number(button.dataset.questionIndex);
-        persist();
-        renderExam();
-      }));
-    }
-    bindQuestion(question);
-    renderExamChrome();
-    startClock();
-
-    document.getElementById('previous').addEventListener('click', () => { if (state.activeQuestion > 0) { state.activeQuestion -= 1; persist(); renderExam(); } });
-    document.getElementById('next').addEventListener('click', () => { if (state.activeQuestion < questions.length - 1) { state.activeQuestion += 1; persist(); renderExam(); } else { state.view = 'review'; persist(); render(); } });
-    document.getElementById('flag').addEventListener('click', () => {
-      state.flagged = state.flagged.includes(question.id) ? state.flagged.filter((id) => id !== question.id) : [...state.flagged, question.id];
-      scheduleSave();
-      renderExam();
-    });
-    document.getElementById('clear').addEventListener('click', () => { delete state.responses[String(question.id)]; scheduleSave(); renderExam(); });
-    document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => { state.filter = button.dataset.filter; persist(); renderExam(); }));
-    document.getElementById('review-now').addEventListener('click', () => { state.view = 'review'; persist(); render(); });
-    document.getElementById('mobile-review').addEventListener('click', () => { state.view = 'review'; persist(); render(); });
-    document.getElementById('mobile-nav').addEventListener('click', () => { const drawer = document.getElementById('mobile-drawer'); drawer.classList.remove('hidden'); drawer.setAttribute('aria-hidden','false'); });
-    document.getElementById('close-mobile-nav').addEventListener('click', () => { const drawer = document.getElementById('mobile-drawer'); drawer.classList.add('hidden'); drawer.setAttribute('aria-hidden','true'); });
+    const mobileGrid=document.getElementById('mobile-question-grid'); if(mobileGrid){mobileGrid.innerHTML=document.getElementById('question-grid').innerHTML;mobileGrid.querySelectorAll('[data-question-index]').forEach(button=>button.addEventListener('click',()=>{state.activeQuestion=Number(button.dataset.questionIndex);persist();renderExam()}));}
+    bindQuestion(question); renderExamChrome(); startClock();
+    document.getElementById('previous').addEventListener('click',()=>{if(state.activeQuestion>0){state.activeQuestion-=1;persist();renderExam()}});
+    document.getElementById('next').addEventListener('click',()=>{if(state.activeQuestion<questions.length-1){state.activeQuestion+=1;persist();renderExam()}else{state.view='review';persist();render()}});
+    document.getElementById('flag').addEventListener('click',()=>{state.flagged=state.flagged.includes(question.id)?state.flagged.filter(id=>id!==question.id):[...state.flagged,question.id];scheduleSave();renderExam()});
+    document.getElementById('clear').addEventListener('click',()=>{delete state.responses[String(question.id)];scheduleSave();renderExam()});
+    document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{state.filter=button.dataset.filter;persist();renderExam()}));
+    document.getElementById('review-now').addEventListener('click',()=>{state.view='review';persist();render()}); document.getElementById('mobile-review').addEventListener('click',()=>{state.view='review';persist();render()});
+    document.getElementById('mobile-nav').addEventListener('click',()=>{const panel=document.getElementById('mobile-drawer');panel.classList.remove('hidden');panel.setAttribute('aria-hidden','false')}); document.getElementById('close-mobile-nav').addEventListener('click',()=>{const panel=document.getElementById('mobile-drawer');panel.classList.add('hidden');panel.setAttribute('aria-hidden','true')});
   };
 
   const renderReview = () => {
     stopClock();
-    shell(`
-      <div class="min-h-dvh bg-neutral-100">
-        <header class="bg-black text-white"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">${pageBrand(true)}<div id="review-timer" class="flex min-h-12 items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 text-sm font-black tabular-nums">${ICON.clock}<span id="timer-text">--:--</span></div></div></header>
-        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-          <div class="grid grid-cols-12 gap-6">
-            <section class="col-span-12 lg:col-span-8">
-              <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Final review</p>
-              <h1 class="mt-4 font-serif text-5xl font-bold tracking-tight text-black sm:text-6xl">Check before you submit.</h1>
-              <p class="mt-5 max-w-2xl text-base leading-8 text-neutral-600">You can return to any question. Submission ends this attempt and cannot be undone in the prototype.</p>
-              <div class="mt-8 grid gap-3 sm:grid-cols-3">
-                ${[['Answered', answeredCount(), 'bg-black text-white'], ['Unanswered', unansweredCount(), 'bg-white text-black'], ['Incomplete', incompleteCount(), 'bg-white text-black']].map(([label, count, cls]) => `<div class="rounded-2xl border-2 border-black ${cls} p-5"><span class="text-xs font-bold uppercase tracking-wider opacity-70">${label}</span><strong class="mt-3 block font-serif text-4xl">${count}</strong></div>`).join('')}
-              </div>
-              <div class="mt-8 overflow-hidden rounded-3xl border-2 border-black bg-white">
-                ${questions.map((question, index) => { const status = questionStatus(question); return `<button type="button" data-open-question="${index}" class="grid w-full grid-cols-12 items-center gap-3 border-b border-neutral-200 px-5 py-4 text-left last:border-b-0 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-black"><span class="col-span-2 grid size-10 place-items-center rounded-xl ${status === 'answered' ? 'bg-black text-white' : 'border-2 border-black bg-white text-black'} text-xs font-black sm:col-span-1">${index + 1}</span><span class="col-span-7 min-w-0 sm:col-span-8"><strong class="block truncate text-sm">${escapeText(question.subject)}</strong><span class="mt-1 block truncate text-xs text-neutral-500">${escapeText(question.prompt)}</span></span><span class="col-span-3 text-right text-xs font-bold uppercase tracking-wider text-neutral-500">${status}${state.flagged.includes(question.id) ? ' · flagged' : ''}</span></button>`; }).join('')}
-              </div>
-            </section>
-            <aside class="col-span-12 lg:col-span-4">
-              <div class="sticky top-6 rounded-3xl bg-black p-7 text-white shadow-xl">
-                <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Candidate</p>
-                <div class="mt-4 flex items-center gap-3"><span class="grid size-12 place-items-center rounded-full bg-white text-sm font-black text-black">${escapeText(initials(state.studentName))}</span><div><strong class="block">${escapeText(state.studentName)}</strong><span class="text-xs text-neutral-400">${escapeText(session.classLevel)} · ${escapeText(modeLabel())}</span></div></div>
-                <div class="mt-7 border-t border-neutral-800 pt-6"><span class="text-xs uppercase tracking-wider text-neutral-500">Session</span><strong class="mt-1 block text-sm">${escapeText(session.title)}</strong></div>
-                <button id="back-exam" type="button" class="mt-8 min-h-12 w-full rounded-xl border border-neutral-600 bg-neutral-900 px-4 text-sm font-bold text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-white">Return to questions</button>
-                <button id="submit-exam" type="button" class="mt-3 min-h-12 w-full rounded-xl bg-white px-4 text-sm font-black text-black hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">Submit examination</button>
-                <p class="mt-4 text-xs leading-5 text-neutral-500">${unansweredCount() + incompleteCount() ? `${unansweredCount() + incompleteCount()} response(s) still need attention.` : 'All questions have complete responses.'}</p>
-              </div>
-            </aside>
-          </div>
-        </div>
-      </div>`);
+    shell(`<div class="min-h-dvh"><header class="exam-header"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">${pageBrand()}<div id="review-timer" class="timer-pill">${ICON.clock}<span id="timer-text">--:--</span></div></div></header><div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-9 lg:px-8"><div class="grid gap-5 lg:grid-cols-[1fr_320px]"><section><span class="badge badge-brand">Final review</span><h1 class="mt-4 font-display text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Check your paper before submitting.</h1><p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Return to anything unfinished or flagged. Your timer continues while you review.</p><div class="mt-6 grid grid-cols-3 gap-3">${[['Answered',answeredCount(),'success'],['Unanswered',unansweredCount(),'neutral'],['Incomplete',incompleteCount(),'warning']].map(([label,count,tone])=>`<div class="review-metric review-${tone}"><span>${label}</span><strong>${count}</strong></div>`).join('')}</div><div class="surface mt-5 overflow-hidden">${questions.map((question,index)=>{const status=questionStatus(question);return `<button type="button" data-open-question="${index}" class="review-row"><span class="question-map-button" data-state="${status}" data-current="false">${index+1}</span><span class="min-w-0 flex-1"><strong class="block truncate text-sm text-slate-900">${escapeText(question.subject)}</strong><span class="mt-1 block truncate text-xs text-slate-500">${escapeText(question.prompt)}</span></span><span class="badge ${status==='answered'?'badge-success':status==='incomplete'?'badge-warning':'badge-neutral'}">${status}${state.flagged.includes(question.id)?' · flagged':''}</span></button>`}).join('')}</div></section><aside><div class="surface-raised sticky top-24 p-5"><div class="flex items-center gap-3"><span class="avatar size-11 text-xs">${escapeText(initials(state.studentName))}</span><div><strong class="block text-sm text-slate-900">${escapeText(state.studentName)}</strong><span class="text-xs text-slate-500">${escapeText(session.classLevel)} · ${escapeText(modeLabel())}</span></div></div><div class="alert ${unansweredCount()+incompleteCount()?'alert-warning':'alert-success'} mt-5"><span>${unansweredCount()+incompleteCount()?`${unansweredCount()+incompleteCount()} response(s) still need attention.`:'All questions have complete responses.'}</span></div><button id="back-exam" type="button" class="btn btn-secondary mt-5 w-full">Return to questions</button><button id="submit-exam" type="button" class="btn btn-primary btn-lg mt-2 w-full">Submit examination</button></div></aside></div></div><div id="submit-dialog" class="modal-shell" data-open="false" aria-hidden="true"><div class="modal-backdrop" data-submit-cancel></div><section class="modal-card max-w-md" role="dialog" aria-modal="true" aria-labelledby="submit-dialog-title"><div class="p-5 sm:p-6"><span class="badge badge-warning">Final action</span><h2 id="submit-dialog-title" class="mt-3 font-display text-xl font-extrabold text-slate-950">Submit this examination?</h2><p class="mt-2 text-sm leading-6 text-slate-600">You will not be able to change responses after submission.</p><div class="mt-5 flex justify-end gap-2"><button class="btn btn-secondary" data-submit-cancel>Keep reviewing</button><button class="btn btn-primary" data-submit-confirm>Submit now</button></div></div></section></div></div>`);
     startClock();
-    document.querySelectorAll('[data-open-question]').forEach((button) => button.addEventListener('click', () => { state.activeQuestion = Number(button.dataset.openQuestion); state.view='exam'; persist(); render(); }));
-    document.getElementById('back-exam').addEventListener('click', () => { state.view='exam'; persist(); render(); });
-    document.getElementById('submit-exam').addEventListener('click', () => completeSubmission(false));
+    document.querySelectorAll('[data-open-question]').forEach(button=>button.addEventListener('click',()=>{state.activeQuestion=Number(button.dataset.openQuestion);state.view='exam';persist();render()}));
+    document.getElementById('back-exam').addEventListener('click',()=>{state.view='exam';persist();render()});
+    const dialog=document.getElementById('submit-dialog');
+    document.getElementById('submit-exam').addEventListener('click',()=>{dialog.dataset.open='true';dialog.setAttribute('aria-hidden','false');dialog.querySelector('[data-submit-confirm]').focus()});
+    dialog.querySelectorAll('[data-submit-cancel]').forEach(button=>button.addEventListener('click',()=>{dialog.dataset.open='false';dialog.setAttribute('aria-hidden','true');document.getElementById('submit-exam').focus()}));
+    dialog.querySelector('[data-submit-confirm]').addEventListener('click',()=>completeSubmission(false));
   };
 
   const completeSubmission = (automatic) => {
@@ -595,15 +400,7 @@
 
   const renderSubmitted = (automatic = false) => {
     stopClock();
-    shell(`
-      <div class="mx-auto grid min-h-dvh max-w-7xl grid-cols-12 bg-white lg:border-x lg:border-neutral-300">
-        <section class="col-span-12 flex flex-col justify-between bg-black p-6 text-white sm:p-10 lg:col-span-5 lg:min-h-dvh lg:p-12">
-          ${pageBrand(true)}
-          <div class="py-12"><span class="grid size-16 place-items-center rounded-full bg-white text-black">${ICON.check}</span><p class="mt-8 text-xs font-bold uppercase tracking-widest text-neutral-500">Attempt received</p><h1 class="mt-4 font-serif text-5xl font-bold leading-none sm:text-6xl">Submitted.</h1><p class="mt-6 max-w-sm text-base leading-7 text-neutral-300">${automatic ? 'Time expired and the local attempt was submitted automatically.' : 'Your local examination attempt has been recorded successfully.'}</p></div>
-          <span class="text-xs text-neutral-500">Session ${escapeText(session.id)}</span>
-        </section>
-        <section class="col-span-12 flex items-center p-6 sm:p-10 lg:col-span-7 lg:min-h-dvh lg:p-16"><div class="w-full max-w-xl lg:mx-auto"><p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Submission receipt</p><h2 class="mt-4 font-serif text-4xl font-bold sm:text-5xl">${escapeText(state.studentName)}</h2><div class="mt-8 overflow-hidden rounded-3xl border-2 border-black">${[['Examination',session.title],['Class',session.classLevel],['Type',modeLabel()],['Coverage',examDescriptor()],['Answered',`${answeredCount()} of ${questions.length}`],['Submitted',formatDateTime(state.submittedAt)],['Attempt ID',state.attemptId]].map(([label,value])=>`<div class="grid grid-cols-12 gap-3 border-b border-neutral-200 px-5 py-4 last:border-b-0"><span class="col-span-4 text-xs font-bold uppercase tracking-wider text-neutral-500">${escapeText(label)}</span><strong class="col-span-8 text-sm text-black">${escapeText(value)}</strong></div>`).join('')}</div><p class="mt-6 text-sm leading-6 text-neutral-600">Results or stream-placement decisions are not calculated in this browser prototype.</p></div></section>
-      </div>`);
+    shell(`<div class="mx-auto flex min-h-dvh max-w-6xl items-center px-4 py-10 sm:px-6 lg:px-8"><section class="surface-raised grid w-full overflow-hidden lg:grid-cols-[1fr_340px]"><div class="p-6 sm:p-9 lg:p-11">${pageBrand()}<span class="badge badge-success mt-9">Attempt received</span><h1 class="mt-4 font-display text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">Examination submitted.</h1><p class="mt-3 max-w-xl text-sm leading-6 text-slate-600">${automatic?'Time expired and this local attempt was submitted automatically.':'Your local examination attempt has been recorded successfully.'}</p><div class="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white">${[['Candidate',state.studentName],['Examination',session.title],['Class',session.classLevel],['Coverage',examDescriptor()],['Answered',`${answeredCount()} of ${questions.length}`],['Submitted',formatDateTime(state.submittedAt)],['Attempt ID',state.attemptId]].map(([label,value])=>`<div class="grid grid-cols-12 gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0"><span class="col-span-4 text-xs font-bold text-slate-500">${escapeText(label)}</span><strong class="col-span-8 text-sm text-slate-900">${escapeText(value)}</strong></div>`).join('')}</div><div class="mt-6 flex flex-wrap gap-2"><a href="${escapeText(dashboardUrl())}" class="btn btn-primary">Back to dashboard</a><span class="alert alert-info">Results or placement decisions are not calculated in this browser prototype.</span></div></div><div class="illustration-well m-4 grid min-h-80 place-items-center p-6 lg:m-5"><img src="${ART.connect}" alt="Students connected through the Festacol learning platform" class="h-72 w-full object-contain"></div></section></div>`);
   };
 
   const render = () => {

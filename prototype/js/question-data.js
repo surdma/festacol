@@ -2,7 +2,7 @@
   'use strict';
 
   const SUPPORTED_TYPES = new Set(['single', 'multi', 'boolean', 'fill', 'fill-multi']);
-  let cache = null;
+  let baseCache = null;
 
   const validateQuestion = (question, ids) => {
     if (!question || !Number.isInteger(question.id) || ids.has(question.id)) throw new Error('Every question must have a unique integer id.');
@@ -33,11 +33,15 @@
   const DATA_URL = resolveUrl();
 
   const load = async () => {
-    if (cache) return cache;
-    const response = await fetch(DATA_URL, { headers: { Accept: 'application/json' }, cache: 'no-store' });
-    if (!response.ok) throw new Error(`Question data request failed (${response.status}).`);
-    cache = validatePayload(await response.json());
-    return cache;
+    if (!baseCache) {
+      const response = await fetch(DATA_URL, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!response.ok) throw new Error(`Question data request failed (${response.status}).`);
+      baseCache = validatePayload(await response.json());
+    }
+    const customQuestions = window.FestacolSessionStore?.listCustomQuestions?.() || [];
+    if (!customQuestions.length) return baseCache;
+    const merged = { ...baseCache, questions: [...customQuestions, ...baseCache.questions] };
+    return validatePayload(merged);
   };
 
   const availableSubjects = (payload, classLevel, mode) => payload.subjectCatalog.filter((subject) => {

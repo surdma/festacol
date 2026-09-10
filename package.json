@@ -1,0 +1,14 @@
+{
+  "name": "festacol-prototype-ui",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report",
+    "audit:prototype": "node scripts/prototype-audit.mjs",
+    "check": "npm run audit:prototype && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
