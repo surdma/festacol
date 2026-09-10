@@ -3,6 +3,7 @@
 
   const QUESTION_DATA_VERSION_KEY = 'festacol-question-data-version';
   const EXAM_STATE_KEY = 'festacol-cbt-demo-v2';
+  const SUPPORTED_TYPES = new Set(['single', 'multi', 'boolean', 'fill', 'fill-multi']);
 
   const currentScript = document.currentScript;
   const root = document.getElementById('page-root');
@@ -17,6 +18,28 @@
           <p class="mt-3 text-sm leading-6 text-neutral-600">${message}</p>
         </div>
       </div>`;
+  };
+
+  const validateQuestion = (question, ids) => {
+    if (!question || !Number.isInteger(question.id) || ids.has(question.id)) {
+      throw new Error('Every question must have a unique integer id.');
+    }
+    if (!question.subject || !question.domain || !question.label || !question.prompt) {
+      throw new Error(`Question ${question.id} is missing required subject or content fields.`);
+    }
+    if (!SUPPORTED_TYPES.has(question.type)) {
+      throw new Error(`Question ${question.id} has an unsupported response type.`);
+    }
+    if ((question.type === 'single' || question.type === 'multi') && (!Array.isArray(question.options) || question.options.length < 2)) {
+      throw new Error(`Question ${question.id} must provide answer options.`);
+    }
+    if (question.type === 'multi' && (!Number.isInteger(question.requiredSelections) || question.requiredSelections < 1 || question.requiredSelections > question.options.length)) {
+      throw new Error(`Question ${question.id} has an invalid required selection count.`);
+    }
+    if ((question.type === 'fill' || question.type === 'fill-multi') && (!Array.isArray(question.fillTemplate) || !question.fillTemplate.some((part) => part && part.blank))) {
+      throw new Error(`Question ${question.id} must define at least one response blank.`);
+    }
+    ids.add(question.id);
   };
 
   const loadApplication = async () => {
@@ -41,20 +64,12 @@
 
     const payload = await response.json();
 
-    if (!payload || !Array.isArray(payload.questions) || payload.questions.length === 0) {
-      throw new Error('Question data is missing a non-empty questions array.');
+    if (!payload || !payload.questionSetId || !Array.isArray(payload.questions) || payload.questions.length === 0) {
+      throw new Error('Question data is missing its version or a non-empty questions array.');
     }
 
     const ids = new Set();
-    for (const question of payload.questions) {
-      if (!question || !Number.isInteger(question.id) || ids.has(question.id)) {
-        throw new Error('Every question must have a unique integer id.');
-      }
-      if (!question.type || !question.label || !question.prompt) {
-        throw new Error(`Question ${question.id} is missing required fields.`);
-      }
-      ids.add(question.id);
-    }
+    payload.questions.forEach((question) => validateQuestion(question, ids));
 
     try {
       const previousVersion = localStorage.getItem(QUESTION_DATA_VERSION_KEY);
