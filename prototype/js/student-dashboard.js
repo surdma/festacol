@@ -11,8 +11,8 @@
   const sessionState=(s)=>{const now=Date.now();if(!s)return'missing';if(s.status!=='open')return s.status;if(s.startsAt&&now<s.startsAt)return'scheduled';if(s.endsAt&&now>s.endsAt)return'closed';return'open';};
   const navHref=(next)=>{const u=new URL('./student.html',location.href);u.search='';u.searchParams.set('page',next);if(token)u.searchParams.set('session',token);return u.pathname.split('/').pop()+u.search;};
   const profile=()=>Store.getStudentProfile();
-  const authed=()=>{const p=profile();return Boolean(p?.studentHash&&Store.getStudentAuth()===p.studentHash);};
   const candidateHash=()=>session?Store.getActiveCandidate(session.id):'';
+  const authed=()=>{const p=profile(),hash=candidateHash();if(session&&p?.studentHash&&hash&&Store.getAttemptResetAt(session.id,hash)>Number(p.updatedAt||0)){Store.clearStudentAuth();Store.clearActiveCandidate(session.id);return false;}return Boolean(p?.studentHash&&Store.getStudentAuth()===p.studentHash&&hash);};
   const attempt=()=>session&&candidateHash()?Store.findAttempt(session.id,candidateHash()):null;
   const state=()=>session&&candidateHash()?Store.getStudentState(session.id,candidateHash()):null;
   const attempts=()=>{const p=profile();return p?.studentHash?Store.attemptsForStudent(p.studentHash):[];};
