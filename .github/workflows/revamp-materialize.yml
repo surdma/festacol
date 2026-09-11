@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   materialize-test-commit:
-    if: "${{ github.event.head_commit.message == 'ci: materialize exact admin revamp candidate' }}"
+    if: "${{ github.event.head_commit.message == 'ci: retry materialized admin browser regressions' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -56,6 +56,10 @@ jobs:
           b1a5926a04d4f7b5f8d1a571c95f0838033ee3fda4503ba9bad8847a831faf2e  prototype/assets/festacol.css
           EOF
           sha256sum --check --strict /tmp/revamp-sha256
+
+          git apply --check .revamp-payload/browser-fixes.patch
+          git apply .revamp-payload/browser-fixes.patch
+          echo "87b95bda7371ed6d3d1b4c0723307f0257245e9883f0f23a894892ecc902bd0d  tests/prototype.spec.js" | sha256sum --check --strict
 
           rm -f \
             prototype/js/admin-core-a.js \
