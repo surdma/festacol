@@ -21,7 +21,13 @@
     if (!Array.isArray(payload.subjectCatalog) || payload.subjectCatalog.length === 0) throw new Error('Question subject catalogue is unavailable.');
     const ids = new Set();
     payload.questions.forEach((question) => validateQuestion(question, ids));
-    return payload;
+    return {
+      ...payload,
+      assessmentAlignment: {
+        ...(payload.assessmentAlignment || {}),
+        note: 'Prototype scoring keys are evaluated client-side only to exercise analytics and placement. They are inspectable and are not a security boundary; production answer keys, authentication, scoring and attempt allocation must live on a protected server.'
+      }
+    };
   };
 
   const resolveUrl = () => {
@@ -29,7 +35,6 @@
     if (script?.src) return new URL('../data/questions.json', script.src).href;
     return new URL('./data/questions.json', document.baseURI).href;
   };
-
   const DATA_URL = resolveUrl();
 
   const load = async () => {
@@ -40,13 +45,18 @@
     }
     const customQuestions = window.FestacolSessionStore?.listCustomQuestions?.() || [];
     if (!customQuestions.length) return baseCache;
-    const merged = { ...baseCache, questions: [...customQuestions, ...baseCache.questions] };
-    return validatePayload(merged);
+    return validatePayload({ ...baseCache, questions: [...customQuestions, ...baseCache.questions] });
   };
 
   const availableSubjects = (payload, classLevel, mode) => payload.subjectCatalog.filter((subject) => {
     if (!subject.levels.includes(classLevel)) return false;
     return payload.questions.some((question) => question.subjectCode === subject.code && question.levels.includes(classLevel) && question.examModes.includes(mode));
+  });
+
+  const eligibleQuestions = (payload, session) => payload.questions.filter((question) => {
+    if (!question.levels.includes(session.classLevel) || !question.examModes.includes(session.mode)) return false;
+    if (session.mode === 'qualifier') return !session.subjects?.length || session.subjects.includes(question.subjectCode);
+    return session.subjects.includes(question.subjectCode);
   });
 
   const interleaveBySubject = (questions, subjectOrder, limit) => {
@@ -55,7 +65,6 @@
       if (!buckets.has(question.subjectCode)) buckets.set(question.subjectCode, []);
       buckets.get(question.subjectCode).push(question);
     });
-
     const orderedCodes = [...buckets.keys()];
     const result = [];
     let cursor = 0;
@@ -69,23 +78,15 @@
   };
 
   const questionsForSession = (payload, session) => {
-    const candidates = payload.questions.filter((question) => {
-      if (!question.levels.includes(session.classLevel)) return false;
-      if (!question.examModes.includes(session.mode)) return false;
-      if (session.mode === 'qualifier') return true;
-      return session.subjects.includes(question.subjectCode);
-    });
-
+    const candidates = eligibleQuestions(payload, session);
     const limit = Math.min(session.questionCount, candidates.length);
     if (session.mode === 'single' || session.mode === 'waec') return candidates.slice(0, limit);
-
-    const subjectOrder = session.mode === 'qualifier'
-      ? [...new Set(candidates.map((question) => question.subjectCode))]
-      : session.subjects;
+    const subjectOrder = session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))];
     return interleaveBySubject(candidates, subjectOrder, limit);
   };
 
   const subjectByCode = (payload, code) => payload.subjectCatalog.find((subject) => subject.code === code) || null;
+  const questionById = (payload, id) => payload.questions.find((question) => question.id === Number(id)) || null;
 
-  window.FestacolQuestionData = Object.freeze({ load, availableSubjects, questionsForSession, subjectByCode });
+  window.FestacolQuestionData = Object.freeze({ load, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
 })();
