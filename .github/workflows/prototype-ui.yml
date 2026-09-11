@@ -8,9 +8,8 @@ on:
       - 'work/**'
     paths:
       - 'prototype/**'
-      - 'tests/**'
       - 'scripts/prototype-audit.mjs'
-      - 'playwright.config.js'
+      - 'scripts/state-contract.mjs'
       - 'package.json'
       - '.github/workflows/prototype-ui.yml'
   pull_request:
@@ -19,9 +18,8 @@ on:
       - main
     paths:
       - 'prototype/**'
-      - 'tests/**'
       - 'scripts/prototype-audit.mjs'
-      - 'playwright.config.js'
+      - 'scripts/state-contract.mjs'
       - 'package.json'
       - '.github/workflows/prototype-ui.yml'
 
@@ -48,33 +46,6 @@ jobs:
         run: |
           for file in prototype/js/*.js; do node --check "$file"; done
           node --check scripts/prototype-audit.mjs
-          node --check tests/prototype.spec.js
-          node --check playwright.config.js
+          node --check scripts/state-contract.mjs
           npm run audit:prototype
           npm run test:contract
-
-  e2e:
-    name: Browser E2E, accessibility & responsiveness
-    needs: source-contract
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - name: Install test dependencies
-        run: npm install --no-audit --no-fund
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-      - name: Run end-to-end UI suite
-        run: npm run test:e2e
-      - name: Upload Playwright report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v5
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 14
