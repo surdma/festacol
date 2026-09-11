@@ -1,223 +1,34 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Festacol examination session studio prototype">
-  <title>Festacol · Exam Session Studio</title>
-  <link href="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Festacol examination administration prototype"><title>Festacol · Admin Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script><link href="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.css" rel="stylesheet"><script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <style type="text/tailwindcss">@theme{--font-sans:"DM Sans",sans-serif;--font-display:"Manrope",sans-serif}html{scroll-behavior:smooth}.page-enter{animation:page-enter .2s ease-out}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}</style>
+  <link rel="stylesheet" href="./assets/festacol.css"><link rel="stylesheet" href="./assets/academic-v3.css">
 </head>
-<body class="min-h-dvh bg-neutral-100 font-sans text-black antialiased selection:bg-black selection:text-white">
-  <a href="#admin-root" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-black focus:px-4 focus:py-3 focus:text-sm focus:font-bold focus:text-white">Skip to session workspace</a>
-
-  <div class="min-h-dvh lg:grid lg:grid-cols-12">
-    <aside class="border-b border-neutral-800 bg-black text-white lg:col-span-3 lg:min-h-dvh lg:border-b-0 lg:border-r xl:col-span-2">
-      <div class="flex items-center justify-between gap-4 px-5 py-5 lg:block lg:px-6 lg:py-7">
-        <a href="./admin.html" class="inline-flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
-          <span class="grid size-10 place-items-center rounded-xl bg-white text-sm font-black text-black" aria-hidden="true">F</span>
-          <span>
-            <strong class="block text-base font-bold tracking-tight">Festacol</strong>
-            <span class="block text-xs text-neutral-400">Exam Session Studio</span>
-          </span>
-        </a>
-        <span class="rounded-full border border-neutral-700 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-neutral-300 lg:mt-8 lg:inline-flex">Prototype</span>
-      </div>
-
-      <nav class="hidden px-4 pb-7 lg:block" aria-label="Session studio">
-        <div class="rounded-2xl bg-white px-4 py-4 text-black">
-          <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">Workspace</p>
-          <p class="mt-2 font-serif text-xl font-bold leading-tight">Build the exact exam candidates should enter.</p>
-        </div>
-        <div class="mt-6 space-y-1 text-sm">
-          <a href="#create-session" class="flex min-h-11 items-center rounded-xl bg-neutral-900 px-4 font-semibold text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-white">Create session</a>
-          <a href="#saved-sessions" class="flex min-h-11 items-center rounded-xl px-4 font-medium text-neutral-300 hover:bg-neutral-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">Saved sessions</a>
-          <a href="#local-attempts" class="flex min-h-11 items-center rounded-xl px-4 font-medium text-neutral-300 hover:bg-neutral-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">Local attempts</a>
-        </div>
-      </nav>
-
-      <div class="hidden border-t border-neutral-800 px-6 py-6 text-xs leading-5 text-neutral-400 lg:block">
-        Session links carry their configuration so a QR can resolve on another device. Production authorization still requires a signed server token.
-      </div>
-    </aside>
-
-    <main id="admin-root" tabindex="-1" class="outline-none lg:col-span-9 xl:col-span-10">
-      <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-        <header class="mb-8 grid gap-6 border-b-2 border-black pb-8 lg:grid-cols-12 lg:items-end">
-          <div class="lg:col-span-8">
-            <p class="text-xs font-black uppercase tracking-widest text-neutral-500">Session control</p>
-            <h1 class="mt-3 max-w-4xl font-serif text-4xl font-bold leading-none tracking-tight text-black sm:text-5xl lg:text-6xl">Create an exam link that carries its own rules.</h1>
-            <p class="mt-5 max-w-2xl text-base leading-7 text-neutral-600">Set the class, exam format, subjects, timing and question count once. The student link reads those exact settings—no class or subject guessing.</p>
-          </div>
-          <div class="lg:col-span-4 lg:flex lg:justify-end">
-            <a href="./index.html" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-black bg-white px-5 text-sm font-bold text-black transition hover:-translate-y-0.5 hover:bg-black hover:text-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none sm:w-auto">Open student entry</a>
-          </div>
-        </header>
-
-        <div id="admin-alert" class="mb-6 hidden" role="status" aria-live="polite"></div>
-
-        <section id="create-session" class="grid gap-6 lg:grid-cols-12" aria-labelledby="create-heading">
-          <div class="overflow-hidden rounded-3xl border-2 border-black bg-white shadow-xl shadow-neutral-300/40 lg:col-span-8">
-            <div class="grid gap-4 border-b-2 border-black bg-black px-5 py-6 text-white sm:px-7 lg:grid-cols-12 lg:items-end">
-              <div class="lg:col-span-8">
-                <p class="text-xs font-bold uppercase tracking-widest text-neutral-400">01 · Configure</p>
-                <h2 id="create-heading" class="mt-2 font-serif text-3xl font-bold tracking-tight">New examination session</h2>
-              </div>
-              <p class="text-sm leading-6 text-neutral-300 lg:col-span-4">Every choice below becomes part of the dynamic student link.</p>
-            </div>
-
-            <form id="session-form" class="space-y-8 p-5 sm:p-7" novalidate>
-              <fieldset>
-                <legend class="text-sm font-black uppercase tracking-widest text-neutral-500">Candidate class</legend>
-                <p class="mt-2 text-sm leading-6 text-neutral-600">Select who this session is intended for. Qualifier and WAEC modes enforce their valid class automatically.</p>
-                <div id="class-options" class="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-neutral-100 p-1.5" role="group" aria-label="Candidate class">
-                  <button type="button" data-class-level="SS1" class="min-h-12 rounded-xl bg-black px-4 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2">SS1</button>
-                  <button type="button" data-class-level="SS2" class="min-h-12 rounded-xl px-4 text-sm font-bold text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">SS2</button>
-                  <button type="button" data-class-level="SS3" class="min-h-12 rounded-xl px-4 text-sm font-bold text-neutral-600 hover:bg-white hover:text-black focus:outline-none focus:ring-2 focus:ring-black">SS3</button>
-                </div>
-              </fieldset>
-
-              <fieldset>
-                <legend class="text-sm font-black uppercase tracking-widest text-neutral-500">Exam format</legend>
-                <div id="mode-options" class="mt-4 grid gap-3 sm:grid-cols-2">
-                  <button type="button" data-mode="qualifier" class="group min-h-32 rounded-2xl border-2 border-black bg-black p-5 text-left text-white shadow-lg shadow-neutral-300 transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="true">
-                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-400">Placement</span>
-                    <strong class="mt-3 block font-serif text-2xl leading-tight">SS1 qualifier</strong>
-                    <span class="mt-2 block text-sm leading-5 text-neutral-300">Broad aptitude session for Science, Arts or Social Science placement.</span>
-                  </button>
-                  <button type="button" data-mode="mixed" class="group min-h-32 rounded-2xl border-2 border-neutral-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="false">
-                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-500">Combined</span>
-                    <strong class="mt-3 block font-serif text-2xl leading-tight">Mixed subjects</strong>
-                    <span class="mt-2 block text-sm leading-5 text-neutral-600">One timed session assembled from two or more selected subjects.</span>
-                  </button>
-                  <button type="button" data-mode="single" class="group min-h-32 rounded-2xl border-2 border-neutral-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="false">
-                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-500">Focused</span>
-                    <strong class="mt-3 block font-serif text-2xl leading-tight">Single subject</strong>
-                    <span class="mt-2 block text-sm leading-5 text-neutral-600">A focused examination drawn only from one subject domain.</span>
-                  </button>
-                  <button type="button" data-mode="waec" class="group min-h-32 rounded-2xl border-2 border-neutral-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none" aria-pressed="false">
-                    <span class="block text-xs font-black uppercase tracking-widest text-neutral-500">SS3 only</span>
-                    <strong class="mt-3 block font-serif text-2xl leading-tight">WAEC subject practice</strong>
-                    <span class="mt-2 block text-sm leading-5 text-neutral-600">Subject-specific senior-school practice session for SS3 candidates.</span>
-                  </button>
-                </div>
-              </fieldset>
-
-              <div class="grid gap-5 sm:grid-cols-2">
-                <div class="sm:col-span-2">
-                  <label for="session-title" class="mb-2 block text-sm font-bold text-black">Session title</label>
-                  <input id="session-title" name="title" type="text" maxlength="40" value="SS1 Placement Qualifier" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 text-base text-black placeholder:text-neutral-400 focus:border-black focus:ring-black" required>
-                </div>
-                <div>
-                  <label for="duration" class="mb-2 block text-sm font-bold text-black">Duration</label>
-                  <div class="relative">
-                    <input id="duration" name="duration" type="number" min="5" max="240" value="60" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 pr-20 text-base font-semibold text-black focus:border-black focus:ring-black" required>
-                    <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold uppercase tracking-wider text-neutral-500">minutes</span>
-                  </div>
-                </div>
-                <div>
-                  <label for="question-count" class="mb-2 block text-sm font-bold text-black">Questions</label>
-                  <div class="relative">
-                    <input id="question-count" name="questionCount" type="number" min="1" max="100" value="12" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 pr-20 text-base font-semibold text-black focus:border-black focus:ring-black" required>
-                    <span id="available-count" class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold uppercase tracking-wider text-neutral-500">12 ready</span>
-                  </div>
-                </div>
-              </div>
-
-              <fieldset id="subject-fieldset" class="hidden">
-                <legend class="text-sm font-black uppercase tracking-widest text-neutral-500">Subjects</legend>
-                <p id="subject-help" class="mt-2 text-sm leading-6 text-neutral-600">Choose the subjects included in this examination.</p>
-                <div id="subject-options" class="mt-4 grid gap-2 sm:grid-cols-2"></div>
-              </fieldset>
-
-              <div class="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label for="starts-at" class="mb-2 block text-sm font-bold text-black">Opens at <span class="font-normal text-neutral-500">optional</span></label>
-                  <input id="starts-at" name="startsAt" type="datetime-local" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 text-sm text-black focus:border-black focus:ring-black">
-                </div>
-                <div>
-                  <label for="ends-at" class="mb-2 block text-sm font-bold text-black">Closes at <span class="font-normal text-neutral-500">optional</span></label>
-                  <input id="ends-at" name="endsAt" type="datetime-local" class="block min-h-12 w-full rounded-xl border-2 border-neutral-300 bg-white px-4 text-sm text-black focus:border-black focus:ring-black">
-                </div>
-              </div>
-
-              <div>
-                <label for="instructions" class="mb-2 block text-sm font-bold text-black">Candidate note <span class="font-normal text-neutral-500">optional</span></label>
-                <textarea id="instructions" name="instructions" rows="3" maxlength="80" class="block w-full resize-y rounded-xl border-2 border-neutral-300 bg-white p-4 text-sm leading-6 text-black placeholder:text-neutral-400 focus:border-black focus:ring-black" placeholder="Example: Bring a calculator. You may review questions before final submission."></textarea>
-              </div>
-
-              <div class="flex flex-col gap-3 border-t-2 border-black pt-6 sm:flex-row sm:items-center sm:justify-between">
-                <p id="form-summary" class="max-w-xl text-sm leading-6 text-neutral-600">SS1 qualifier · 12 questions · 60 minutes</p>
-                <button id="create-button" type="submit" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-black px-6 text-sm font-bold text-white shadow-lg shadow-neutral-300 transition hover:-translate-y-0.5 hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 motion-reduce:transform-none">
-                  <svg class="size-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z"/><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z"/></svg>
-                  Create link &amp; QR
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <aside class="lg:col-span-4" aria-label="Session preview">
-            <div class="sticky top-6 overflow-hidden rounded-3xl border-2 border-black bg-black text-white shadow-2xl shadow-neutral-400/40">
-              <div class="border-b border-neutral-800 px-5 py-5">
-                <p class="text-xs font-black uppercase tracking-widest text-neutral-500">02 · Preview</p>
-                <h2 class="mt-2 font-serif text-2xl font-bold">Candidate access</h2>
-              </div>
-              <div class="p-5 sm:p-6">
-                <div id="session-spec" class="space-y-4"></div>
-
-                <div id="link-empty" class="mt-6 rounded-2xl border border-dashed border-neutral-700 bg-neutral-950 p-5 text-center">
-                  <svg class="mx-auto size-8 text-neutral-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z"/><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z"/></svg>
-                  <p class="mt-3 text-sm font-bold text-neutral-300">Link not created yet</p>
-                  <p class="mt-2 text-xs leading-5 text-neutral-500">Complete a valid configuration to create the exact candidate URL.</p>
-                </div>
-
-                <div id="link-result" class="mt-6 hidden">
-                  <div class="rounded-2xl bg-white p-4 text-black">
-                    <div id="qr-code" class="mx-auto max-w-64" aria-label="QR code for examination session"></div>
-                  </div>
-                  <p class="mt-4 break-all rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-xs leading-5 text-neutral-400" id="session-link"></p>
-                  <div class="mt-3 grid grid-cols-2 gap-2">
-                    <button id="copy-link" type="button" class="min-h-11 rounded-xl border border-neutral-700 px-3 text-sm font-bold text-white hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-white">Copy link</button>
-                    <a id="open-link" href="#" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-3 text-sm font-bold text-black hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white">Open student page</a>
-                  </div>
-                </div>
-              </div>
-              <div class="border-t border-neutral-800 bg-neutral-950 px-5 py-4 text-xs leading-5 text-neutral-500">
-                Prototype security note: the configuration is encoded in the URL for portability. Production should issue a signed or opaque server token.
-              </div>
-            </div>
-          </aside>
-        </section>
-
-        <section id="saved-sessions" class="mt-12 border-t-2 border-black pt-8" aria-labelledby="saved-heading">
-          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p class="text-xs font-black uppercase tracking-widest text-neutral-500">Session registry</p>
-              <h2 id="saved-heading" class="mt-2 font-serif text-3xl font-bold tracking-tight">Saved in this browser</h2>
-            </div>
-            <p class="max-w-xl text-sm leading-6 text-neutral-600">These records help the prototype reopen or close links created on this browser. The link itself remains portable across devices.</p>
-          </div>
-          <div id="saved-session-list" class="overflow-hidden rounded-3xl border-2 border-black bg-white"></div>
-        </section>
-
-        <section id="local-attempts" class="mt-12 border-t-2 border-black pt-8" aria-labelledby="attempts-heading">
-          <div class="mb-5 grid gap-3 lg:grid-cols-12 lg:items-end">
-            <div class="lg:col-span-7">
-              <p class="text-xs font-black uppercase tracking-widest text-neutral-500">Prototype evidence</p>
-              <h2 id="attempts-heading" class="mt-2 font-serif text-3xl font-bold tracking-tight">Attempts recorded on this browser</h2>
-            </div>
-            <p class="text-sm leading-6 text-neutral-600 lg:col-span-5">Cross-device candidate submissions cannot appear here without a backend. This list only proves the local prototype identity and attempt workflow.</p>
-          </div>
-          <div id="attempt-list" class="overflow-hidden rounded-3xl border-2 border-black bg-white"></div>
-        </section>
-      </div>
-    </main>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
-  <script src="./js/session-store.js"></script>
-  <script src="./js/question-data.js"></script>
-  <script src="./js/qr.js"></script>
-  <script src="./js/admin.js"></script>
-</body>
-</html>
+<body class="app-page admin-page min-h-dvh font-sans antialiased"><a href="#admin-root" class="skip-link">Skip to main content</a>
+  <aside class="nav-rail fixed inset-y-0 left-0 z-40 hidden w-64 flex-col lg:flex" aria-label="Administration navigation">
+    <div class="px-4 pb-3 pt-5"><a href="./admin.html?page=overview" class="flex items-center gap-3 rounded-xl px-2 py-2" aria-label="Festacol administration overview"><span class="brand-mark">F</span><span><strong class="block font-display text-[15px] font-extrabold text-slate-950">Festacol</strong><span class="block text-[11px] font-semibold text-slate-500">Academic operations</span></span></a></div>
+    <nav class="flex-1 overflow-y-auto px-3 pb-4" aria-label="Admin pages"><p class="eyebrow px-3 pb-2 pt-3">Operations</p><div class="grid gap-1">
+      <a href="./admin.html?page=overview" data-admin-route="overview" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 12 8-8 8 8M6 10.5V19a1 1 0 0 0 1 1h3v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h3a1 1 0 0 0 1-1v-8.5"/></svg></span>Overview</a>
+      <a href="./admin.html?page=users" data-admin-route="users" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4.5 17H4a1 1 0 0 1-1-1 3 3 0 0 1 3-3h1m0-3.05A2.5 2.5 0 1 1 9 5.5M19.5 17h.5a1 1 0 0 0 1-1 3 3 0 0 0-3-3h-1m0-3.05a2.5 2.5 0 1 0-2-4.45m.5 13.5h-7a1 1 0 0 1-1-1 3 3 0 0 1 3-3h3a3 3 0 0 1 3 3 1 1 0 0 1-1 1Zm-1-9.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z"/></svg></span>Students & staff</a>
+      <a href="./admin.html?page=exams" data-admin-route="exams" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M12.1429 11v9m0-9c-2.50543-.7107-3.19099-1.39543-6.13657-1.34968-.48057.00746-.86348.38718-.86348.84968v7.2884c0 .4824.41455.8682.91584.8617 2.77491-.0362 3.45995.6561 6.08421 1.3499m0-9c2.5053-.7107 3.1067-1.39542 6.0523-1.34968.4806.00746.9477.38718.9477.84968v7.2884c0 .4824-.4988.8682-1 .8617-2.775-.0362-3.3758.6561-6 1.3499m2-14c0 1.10457-.8955 2-2 2-1.1046 0-2-.89543-2-2s.8954-2 2-2c1.1045 0 2 .89543 2 2Z"/></svg></span>Exams</a>
+      <a href="./admin.html?page=classes" data-admin-route="classes" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="m7.14284 11 4.99996-6 5 6m-9.99996 0h-3v8H20.1428v-8h-3m-9.99996 0H3.14285l3-4h4.33735l-3.33736 4Zm9.99996 0h4l-3-4h-4.3374l3.3374 4Zm-3 2c0 1.1046-.8954 2-2 2-1.1045 0-2-.8954-2-2s.8955-2 2-2c1.1046 0 2 .8954 2 2Z"/></svg></span>Classes</a>
+      <a href="./admin.html?page=questions" data-admin-route="questions" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.529 9.988a2.502 2.502 0 1 1 5 .191A2.441 2.441 0 0 1 12 12.582V14m-.01 3.008H12M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span>Questions</a>
+    </div><p class="eyebrow px-3 pb-2 pt-7">Intelligence</p><div class="grid gap-1">
+      <a href="./admin.html?page=reports&view=overview" data-admin-route="reports" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6.025A7.5 7.5 0 1 0 17.975 14H10V6.025Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 3c-.169 0-.334.014-.5.025V11h7.975c.011-.166.025-.331.025-.5A7.5 7.5 0 0 0 13.5 3Z"/></svg></span>Reports</a>
+      <a href="./admin.html?page=reports&view=exams" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6.025A7.5 7.5 0 1 0 17.975 14H10V6.025Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 3c-.169 0-.334.014-.5.025V11h7.975c.011-.166.025-.331.025-.5A7.5 7.5 0 0 0 13.5 3Z"/></svg></span>Exam reports</a>
+      <a href="./admin.html?page=reports&view=students" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4.5 17H4a1 1 0 0 1-1-1 3 3 0 0 1 3-3h1m0-3.05A2.5 2.5 0 1 1 9 5.5M19.5 17h.5a1 1 0 0 0 1-1 3 3 0 0 0-3-3h-1m0-3.05a2.5 2.5 0 1 0-2-4.45m.5 13.5h-7a1 1 0 0 1-1-1 3 3 0 0 1 3-3h3a3 3 0 0 1 3 3 1 1 0 0 1-1 1Zm-1-9.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z"/></svg></span>Student reports</a>
+      <a href="./admin.html?page=reports&view=placements" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6.025A7.5 7.5 0 1 0 17.975 14H10V6.025Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 3c-.169 0-.334.014-.5.025V11h7.975c.011-.166.025-.331.025-.5A7.5 7.5 0 0 0 13.5 3Z"/></svg></span>Placements</a>
+      <a href="./admin.html?page=reports&view=promotions" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6.025A7.5 7.5 0 1 0 17.975 14H10V6.025Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 3c-.169 0-.334.014-.5.025V11h7.975c.011-.166.025-.331.025-.5A7.5 7.5 0 0 0 13.5 3Z"/></svg></span>Promotions</a>
+      <a href="./admin.html?page=reports&view=integrity" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m8.5 11.5 2.5 2.5 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span>Integrity</a>
+    </div><p class="eyebrow px-3 pb-2 pt-7">System</p><a href="./admin.html?page=settings" data-admin-route="settings" class="nav-link"><span class="nav-icon-wrap"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13v-2a1 1 0 0 0-1-1h-.757l-.707-1.707.535-.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 0l-.536.535L14 4.757V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v.757l-1.707.707-.536-.535a1 1 0 0 0-1.414 0L4.929 6.343a1 1 0 0 0 0 1.414l.536.536L4.757 10H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h.757l.707 1.707-.535.536a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414 0l.536-.535 1.707.707V20a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-.757l1.707-.708.536.536a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0 0-1.414l-.535-.536.707-1.707H20a1 1 0 0 0 1-1Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg></span>Settings</a></nav>
+    <div class="p-3"><div class="surface-soft p-3.5"><div class="flex items-center gap-2"><span class="size-2 rounded-full bg-teal-500"></span><strong class="text-xs text-slate-800">Prototype workspace</strong></div><p class="mt-1.5 text-[11px] leading-5 text-slate-500">Browser-local records; production security requires a backend.</p></div></div>
+  </aside>
+  <div class="min-h-dvh lg:pl-64"><header class="glassbar sticky top-0 z-30"><div class="mx-auto flex min-h-16 max-w-[1540px] items-center gap-3 px-4 sm:px-6 lg:px-7"><button type="button" data-drawer-target="admin-mobile-drawer" data-drawer-show="admin-mobile-drawer" aria-controls="admin-mobile-drawer" class="icon-btn lg:hidden" aria-label="Open administration navigation"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5 7h14M5 12h14M5 17h14"/></svg></button><div class="min-w-0 flex-1"><p id="admin-breadcrumb" class="eyebrow">Administration / Overview</p><h1 id="admin-page-label" class="truncate font-display text-[17px] font-extrabold text-slate-900">Overview</h1></div><div class="hidden w-full max-w-xs md:block"><label for="admin-global-search" class="sr-only">Search administration</label><input id="admin-global-search" class="field h-10 min-h-10" placeholder="Search users, exams, classes…"></div><button type="button" class="icon-btn hidden sm:grid" aria-label="Notifications"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5.365V3m0 2.365a5.338 5.338 0 0 1 5.133 5.368v1.8c0 2.386 1.867 2.982 1.867 4.175 0 .593 0 1.292-.538 1.292H5.538C5 18 5 17.301 5 16.708c0-1.193 1.867-1.789 1.867-4.175v-1.8A5.338 5.338 0 0 1 12 5.365ZM8.733 18c.094.852.306 1.54.944 2.112a3.48 3.48 0 0 0 4.646 0c.638-.572 1.236-1.26 1.33-2.112h-6.92Z"/></svg></button><button id="admin-quick-create" type="button" class="btn btn-primary"><span class="hidden sm:inline">Create exam</span><span class="sm:hidden">Create</span></button><button type="button" id="admin-profile-button" class="avatar size-10 text-xs" aria-label="Administrator profile">AD</button></div></header><div id="admin-alert" class="mx-auto hidden max-w-[1540px] px-4 pt-4 sm:px-6 lg:px-7" aria-live="polite"></div><main id="admin-root" tabindex="-1" class="mx-auto max-w-[1540px] px-4 py-5 outline-none sm:px-6 sm:py-6 lg:px-7 lg:py-7"></main></div>
+  <div id="admin-mobile-drawer" class="nav-rail fixed left-0 top-0 z-50 h-screen w-80 -translate-x-full overflow-y-auto p-4 transition-transform" tabindex="-1" aria-labelledby="admin-mobile-drawer-label"><div class="mb-4 flex items-center justify-between"><div><h2 id="admin-mobile-drawer-label" class="font-display text-lg font-extrabold text-slate-900">Festacol Admin</h2><p class="text-xs text-slate-500">Academic operations</p></div><button type="button" data-drawer-hide="admin-mobile-drawer" aria-controls="admin-mobile-drawer" class="icon-btn" aria-label="Close navigation"><svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/></svg></button></div><nav class="grid gap-1" aria-label="Mobile admin pages"><a href="./admin.html?page=overview" data-admin-route="overview" class="nav-link">Overview</a><a href="./admin.html?page=users" data-admin-route="users" class="nav-link">Students & staff</a><a href="./admin.html?page=exams" data-admin-route="exams" class="nav-link">Exams</a><a href="./admin.html?page=classes" data-admin-route="classes" class="nav-link">Classes</a><a href="./admin.html?page=questions" data-admin-route="questions" class="nav-link">Questions</a><a href="./admin.html?page=reports" data-admin-route="reports" class="nav-link">Reports</a><a href="./admin.html?page=settings" data-admin-route="settings" class="nav-link">Settings</a></nav></div>
+  <div id="admin-modal" class="modal-shell" data-open="false" aria-hidden="true"><div class="modal-backdrop" data-modal-close></div><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title"><div id="admin-modal-content"></div></section></div><div id="admin-drawer-scrim" class="drawer-scrim" data-open="false"></div><aside id="admin-detail-drawer" class="drawer-panel" data-open="false" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Administration details"><div id="admin-detail-content" class="h-full overflow-y-auto"></div></aside><div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script><script src="./js/session-store.js"></script><script src="./js/question-data.js"></script><script src="./js/assessment-engine.js"></script><script src="./js/qr.js"></script><script src="./js/admin-core-a.js"></script><script src="./js/admin-core-b.js"></script><script src="./js/admin-pages-a.js"></script><script src="./js/admin-pages-b.js"></script><script src="./js/admin-workflows-a.js"></script><script src="./js/admin-workflows-b.js"></script><script src="./js/admin-details.js"></script><script src="./js/admin-academic.js"></script><script src="./js/admin-app.js"></script>
+</body></html>
