@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   materialize-test-commit:
-    if: "${{ github.event.head_commit.message == 'chore: stage admin revamp materializer' }}"
+    if: "${{ github.event.head_commit.message == 'ci: materialize exact admin revamp candidate' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -21,17 +21,29 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
+
       - name: Reconstruct exact validated candidate
         shell: bash
         run: |
           set -euo pipefail
-          cat .revamp-payload/bundle.part* | base64 --decode > /tmp/festacol-revamp.tar.gz
+          {
+            cat .revamp-payload/bundle.part01
+            cat .revamp-payload/fix02.0 .revamp-payload/fix02.1
+            cat .revamp-payload/bundle.part03 .revamp-payload/bundle.part04 .revamp-payload/bundle.part05
+            cat .revamp-payload/fix06.0 .revamp-payload/fix06.1a0 .revamp-payload/fix06.1a1 .revamp-payload/fix06.1b
+            cat .revamp-payload/fix07.0 .revamp-payload/fix07.1
+            cat .revamp-payload/bundle.part08
+            cat .revamp-payload/fix09.0 .revamp-payload/fix09.1
+          } | base64 --decode > /tmp/festacol-revamp.tar.gz
+
           echo "42cf7b759d7f19b5ae28f3cb4720dcf51c46ec1390f1e0be036a6a236f905b14  /tmp/festacol-revamp.tar.gz" | sha256sum --check --strict
           tar --extract --gzip --file /tmp/festacol-revamp.tar.gz
+
           cat > /tmp/revamp-sha256 <<'EOF'
           38e743f6a3d884788e7ed4e9855a20906c494b5d336061d5fb6683e6d5019585  prototype/admin.html
           55649c9be39a8fcf3762a9f4d53cdbc8b4675eaa362ea1c0c839a7be746a55d6  prototype/student.html
@@ -44,6 +56,7 @@ jobs:
           b1a5926a04d4f7b5f8d1a571c95f0838033ee3fda4503ba9bad8847a831faf2e  prototype/assets/festacol.css
           EOF
           sha256sum --check --strict /tmp/revamp-sha256
+
           rm -f \
             prototype/js/admin-core-a.js \
             prototype/js/admin-core-b.js \
@@ -56,6 +69,7 @@ jobs:
             prototype/js/admin-proctor-hotfix.js \
             prototype/js/student-proctor-hotfix.js
           rm -rf .revamp-payload
+
       - name: Validate source and state contracts
         shell: bash
         run: |
@@ -66,12 +80,16 @@ jobs:
           node --check tests/prototype.spec.js
           npm run audit:prototype
           npm run test:contract
+
       - name: Install browser test dependencies
         run: npm install --no-audit --no-fund
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+
       - name: Run Chromium workflows
         run: npx playwright test --project=chromium --reporter=list
+
       - name: Commit validated materialized implementation
         shell: bash
         run: |
