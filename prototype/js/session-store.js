@@ -16,6 +16,7 @@
   const CLASS_STORE_KEY = 'festacol.admin.classes.v2';
   const LEGACY_CLASS_STORE_KEY = 'festacol.admin.classes.v1';
   const CUSTOM_QUESTION_STORE_KEY = 'festacol.admin.custom-questions.v1';
+  const WHATSAPP_GROUP_STORE_KEY = 'festacol.admin.whatsapp-groups.v1';
   const PAYLOAD_VERSION = 3;
   const SUPPORTED_PAYLOAD_VERSIONS = new Set([2, 3]);
   const ACADEMIC_SESSION = '2026/2027';
@@ -32,12 +33,24 @@
   const sanitizeName = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 80);
   const makeId = () => globalThis.crypto?.randomUUID ? crypto.randomUUID().split('-')[0].toUpperCase() : Math.random().toString(36).slice(2, 10).toUpperCase();
   const utf8ToBase64Url = (value) => { const bytes = new TextEncoder().encode(value); let binary = ''; bytes.forEach((byte) => { binary += String.fromCharCode(byte); }); return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, ''); };
-  const base64UrlToUtf8 = (value) => { const normalized = value.replaceAll('-', '+').replaceAll('_', '/'); const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4); const binary = atob(padded); return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0))); };
+  const base64UrlToUtf8 = (value) => { const normalized = String(value || '').replaceAll('-', '+').replaceAll('_', '/'); const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4); const binary = atob(padded); return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0))); };
 
-  const normalizeIntegrityPolicy = (value = {}) => ({ focusMonitoring: value.focusMonitoring !== false, fullscreenPrompt: value.fullscreenPrompt !== false, clipboardGuard: value.clipboardGuard !== false, warnAfter: clamp(Math.round(Number(value.warnAfter) || 2), 1, 10) });
-  const normalizeRandomization = (value = {}) => ({ questionOrder: value.questionOrder !== false, optionOrder: value.optionOrder !== false, minimizePaperCollisions: value.minimizePaperCollisions !== false });
+  const normalizeIntegrityPolicy = (value = {}) => ({
+    focusMonitoring: value.focusMonitoring !== false,
+    fullscreenPrompt: value.fullscreenPrompt !== false,
+    clipboardGuard: value.clipboardGuard !== false,
+    warnAfter: clamp(Math.round(Number(value.warnAfter) || 2), 1, 10)
+  });
+  const normalizeRandomization = (value = {}) => ({
+    questionOrder: value.questionOrder !== false,
+    optionOrder: value.optionOrder !== false,
+    minimizePaperCollisions: value.minimizePaperCollisions !== false
+  });
+
   const normalizeSession = (input = {}) => {
-    const mode = String(input.mode || ''), classLevel = String(input.classLevel || ''), subjects = uniqueStrings(input.subjects);
+    const mode = String(input.mode || '');
+    const classLevel = String(input.classLevel || '');
+    const subjects = uniqueStrings(input.subjects);
     const requestedTracks = uniqueStrings(input.placementTracks).filter((track) => TRACKS.includes(track));
     const placementTracks = mode === 'qualifier' && !requestedTracks.length ? [...TRACKS] : requestedTracks;
     const durationSeconds = Math.round(Number(input.durationSeconds ?? Number(input.durationMinutes) * 60));
@@ -51,67 +64,262 @@
     if (mode === 'qualifier' && subjects.length && subjects.some((code) => !code.startsWith('q-'))) throw new Error('Qualifier sessions can only use placement-domain subjects.');
     if (mode === 'qualifier' && placementTracks.length < 1) throw new Error('Choose at least one eligible placement track.');
     if (!Number.isInteger(durationSeconds) || durationSeconds < 30 || durationSeconds > 10800) throw new Error('Duration must be between 30 seconds and 3 hours.');
-    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 200) throw new Error('Question count must be between 1 and 200.');
-    return { id: String(input.id || makeId()).slice(0, 20), version: PAYLOAD_VERSION, title: sanitizeTitle(input.title) || MODE_LABELS[mode], classLevel, classGroup: String(input.classGroup || (mode === 'qualifier' ? 'Qualifier' : 'General')).slice(0, 40), academicSession: String(input.academicSession || ACADEMIC_SESSION).slice(0, 20), term: String(input.term || 'First term').slice(0, 24), mode, subjects, placementTracks: mode === 'qualifier' ? placementTracks : [], durationSeconds, durationMinutes: durationSeconds / 60, questionCount, status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open', instructions: String(input.instructions || '').trim().slice(0, 140), startsAt: input.startsAt ? Number(input.startsAt) : null, endsAt: input.endsAt ? Number(input.endsAt) : null, attemptLimit: 1, integrityPolicy: normalizeIntegrityPolicy(input.integrityPolicy), randomization: normalizeRandomization(input.randomization), createdAt: Number(input.createdAt) || Date.now() };
+    if (!Number.isInteger(questionCount) || questionCount < 5 || questionCount > 150) throw new Error('Question count must be between 5 and 150.');
+    return {
+      id: String(input.id || makeId()).trim().toUpperCase().slice(0, 20),
+      version: PAYLOAD_VERSION,
+      title: sanitizeTitle(input.title) || MODE_LABELS[mode],
+      classLevel,
+      classGroup: String(input.classGroup || (mode === 'qualifier' ? 'Qualifier' : 'General')).slice(0, 40),
+      academicSession: String(input.academicSession || ACADEMIC_SESSION).slice(0, 20),
+      term: String(input.term || 'First term').slice(0, 24),
+      mode,
+      subjects,
+      placementTracks: mode === 'qualifier' ? placementTracks : [],
+      durationSeconds,
+      durationMinutes: durationSeconds / 60,
+      questionCount,
+      status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open',
+      instructions: String(input.instructions || '').trim().slice(0, 140),
+      startsAt: input.startsAt ? Number(input.startsAt) : null,
+      endsAt: input.endsAt ? Number(input.endsAt) : null,
+      attemptLimit: 1,
+      integrityPolicy: normalizeIntegrityPolicy(input.integrityPolicy),
+      randomization: normalizeRandomization(input.randomization),
+      createdAt: Number(input.createdAt) || Date.now(),
+      updatedAt: Number(input.updatedAt) || Date.now()
+    };
   };
-  const toPayload = (s) => ({ v: PAYLOAD_VERSION, i:s.id, n:s.title, c:s.classLevel, g:s.classGroup, y:s.academicSession, e:s.term, m:MODE_CODES[s.mode], s:s.subjects, t:s.placementTracks?.length?s.placementTracks:undefined, d:s.durationSeconds, q:s.questionCount, x:s.status, r:s.instructions||undefined, a:s.startsAt||undefined, z:s.endsAt||undefined, k:[s.integrityPolicy.focusMonitoring?1:0,s.integrityPolicy.fullscreenPrompt?1:0,s.integrityPolicy.clipboardGuard?1:0,s.integrityPolicy.warnAfter], o:[s.randomization.questionOrder?1:0,s.randomization.optionOrder?1:0,s.randomization.minimizePaperCollisions?1:0] });
-  const fromPayloadV3 = (p) => normalizeSession({ id:p.i,title:p.n,classLevel:p.c,classGroup:p.g,academicSession:p.y,term:p.e,mode:CODE_MODES[p.m],subjects:p.s||[],placementTracks:p.t||TRACKS,durationSeconds:p.d,questionCount:p.q,status:p.x,instructions:p.r||'',startsAt:p.a||null,endsAt:p.z||null,integrityPolicy:{focusMonitoring:p.k?.[0]!==0,fullscreenPrompt:p.k?.[1]!==0,clipboardGuard:p.k?.[2]!==0,warnAfter:p.k?.[3]||2},randomization:{questionOrder:p.o?.[0]!==0,optionOrder:p.o?.[1]!==0,minimizePaperCollisions:p.o?.[2]!==0},createdAt:Date.now() });
-  const fromPayloadV2 = (p) => normalizeSession({ id:p.i,title:p.n,classLevel:p.c,mode:CODE_MODES[p.m],subjects:p.s||[],placementTracks:CODE_MODES[p.m]==='qualifier'?TRACKS:[],durationSeconds:Number(p.d)*60,questionCount:p.q,status:p.x,instructions:p.r||'',startsAt:p.a||null,endsAt:p.z||null,createdAt:Date.now() });
+
+  const toPayload = (s) => ({
+    v: PAYLOAD_VERSION, i: s.id, n: s.title, c: s.classLevel, g: s.classGroup, y: s.academicSession, e: s.term,
+    m: MODE_CODES[s.mode], s: s.subjects, t: s.placementTracks?.length ? s.placementTracks : undefined, d: s.durationSeconds,
+    q: s.questionCount, x: s.status, r: s.instructions || undefined, a: s.startsAt || undefined, z: s.endsAt || undefined,
+    k: [s.integrityPolicy.focusMonitoring ? 1 : 0, s.integrityPolicy.fullscreenPrompt ? 1 : 0, s.integrityPolicy.clipboardGuard ? 1 : 0, s.integrityPolicy.warnAfter],
+    o: [s.randomization.questionOrder ? 1 : 0, s.randomization.optionOrder ? 1 : 0, s.randomization.minimizePaperCollisions ? 1 : 0]
+  });
+  const fromPayloadV3 = (p) => normalizeSession({
+    id: p.i, title: p.n, classLevel: p.c, classGroup: p.g, academicSession: p.y, term: p.e, mode: CODE_MODES[p.m], subjects: p.s || [],
+    placementTracks: p.t || TRACKS, durationSeconds: p.d, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null,
+    integrityPolicy: { focusMonitoring: p.k?.[0] !== 0, fullscreenPrompt: p.k?.[1] !== 0, clipboardGuard: p.k?.[2] !== 0, warnAfter: p.k?.[3] || 2 },
+    randomization: { questionOrder: p.o?.[0] !== 0, optionOrder: p.o?.[1] !== 0, minimizePaperCollisions: p.o?.[2] !== 0 }, createdAt: Date.now()
+  });
+  const fromPayloadV2 = (p) => normalizeSession({
+    id: p.i, title: p.n, classLevel: p.c, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: CODE_MODES[p.m] === 'qualifier' ? TRACKS : [],
+    durationSeconds: Number(p.d) * 60, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, createdAt: Date.now()
+  });
   const encodeSession = (input) => utf8ToBase64Url(JSON.stringify(toPayload(normalizeSession(input))));
-  const decodeSession = (token) => { if (!token) throw new Error('No examination session was provided.'); let payload; try { payload=JSON.parse(base64UrlToUtf8(token)); } catch { throw new Error('This examination link is not valid.'); } if (!SUPPORTED_PAYLOAD_VERSIONS.has(payload?.v)) throw new Error('This examination link uses an unsupported format.'); return payload.v===2?fromPayloadV2(payload):fromPayloadV3(payload); };
-  const listSessions = () => { const current = readJson(SESSION_STORE_KEY, null); if (Array.isArray(current)) return current; const legacy = readJson(LEGACY_SESSION_STORE_KEY, []); return Array.isArray(legacy) ? legacy.map((item)=>{try{return normalizeSession({...item,durationSeconds:Number(item.durationMinutes)*60,placementTracks:item.mode==='qualifier'?TRACKS:[]});}catch{return null;}}).filter(Boolean) : []; };
-  const saveSession = (input) => { const session=normalizeSession(input); writeJson(SESSION_STORE_KEY,[session,...listSessions().filter((item)=>item.id!==session.id)].slice(0,80)); return session; };
-  const updateSessionStatus = (sessionId,status) => { if(!['open','draft','closed'].includes(status)) throw new Error('Unsupported session status.'); const sessions=listSessions(); const found=sessions.find((item)=>item.id===sessionId); if(!found)return null; const updated={...found,status}; writeJson(SESSION_STORE_KEY,sessions.map((item)=>item.id===sessionId?updated:item)); return updated; };
-  const deleteSession = (sessionId) => writeJson(SESSION_STORE_KEY,listSessions().filter((item)=>item.id!==sessionId));
-  const resolveSession = (session) => listSessions().find((item)=>item.id===session?.id)||session;
-  const getSessionLink = (session,baseHref=window.location.href) => { const url=new URL('./student.html',baseHref); url.search=''; url.hash=''; url.searchParams.set('session',encodeSession(session)); return url.href; };
+  const decodeSession = (token) => {
+    if (!token) throw new Error('No examination session was provided.');
+    let payload;
+    try { payload = JSON.parse(base64UrlToUtf8(token)); } catch { throw new Error('This examination link is not valid.'); }
+    if (!SUPPORTED_PAYLOAD_VERSIONS.has(payload?.v)) throw new Error('This examination link uses an unsupported format.');
+    return payload.v === 2 ? fromPayloadV2(payload) : fromPayloadV3(payload);
+  };
+  const listSessions = () => {
+    const current = readJson(SESSION_STORE_KEY, null);
+    if (Array.isArray(current)) return current.map((item) => { try { return normalizeSession({ ...item, questionCount: clamp(Number(item.questionCount) || 5, 5, 150) }); } catch { return null; } }).filter(Boolean);
+    const legacy = readJson(LEGACY_SESSION_STORE_KEY, []);
+    return Array.isArray(legacy) ? legacy.map((item) => { try { return normalizeSession({ ...item, durationSeconds: Number(item.durationMinutes) * 60, questionCount: clamp(Number(item.questionCount) || 5, 5, 150), placementTracks: item.mode === 'qualifier' ? TRACKS : [] }); } catch { return null; } }).filter(Boolean) : [];
+  };
+  const saveSession = (input) => {
+    const prior = input?.id ? listSessions().find((item) => item.id === String(input.id).toUpperCase()) : null;
+    const session = normalizeSession({ ...input, createdAt: input.createdAt || prior?.createdAt || Date.now(), updatedAt: Date.now() });
+    writeJson(SESSION_STORE_KEY, [session, ...listSessions().filter((item) => item.id !== session.id)].slice(0, 80));
+    return session;
+  };
+  const findSessionById = (sessionId) => listSessions().find((item) => item.id === String(sessionId || '').trim().toUpperCase()) || null;
+  const updateSessionStatus = (sessionId, status) => {
+    if (!['open', 'draft', 'closed'].includes(status)) throw new Error('Unsupported session status.');
+    const found = findSessionById(sessionId);
+    if (!found) return null;
+    return saveSession({ ...found, status });
+  };
+  const deleteSession = (sessionId) => writeJson(SESSION_STORE_KEY, listSessions().filter((item) => item.id !== String(sessionId).toUpperCase()));
+  const resolveSession = (session) => findSessionById(session?.id) || session;
+  const getSessionLink = (session, baseHref = window.location.href) => {
+    const url = new URL('./exam.html', baseHref); url.search = ''; url.hash = ''; url.searchParams.set('session', encodeSession(session)); return url.href;
+  };
 
-  const normalizeAttempt = (a={}) => ({ id:String(a.id||makeId()), attemptHash:String(a.attemptHash||''), candidateHash:String(a.candidateHash||''), studentHash:String(a.studentHash||''), paperFingerprint:String(a.paperFingerprint||''), sessionId:String(a.sessionId||''), sessionTitle:sanitizeTitle(a.sessionTitle), firstName:sanitizeName(a.firstName||'').split(' ')[0]||'', lastName:sanitizeName(a.lastName||'').split(' ').slice(-1)[0]||'', studentName:sanitizeName(a.studentName||[a.firstName,a.lastName].filter(Boolean).join(' ')), classLevel:String(a.classLevel||''), classGroup:String(a.classGroup||''), academicSession:String(a.academicSession||ACADEMIC_SESSION), mode:String(a.mode||''), sessionStatus:String(a.sessionStatus||''), sessionEndsAt:Number(a.sessionEndsAt)||null, subjects:uniqueStrings(a.subjects), startedAt:Number(a.startedAt)||null, submittedAt:Number(a.submittedAt)||null, remainingSeconds:Number.isFinite(Number(a.remainingSeconds))?Number(a.remainingSeconds):null, elapsedActiveSeconds:Number(a.elapsedActiveSeconds)||0, answered:Number(a.answered)||0, questionCount:Number(a.questionCount)||0, score:Number.isFinite(Number(a.score))?Number(a.score):null, correctCount:Number.isFinite(Number(a.correctCount))?Number(a.correctCount):null, completion:Number.isFinite(Number(a.completion))?Number(a.completion):null, paceIndex:Number.isFinite(Number(a.paceIndex))?Number(a.paceIndex):null, reasoningIndex:Number.isFinite(Number(a.reasoningIndex))?Number(a.reasoningIndex):null, integrityScore:Number.isFinite(Number(a.integrityScore))?Number(a.integrityScore):null, integrityEvents:Array.isArray(a.integrityEvents)?a.integrityEvents.slice(-100):[], subjectStats:Array.isArray(a.subjectStats)?a.subjectStats:[], placement:a.placement&&typeof a.placement==='object'?a.placement:null, details:Array.isArray(a.details)?a.details:[], questionIds:Array.isArray(a.questionIds)?a.questionIds.map(Number):[] });
-  const getAttempts = () => { const current=readJson(ATTEMPT_STORE_KEY,null); if(Array.isArray(current))return current.map(normalizeAttempt); const legacy=readJson(LEGACY_ATTEMPT_STORE_KEY,[]); return Array.isArray(legacy)?legacy.map(normalizeAttempt):[]; };
-  const resetMarkerKey = (sessionId,candidateHash)=>`${RESET_MARKER_PREFIX}${sessionId}:${candidateHash}`;
-  const getAttemptResetAt = (sessionId,candidateHash)=>Number(localStorage.getItem(resetMarkerKey(sessionId,candidateHash)))||0;
-  const isAttemptInvalidated = (sessionId,candidateHash,startedAt=0)=>{ const resetAt=getAttemptResetAt(sessionId,candidateHash); return Boolean(resetAt && resetAt>=Number(startedAt||0)); };
-  const recordAttempt = (attempt) => { const normalized=normalizeAttempt(attempt); if(normalized.candidateHash&&normalized.startedAt&&isAttemptInvalidated(normalized.sessionId,normalized.candidateHash,normalized.startedAt)) throw new Error('This unfinished attempt was reset by an administrator.'); const attempts=getAttempts(); const match=(item)=>normalized.attemptHash?item.attemptHash===normalized.attemptHash:item.id===normalized.id; writeJson(ATTEMPT_STORE_KEY,[normalized,...attempts.filter((item)=>!match(item))].slice(0,500)); return normalized; };
-  const findAttempt = (sessionId,candidateHash)=>getAttempts().find((a)=>a.sessionId===sessionId&&a.candidateHash===candidateHash)||null;
-  const attemptsForCandidate = (candidateHash)=>getAttempts().filter((a)=>a.candidateHash===candidateHash);
-  const attemptsForStudent = (studentHash)=>getAttempts().filter((a)=>a.studentHash===studentHash||(!a.studentHash&&a.candidateHash===studentHash));
-  const attemptsForSession = (sessionId)=>getAttempts().filter((a)=>a.sessionId===sessionId);
-  const hasSubmittedAttempt = (sessionId,candidateHash)=>Boolean(findAttempt(sessionId,candidateHash)?.submittedAt);
-  const stateKey=(sessionId,candidateHash)=>`${STUDENT_STATE_PREFIX}${sessionId}:${candidateHash||'anonymous'}`;
-  const legacyStateKey=(sessionId)=>`${LEGACY_STUDENT_STATE_PREFIX}${sessionId}`;
-  const activeCandidateKey=(sessionId)=>`${ACTIVE_CANDIDATE_PREFIX}${sessionId}`;
-  const setActiveCandidate=(sessionId,candidateHash)=>{ if(candidateHash)sessionStorage.setItem(activeCandidateKey(sessionId),String(candidateHash)); else sessionStorage.removeItem(activeCandidateKey(sessionId)); };
-  const getActiveCandidate=(sessionId)=>sessionStorage.getItem(activeCandidateKey(sessionId))||'';
-  const clearActiveCandidate=(sessionId)=>sessionStorage.removeItem(activeCandidateKey(sessionId));
-  const setStudentAuth=(studentHash)=>{ const value=String(studentHash||''); if(!value)throw new Error('Student identity is required.'); sessionStorage.setItem(AUTH_STUDENT_KEY,value); return value; };
-  const getStudentAuth=()=>sessionStorage.getItem(AUTH_STUDENT_KEY)||'';
-  const clearStudentAuth=()=>sessionStorage.removeItem(AUTH_STUDENT_KEY);
-  const getStudentState=(sessionId,candidateHash=getActiveCandidate(sessionId))=>{ const current=readJson(stateKey(sessionId,candidateHash),null); if(current)return current; if(!candidateHash)return readJson(legacyStateKey(sessionId),null); return null; };
-  const saveStudentState=(sessionId,candidateHashOrValue,maybeValue)=>{ const legacy=maybeValue===undefined; const candidateHash=legacy?getActiveCandidate(sessionId):candidateHashOrValue; const value=legacy?candidateHashOrValue:maybeValue; if(candidateHash&&value?.startedAt&&isAttemptInvalidated(sessionId,candidateHash,value.startedAt)) return false; writeJson(stateKey(sessionId,candidateHash),value); if(candidateHash)setActiveCandidate(sessionId,candidateHash); return true; };
-  const clearStudentState=(sessionId,candidateHash=getActiveCandidate(sessionId))=>localStorage.removeItem(stateKey(sessionId,candidateHash));
-  const resetUnfinishedAttempt=(sessionId,candidateHash)=>{ const attempt=findAttempt(sessionId,candidateHash), state=getStudentState(sessionId,candidateHash); if(attempt?.submittedAt||state?.submittedAt)throw new Error('Submitted attempts cannot be reset.'); if(!attempt&&!state?.startedAt)throw new Error('No unfinished attempt was found for this candidate.'); const resetAt=Date.now(); localStorage.setItem(resetMarkerKey(sessionId,candidateHash),String(resetAt)); writeJson(ATTEMPT_STORE_KEY,getAttempts().filter((item)=>!(item.sessionId===sessionId&&item.candidateHash===candidateHash))); clearStudentState(sessionId,candidateHash); if(getActiveCandidate(sessionId)===candidateHash){clearActiveCandidate(sessionId);clearStudentAuth();} return {...(attempt||{sessionId,candidateHash,studentName:state?.studentName||''}),resetAt}; };
+  const normalizeAttempt = (a = {}) => ({
+    id: String(a.id || makeId()), attemptHash: String(a.attemptHash || ''), candidateHash: String(a.candidateHash || ''), studentHash: String(a.studentHash || ''),
+    paperFingerprint: String(a.paperFingerprint || ''), sessionId: String(a.sessionId || '').toUpperCase(), sessionTitle: sanitizeTitle(a.sessionTitle),
+    firstName: sanitizeName(a.firstName || '').split(' ')[0] || '', lastName: sanitizeName(a.lastName || '').split(' ').slice(-1)[0] || '',
+    studentName: sanitizeName(a.studentName || [a.firstName, a.lastName].filter(Boolean).join(' ')), classLevel: String(a.classLevel || ''), classGroup: String(a.classGroup || ''),
+    academicSession: String(a.academicSession || ACADEMIC_SESSION), mode: String(a.mode || ''), sessionStatus: String(a.sessionStatus || ''), sessionEndsAt: Number(a.sessionEndsAt) || null,
+    subjects: uniqueStrings(a.subjects), startedAt: Number(a.startedAt) || null, submittedAt: Number(a.submittedAt) || null,
+    remainingSeconds: Number.isFinite(Number(a.remainingSeconds)) ? Number(a.remainingSeconds) : null, elapsedActiveSeconds: Number(a.elapsedActiveSeconds) || 0,
+    answered: Number(a.answered) || 0, questionCount: Number(a.questionCount) || 0, score: Number.isFinite(Number(a.score)) ? Number(a.score) : null,
+    correctCount: Number.isFinite(Number(a.correctCount)) ? Number(a.correctCount) : null, completion: Number.isFinite(Number(a.completion)) ? Number(a.completion) : null,
+    paceIndex: Number.isFinite(Number(a.paceIndex)) ? Number(a.paceIndex) : null, reasoningIndex: Number.isFinite(Number(a.reasoningIndex)) ? Number(a.reasoningIndex) : null,
+    integrityScore: Number.isFinite(Number(a.integrityScore)) ? Number(a.integrityScore) : null, integrityEvents: Array.isArray(a.integrityEvents) ? a.integrityEvents.slice(-100) : [],
+    subjectStats: Array.isArray(a.subjectStats) ? a.subjectStats : [], placement: a.placement && typeof a.placement === 'object' ? a.placement : null,
+    details: Array.isArray(a.details) ? a.details : [], questionIds: Array.isArray(a.questionIds) ? a.questionIds.map(Number) : [],
+    submissionReason: String(a.submissionReason || ''), rewriteArchivedAt: Number(a.rewriteArchivedAt) || null, rewriteSourceAttemptHash: String(a.rewriteSourceAttemptHash || '')
+  });
+  const getAttempts = () => {
+    const current = readJson(ATTEMPT_STORE_KEY, null);
+    if (Array.isArray(current)) return current.map(normalizeAttempt);
+    const legacy = readJson(LEGACY_ATTEMPT_STORE_KEY, []);
+    return Array.isArray(legacy) ? legacy.map(normalizeAttempt) : [];
+  };
+  const resetMarkerKey = (sessionId, candidateHash) => `${RESET_MARKER_PREFIX}${String(sessionId).toUpperCase()}:${candidateHash}`;
+  const getAttemptResetAt = (sessionId, candidateHash) => Number(localStorage.getItem(resetMarkerKey(sessionId, candidateHash))) || 0;
+  const isAttemptInvalidated = (sessionId, candidateHash, startedAt = 0) => { const resetAt = getAttemptResetAt(sessionId, candidateHash); return Boolean(resetAt && resetAt >= Number(startedAt || 0)); };
+  const recordAttempt = (attempt) => {
+    const normalized = normalizeAttempt(attempt);
+    if (normalized.candidateHash && normalized.startedAt && isAttemptInvalidated(normalized.sessionId, normalized.candidateHash, normalized.startedAt)) throw new Error('This unfinished attempt was reset by an administrator.');
+    const attempts = getAttempts();
+    const match = (item) => normalized.attemptHash ? item.attemptHash === normalized.attemptHash : item.id === normalized.id;
+    writeJson(ATTEMPT_STORE_KEY, [normalized, ...attempts.filter((item) => !match(item))].slice(0, 500));
+    return normalized;
+  };
+  const findAttempt = (sessionId, candidateHash) => getAttempts().find((a) => a.sessionId === String(sessionId).toUpperCase() && a.candidateHash === candidateHash && !a.rewriteArchivedAt) || null;
+  const attemptsForCandidate = (candidateHash) => getAttempts().filter((a) => a.candidateHash === candidateHash || a.rewriteSourceAttemptHash === candidateHash);
+  const attemptsForStudent = (studentHash) => getAttempts().filter((a) => a.studentHash === studentHash || (!a.studentHash && a.candidateHash === studentHash));
+  const attemptsForSession = (sessionId) => getAttempts().filter((a) => a.sessionId === String(sessionId || '').toUpperCase());
+  const hasSubmittedAttempt = (sessionId, candidateHash) => Boolean(findAttempt(sessionId, candidateHash)?.submittedAt);
+  const stateKey = (sessionId, candidateHash) => `${STUDENT_STATE_PREFIX}${String(sessionId).toUpperCase()}:${candidateHash || 'anonymous'}`;
+  const legacyStateKey = (sessionId) => `${LEGACY_STUDENT_STATE_PREFIX}${String(sessionId).toUpperCase()}`;
+  const activeCandidateKey = (sessionId) => `${ACTIVE_CANDIDATE_PREFIX}${String(sessionId).toUpperCase()}`;
+  const setActiveCandidate = (sessionId, candidateHash) => { if (candidateHash) sessionStorage.setItem(activeCandidateKey(sessionId), String(candidateHash)); else sessionStorage.removeItem(activeCandidateKey(sessionId)); };
+  const getActiveCandidate = (sessionId) => sessionStorage.getItem(activeCandidateKey(sessionId)) || '';
+  const clearActiveCandidate = (sessionId) => sessionStorage.removeItem(activeCandidateKey(sessionId));
+  const setStudentAuth = (studentHash) => { const value = String(studentHash || ''); if (!value) throw new Error('Student identity is required.'); sessionStorage.setItem(AUTH_STUDENT_KEY, value); return value; };
+  const getStudentAuth = () => sessionStorage.getItem(AUTH_STUDENT_KEY) || '';
+  const clearStudentAuth = () => sessionStorage.removeItem(AUTH_STUDENT_KEY);
+  const getStudentState = (sessionId, candidateHash = getActiveCandidate(sessionId)) => { const current = readJson(stateKey(sessionId, candidateHash), null); if (current) return current; if (!candidateHash) return readJson(legacyStateKey(sessionId), null); return null; };
+  const saveStudentState = (sessionId, candidateHashOrValue, maybeValue) => {
+    const legacy = maybeValue === undefined; const candidateHash = legacy ? getActiveCandidate(sessionId) : candidateHashOrValue; const value = legacy ? candidateHashOrValue : maybeValue;
+    if (candidateHash && value?.startedAt && isAttemptInvalidated(sessionId, candidateHash, value.startedAt)) return false;
+    writeJson(stateKey(sessionId, candidateHash), value); if (candidateHash) setActiveCandidate(sessionId, candidateHash); return true;
+  };
+  const clearStudentState = (sessionId, candidateHash = getActiveCandidate(sessionId)) => localStorage.removeItem(stateKey(sessionId, candidateHash));
+  const resetUnfinishedAttempt = (sessionId, candidateHash) => {
+    const attempt = findAttempt(sessionId, candidateHash), state = getStudentState(sessionId, candidateHash);
+    if (attempt?.submittedAt || state?.submittedAt) throw new Error('Submitted attempts require the rewrite action so their audit history is preserved.');
+    if (!attempt && !state?.startedAt) throw new Error('No unfinished attempt was found for this candidate.');
+    const resetAt = Date.now();
+    localStorage.setItem(resetMarkerKey(sessionId, candidateHash), String(resetAt));
+    writeJson(ATTEMPT_STORE_KEY, getAttempts().filter((item) => !(item.sessionId === String(sessionId).toUpperCase() && item.candidateHash === candidateHash && !item.rewriteArchivedAt)));
+    clearStudentState(sessionId, candidateHash);
+    if (getActiveCandidate(sessionId) === candidateHash) { clearActiveCandidate(sessionId); clearStudentAuth(); }
+    return { ...(attempt || { sessionId, candidateHash, studentName: state?.studentName || '' }), resetAt };
+  };
+  const authorizeRewrite = (sessionId, candidateHash) => {
+    const attempt = findAttempt(sessionId, candidateHash);
+    if (!attempt?.submittedAt) throw new Error('Only a submitted attempt can be opened for a rewrite.');
+    const resetAt = Date.now();
+    const archiveSuffix = `rewrite-${resetAt.toString(36)}`;
+    const archived = normalizeAttempt({
+      ...attempt,
+      id: `${attempt.id}-${archiveSuffix}`,
+      attemptHash: `${attempt.attemptHash}:${archiveSuffix}`,
+      candidateHash: `${attempt.candidateHash}:${archiveSuffix}`,
+      rewriteSourceAttemptHash: attempt.candidateHash,
+      rewriteArchivedAt: resetAt
+    });
+    const remaining = getAttempts().filter((item) => item.attemptHash !== attempt.attemptHash);
+    writeJson(ATTEMPT_STORE_KEY, [archived, ...remaining].slice(0, 500));
+    localStorage.setItem(resetMarkerKey(sessionId, candidateHash), String(resetAt));
+    clearStudentState(sessionId, candidateHash);
+    if (getActiveCandidate(sessionId) === candidateHash) { clearActiveCandidate(sessionId); clearStudentAuth(); }
+    return archived;
+  };
 
-  const getStudentProfile=()=>readJson(STUDENT_PROFILE_KEY,null);
-  const saveStudentProfile=(input={})=>{ const profile={firstName:sanitizeName(input.firstName).split(' ')[0]||'',lastName:sanitizeName(input.lastName).split(' ').slice(-1)[0]||'',fullName:sanitizeName(input.fullName||`${input.firstName||''} ${input.lastName||''}`),candidateHash:String(input.candidateHash||''),studentHash:String(input.studentHash||input.candidateHash||''),phone:String(input.phone||'').trim().slice(0,24),guardian:sanitizeName(input.guardian||''),currentClassId:String(input.currentClassId||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),updatedAt:Date.now()}; if(!profile.firstName||!profile.lastName||!profile.candidateHash||!profile.studentHash)throw new Error('First name, last name and candidate identity are required.'); writeJson(STUDENT_PROFILE_KEY,profile); return profile; };
-  const clearStudentProfile=()=>localStorage.removeItem(STUDENT_PROFILE_KEY);
-  const DEFAULT_CLASSES=Object.freeze([{id:'ss1-qualifier',classLevel:'SS1',name:'SS1 Qualifier Pool',stream:'Qualifier',group:'Qualifier',capacity:240,room:'Admissions',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-science',classLevel:'SS1',name:'SS1 Science',stream:'Science',group:'Science',capacity:72,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-arts',classLevel:'SS1',name:'SS1 Arts',stream:'Arts',group:'Arts',capacity:64,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-social',classLevel:'SS1',name:'SS1 Social Science',stream:'Social Science',group:'Social Science',capacity:68,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-general',classLevel:'SS1',name:'SS1 General',stream:'General',group:'General',capacity:80,room:'Senior Block A',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-science',classLevel:'SS2',name:'SS2 Science',stream:'Science',group:'Science',capacity:64,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-arts',classLevel:'SS2',name:'SS2 Arts',stream:'Arts',group:'Arts',capacity:58,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-social',classLevel:'SS2',name:'SS2 Social Science',stream:'Social Science',group:'Social Science',capacity:62,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-general',classLevel:'SS2',name:'SS2 General',stream:'General',group:'General',capacity:60,room:'Senior Block B',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-science',classLevel:'SS3',name:'SS3 Science',stream:'Science',group:'Science',capacity:60,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-arts',classLevel:'SS3',name:'SS3 Arts',stream:'Arts',group:'Arts',capacity:54,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-social',classLevel:'SS3',name:'SS3 Social Science',stream:'Social Science',group:'Social Science',capacity:56,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-general',classLevel:'SS3',name:'SS3 General',stream:'General',group:'General',capacity:50,room:'Senior Block C',academicSession:ACADEMIC_SESSION,status:'active'}]);
-  const DEFAULT_USERS=Object.freeze([{id:'ST-2401',fullName:'Amina Yusuf Bello',firstName:'Amina',lastName:'Bello',classId:'ss2-science',role:'student',status:'active',guardian:'Yusuf Bello',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*90},{id:'ST-2402',fullName:'David Chukwu Okafor',firstName:'David',lastName:'Okafor',classId:'ss2-arts',role:'student',status:'active',guardian:'Chukwu Okafor',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*84},{id:'ST-2403',fullName:'Zainab Musa Ibrahim',firstName:'Zainab',lastName:'Ibrahim',classId:'ss3-social',role:'student',status:'active',guardian:'Musa Ibrahim',academicSession:ACADEMIC_SESSION,promotionStatus:'graduating',joinedAt:Date.now()-86400000*77},{id:'ST-2404',fullName:'Tolu Adeyemi James',firstName:'Tolu',lastName:'James',classId:'ss1-general',role:'student',status:'active',guardian:'Adeyemi James',academicSession:ACADEMIC_SESSION,promotionStatus:'review',joinedAt:Date.now()-86400000*46},{id:'AD-001',fullName:'Examination Administrator',firstName:'Examination',lastName:'Administrator',classId:'',role:'administrator',status:'active',guardian:'',academicSession:ACADEMIC_SESSION,promotionStatus:'',joinedAt:Date.now()-86400000*200}]);
-  const mergeDefaults=(stored,defaults)=>{const byId=new Map((Array.isArray(stored)?stored:[]).map((item)=>[item.id,item]));defaults.forEach((item)=>{if(!byId.has(item.id))byId.set(item.id,{...item});});return [...byId.values()];};
-  const listClasses=()=>mergeDefaults(readJson(CLASS_STORE_KEY,null)??readJson(LEGACY_CLASS_STORE_KEY,null),DEFAULT_CLASSES);
-  const saveClass=(input={})=>{const classLevel=String(input.classLevel||''),stream=String(input.stream||input.group||'General').trim().slice(0,40),name=String(input.name||`${classLevel} ${stream}`).trim().slice(0,60);if(!name||!['SS1','SS2','SS3'].includes(classLevel))throw new Error('Class name and level are required.');const item={id:String(input.id||makeId()).slice(0,24),classLevel,name,stream,group:String(input.group||stream).slice(0,40),capacity:clamp(Math.round(Number(input.capacity)||40),1,500),room:String(input.room||'').trim().slice(0,50),academicSession:String(input.academicSession||ACADEMIC_SESSION),status:input.status==='archived'?'archived':'active'};const classes=listClasses();writeJson(CLASS_STORE_KEY,[item,...classes.filter((entry)=>entry.id!==item.id)]);return item;};
-  const deleteClass=(classId)=>writeJson(CLASS_STORE_KEY,listClasses().filter((item)=>item.id!==classId));
-  const listUsers=()=>mergeDefaults(readJson(USER_STORE_KEY,null)??readJson(LEGACY_USER_STORE_KEY,null),DEFAULT_USERS);
-  const saveUser=(input={})=>{const fullName=sanitizeName(input.fullName||`${input.firstName||''} ${input.lastName||''}`),parts=fullName.split(/\s+/u).filter(Boolean);if(parts.length<2)throw new Error('Enter at least first and last name for the user.');const item={id:String(input.id||`ST-${Math.floor(1000+Math.random()*9000)}`).slice(0,24),fullName,firstName:sanitizeName(input.firstName||parts[0]).split(' ')[0],lastName:sanitizeName(input.lastName||parts.at(-1)).split(' ').at(-1),classId:String(input.classId||''),role:['student','teacher','administrator'].includes(input.role)?input.role:'student',status:input.status==='inactive'?'inactive':'active',guardian:sanitizeName(input.guardian||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),promotionStatus:String(input.promotionStatus||'on-track'),joinedAt:Number(input.joinedAt)||Date.now()};const current=listUsers();writeJson(USER_STORE_KEY,[item,...current.filter((entry)=>entry.id!==item.id)]);return item;};
-  const updateUserStatus=(userId,status)=>{const current=listUsers(),next=current.map((entry)=>entry.id===userId?{...entry,status:status==='inactive'?'inactive':'active'}:entry);writeJson(USER_STORE_KEY,next);return next.find((entry)=>entry.id===userId)||null;};
-  const updatePromotion=(userId,promotionStatus,classId=null)=>{const current=listUsers(),next=current.map((entry)=>entry.id===userId?{...entry,promotionStatus,classId:classId||entry.classId}:entry);writeJson(USER_STORE_KEY,next);return next.find((entry)=>entry.id===userId)||null;};
-  const deleteUser=(userId)=>writeJson(USER_STORE_KEY,listUsers().filter((entry)=>entry.id!==userId));
-  const listCustomQuestions=()=>{const value=readJson(CUSTOM_QUESTION_STORE_KEY,[]);return Array.isArray(value)?value:[];};
-  const saveCustomQuestion=(input)=>{const q={...input,id:Number(input.id)||Math.floor(100000+Math.random()*899999),custom:true};writeJson(CUSTOM_QUESTION_STORE_KEY,[q,...listCustomQuestions().filter((entry)=>entry.id!==q.id)].slice(0,250));return q;};
-  const deleteCustomQuestion=(questionId)=>writeJson(CUSTOM_QUESTION_STORE_KEY,listCustomQuestions().filter((item)=>item.id!==Number(questionId)));
-  const durationLabel=(seconds)=>{const value=Math.max(0,Number(seconds)||0);if(value<60)return `${value} sec`;if(value%3600===0)return `${value/3600} hr${value===3600?'':'s'}`;if(value>=3600)return `${Math.floor(value/3600)}h ${Math.round(value%3600/60)}m`;return `${Math.round(value/60)} min`;};
-  const clearSessions=()=>{localStorage.removeItem(SESSION_STORE_KEY);localStorage.removeItem(LEGACY_SESSION_STORE_KEY);};
-  const clearAttempts=()=>{localStorage.removeItem(ATTEMPT_STORE_KEY);localStorage.removeItem(LEGACY_ATTEMPT_STORE_KEY);};
-  const clearAllStudentStates=()=>{const keys=[];for(let i=0;i<localStorage.length;i+=1){const key=localStorage.key(i);if(key?.startsWith(STUDENT_STATE_PREFIX)||key?.startsWith(LEGACY_STUDENT_STATE_PREFIX)||key?.startsWith(RESET_MARKER_PREFIX))keys.push(key);}keys.forEach((key)=>localStorage.removeItem(key));const sessionKeys=[];for(let i=0;i<sessionStorage.length;i+=1){const key=sessionStorage.key(i);if(key?.startsWith(ACTIVE_CANDIDATE_PREFIX)||key===AUTH_STUDENT_KEY)sessionKeys.push(key);}sessionKeys.forEach((key)=>sessionStorage.removeItem(key));return keys.length+sessionKeys.length;};
-  const clearPrototypeData=()=>{const count=clearAllStudentStates();clearSessions();clearAttempts();clearStudentProfile();[USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY].forEach((key)=>localStorage.removeItem(key));return count;};
-  window.FestacolSessionStore=Object.freeze({PAYLOAD_VERSION,MODE_LABELS,TRACKS,ACADEMIC_SESSION,normalizeSession,encodeSession,decodeSession,getSessionLink,resolveSession,listSessions,saveSession,updateSessionStatus,deleteSession,getAttempts,recordAttempt,findAttempt,attemptsForCandidate,attemptsForStudent,attemptsForSession,hasSubmittedAttempt,resetUnfinishedAttempt,getStudentState,saveStudentState,clearStudentState,setActiveCandidate,getActiveCandidate,clearActiveCandidate,setStudentAuth,getStudentAuth,clearStudentAuth,getAttemptResetAt,isAttemptInvalidated,getStudentProfile,saveStudentProfile,clearStudentProfile,clearSessions,clearAttempts,clearAllStudentStates,clearPrototypeData,sanitizeName,sanitizeTitle,getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session',durationLabel,listClasses,saveClass,deleteClass,listUsers,saveUser,updateUserStatus,updatePromotion,deleteUser,listCustomQuestions,saveCustomQuestion,deleteCustomQuestion});
+  const getStudentProfile = () => readJson(STUDENT_PROFILE_KEY, null);
+  const saveStudentProfile = (input = {}) => {
+    const profile = {
+      firstName: sanitizeName(input.firstName).split(' ')[0] || '', lastName: sanitizeName(input.lastName).split(' ').slice(-1)[0] || '',
+      fullName: sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), candidateHash: String(input.candidateHash || ''),
+      studentHash: String(input.studentHash || input.candidateHash || ''), phone: String(input.phone || '').trim().slice(0, 24), guardian: sanitizeName(input.guardian || ''),
+      currentClassId: String(input.currentClassId || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), updatedAt: Date.now()
+    };
+    if (!profile.firstName || !profile.lastName || !profile.candidateHash || !profile.studentHash) throw new Error('First name, last name and candidate identity are required.');
+    writeJson(STUDENT_PROFILE_KEY, profile); return profile;
+  };
+  const clearStudentProfile = () => localStorage.removeItem(STUDENT_PROFILE_KEY);
+
+  const DEFAULT_CLASSES = Object.freeze([
+    { id:'ss1-qualifier',classLevel:'SS1',name:'SS1 Qualifier Pool',stream:'Qualifier',group:'Qualifier',capacity:240,room:'Admissions',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss1-science',classLevel:'SS1',name:'SS1 Science',stream:'Science',group:'Science',capacity:72,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss1-arts',classLevel:'SS1',name:'SS1 Arts',stream:'Arts',group:'Arts',capacity:64,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss1-social',classLevel:'SS1',name:'SS1 Social Science',stream:'Social Science',group:'Social Science',capacity:68,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss1-general',classLevel:'SS1',name:'SS1 General',stream:'General',group:'General',capacity:80,room:'Senior Block A',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss2-science',classLevel:'SS2',name:'SS2 Science',stream:'Science',group:'Science',capacity:64,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss2-arts',classLevel:'SS2',name:'SS2 Arts',stream:'Arts',group:'Arts',capacity:58,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss2-social',classLevel:'SS2',name:'SS2 Social Science',stream:'Social Science',group:'Social Science',capacity:62,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss2-general',classLevel:'SS2',name:'SS2 General',stream:'General',group:'General',capacity:60,room:'Senior Block B',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss3-science',classLevel:'SS3',name:'SS3 Science',stream:'Science',group:'Science',capacity:60,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss3-arts',classLevel:'SS3',name:'SS3 Arts',stream:'Arts',group:'Arts',capacity:54,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss3-social',classLevel:'SS3',name:'SS3 Social Science',stream:'Social Science',group:'Social Science',capacity:56,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },
+    { id:'ss3-general',classLevel:'SS3',name:'SS3 General',stream:'General',group:'General',capacity:50,room:'Senior Block C',academicSession:ACADEMIC_SESSION,status:'active' }
+  ]);
+  const DEFAULT_USERS = Object.freeze([
+    {id:'ST-2401',fullName:'Amina Yusuf Bello',firstName:'Amina',lastName:'Bello',classId:'ss2-science',role:'student',status:'active',guardian:'Yusuf Bello',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*90},
+    {id:'ST-2402',fullName:'David Chukwu Okafor',firstName:'David',lastName:'Okafor',classId:'ss2-arts',role:'student',status:'active',guardian:'Chukwu Okafor',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*84},
+    {id:'ST-2403',fullName:'Zainab Musa Ibrahim',firstName:'Zainab',lastName:'Ibrahim',classId:'ss3-social',role:'student',status:'active',guardian:'Musa Ibrahim',academicSession:ACADEMIC_SESSION,promotionStatus:'graduating',joinedAt:Date.now()-86400000*77},
+    {id:'ST-2404',fullName:'Tolu Adeyemi James',firstName:'Tolu',lastName:'James',classId:'ss1-general',role:'student',status:'active',guardian:'Adeyemi James',academicSession:ACADEMIC_SESSION,promotionStatus:'review',joinedAt:Date.now()-86400000*46},
+    {id:'AD-001',fullName:'Examination Administrator',firstName:'Examination',lastName:'Administrator',classId:'',role:'administrator',status:'active',guardian:'',academicSession:ACADEMIC_SESSION,promotionStatus:'',joinedAt:Date.now()-86400000*200}
+  ]);
+  const mergeDefaults = (stored, defaults) => { const byId = new Map((Array.isArray(stored) ? stored : []).map((item) => [item.id, item])); defaults.forEach((item) => { if (!byId.has(item.id)) byId.set(item.id, { ...item }); }); return [...byId.values()]; };
+  const listClasses = () => mergeDefaults(readJson(CLASS_STORE_KEY, null) ?? readJson(LEGACY_CLASS_STORE_KEY, null), DEFAULT_CLASSES);
+  const saveClass = (input = {}) => {
+    const classLevel = String(input.classLevel || ''), stream = String(input.stream || input.group || 'General').trim().slice(0, 40), name = String(input.name || `${classLevel} ${stream}`).trim().slice(0, 60);
+    if (!name || !['SS1','SS2','SS3'].includes(classLevel)) throw new Error('Class name and level are required.');
+    const item = { id:String(input.id||makeId()).slice(0,24),classLevel,name,stream,group:String(input.group||stream).slice(0,40),capacity:clamp(Math.round(Number(input.capacity)||40),1,500),room:String(input.room||'').trim().slice(0,50),academicSession:String(input.academicSession||ACADEMIC_SESSION),status:input.status==='archived'?'archived':'active' };
+    const classes = listClasses(); writeJson(CLASS_STORE_KEY, [item, ...classes.filter((entry) => entry.id !== item.id)]); return item;
+  };
+  const deleteClass = (classId) => { writeJson(CLASS_STORE_KEY, listClasses().filter((item) => item.id !== classId)); writeJson(WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.classId !== classId)); };
+  const listUsers = () => mergeDefaults(readJson(USER_STORE_KEY, null) ?? readJson(LEGACY_USER_STORE_KEY, null), DEFAULT_USERS);
+  const saveUser = (input = {}) => {
+    const fullName = sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), parts = fullName.split(/\s+/u).filter(Boolean);
+    if (parts.length < 2) throw new Error('Enter at least first and last name for the user.');
+    const item = { id:String(input.id||`ST-${Math.floor(1000+Math.random()*9000)}`).slice(0,24),fullName,firstName:sanitizeName(input.firstName||parts[0]).split(' ')[0],lastName:sanitizeName(input.lastName||parts.at(-1)).split(' ').at(-1),classId:String(input.classId||''),role:['student','teacher','administrator'].includes(input.role)?input.role:'student',status:input.status==='inactive'?'inactive':'active',guardian:sanitizeName(input.guardian||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),promotionStatus:String(input.promotionStatus||'on-track'),joinedAt:Number(input.joinedAt)||Date.now() };
+    const current = listUsers(); writeJson(USER_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id)]); return item;
+  };
+  const updateUserStatus = (userId, status) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, status: status === 'inactive' ? 'inactive' : 'active' } : entry); writeJson(USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
+  const updatePromotion = (userId, promotionStatus, classId = null) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, promotionStatus, classId: classId || entry.classId } : entry); writeJson(USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
+  const deleteUser = (userId) => writeJson(USER_STORE_KEY, listUsers().filter((entry) => entry.id !== userId));
+  const listCustomQuestions = () => { const value = readJson(CUSTOM_QUESTION_STORE_KEY, []); return Array.isArray(value) ? value : []; };
+  const saveCustomQuestion = (input) => { const q = { ...input, id:Number(input.id)||Math.floor(100000+Math.random()*899999),custom:true }; writeJson(CUSTOM_QUESTION_STORE_KEY,[q,...listCustomQuestions().filter((entry)=>entry.id!==q.id)].slice(0,250)); return q; };
+  const deleteCustomQuestion = (questionId) => writeJson(CUSTOM_QUESTION_STORE_KEY, listCustomQuestions().filter((item) => item.id !== Number(questionId)));
+
+  const normalizeWhatsAppUrl = (value) => {
+    let url;
+    try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid WhatsApp group invite link.'); }
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || !['chat.whatsapp.com', 'www.whatsapp.com', 'whatsapp.com'].includes(host)) throw new Error('Use a secure WhatsApp group invite link from chat.whatsapp.com.');
+    if (host === 'chat.whatsapp.com' && url.pathname.replaceAll('/', '').length < 6) throw new Error('The WhatsApp invite code is incomplete.');
+    return url.href;
+  };
+  const listWhatsAppGroups = () => { const value = readJson(WHATSAPP_GROUP_STORE_KEY, []); return Array.isArray(value) ? value : []; };
+  const saveWhatsAppGroup = (input = {}) => {
+    const classId = String(input.classId || ''); const cls = listClasses().find((item) => item.id === classId);
+    if (!cls) throw new Error('Choose an existing class for this WhatsApp group.');
+    const item = { id:String(input.id||makeId()).slice(0,24),classId,name:sanitizeTitle(input.name||`${cls.name} Parents`),inviteUrl:normalizeWhatsAppUrl(input.inviteUrl),createdAt:Number(input.createdAt)||Date.now(),updatedAt:Date.now() };
+    const current = listWhatsAppGroups();
+    writeJson(WHATSAPP_GROUP_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id && entry.classId !== classId)].slice(0,80));
+    return item;
+  };
+  const deleteWhatsAppGroup = (groupId) => writeJson(WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.id !== groupId));
+  const whatsAppGroupForClass = (classId) => listWhatsAppGroups().find((item) => item.classId === classId) || null;
+
+  const durationLabel = (seconds) => { const value=Math.max(0,Number(seconds)||0); if(value<60)return `${value} sec`; if(value%3600===0)return `${value/3600} hr${value===3600?'':'s'}`; if(value>=3600)return `${Math.floor(value/3600)}h ${Math.round(value%3600/60)}m`; return `${Math.round(value/60)} min`; };
+  const clearSessions = () => { localStorage.removeItem(SESSION_STORE_KEY); localStorage.removeItem(LEGACY_SESSION_STORE_KEY); };
+  const clearAttempts = () => { localStorage.removeItem(ATTEMPT_STORE_KEY); localStorage.removeItem(LEGACY_ATTEMPT_STORE_KEY); };
+  const clearAllStudentStates = () => {
+    const keys=[]; for(let i=0;i<localStorage.length;i+=1){const key=localStorage.key(i);if(key?.startsWith(STUDENT_STATE_PREFIX)||key?.startsWith(LEGACY_STUDENT_STATE_PREFIX)||key?.startsWith(RESET_MARKER_PREFIX))keys.push(key);} keys.forEach((key)=>localStorage.removeItem(key));
+    const sessionKeys=[]; for(let i=0;i<sessionStorage.length;i+=1){const key=sessionStorage.key(i);if(key?.startsWith(ACTIVE_CANDIDATE_PREFIX)||key===AUTH_STUDENT_KEY)sessionKeys.push(key);} sessionKeys.forEach((key)=>sessionStorage.removeItem(key)); return keys.length+sessionKeys.length;
+  };
+  const clearPrototypeData = () => { const count=clearAllStudentStates(); clearSessions(); clearAttempts(); clearStudentProfile(); [USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY,WHATSAPP_GROUP_STORE_KEY].forEach((key)=>localStorage.removeItem(key)); return count; };
+
+  window.FestacolSessionStore = Object.freeze({
+    PAYLOAD_VERSION, MODE_LABELS, TRACKS, ACADEMIC_SESSION, normalizeSession, encodeSession, decodeSession, getSessionLink, resolveSession, findSessionById, listSessions, saveSession, updateSessionStatus, deleteSession,
+    getAttempts, recordAttempt, findAttempt, attemptsForCandidate, attemptsForStudent, attemptsForSession, hasSubmittedAttempt, resetUnfinishedAttempt, authorizeRewrite,
+    getStudentState, saveStudentState, clearStudentState, setActiveCandidate, getActiveCandidate, clearActiveCandidate, setStudentAuth, getStudentAuth, clearStudentAuth, getAttemptResetAt, isAttemptInvalidated,
+    getStudentProfile, saveStudentProfile, clearStudentProfile, clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData, sanitizeName, sanitizeTitle,
+    getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session', durationLabel, listClasses, saveClass, deleteClass, listUsers, saveUser, updateUserStatus, updatePromotion, deleteUser,
+    listCustomQuestions, saveCustomQuestion, deleteCustomQuestion, listWhatsAppGroups, saveWhatsAppGroup, deleteWhatsAppGroup, whatsAppGroupForClass
+  });
 })();

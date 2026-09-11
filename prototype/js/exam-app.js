@@ -835,6 +835,7 @@
         lastTick = Date.now();
         updateChrome();
       }
+      if (cameraRequired && !cameraReady) requestCamera().catch(() => {});
     }
   });
 
