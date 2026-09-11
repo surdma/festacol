@@ -3,21 +3,27 @@ import path from 'node:path';
 const root=process.cwd();
 const read=(file)=>fs.readFileSync(path.join(root,file),'utf8');
 const required=[
-  'prototype/admin.html','prototype/student.html','prototype/exam.html','prototype/assets/festacol.css','prototype/assets/academic-v3.css','prototype/assets/exam-app-theme.css',
-  'prototype/js/session-store.js','prototype/js/question-data.js','prototype/js/assessment-engine.js','prototype/js/student-dashboard.js','prototype/js/student-app.js','prototype/js/admin-academic.js',
+  'prototype/admin.html','prototype/student.html','prototype/exam.html','prototype/assets/festacol.css','prototype/assets/academic-v3.css',
+  'prototype/js/session-store.js','prototype/js/question-data.js','prototype/js/assessment-engine.js','prototype/js/student-dashboard.js','prototype/js/student-app.js','prototype/js/exam-flowbite-ui.js','prototype/js/admin-academic.js',
   'prototype/js/admin-core-a.js','prototype/js/admin-core-b.js','prototype/js/admin-pages-a.js','prototype/js/admin-pages-b.js','prototype/js/admin-workflows-a.js','prototype/js/admin-workflows-b.js','prototype/js/admin-details.js','prototype/js/admin-app.js','prototype/js/qr.js','prototype/data/questions.json'
 ];
 for(const file of required)if(!fs.existsSync(path.join(root,file)))throw new Error(`Missing required prototype file: ${file}`);
 for(const file of ['prototype/admin.html','prototype/student.html','prototype/exam.html']){
   const source=read(file);
-  for(const token of ['fonts.googleapis.com','fonts.gstatic.com','@tailwindcss/browser@4','flowbite@4.0.1/dist/flowbite.min.css','flowbite@4.0.1/dist/flowbite.min.js','cdn.jsdelivr.net/npm/apexcharts','./assets/festacol.css','./assets/academic-v3.css'])if(!source.includes(token))throw new Error(`${file} is missing ${token}`);
+  for(const token of ['fonts.googleapis.com','fonts.gstatic.com','@tailwindcss/browser@4','flowbite@4.0.1/dist/flowbite.min.css','flowbite@4.0.1/dist/flowbite.min.js'])if(!source.includes(token))throw new Error(`${file} is missing ${token}`);
   const ids=[...source.matchAll(/\sid="([^"]+)"/gu)].map((match)=>match[1]);
   const dup=ids.filter((id,index)=>ids.indexOf(id)!==index);if(dup.length)throw new Error(`${file} contains duplicate ids: ${[...new Set(dup)].join(', ')}`);
 }
+for(const file of ['prototype/admin.html','prototype/student.html']){
+  const source=read(file);
+  for(const token of ['cdn.jsdelivr.net/npm/apexcharts','./assets/festacol.css','./assets/academic-v3.css'])if(!source.includes(token))throw new Error(`${file} is missing ${token}`);
+}
 const examHtml=read('prototype/exam.html');
-for(const token of ['./assets/exam-app-theme.css','app-page exam-shell'])if(!examHtml.includes(token))throw new Error(`Exam shell is missing app-theme wiring: ${token}`);
-const examTheme=read('prototype/assets/exam-app-theme.css');
-for(const token of ['--fc-brand','--fc-teal','.exam-shell #exam-timer-box','.exam-shell article.exam-card','.exam-shell #question-map','.exam-shell .btn-primary'])if(!examTheme.includes(token))throw new Error(`Exam app-theme bridge is missing ${token}`);
+for(const token of ['./js/exam-flowbite-ui.js','bg-gray-50','rounded-xl','focus:ring-4','motion-reduce:'])if(!examHtml.includes(token))throw new Error(`Exam Tailwind/Flowbite shell is missing ${token}`);
+for(const token of ['./assets/festacol.css','./assets/academic-v3.css','./assets/exam-app-theme.css'])if(examHtml.includes(token))throw new Error(`Exam page must not load custom presentation CSS: ${token}`);
+const examUi=read('prototype/js/exam-flowbite-ui.js');
+for(const token of ['const primary =','focus:ring-4','min-h-11','rounded-xl','bg-blue-700','MutationObserver','initFlowbite','motion-reduce:transition-none'])if(!examUi.includes(token))throw new Error(`Exam Flowbite/Tailwind adapter is missing ${token}`);
+if(examUi.includes('<style')||examUi.includes('style.'))throw new Error('Exam Flowbite/Tailwind adapter must not create custom CSS.');
 const adminHtml=read('prototype/admin.html');
 if((adminHtml.match(/data-admin-route="overview"/gu)||[]).length!==2)throw new Error('Overview route must appear exactly once in desktop nav and once in mobile nav; the brand link must not duplicate it.');
 for(const token of ['view=exams','view=students','view=placements','view=promotions','view=integrity','./js/qr.js'])if(!adminHtml.includes(token))throw new Error(`Admin navigation/runtime is missing ${token}`);
@@ -39,4 +45,4 @@ const css=read('prototype/assets/academic-v3.css');
 for(const token of ['.student-sidebar','.wizard-v3-stepper','.range-control','.class-level-section','.integrity-event'])if(!css.includes(token))throw new Error(`Academic design layer is missing ${token}`);
 const payload=JSON.parse(read('prototype/data/questions.json'));
 if(!Array.isArray(payload.questions)||payload.questions.length<20)throw new Error('Question bank is unexpectedly small or invalid.');
-console.log(`Prototype audit passed: ${payload.questions.length} JSON questions, direct QR/link exam entry, gated student portal, app-themed dense CBT workspace, academic reports, one-attempt and integrity contracts.`);
+console.log(`Prototype audit passed: ${payload.questions.length} JSON questions, Flowbite/Tailwind exam shell, direct QR/link entry, gated student portal, dense CBT workspace, academic reports, one-attempt and integrity contracts.`);
