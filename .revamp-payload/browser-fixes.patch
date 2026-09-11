@@ -1,0 +1,36 @@
+--- tests/prototype.spec.js
++++ tests/prototype.spec.js
+@@ -89,7 +89,7 @@
+   const { id } = await createExam(page, { camera: true, count: 5 });
+   expect(id).toMatch(/^[A-Z0-9-]+$/);
+   await expect(page.getByText('Exam ID', { exact: true })).toBeVisible();
+-  await expect(page.getByText(id, { exact: true })).toBeVisible();
++  await expect(page.locator('#admin-dialog-content').getByText(id, { exact: true })).toBeVisible();
+   await expect(page.locator('input[readonly][value*="http"]')).toHaveCount(0);
+   const policy = await page.evaluate((sessionId) => window.FestacolProctorPolicy.getAdminPolicy(sessionId), id);
+   expect(policy.cameraRequired).toBe(true);
+@@ -129,9 +129,14 @@
+   await clearPrototypeStorage(page);
+   const { link, id } = await createExam(page, { seconds: 180 });
+   await loginExam(page, link); await startExam(page);
+-  await page.evaluate((sessionId) => { const S=window.FestacolSessionStore,hash=S.getActiveCandidate(sessionId),state=S.getStudentState(sessionId,hash);state.remainingSeconds=.6;S.saveStudentState(sessionId,hash,state); }, id);
++  await page.evaluate((sessionId) => {
++    const S = window.FestacolSessionStore;
++    const hash = S.getActiveCandidate(sessionId);
++    const state = S.getStudentState(sessionId, hash);
++    localStorage.setItem(`festacol.exam.background-guard.v2:${sessionId}:${hash}`, JSON.stringify({ sessionId, candidateHash: hash, startedAt: state.startedAt, hiddenAt: Date.now() - 181000 }));
++  }, id);
+   await page.reload();
+-  await page.waitForTimeout(1800);
++  await page.waitForTimeout(1200);
+   await expect(page.getByText(/Time expired\. Your examination was submitted automatically/i)).toBeVisible();
+   const locked = await page.evaluate((sessionId) => { const S=window.FestacolSessionStore;return {auth:S.getStudentAuth(),active:S.getActiveCandidate(sessionId),submitted:S.attemptsForSession(sessionId).some(a=>a.submittedAt)}; }, id);
+   expect(locked.auth).toBe(''); expect(locked.active).toBe(''); expect(locked.submitted).toBe(true);
+@@ -241,6 +246,6 @@
+   await page.locator('#mobile-nav [data-admin-route="users"]').click();
+   await expect(page).toHaveURL(/page=users/);
+   await expect(page.locator('table')).toBeHidden();
+-  await expect(page.locator('[data-user-detail]').first()).toBeVisible();
++  await expect(page.locator('div.md\\:hidden [data-user-detail]').first()).toBeVisible();
+   await expectNoHorizontalOverflow(page);
+ });
