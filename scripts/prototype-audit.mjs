@@ -23,6 +23,7 @@ for(const token of ['./js/exam-flowbite-ui.js','bg-gray-50','rounded-xl','focus:
 for(const token of ['./assets/festacol.css','./assets/academic-v3.css','./assets/exam-app-theme.css'])if(examHtml.includes(token))throw new Error(`Exam page must not load custom presentation CSS: ${token}`);
 const examUi=read('prototype/js/exam-flowbite-ui.js');
 for(const token of ['const primary =','focus:ring-4','min-h-11','rounded-xl','bg-blue-700','MutationObserver','initFlowbite','motion-reduce:transition-none'])if(!examUi.includes(token))throw new Error(`Exam Flowbite/Tailwind adapter is missing ${token}`);
+for(const token of ["setControl(next, 'Next'","setControl(previous, 'Previous'","Review examination","Submit examination","Flag for review",'role="progressbar"','data-exam-progress',"[data-clear-answer]')?.remove()"] )if(!examUi.includes(token))throw new Error(`Exam academic navigation/progress layer is missing ${token}`);
 if(examUi.includes('<style')||examUi.includes('style.'))throw new Error('Exam Flowbite/Tailwind adapter must not create custom CSS.');
 const adminHtml=read('prototype/admin.html');
 if((adminHtml.match(/data-admin-route="overview"/gu)||[]).length!==2)throw new Error('Overview route must appear exactly once in desktop nav and once in mobile nav; the brand link must not duplicate it.');
@@ -45,4 +46,4 @@ const css=read('prototype/assets/academic-v3.css');
 for(const token of ['.student-sidebar','.wizard-v3-stepper','.range-control','.class-level-section','.integrity-event'])if(!css.includes(token))throw new Error(`Academic design layer is missing ${token}`);
 const payload=JSON.parse(read('prototype/data/questions.json'));
 if(!Array.isArray(payload.questions)||payload.questions.length<20)throw new Error('Question bank is unexpectedly small or invalid.');
-console.log(`Prototype audit passed: ${payload.questions.length} JSON questions, Flowbite/Tailwind exam shell, direct QR/link entry, gated student portal, dense CBT workspace, academic reports, one-attempt and integrity contracts.`);
+console.log(`Prototype audit passed: ${payload.questions.length} JSON questions, Flowbite/Tailwind exam shell, academic navigation/progress, direct QR/link entry, gated student portal, dense CBT workspace, academic reports, one-attempt and integrity contracts.`);
