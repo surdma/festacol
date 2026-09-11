@@ -74,4 +74,19 @@
   window.addEventListener('popstate', render);
   document.getElementById('admin-global-search')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') navigate('users', { q: event.currentTarget.value }); });
 
+  const loadProctorHotfix = () => {
+    const hotfix = document.createElement('script');
+    hotfix.src = './js/admin-proctor-hotfix.js';
+    hotfix.async = false;
+    document.head.append(hotfix);
+  };
+  if (window.FestacolProctorPolicy) loadProctorHotfix();
+  else {
+    const policy = document.createElement('script');
+    policy.src = './js/proctor-policy.js';
+    policy.async = false;
+    policy.addEventListener('load', loadProctorHotfix, { once: true });
+    document.head.append(policy);
+  }
+
   Data.load().then((payload) => { data = payload; render(); }).catch((failure) => { chrome('overview'); root.innerHTML = `<section class="surface-raised mx-auto max-w-2xl p-7"><span class="badge badge-danger">Unable to start</span><h2 class="page-title mt-4">Question data unavailable</h2><p class="mt-3 text-sm leading-6 text-slate-600">${e(failure.message)}</p></section>`; announce(failure.message, 'danger'); });
