@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   materialize-test-commit:
-    if: "${{ github.event.head_commit.message == 'ci: retry materialized admin browser regressions' }}"
+    if: "${{ github.event.head_commit.message == 'ci: rerun verified admin browser patch' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -57,8 +57,8 @@ jobs:
           EOF
           sha256sum --check --strict /tmp/revamp-sha256
 
-          git apply --check .revamp-payload/browser-fixes.patch
-          git apply .revamp-payload/browser-fixes.patch
+          git apply -p0 --check .revamp-payload/browser-fixes.patch
+          git apply -p0 .revamp-payload/browser-fixes.patch
           echo "87b95bda7371ed6d3d1b4c0723307f0257245e9883f0f23a894892ecc902bd0d  tests/prototype.spec.js" | sha256sum --check --strict
 
           rm -f \
