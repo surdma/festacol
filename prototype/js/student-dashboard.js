@@ -1,183 +1,37 @@
 (() => {
   'use strict';
-
-  const Store = window.FestacolSessionStore;
-  const Data = window.FestacolQuestionData;
-  const root = document.getElementById('student-root');
-  if (!Store || !Data || !root) throw new Error('Festacol student dashboard dependencies are unavailable.');
-
-  const ART = Object.freeze({
-    student: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/woman-laptop-chart.svg',
-    connect: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/people-connecting.svg',
-    question: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/man-question-marks.svg'
-  });
-
-  const ICON = Object.freeze({
-    home: '<svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 12 8-8 8 8M6 10.5V19a1 1 0 0 0 1 1h3v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h3a1 1 0 0 0 1-1v-8.5"/></svg>',
-    book: '<svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M12.1429 11v9m0-9c-2.50543-.7107-3.19099-1.39543-6.13657-1.34968-.48057.00746-.86348.38718-.86348.84968v7.2884c0 .4824.41455.8682.91584.8617 2.77491-.0362 3.45995.6561 6.08421 1.3499m0-9c2.5053-.7107 3.1067-1.39542 6.0523-1.34968.4806.00746.9477.38718.9477.84968v7.2884c0 .4824-.4988.8682-1 .8617-2.775-.0362-3.3758.6561-6 1.3499m2-14c0 1.10457-.8955 2-2 2-1.1046 0-2-.89543-2-2s.8954-2 2-2c1.1045 0 2 .89543 2 2Z"/></svg>',
-    users: '<svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4.5 17H4a1 1 0 0 1-1-1 3 3 0 0 1 3-3h1m0-3.05A2.5 2.5 0 1 1 9 5.5M19.5 17h.5a1 1 0 0 0 1-1 3 3 0 0 0-3-3h-1m0-3.05a2.5 2.5 0 1 0-2-4.45m.5 13.5h-7a1 1 0 0 1-1-1 3 3 0 0 1 3-3h3a3 3 0 0 1 3 3 1 1 0 0 1-1 1Zm-1-9.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z"/></svg>',
-    arrow: '<svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7"/></svg>'
-  });
-
-  const e = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-  const url = new URL(location.href);
-  const token = url.searchParams.get('session');
-  const tab = ['home', 'exams', 'history'].includes(url.searchParams.get('tab')) ? url.searchParams.get('tab') : 'home';
-  const attempts = Store.getAttempts();
-  let data = null;
-  let session = null;
-  let questions = [];
-  let sessionError = '';
-
-  const formatDate = (timestamp) => timestamp ? new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp)) : 'Any time';
-  const sessionState = (item) => {
-    const now = Date.now();
-    if (item.status !== 'open') return item.status;
-    if (item.startsAt && now < item.startsAt) return 'scheduled';
-    if (item.endsAt && now > item.endsAt) return 'closed';
-    return 'ready';
-  };
-  const badge = (value) => `<span class="badge badge-${value === 'ready' || value === 'submitted' ? 'success' : value === 'scheduled' ? 'info' : value === 'closed' ? 'danger' : 'warning'}">${e(value)}</span>`;
-  const currentStudent = () => session ? Store.getStudentState(session.id)?.studentName || '' : '';
-  const coverage = () => {
-    if (!session) return '';
-    if (session.mode === 'qualifier') return 'English · Mathematics · Science · Social & digital aptitude';
-    return session.subjects.map((code) => Data.subjectByCode(data, code)?.label || code).join(' · ');
-  };
-  const navHref = (next) => {
-    const target = new URL('./student.html', location.href);
-    target.search = '';
-    target.searchParams.set('tab', next);
-    if (token) target.searchParams.set('session', token);
-    return target.pathname.split('/').pop() + target.search;
-  };
-
-  const header = () => `
-    <header class="student-topbar sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-      <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <a href="${navHref('home')}" class="flex min-h-11 items-center gap-3 rounded-xl pr-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100" aria-label="Festacol student home">
-          <span class="brand-mark">F</span><span><strong class="block font-display text-sm font-extrabold text-slate-950">Festacol</strong><span class="block text-[11px] font-semibold text-slate-500">Student workspace</span></span>
-        </a>
-        <nav class="ml-auto hidden items-center gap-1 rounded-xl bg-slate-100 p-1 sm:flex" aria-label="Student navigation">
-          ${[['home', 'Dashboard', ICON.home], ['exams', 'My exams', ICON.book], ['history', 'History', ICON.users]].map(([key, label, icon]) => `<a href="${navHref(key)}" class="student-nav-link" ${tab === key ? 'aria-current="page"' : ''}>${icon}${label}</a>`).join('')}
-        </nav>
-        <div class="ml-auto sm:ml-0">${currentStudent() ? `<div class="hidden text-right md:block"><strong class="block text-sm text-slate-900">${e(currentStudent())}</strong><span class="text-xs text-slate-500">${e(session?.classLevel || 'Student')}</span></div>` : '<span class="badge badge-info">Student access</span>'}</div>
-      </div>
-      <nav class="grid grid-cols-3 border-t border-slate-200 bg-white p-1 sm:hidden" aria-label="Student mobile navigation">
-        ${[['home', 'Home'], ['exams', 'Exams'], ['history', 'History']].map(([key, label]) => `<a href="${navHref(key)}" class="student-mobile-nav" ${tab === key ? 'aria-current="page"' : ''}>${label}</a>`).join('')}
-      </nav>
-    </header>`;
-
-  const noSessionCard = () => `
-    <section class="surface-raised overflow-hidden lg:grid lg:grid-cols-[1fr_320px]">
-      <div class="p-6 sm:p-8">
-        <span class="badge badge-info">Secure access</span>
-        <h2 class="mt-4 max-w-2xl font-display text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Your examination opens from the exact school link.</h2>
-        <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600">Scan the QR code or open the link supplied by your school. Festacol does not guess your class, examination type or subjects.</p>
-        <div class="mt-6 flex flex-wrap gap-3"><span class="badge badge-neutral">Dynamic class</span><span class="badge badge-neutral">Dynamic subjects</span><span class="badge badge-neutral">Timed attempt</span></div>
-      </div>
-      <div class="illustration-well min-h-60 p-6"><img src="${ART.question}" alt="Student reviewing questions on a digital learning screen" class="mx-auto h-52 w-auto object-contain" loading="lazy"></div>
-    </section>`;
-
-  const sessionCard = () => {
-    const status = sessionState(session);
-    const state = Store.getStudentState(session.id) || {};
-    const progress = state.startedAt && !state.submittedAt;
-    const submitted = Boolean(state.submittedAt);
-    return `
-      <section class="session-feature overflow-hidden">
-        <div class="relative z-10 max-w-3xl p-6 sm:p-8 lg:p-10">
-          <div class="flex flex-wrap items-center gap-2">${badge(submitted ? 'submitted' : status)}<span class="badge badge-neutral">${e(Store.getModeLabel(session.mode))}</span></div>
-          <h2 class="mt-5 font-display text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">${e(session.title)}</h2>
-          <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">${e(coverage())}</p>
-          <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            ${[['Class', session.classLevel], ['Questions', questions.length], ['Duration', `${session.durationMinutes} min`], ['Window', session.startsAt ? formatDate(session.startsAt) : 'Open now']].map(([label, value]) => `<div class="mini-metric"><span>${e(label)}</span><strong>${e(value)}</strong></div>`).join('')}
-          </div>
-          <div class="mt-7 flex flex-wrap gap-3">
-            ${submitted ? `<button type="button" data-open-receipt class="btn btn-secondary">View receipt</button>` : status === 'ready' ? `<button type="button" data-enter-session class="btn btn-primary btn-lg">${progress ? 'Resume examination' : currentStudent() ? 'Review & enter exam' : 'Identify & continue'} ${ICON.arrow}</button>` : `<button type="button" class="btn btn-secondary" disabled>${e(status === 'scheduled' ? 'Opens later' : 'Unavailable')}</button>`}
-          </div>
-        </div>
-        <img src="${ART.student}" alt="Student working confidently on a laptop" class="session-feature-art" loading="eager">
-      </section>`;
-  };
-
-  const identityPanel = () => !session || currentStudent() ? '' : `
-    <section class="surface-raised mt-5 p-5 sm:p-6" id="identity-panel">
-      <div class="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <span class="badge badge-warning">Identity required</span>
-          <h3 class="mt-3 font-display text-xl font-extrabold text-slate-950">Who is taking this examination?</h3>
-          <p class="mt-1 text-sm leading-6 text-slate-600">Use your full name exactly as the school should identify this attempt.</p>
-        </div>
-        <form id="student-identity-form" class="grid gap-2 sm:grid-cols-[minmax(260px,1fr)_auto]" novalidate>
-          <div><label class="sr-only" for="student-full-name">Full name</label><input id="student-full-name" class="field" autocomplete="name" placeholder="e.g. Amina Yusuf Bello" aria-describedby="student-name-error"><p id="student-name-error" class="mt-1 hidden text-xs font-bold text-rose-700" role="alert"></p></div>
-          <button class="btn btn-primary" type="submit">Continue ${ICON.arrow}</button>
-        </form>
-      </div>
-    </section>`;
-
-  const recentAttempts = () => {
-    const rows = attempts.slice(0, 5);
-    return `<section class="surface mt-5 overflow-hidden"><div class="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><p class="eyebrow">Activity</p><h3 class="mt-1 font-display text-lg font-extrabold text-slate-950">Recent attempts</h3></div><a href="${navHref('history')}" class="btn btn-ghost btn-sm">View history</a></div>${rows.length ? `<div class="divide-y divide-slate-100">${rows.map((attempt) => `<div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center"><div class="min-w-0 flex-1"><strong class="block truncate text-sm text-slate-900">${e(attempt.sessionTitle)}</strong><span class="mt-1 block text-xs text-slate-500">${e(attempt.classLevel)} · ${attempt.submittedAt ? `Submitted ${formatDate(attempt.submittedAt)}` : 'In progress'}</span></div><div class="flex items-center gap-3">${badge(attempt.submittedAt ? 'submitted' : 'draft')}<span class="text-xs font-bold tabular-nums text-slate-600">${attempt.answered}/${attempt.questionCount}</span></div></div>`).join('')}</div>` : `<div class="p-8 text-center"><p class="font-semibold text-slate-700">No attempts on this device yet.</p><p class="mt-1 text-sm text-slate-500">Your activity will appear here after you start an examination.</p></div>`}</section>`;
-  };
-
-  const renderHome = () => `
-    <div class="page-enter mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p class="eyebrow">Student dashboard</p><h1 class="mt-1 font-display text-3xl font-extrabold tracking-tight text-slate-950">${currentStudent() ? `Welcome, ${e(currentStudent().split(' ')[0])}.` : 'Ready when you are.'}</h1><p class="mt-2 text-sm text-slate-600">Your exam access, progress and recent activity in one place.</p></div>${session ? `<span class="badge badge-info">${e(session.id)}</span>` : ''}</div>
-      ${session ? sessionCard() + identityPanel() : noSessionCard()}
-      <div class="mt-5 grid gap-5 lg:grid-cols-[1.35fr_.65fr]">${recentAttempts()}<aside class="surface mt-5 overflow-hidden"><div class="illustration-well p-5"><img src="${ART.connect}" alt="Students connecting through an online learning platform" class="mx-auto h-36 w-auto" loading="lazy"></div><div class="p-5"><span class="badge badge-success">Before you begin</span><h3 class="mt-3 font-display text-lg font-extrabold text-slate-950">Use a stable browser and power source.</h3><p class="mt-2 text-sm leading-6 text-slate-600">Your responses save on this device as you work. Avoid clearing browser storage during an active paper.</p></div></aside></div>
-    </div>`;
-
-  const renderExams = () => `<div class="page-enter mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8"><p class="eyebrow">My exams</p><h1 class="mt-1 font-display text-3xl font-extrabold text-slate-950">Examination access</h1><p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Only examinations encoded in your school-issued link appear here.</p><div class="mt-6">${session ? sessionCard() + identityPanel() : noSessionCard()}</div></div>`;
-  const renderHistory = () => `<div class="page-enter mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8"><p class="eyebrow">Attempt history</p><h1 class="mt-1 font-display text-3xl font-extrabold text-slate-950">This device</h1><p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Prototype history is browser-local and is not a school-wide student record.</p><div class="mt-6">${recentAttempts()}</div></div>`;
-
-  const render = () => {
-    root.innerHTML = `${header()}<main>${tab === 'exams' ? renderExams() : tab === 'history' ? renderHistory() : renderHome()}</main>`;
-    bind();
-    root.focus({ preventScroll: true });
-  };
-
-  const saveName = (value) => {
-    if (!session) return;
-    const name = Store.sanitizeName(value);
-    if (name.split(/\s+/u).filter(Boolean).length < 2) throw new Error('Enter your full name with at least two names.');
-    const prior = Store.getStudentState(session.id) || {};
-    Store.saveStudentState(session.id, { version: 2, activeQuestion: 0, responses: {}, flagged: [], startedAt: null, endAt: null, submittedAt: null, attemptId: null, view: 'briefing', filter: 'all', saveStatus: 'Saved', ...prior, studentName: name, view: prior.startedAt ? prior.view || 'exam' : 'briefing' });
-  };
-
-  const enterExam = () => {
-    if (!session) return;
-    const target = new URL('./exam.html', location.href);
-    target.search = '';
-    target.searchParams.set('session', token);
-    location.href = target.href;
-  };
-
-  const bind = () => {
-    document.getElementById('student-identity-form')?.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const input = document.getElementById('student-full-name');
-      const error = document.getElementById('student-name-error');
-      try { saveName(input.value); render(); } catch (failure) { error.textContent = failure.message; error.classList.remove('hidden'); input.setAttribute('aria-invalid', 'true'); input.focus(); }
-    });
-    document.querySelector('[data-enter-session]')?.addEventListener('click', () => {
-      if (!currentStudent()) { document.getElementById('student-full-name')?.focus(); return; }
-      enterExam();
-    });
-    document.querySelector('[data-open-receipt]')?.addEventListener('click', enterExam);
-  };
-
-  const start = async () => {
-    try { data = await Data.load(); } catch (failure) { sessionError = failure.message; }
-    if (token) {
-      try { session = Store.decodeSession(token); questions = data ? Data.questionsForSession(data, session) : []; if (data && questions.length !== session.questionCount) sessionError = 'This session does not have enough matching questions.'; } catch (failure) { sessionError = failure.message; }
-    }
-    if (sessionError) {
-      root.innerHTML = `${header()}<main class="mx-auto max-w-4xl px-4 py-12 sm:px-6"><section class="surface-raised grid gap-8 overflow-hidden p-6 sm:p-8 md:grid-cols-[1fr_240px] md:items-center"><div><span class="badge badge-danger">Unable to open session</span><h1 class="mt-4 font-display text-3xl font-extrabold text-slate-950">Check your examination link.</h1><p class="mt-3 text-sm leading-6 text-slate-600">${e(sessionError)}</p></div><div class="illustration-well p-4"><img src="${ART.question}" alt="Student looking for the correct examination link" class="mx-auto h-48 w-auto"></div></section></main>`;
-      return;
-    }
-    render();
-  };
-
-  start();
+  const Store=window.FestacolSessionStore,Data=window.FestacolQuestionData,Engine=window.FestacolAssessmentEngine,root=document.getElementById('student-root');
+  if(!Store||!Data||!Engine||!root)throw new Error('Festacol student dashboard dependencies are unavailable.');
+  const ART={student:'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/woman-laptop-chart.svg',connect:'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/people-connecting.svg',question:'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/man-question-marks.svg'};
+  const e=(v)=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  const url=new URL(location.href),token=url.searchParams.get('session');
+  const pages=new Set(['home','exams','analytics','history','progress','profile']);
+  let page=pages.has(url.searchParams.get('page'))?url.searchParams.get('page'):'home',data=null,session=null,sessionError='';
+  try{if(token)session=Store.resolveSession(Store.decodeSession(token));}catch(err){sessionError=err.message;}
+  const sessionState=(s)=>{const now=Date.now();if(!s)return'missing';if(s.status!=='open')return s.status;if(s.startsAt&&now<s.startsAt)return'scheduled';if(s.endsAt&&now>s.endsAt)return'closed';return'open';};
+  const navHref=(next)=>{const u=new URL('./student.html',location.href);u.search='';u.searchParams.set('page',next);if(token)u.searchParams.set('session',token);return u.pathname.split('/').pop()+u.search;};
+  const profile=()=>Store.getStudentProfile();
+  const candidateHash=()=>session?Store.getActiveCandidate(session.id):'';
+  const authed=()=>{const p=profile(),hash=candidateHash();if(session&&p?.studentHash&&hash&&Store.getAttemptResetAt(session.id,hash)>Number(p.updatedAt||0)){Store.clearStudentAuth();Store.clearActiveCandidate(session.id);return false;}return Boolean(p?.studentHash&&Store.getStudentAuth()===p.studentHash&&hash);};
+  const attempt=()=>session&&candidateHash()?Store.findAttempt(session.id,candidateHash()):null;
+  const state=()=>session&&candidateHash()?Store.getStudentState(session.id,candidateHash()):null;
+  const attempts=()=>{const p=profile();return p?.studentHash?Store.attemptsForStudent(p.studentHash):[];};
+  const answerUnlocked=(a)=>{const s=Store.listSessions().find(x=>x.id===a.sessionId)||session;return Engine.answersMayBeRevealed(s,s?.status);};
+  const badge=(text,tone='neutral')=>`<span class="badge badge-${tone}">${e(text)}</span>`;
+  const icon=(path)=>`<svg class="fb-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${path}"/></svg>`;
+  const icons={home:icon('M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-5v-5h-4v5H5a1 1 0 0 1-1-1v-8.5Z'),exam:icon('M7 4h10a2 2 0 0 1 2 2v14H5V6a2 2 0 0 1 2-2Zm2 5h6M9 13h6M9 17h4'),chart:icon('M5 19V9m5 10V5m5 14v-7m4 7H3'),history:icon('M3 12a9 9 0 1 0 3-6.7L3 8m0 0h5M3 8V3m9 4v5l3 2'),progress:icon('m5 13 4 4L19 7M5 7h6'),profile:icon('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0')};
+  const navItems=[['home','Dashboard',icons.home],['exams','My exams',icons.exam],['analytics','Analytics',icons.chart],['history','Exam history',icons.history],['progress','Progress & promotion',icons.progress],['profile','Profile',icons.profile]];
+  const shell=(content)=>{const p=profile();return `<div class="min-h-dvh bg-slate-50"><button id="student-menu" class="icon-btn fixed left-4 top-4 z-50 lg:hidden" aria-label="Open student navigation">${icon('M5 7h14M5 12h14M5 17h14')}</button><div id="student-scrim" class="student-sidebar-scrim hidden"></div><aside id="student-sidebar" class="student-sidebar fixed inset-y-0 left-0 z-50 hidden w-72 flex-col lg:flex"><div class="p-5"><a href="${navHref('home')}" class="flex items-center gap-3"><span class="brand-mark">F</span><span><strong class="font-display text-base font-extrabold text-slate-950">Festacol</strong><small class="block text-xs text-slate-500">Student intelligence portal</small></span></a></div><nav class="grid gap-1 px-3">${navItems.map(([key,label,ic])=>`<a href="${navHref(key)}" class="nav-link" ${page===key?'aria-current="page"':''}>${ic}${label}</a>`).join('')}</nav><div class="mt-auto border-t border-slate-200 p-4">${p?`<div class="flex items-center gap-3"><span class="avatar">${e((p.firstName[0]||'')+(p.lastName[0]||''))}</span><div class="min-w-0"><strong class="block truncate text-sm text-slate-900">${e(p.fullName)}</strong><span class="text-xs text-slate-500">${e(p.academicSession)}</span></div></div>`:`<p class="text-xs text-slate-500">Authenticate from an examination link to unlock your dashboard.</p>`}</div></aside><main class="min-h-dvh lg:pl-72"><header class="glassbar sticky top-0 z-30 px-4 py-3 pl-16 lg:pl-6"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4"><div><p class="eyebrow">Student portal</p><h1 class="font-display text-lg font-extrabold text-slate-950">${e(navItems.find(x=>x[0]===page)?.[1]||'Dashboard')}</h1></div>${session?badge(session.classLevel,'brand'):''}</div></header><div class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-7">${content}</div></main></div>`;};
+  const loginCard=()=>`<section class="surface-raised overflow-hidden lg:grid lg:grid-cols-[1fr_330px]"><div class="p-6 sm:p-8"><span class="badge badge-brand">Candidate authentication</span><h2 class="mt-4 font-display text-3xl font-extrabold text-slate-950">Sign in to this exam session</h2><p class="mt-2 max-w-xl text-sm leading-6 text-slate-600">Your <strong>first name is your username</strong> and your <strong>last name is your password</strong>. Both are required.</p><form id="student-login-form" class="mt-6 grid gap-4 sm:grid-cols-2" novalidate><label class="text-sm font-bold text-slate-700">First name · username<input id="student-first-name" class="field mt-2" autocomplete="given-name" required></label><label class="text-sm font-bold text-slate-700">Last name · password<input id="student-last-name" type="password" class="field mt-2" autocomplete="current-password" required></label><p id="student-login-error" class="hidden text-sm font-bold text-rose-700 sm:col-span-2" role="alert"></p><button class="btn btn-primary sm:col-span-2" type="submit">Authenticate candidate</button></form></div><div class="illustration-well p-6"><img src="${ART.student}" alt="Student working on a laptop" class="mx-auto h-64 w-auto"></div></section>`;
+  const sessionCard=()=>{if(!session)return`<section class="surface-raised p-7"><img src="${ART.question}" alt="" class="mx-auto h-40"><h2 class="mt-5 text-center font-display text-2xl font-extrabold">Open your school exam link</h2><p class="mt-2 text-center text-sm text-slate-600">Festacol never guesses your class, subjects or exam type.</p></section>`;const st=sessionState(session),a=attempt(),s=state(),submitted=Boolean(a?.submittedAt||s?.submittedAt),inProgress=Boolean(s?.startedAt&&!s?.submittedAt&&!Store.isAttemptInvalidated(session.id,candidateHash(),s.startedAt));let action='';if(submitted)action=`<a href="${navHref('analytics')}" class="btn btn-secondary">View result</a>`;else if(st==='open'&&authed())action=`<a data-enter-exam class="btn btn-primary" href="./exam.html?session=${encodeURIComponent(token)}">${inProgress?'Resume examination':'Review & start'}</a>`;else if(st==='open')action='';else action=`<button class="btn btn-secondary" disabled>${e(st==='scheduled'?'Opens later':'Exam closed')}</button>`;return`<section class="session-feature p-6 sm:p-8"><div class="max-w-3xl">${badge(submitted?'Attempt locked':st,submitted?'success':st==='open'?'brand':'warning')}<h2 class="mt-4 font-display text-3xl font-extrabold text-slate-950">${e(session.title)}</h2><p class="mt-2 text-sm text-slate-600">${e(Store.getModeLabel(session.mode))} · ${e(session.classLevel)} · ${e(Store.durationLabel(session.durationSeconds))} · ${session.questionCount} questions</p><div class="mt-5 flex flex-wrap gap-2">${session.subjects.map(code=>badge(Data.subjectByCode(data,code)?.label||code)).join('')}</div><div class="mt-6 flex gap-3">${action}</div>${submitted?'<p class="mt-4 text-sm font-semibold text-slate-600">Attempt 1 of 1 · This exam cannot be restarted.</p>':'<p class="mt-4 text-sm text-slate-500">Attempt 1 of 1 · Leaving before submission pauses your remaining time; reopening resumes this same attempt.</p>'}</div></section>`;};
+  const metric=(label,value,detail)=>`<article class="student-metric"><span class="student-metric-dot"></span><span class="eyebrow">${e(label)}</span><strong>${e(value)}</strong><small>${e(detail)}</small></article>`;
+  const dashboard=()=>{const arr=attempts(),submitted=arr.filter(a=>a.submittedAt),avg=submitted.length?Math.round(submitted.reduce((n,a)=>n+(a.score||0),0)/submitted.length):0;return`${sessionCard()}<section class="student-metric-grid mt-5">${metric('Completed',submitted.length,'submitted exams')}${metric('Average',`${avg}%`,'across scored attempts')}${metric('Integrity',submitted.length?`${Math.round(submitted.reduce((n,a)=>n+(a.integrityScore??100),0)/submitted.length)}%`:'—','recorded browser signals')}${metric('Current class',profile()?.currentClassId||session?.classLevel||'—',profile()?.academicSession||Store.ACADEMIC_SESSION)}</section>`;};
+  const examsPage=()=>`${sessionCard()}<section class="surface mt-5 overflow-hidden"><div class="border-b border-slate-200 p-5"><h2 class="section-title">Exam activity</h2></div>${attempts().length?attempts().map(a=>`<div class="student-attempt-row"><div class="min-w-0 flex-1"><strong class="block truncate text-sm text-slate-900">${e(a.sessionTitle)}</strong><span class="text-xs text-slate-500">${e(a.classLevel)} · ${a.submittedAt?'Submitted':'In progress'}</span></div>${badge(a.submittedAt?'locked':'resume',a.submittedAt?'success':'warning')}</div>`).join(''):'<p class="p-6 text-sm text-slate-500">No exam attempts yet.</p>'}</section>`;
+  const analyticsPage=()=>{const arr=attempts().filter(a=>a.submittedAt);if(!arr.length)return`<section class="surface p-7">No submitted results yet.</section>`;const a=arr[0],unlocked=answerUnlocked(a);return`<section class="student-metric-grid">${metric('Score',`${a.score??0}%`,'latest submitted exam')}${metric('Completion',`${a.completion??100}%`,'questions completed')}${metric('Pace',`${a.paceIndex??0}`,'exam-derived pace index')}${metric('Integrity',`${a.integrityScore??100}%`,'browser integrity score')}</section><section class="surface mt-5 p-5"><h2 class="section-title">Subject performance</h2><div class="mt-4 grid gap-3">${(a.subjectStats||[]).map(s=>`<div class="mini-metric"><span>${e(s.subject)}</span><strong>${s.percent}%</strong></div>`).join('')||'<p class="text-sm text-slate-500">No subject breakdown available.</p>'}</div><div class="mt-5 alert ${unlocked?'alert-success':'alert-info'}"><strong>${unlocked?'Answer review unlocked':'Answers remain locked'}</strong><span>${unlocked?'The examination is closed, so review details may now be displayed.':'Correct answers are hidden until the administrator closes the examination.'}</span></div>${unlocked?`<div class="mt-4 space-y-3">${(a.details||[]).map((d,i)=>`<article class="surface-soft p-4"><strong class="text-sm">Question ${i+1}</strong><p class="mt-1 text-xs text-slate-500">Correct answer: ${e(d.correctAnswer||'Unavailable')}</p></article>`).join('')}</div>`:''}</section>`;};
+  const historyPage=()=>`<section class="surface overflow-hidden"><div class="border-b border-slate-200 p-5"><h2 class="section-title">Exam history</h2></div>${attempts().map(a=>`<div class="student-attempt-row"><div class="flex-1"><strong class="block text-sm">${e(a.sessionTitle)}</strong><span class="text-xs text-slate-500">${a.submittedAt?new Date(a.submittedAt).toLocaleString('en-NG'):'Unsubmitted · resumable while open'}</span></div><strong>${a.submittedAt?`${a.score??0}%`:'—'}</strong></div>`).join('')||'<p class="p-6 text-sm text-slate-500">No history yet.</p>'}</section>`;
+  const progressPage=()=>{const arr=attempts().filter(a=>a.submittedAt),qual=arr.find(a=>a.placement),placement=qual?.placement;return`<section class="grid gap-5 lg:grid-cols-2"><article class="surface-raised p-6"><p class="eyebrow">Academic session</p><h2 class="mt-2 font-display text-2xl font-extrabold">${e(profile()?.academicSession||Store.ACADEMIC_SESSION)}</h2><p class="mt-2 text-sm text-slate-600">Current class: ${e(session?.classGroup||session?.classLevel||'Not assigned')}</p></article><article class="surface-raised p-6"><p class="eyebrow">Placement / promotion</p><h2 class="mt-2 font-display text-2xl font-extrabold">${e(placement?.assignedTrack||'Pending')}</h2><p class="mt-2 text-sm text-slate-600">${placement?`${placement.confidence}% confidence · exam-derived recommendation`:'Complete a qualifier or promotion assessment to populate this view.'}</p></article></section>`;};
+  const profilePage=()=>{const p=profile();return`<section class="surface-raised max-w-3xl p-6"><h2 class="section-title">Profile management</h2><p class="mt-2 text-sm text-slate-600">Your examination identity is fixed to the authenticated first and last name. Contact the school to change those credentials.</p><form id="student-profile-form" class="mt-6 grid gap-4 sm:grid-cols-2"><label class="text-sm font-bold">First name<input class="field mt-2" value="${e(p?.firstName||'')}" disabled></label><label class="text-sm font-bold">Last name<input class="field mt-2" value="${e(p?.lastName||'')}" disabled></label><label class="text-sm font-bold">Guardian<input id="profile-guardian" class="field mt-2" value="${e(p?.guardian||'')}"></label><label class="text-sm font-bold">Phone<input id="profile-phone" class="field mt-2" value="${e(p?.phone||'')}"></label><button class="btn btn-primary sm:col-span-2" type="submit">Save profile</button></form></section>`;};
+  const render=()=>{let body;if(sessionError)body=`<section class="alert alert-danger"><strong>Invalid examination link</strong><span>${e(sessionError)}</span></section>`;else if(session&&!authed())body=loginCard();else body=({home:dashboard,exams:examsPage,analytics:analyticsPage,history:historyPage,progress:progressPage,profile:profilePage}[page])();root.innerHTML=shell(body);bind();};
+  const bind=()=>{document.getElementById('student-menu')?.addEventListener('click',()=>{document.getElementById('student-sidebar')?.classList.add('student-sidebar-open');document.getElementById('student-scrim')?.classList.remove('hidden');});document.getElementById('student-scrim')?.addEventListener('click',()=>{document.getElementById('student-sidebar')?.classList.remove('student-sidebar-open');document.getElementById('student-scrim')?.classList.add('hidden');});document.getElementById('student-login-form')?.addEventListener('submit',async(ev)=>{ev.preventDefault();const err=document.getElementById('student-login-error');try{if(!session)throw new Error('Open a valid examination link first.');const first=document.getElementById('student-first-name').value,last=document.getElementById('student-last-name').value,cred=Engine.candidateCredentials(first,last),studentHash=await Engine.studentHash(first,last),candHash=await Engine.candidateHash(session.id,first,last);Store.setStudentAuth(studentHash);Store.setActiveCandidate(session.id,candHash);const existing=Store.getStudentState(session.id,candHash);Store.saveStudentProfile({firstName:cred.firstName,lastName:cred.lastName,fullName:cred.fullName,candidateHash:candHash,studentHash,currentClassId:existing?.classGroup||session.classGroup,academicSession:session.academicSession});render();}catch(ex){err.textContent=ex.message;err.classList.remove('hidden');}});document.getElementById('student-profile-form')?.addEventListener('submit',(ev)=>{ev.preventDefault();const p=profile();Store.saveStudentProfile({...p,guardian:document.getElementById('profile-guardian').value,phone:document.getElementById('profile-phone').value});render();});};
+  Data.load().then(payload=>{data=payload;render();}).catch(err=>{root.innerHTML=`<main class="p-6"><div class="alert alert-danger"><strong>Question data unavailable</strong><span>${e(err.message)}</span></div></main>`;});
 })();

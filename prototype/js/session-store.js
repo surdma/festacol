@@ -1,362 +1,117 @@
 (() => {
   'use strict';
 
-  const SESSION_STORE_KEY = 'festacol.exam.sessions.v2';
-  const ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v2';
-  const STUDENT_STATE_PREFIX = 'festacol.student.session.v2:';
-  const USER_STORE_KEY = 'festacol.admin.users.v1';
-  const CLASS_STORE_KEY = 'festacol.admin.classes.v1';
+  const SESSION_STORE_KEY = 'festacol.exam.sessions.v3';
+  const LEGACY_SESSION_STORE_KEY = 'festacol.exam.sessions.v2';
+  const ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v3';
+  const LEGACY_ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v2';
+  const STUDENT_STATE_PREFIX = 'festacol.student.attempt.v3:';
+  const LEGACY_STUDENT_STATE_PREFIX = 'festacol.student.session.v2:';
+  const STUDENT_PROFILE_KEY = 'festacol.student.profile.v1';
+  const ACTIVE_CANDIDATE_PREFIX = 'festacol.student.active-candidate:';
+  const AUTH_STUDENT_KEY = 'festacol.student.auth.v1';
+  const RESET_MARKER_PREFIX = 'festacol.exam.reset.v1:';
+  const USER_STORE_KEY = 'festacol.admin.users.v2';
+  const LEGACY_USER_STORE_KEY = 'festacol.admin.users.v1';
+  const CLASS_STORE_KEY = 'festacol.admin.classes.v2';
+  const LEGACY_CLASS_STORE_KEY = 'festacol.admin.classes.v1';
   const CUSTOM_QUESTION_STORE_KEY = 'festacol.admin.custom-questions.v1';
-  const PAYLOAD_VERSION = 2;
-
-  const MODE_LABELS = Object.freeze({
-    qualifier: 'SS1 stream qualifier',
-    mixed: 'Mixed-subject examination',
-    single: 'Single-subject examination',
-    waec: 'WAEC subject practice'
-  });
-
+  const PAYLOAD_VERSION = 3;
+  const SUPPORTED_PAYLOAD_VERSIONS = new Set([2, 3]);
+  const ACADEMIC_SESSION = '2026/2027';
+  const TRACKS = Object.freeze(['Science', 'Arts', 'Social Science']);
+  const MODE_LABELS = Object.freeze({ qualifier: 'SS1 stream qualifier', mixed: 'Mixed-subject examination', single: 'Single-subject examination', waec: 'WAEC subject practice' });
   const MODE_CODES = Object.freeze({ qualifier: 'q', mixed: 'm', single: 's', waec: 'w' });
   const CODE_MODES = Object.freeze({ q: 'qualifier', m: 'mixed', s: 'single', w: 'waec' });
 
-  const readJson = (key, fallback) => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
-
-  const writeJson = (key, value) => {
-    localStorage.setItem(key, JSON.stringify(value));
-  };
-
-  const utf8ToBase64Url = (value) => {
-    const bytes = new TextEncoder().encode(value);
-    let binary = '';
-    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-    return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
-  };
-
-  const base64UrlToUtf8 = (value) => {
-    const normalized = value.replaceAll('-', '+').replaceAll('_', '/');
-    const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
-    const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
-  };
-
-  const sanitizeTitle = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 40);
+  const readJson = (key, fallback) => { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
+  const writeJson = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const uniqueStrings = (value) => Array.isArray(value) ? [...new Set(value.map(String).filter(Boolean))] : [];
+  const sanitizeTitle = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 72);
   const sanitizeName = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 80);
+  const makeId = () => globalThis.crypto?.randomUUID ? crypto.randomUUID().split('-')[0].toUpperCase() : Math.random().toString(36).slice(2, 10).toUpperCase();
+  const utf8ToBase64Url = (value) => { const bytes = new TextEncoder().encode(value); let binary = ''; bytes.forEach((byte) => { binary += String.fromCharCode(byte); }); return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, ''); };
+  const base64UrlToUtf8 = (value) => { const normalized = value.replaceAll('-', '+').replaceAll('_', '/'); const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4); const binary = atob(padded); return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0))); };
 
-  const makeId = () => {
-    if (crypto?.randomUUID) return crypto.randomUUID().split('-')[0].toUpperCase();
-    return Math.random().toString(36).slice(2, 10).toUpperCase();
-  };
-
-  const normalizeSession = (input) => {
-    const mode = String(input.mode || '');
-    const classLevel = String(input.classLevel || '');
-    const subjects = Array.isArray(input.subjects) ? [...new Set(input.subjects.map(String))] : [];
-    const durationMinutes = Number(input.durationMinutes);
-    const questionCount = Number(input.questionCount);
-
+  const normalizeIntegrityPolicy = (value = {}) => ({ focusMonitoring: value.focusMonitoring !== false, fullscreenPrompt: value.fullscreenPrompt !== false, clipboardGuard: value.clipboardGuard !== false, warnAfter: clamp(Math.round(Number(value.warnAfter) || 2), 1, 10) });
+  const normalizeRandomization = (value = {}) => ({ questionOrder: value.questionOrder !== false, optionOrder: value.optionOrder !== false, minimizePaperCollisions: value.minimizePaperCollisions !== false });
+  const normalizeSession = (input = {}) => {
+    const mode = String(input.mode || ''), classLevel = String(input.classLevel || ''), subjects = uniqueStrings(input.subjects);
+    const requestedTracks = uniqueStrings(input.placementTracks).filter((track) => TRACKS.includes(track));
+    const placementTracks = mode === 'qualifier' && !requestedTracks.length ? [...TRACKS] : requestedTracks;
+    const durationSeconds = Math.round(Number(input.durationSeconds ?? Number(input.durationMinutes) * 60));
+    const questionCount = Math.round(Number(input.questionCount));
     if (!Object.hasOwn(MODE_LABELS, mode)) throw new Error('Unsupported examination mode.');
     if (!['SS1', 'SS2', 'SS3'].includes(classLevel)) throw new Error('Choose SS1, SS2, or SS3.');
     if (mode === 'qualifier' && classLevel !== 'SS1') throw new Error('Qualifier sessions are reserved for incoming SS1 candidates.');
     if (mode === 'waec' && classLevel !== 'SS3') throw new Error('WAEC subject practice sessions are configured for SS3.');
-    if (mode === 'mixed' && (subjects.length < 2 || subjects.length > 6)) throw new Error('Mixed examinations need between two and six subjects.');
+    if (mode === 'mixed' && (subjects.length < 2 || subjects.length > 12)) throw new Error('Mixed examinations need between two and twelve subjects.');
     if ((mode === 'single' || mode === 'waec') && subjects.length !== 1) throw new Error('This examination mode requires exactly one subject.');
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 240) throw new Error('Duration must be between 5 and 240 minutes.');
-    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 100) throw new Error('Question count must be between 1 and 100.');
-
-    return {
-      id: String(input.id || makeId()).slice(0, 16),
-      version: PAYLOAD_VERSION,
-      title: sanitizeTitle(input.title) || MODE_LABELS[mode],
-      classLevel,
-      mode,
-      subjects,
-      durationMinutes,
-      questionCount,
-      status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open',
-      instructions: String(input.instructions || '').trim().slice(0, 80),
-      startsAt: input.startsAt ? Number(input.startsAt) : null,
-      endsAt: input.endsAt ? Number(input.endsAt) : null,
-      createdAt: Number(input.createdAt) || Date.now()
-    };
+    if (mode === 'qualifier' && subjects.length && subjects.some((code) => !code.startsWith('q-'))) throw new Error('Qualifier sessions can only use placement-domain subjects.');
+    if (mode === 'qualifier' && placementTracks.length < 1) throw new Error('Choose at least one eligible placement track.');
+    if (!Number.isInteger(durationSeconds) || durationSeconds < 30 || durationSeconds > 10800) throw new Error('Duration must be between 30 seconds and 3 hours.');
+    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 200) throw new Error('Question count must be between 1 and 200.');
+    return { id: String(input.id || makeId()).slice(0, 20), version: PAYLOAD_VERSION, title: sanitizeTitle(input.title) || MODE_LABELS[mode], classLevel, classGroup: String(input.classGroup || (mode === 'qualifier' ? 'Qualifier' : 'General')).slice(0, 40), academicSession: String(input.academicSession || ACADEMIC_SESSION).slice(0, 20), term: String(input.term || 'First term').slice(0, 24), mode, subjects, placementTracks: mode === 'qualifier' ? placementTracks : [], durationSeconds, durationMinutes: durationSeconds / 60, questionCount, status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open', instructions: String(input.instructions || '').trim().slice(0, 140), startsAt: input.startsAt ? Number(input.startsAt) : null, endsAt: input.endsAt ? Number(input.endsAt) : null, attemptLimit: 1, integrityPolicy: normalizeIntegrityPolicy(input.integrityPolicy), randomization: normalizeRandomization(input.randomization), createdAt: Number(input.createdAt) || Date.now() };
   };
+  const toPayload = (s) => ({ v: PAYLOAD_VERSION, i:s.id, n:s.title, c:s.classLevel, g:s.classGroup, y:s.academicSession, e:s.term, m:MODE_CODES[s.mode], s:s.subjects, t:s.placementTracks?.length?s.placementTracks:undefined, d:s.durationSeconds, q:s.questionCount, x:s.status, r:s.instructions||undefined, a:s.startsAt||undefined, z:s.endsAt||undefined, k:[s.integrityPolicy.focusMonitoring?1:0,s.integrityPolicy.fullscreenPrompt?1:0,s.integrityPolicy.clipboardGuard?1:0,s.integrityPolicy.warnAfter], o:[s.randomization.questionOrder?1:0,s.randomization.optionOrder?1:0,s.randomization.minimizePaperCollisions?1:0] });
+  const fromPayloadV3 = (p) => normalizeSession({ id:p.i,title:p.n,classLevel:p.c,classGroup:p.g,academicSession:p.y,term:p.e,mode:CODE_MODES[p.m],subjects:p.s||[],placementTracks:p.t||TRACKS,durationSeconds:p.d,questionCount:p.q,status:p.x,instructions:p.r||'',startsAt:p.a||null,endsAt:p.z||null,integrityPolicy:{focusMonitoring:p.k?.[0]!==0,fullscreenPrompt:p.k?.[1]!==0,clipboardGuard:p.k?.[2]!==0,warnAfter:p.k?.[3]||2},randomization:{questionOrder:p.o?.[0]!==0,optionOrder:p.o?.[1]!==0,minimizePaperCollisions:p.o?.[2]!==0},createdAt:Date.now() });
+  const fromPayloadV2 = (p) => normalizeSession({ id:p.i,title:p.n,classLevel:p.c,mode:CODE_MODES[p.m],subjects:p.s||[],placementTracks:CODE_MODES[p.m]==='qualifier'?TRACKS:[],durationSeconds:Number(p.d)*60,questionCount:p.q,status:p.x,instructions:p.r||'',startsAt:p.a||null,endsAt:p.z||null,createdAt:Date.now() });
+  const encodeSession = (input) => utf8ToBase64Url(JSON.stringify(toPayload(normalizeSession(input))));
+  const decodeSession = (token) => { if (!token) throw new Error('No examination session was provided.'); let payload; try { payload=JSON.parse(base64UrlToUtf8(token)); } catch { throw new Error('This examination link is not valid.'); } if (!SUPPORTED_PAYLOAD_VERSIONS.has(payload?.v)) throw new Error('This examination link uses an unsupported format.'); return payload.v===2?fromPayloadV2(payload):fromPayloadV3(payload); };
+  const listSessions = () => { const current = readJson(SESSION_STORE_KEY, null); if (Array.isArray(current)) return current; const legacy = readJson(LEGACY_SESSION_STORE_KEY, []); return Array.isArray(legacy) ? legacy.map((item)=>{try{return normalizeSession({...item,durationSeconds:Number(item.durationMinutes)*60,placementTracks:item.mode==='qualifier'?TRACKS:[]});}catch{return null;}}).filter(Boolean) : []; };
+  const saveSession = (input) => { const session=normalizeSession(input); writeJson(SESSION_STORE_KEY,[session,...listSessions().filter((item)=>item.id!==session.id)].slice(0,80)); return session; };
+  const updateSessionStatus = (sessionId,status) => { if(!['open','draft','closed'].includes(status)) throw new Error('Unsupported session status.'); const sessions=listSessions(); const found=sessions.find((item)=>item.id===sessionId); if(!found)return null; const updated={...found,status}; writeJson(SESSION_STORE_KEY,sessions.map((item)=>item.id===sessionId?updated:item)); return updated; };
+  const deleteSession = (sessionId) => writeJson(SESSION_STORE_KEY,listSessions().filter((item)=>item.id!==sessionId));
+  const resolveSession = (session) => listSessions().find((item)=>item.id===session?.id)||session;
+  const getSessionLink = (session,baseHref=window.location.href) => { const url=new URL('./student.html',baseHref); url.search=''; url.hash=''; url.searchParams.set('session',encodeSession(session)); return url.href; };
 
-  const toPayload = (session) => ({
-    v: PAYLOAD_VERSION,
-    i: session.id,
-    n: session.title,
-    c: session.classLevel,
-    m: MODE_CODES[session.mode],
-    s: session.subjects,
-    d: session.durationMinutes,
-    q: session.questionCount,
-    x: session.status,
-    r: session.instructions || undefined,
-    a: session.startsAt || undefined,
-    z: session.endsAt || undefined
-  });
+  const normalizeAttempt = (a={}) => ({ id:String(a.id||makeId()), attemptHash:String(a.attemptHash||''), candidateHash:String(a.candidateHash||''), studentHash:String(a.studentHash||''), paperFingerprint:String(a.paperFingerprint||''), sessionId:String(a.sessionId||''), sessionTitle:sanitizeTitle(a.sessionTitle), firstName:sanitizeName(a.firstName||'').split(' ')[0]||'', lastName:sanitizeName(a.lastName||'').split(' ').slice(-1)[0]||'', studentName:sanitizeName(a.studentName||[a.firstName,a.lastName].filter(Boolean).join(' ')), classLevel:String(a.classLevel||''), classGroup:String(a.classGroup||''), academicSession:String(a.academicSession||ACADEMIC_SESSION), mode:String(a.mode||''), sessionStatus:String(a.sessionStatus||''), sessionEndsAt:Number(a.sessionEndsAt)||null, subjects:uniqueStrings(a.subjects), startedAt:Number(a.startedAt)||null, submittedAt:Number(a.submittedAt)||null, remainingSeconds:Number.isFinite(Number(a.remainingSeconds))?Number(a.remainingSeconds):null, elapsedActiveSeconds:Number(a.elapsedActiveSeconds)||0, answered:Number(a.answered)||0, questionCount:Number(a.questionCount)||0, score:Number.isFinite(Number(a.score))?Number(a.score):null, correctCount:Number.isFinite(Number(a.correctCount))?Number(a.correctCount):null, completion:Number.isFinite(Number(a.completion))?Number(a.completion):null, paceIndex:Number.isFinite(Number(a.paceIndex))?Number(a.paceIndex):null, reasoningIndex:Number.isFinite(Number(a.reasoningIndex))?Number(a.reasoningIndex):null, integrityScore:Number.isFinite(Number(a.integrityScore))?Number(a.integrityScore):null, integrityEvents:Array.isArray(a.integrityEvents)?a.integrityEvents.slice(-100):[], subjectStats:Array.isArray(a.subjectStats)?a.subjectStats:[], placement:a.placement&&typeof a.placement==='object'?a.placement:null, details:Array.isArray(a.details)?a.details:[], questionIds:Array.isArray(a.questionIds)?a.questionIds.map(Number):[] });
+  const getAttempts = () => { const current=readJson(ATTEMPT_STORE_KEY,null); if(Array.isArray(current))return current.map(normalizeAttempt); const legacy=readJson(LEGACY_ATTEMPT_STORE_KEY,[]); return Array.isArray(legacy)?legacy.map(normalizeAttempt):[]; };
+  const resetMarkerKey = (sessionId,candidateHash)=>`${RESET_MARKER_PREFIX}${sessionId}:${candidateHash}`;
+  const getAttemptResetAt = (sessionId,candidateHash)=>Number(localStorage.getItem(resetMarkerKey(sessionId,candidateHash)))||0;
+  const isAttemptInvalidated = (sessionId,candidateHash,startedAt=0)=>{ const resetAt=getAttemptResetAt(sessionId,candidateHash); return Boolean(resetAt && resetAt>=Number(startedAt||0)); };
+  const recordAttempt = (attempt) => { const normalized=normalizeAttempt(attempt); if(normalized.candidateHash&&normalized.startedAt&&isAttemptInvalidated(normalized.sessionId,normalized.candidateHash,normalized.startedAt)) throw new Error('This unfinished attempt was reset by an administrator.'); const attempts=getAttempts(); const match=(item)=>normalized.attemptHash?item.attemptHash===normalized.attemptHash:item.id===normalized.id; writeJson(ATTEMPT_STORE_KEY,[normalized,...attempts.filter((item)=>!match(item))].slice(0,500)); return normalized; };
+  const findAttempt = (sessionId,candidateHash)=>getAttempts().find((a)=>a.sessionId===sessionId&&a.candidateHash===candidateHash)||null;
+  const attemptsForCandidate = (candidateHash)=>getAttempts().filter((a)=>a.candidateHash===candidateHash);
+  const attemptsForStudent = (studentHash)=>getAttempts().filter((a)=>a.studentHash===studentHash||(!a.studentHash&&a.candidateHash===studentHash));
+  const attemptsForSession = (sessionId)=>getAttempts().filter((a)=>a.sessionId===sessionId);
+  const hasSubmittedAttempt = (sessionId,candidateHash)=>Boolean(findAttempt(sessionId,candidateHash)?.submittedAt);
+  const stateKey=(sessionId,candidateHash)=>`${STUDENT_STATE_PREFIX}${sessionId}:${candidateHash||'anonymous'}`;
+  const legacyStateKey=(sessionId)=>`${LEGACY_STUDENT_STATE_PREFIX}${sessionId}`;
+  const activeCandidateKey=(sessionId)=>`${ACTIVE_CANDIDATE_PREFIX}${sessionId}`;
+  const setActiveCandidate=(sessionId,candidateHash)=>{ if(candidateHash)sessionStorage.setItem(activeCandidateKey(sessionId),String(candidateHash)); else sessionStorage.removeItem(activeCandidateKey(sessionId)); };
+  const getActiveCandidate=(sessionId)=>sessionStorage.getItem(activeCandidateKey(sessionId))||'';
+  const clearActiveCandidate=(sessionId)=>sessionStorage.removeItem(activeCandidateKey(sessionId));
+  const setStudentAuth=(studentHash)=>{ const value=String(studentHash||''); if(!value)throw new Error('Student identity is required.'); sessionStorage.setItem(AUTH_STUDENT_KEY,value); return value; };
+  const getStudentAuth=()=>sessionStorage.getItem(AUTH_STUDENT_KEY)||'';
+  const clearStudentAuth=()=>sessionStorage.removeItem(AUTH_STUDENT_KEY);
+  const getStudentState=(sessionId,candidateHash=getActiveCandidate(sessionId))=>{ const current=readJson(stateKey(sessionId,candidateHash),null); if(current)return current; if(!candidateHash)return readJson(legacyStateKey(sessionId),null); return null; };
+  const saveStudentState=(sessionId,candidateHashOrValue,maybeValue)=>{ const legacy=maybeValue===undefined; const candidateHash=legacy?getActiveCandidate(sessionId):candidateHashOrValue; const value=legacy?candidateHashOrValue:maybeValue; if(candidateHash&&value?.startedAt&&isAttemptInvalidated(sessionId,candidateHash,value.startedAt)) return false; writeJson(stateKey(sessionId,candidateHash),value); if(candidateHash)setActiveCandidate(sessionId,candidateHash); return true; };
+  const clearStudentState=(sessionId,candidateHash=getActiveCandidate(sessionId))=>localStorage.removeItem(stateKey(sessionId,candidateHash));
+  const resetUnfinishedAttempt=(sessionId,candidateHash)=>{ const attempt=findAttempt(sessionId,candidateHash), state=getStudentState(sessionId,candidateHash); if(attempt?.submittedAt||state?.submittedAt)throw new Error('Submitted attempts cannot be reset.'); if(!attempt&&!state?.startedAt)throw new Error('No unfinished attempt was found for this candidate.'); const resetAt=Date.now(); localStorage.setItem(resetMarkerKey(sessionId,candidateHash),String(resetAt)); writeJson(ATTEMPT_STORE_KEY,getAttempts().filter((item)=>!(item.sessionId===sessionId&&item.candidateHash===candidateHash))); clearStudentState(sessionId,candidateHash); if(getActiveCandidate(sessionId)===candidateHash){clearActiveCandidate(sessionId);clearStudentAuth();} return {...(attempt||{sessionId,candidateHash,studentName:state?.studentName||''}),resetAt}; };
 
-  const fromPayload = (payload) => normalizeSession({
-    id: payload.i,
-    title: payload.n,
-    classLevel: payload.c,
-    mode: CODE_MODES[payload.m],
-    subjects: payload.s || [],
-    durationMinutes: payload.d,
-    questionCount: payload.q,
-    status: payload.x,
-    instructions: payload.r || '',
-    startsAt: payload.a || null,
-    endsAt: payload.z || null,
-    createdAt: Date.now()
-  });
-
-  const encodeSession = (sessionInput) => utf8ToBase64Url(JSON.stringify(toPayload(normalizeSession(sessionInput))));
-
-  const decodeSession = (token) => {
-    if (!token) throw new Error('No examination session was provided.');
-    let parsed;
-    try {
-      parsed = JSON.parse(base64UrlToUtf8(token));
-    } catch {
-      throw new Error('This examination link is not valid.');
-    }
-    if (parsed?.v !== PAYLOAD_VERSION) throw new Error('This examination link uses an unsupported format.');
-    return fromPayload(parsed);
-  };
-
-  const getSessionLink = (session, baseHref = window.location.href) => {
-    const url = new URL('./student.html', baseHref);
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('session', encodeSession(session));
-    return url.href;
-  };
-
-  const listSessions = () => {
-    const sessions = readJson(SESSION_STORE_KEY, []);
-    return Array.isArray(sessions) ? sessions : [];
-  };
-
-  const saveSession = (input) => {
-    const session = normalizeSession(input);
-    const sessions = listSessions();
-    const next = [session, ...sessions.filter((item) => item.id !== session.id)].slice(0, 50);
-    writeJson(SESSION_STORE_KEY, next);
-    return session;
-  };
-
-  const updateSessionStatus = (sessionId, status) => {
-    if (!['open', 'draft', 'closed'].includes(status)) throw new Error('Unsupported session status.');
-    const sessions = listSessions();
-    const session = sessions.find((item) => item.id === sessionId);
-    if (!session) return null;
-    const updated = { ...session, status };
-    writeJson(SESSION_STORE_KEY, sessions.map((item) => item.id === sessionId ? updated : item));
-    return updated;
-  };
-
-  const deleteSession = (sessionId) => {
-    const sessions = listSessions().filter((item) => item.id !== sessionId);
-    writeJson(SESSION_STORE_KEY, sessions);
-  };
-
-  const getAttempts = () => {
-    const attempts = readJson(ATTEMPT_STORE_KEY, []);
-    return Array.isArray(attempts) ? attempts : [];
-  };
-
-  const recordAttempt = (attempt) => {
-    const normalized = {
-      id: String(attempt.id || makeId()),
-      sessionId: String(attempt.sessionId || ''),
-      sessionTitle: sanitizeTitle(attempt.sessionTitle),
-      studentName: sanitizeName(attempt.studentName),
-      classLevel: String(attempt.classLevel || ''),
-      mode: String(attempt.mode || ''),
-      startedAt: Number(attempt.startedAt) || null,
-      submittedAt: Number(attempt.submittedAt) || null,
-      answered: Number(attempt.answered) || 0,
-      questionCount: Number(attempt.questionCount) || 0
-    };
-    const attempts = getAttempts();
-    writeJson(ATTEMPT_STORE_KEY, [normalized, ...attempts.filter((item) => item.id !== normalized.id)].slice(0, 200));
-    return normalized;
-  };
-
-  const studentStateKey = (sessionId) => `${STUDENT_STATE_PREFIX}${sessionId}`;
-  const getStudentState = (sessionId) => readJson(studentStateKey(sessionId), null);
-  const saveStudentState = (sessionId, value) => writeJson(studentStateKey(sessionId), value);
-  const clearStudentState = (sessionId) => localStorage.removeItem(studentStateKey(sessionId));
-
-
-
-  const DEFAULT_CLASSES = Object.freeze([
-    { id: 'ss1-general', classLevel: 'SS1', name: 'SS1 General', stream: 'Foundation', capacity: 180, room: 'Senior Block A', status: 'active' },
-    { id: 'ss2-science', classLevel: 'SS2', name: 'SS2 Science', stream: 'Science', capacity: 64, room: 'Science Wing', status: 'active' },
-    { id: 'ss2-arts', classLevel: 'SS2', name: 'SS2 Arts', stream: 'Arts', capacity: 58, room: 'Humanities Wing', status: 'active' },
-    { id: 'ss2-social', classLevel: 'SS2', name: 'SS2 Social Science', stream: 'Social Science', capacity: 62, room: 'Commerce Wing', status: 'active' },
-    { id: 'ss3-science', classLevel: 'SS3', name: 'SS3 Science', stream: 'Science', capacity: 60, room: 'Science Wing', status: 'active' },
-    { id: 'ss3-arts', classLevel: 'SS3', name: 'SS3 Arts', stream: 'Arts', capacity: 54, room: 'Humanities Wing', status: 'active' },
-    { id: 'ss3-social', classLevel: 'SS3', name: 'SS3 Social Science', stream: 'Social Science', capacity: 56, room: 'Commerce Wing', status: 'active' }
-  ]);
-
-  const DEFAULT_USERS = Object.freeze([
-    { id: 'ST-2401', fullName: 'Amina Yusuf Bello', classId: 'ss2-science', role: 'student', status: 'active', guardian: 'Yusuf Bello', joinedAt: Date.now() - 86400000 * 90 },
-    { id: 'ST-2402', fullName: 'David Chukwu Okafor', classId: 'ss2-arts', role: 'student', status: 'active', guardian: 'Chukwu Okafor', joinedAt: Date.now() - 86400000 * 84 },
-    { id: 'ST-2403', fullName: 'Zainab Musa Ibrahim', classId: 'ss3-social', role: 'student', status: 'active', guardian: 'Musa Ibrahim', joinedAt: Date.now() - 86400000 * 77 },
-    { id: 'ST-2404', fullName: 'Tolu Adeyemi James', classId: 'ss1-general', role: 'student', status: 'active', guardian: 'Adeyemi James', joinedAt: Date.now() - 86400000 * 46 },
-    { id: 'AD-001', fullName: 'Examination Administrator', classId: '', role: 'administrator', status: 'active', guardian: '', joinedAt: Date.now() - 86400000 * 200 }
-  ]);
-
-  const listClasses = () => {
-    const value = readJson(CLASS_STORE_KEY, null);
-    return Array.isArray(value) && value.length ? value : DEFAULT_CLASSES.map((item) => ({ ...item }));
-  };
-
-  const saveClass = (input) => {
-    const name = String(input.name || '').trim().slice(0, 60);
-    const classLevel = String(input.classLevel || '');
-    if (!name || !['SS1', 'SS2', 'SS3'].includes(classLevel)) throw new Error('Class name and level are required.');
-    const item = {
-      id: String(input.id || makeId()).slice(0, 24),
-      classLevel,
-      name,
-      stream: String(input.stream || 'General').trim().slice(0, 40),
-      capacity: Math.max(1, Math.min(500, Number(input.capacity) || 40)),
-      room: String(input.room || '').trim().slice(0, 50),
-      status: input.status === 'archived' ? 'archived' : 'active'
-    };
-    const classes = listClasses();
-    writeJson(CLASS_STORE_KEY, [item, ...classes.filter((entry) => entry.id !== item.id)]);
-    return item;
-  };
-
-  const deleteClass = (classId) => writeJson(CLASS_STORE_KEY, listClasses().filter((item) => item.id !== classId));
-
-  const listUsers = () => {
-    const value = readJson(USER_STORE_KEY, null);
-    const base = Array.isArray(value) && value.length ? value : DEFAULT_USERS.map((item) => ({ ...item }));
-    const attempts = getAttempts();
-    const names = new Set(base.map((item) => item.fullName.toLowerCase()));
-    const inferred = attempts.filter((attempt) => attempt.studentName && !names.has(attempt.studentName.toLowerCase())).map((attempt) => ({
-      id: `AT-${String(attempt.id).slice(-6)}`,
-      fullName: attempt.studentName,
-      classId: listClasses().find((item) => item.classLevel === attempt.classLevel)?.id || '',
-      role: 'student',
-      status: 'active',
-      guardian: '',
-      joinedAt: attempt.startedAt || Date.now()
-    }));
-    return [...base, ...inferred];
-  };
-
-  const saveUser = (input) => {
-    const fullName = sanitizeName(input.fullName);
-    if (fullName.split(/\s+/u).filter(Boolean).length < 2) throw new Error('Enter at least two names for the user.');
-    const item = {
-      id: String(input.id || `ST-${Math.floor(1000 + Math.random() * 9000)}`).slice(0, 24),
-      fullName,
-      classId: String(input.classId || ''),
-      role: ['student', 'teacher', 'administrator'].includes(input.role) ? input.role : 'student',
-      status: input.status === 'inactive' ? 'inactive' : 'active',
-      guardian: sanitizeName(input.guardian || ''),
-      joinedAt: Number(input.joinedAt) || Date.now()
-    };
-    const current = readJson(USER_STORE_KEY, DEFAULT_USERS.map((entry) => ({ ...entry })));
-    writeJson(USER_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id)]);
-    return item;
-  };
-
-  const updateUserStatus = (userId, status) => {
-    const current = readJson(USER_STORE_KEY, DEFAULT_USERS.map((entry) => ({ ...entry })));
-    const next = current.map((entry) => entry.id === userId ? { ...entry, status: status === 'inactive' ? 'inactive' : 'active' } : entry);
-    writeJson(USER_STORE_KEY, next);
-    return next.find((entry) => entry.id === userId) || null;
-  };
-
-  const deleteUser = (userId) => {
-    const current = readJson(USER_STORE_KEY, DEFAULT_USERS.map((entry) => ({ ...entry })));
-    writeJson(USER_STORE_KEY, current.filter((entry) => entry.id !== userId));
-  };
-
-  const listCustomQuestions = () => {
-    const value = readJson(CUSTOM_QUESTION_STORE_KEY, []);
-    return Array.isArray(value) ? value : [];
-  };
-
-  const saveCustomQuestion = (input) => {
-    const question = { ...input, id: Number(input.id) || Math.floor(100000 + Math.random() * 899999), custom: true };
-    const current = listCustomQuestions();
-    writeJson(CUSTOM_QUESTION_STORE_KEY, [question, ...current.filter((entry) => entry.id !== question.id)].slice(0, 250));
-    return question;
-  };
-
-  const deleteCustomQuestion = (questionId) => writeJson(CUSTOM_QUESTION_STORE_KEY, listCustomQuestions().filter((item) => item.id !== Number(questionId)));
-
-
-  const clearSessions = () => localStorage.removeItem(SESSION_STORE_KEY);
-  const clearAttempts = () => localStorage.removeItem(ATTEMPT_STORE_KEY);
-  const clearAllStudentStates = () => {
-    const keys = [];
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index);
-      if (key?.startsWith(STUDENT_STATE_PREFIX)) keys.push(key);
-    }
-    keys.forEach((key) => localStorage.removeItem(key));
-    return keys.length;
-  };
-
-  const clearPrototypeData = () => {
-    const studentStateCount = clearAllStudentStates();
-    clearSessions();
-    clearAttempts();
-    localStorage.removeItem(USER_STORE_KEY);
-    localStorage.removeItem(CLASS_STORE_KEY);
-    localStorage.removeItem(CUSTOM_QUESTION_STORE_KEY);
-    return studentStateCount;
-  };
-
-  const getModeLabel = (mode) => MODE_LABELS[mode] || 'Examination session';
-
-  window.FestacolSessionStore = Object.freeze({
-    PAYLOAD_VERSION,
-    MODE_LABELS,
-    normalizeSession,
-    encodeSession,
-    decodeSession,
-    getSessionLink,
-    listSessions,
-    saveSession,
-    updateSessionStatus,
-    deleteSession,
-    getAttempts,
-    recordAttempt,
-    getStudentState,
-    saveStudentState,
-    clearStudentState,
-    clearSessions,
-    clearAttempts,
-    clearAllStudentStates,
-    clearPrototypeData,
-    sanitizeName,
-    getModeLabel,
-    listClasses,
-    saveClass,
-    deleteClass,
-    listUsers,
-    saveUser,
-    updateUserStatus,
-    deleteUser,
-    listCustomQuestions,
-    saveCustomQuestion,
-    deleteCustomQuestion
-  });
+  const getStudentProfile=()=>readJson(STUDENT_PROFILE_KEY,null);
+  const saveStudentProfile=(input={})=>{ const profile={firstName:sanitizeName(input.firstName).split(' ')[0]||'',lastName:sanitizeName(input.lastName).split(' ').slice(-1)[0]||'',fullName:sanitizeName(input.fullName||`${input.firstName||''} ${input.lastName||''}`),candidateHash:String(input.candidateHash||''),studentHash:String(input.studentHash||input.candidateHash||''),phone:String(input.phone||'').trim().slice(0,24),guardian:sanitizeName(input.guardian||''),currentClassId:String(input.currentClassId||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),updatedAt:Date.now()}; if(!profile.firstName||!profile.lastName||!profile.candidateHash||!profile.studentHash)throw new Error('First name, last name and candidate identity are required.'); writeJson(STUDENT_PROFILE_KEY,profile); return profile; };
+  const clearStudentProfile=()=>localStorage.removeItem(STUDENT_PROFILE_KEY);
+  const DEFAULT_CLASSES=Object.freeze([{id:'ss1-qualifier',classLevel:'SS1',name:'SS1 Qualifier Pool',stream:'Qualifier',group:'Qualifier',capacity:240,room:'Admissions',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-science',classLevel:'SS1',name:'SS1 Science',stream:'Science',group:'Science',capacity:72,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-arts',classLevel:'SS1',name:'SS1 Arts',stream:'Arts',group:'Arts',capacity:64,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-social',classLevel:'SS1',name:'SS1 Social Science',stream:'Social Science',group:'Social Science',capacity:68,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss1-general',classLevel:'SS1',name:'SS1 General',stream:'General',group:'General',capacity:80,room:'Senior Block A',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-science',classLevel:'SS2',name:'SS2 Science',stream:'Science',group:'Science',capacity:64,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-arts',classLevel:'SS2',name:'SS2 Arts',stream:'Arts',group:'Arts',capacity:58,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-social',classLevel:'SS2',name:'SS2 Social Science',stream:'Social Science',group:'Social Science',capacity:62,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss2-general',classLevel:'SS2',name:'SS2 General',stream:'General',group:'General',capacity:60,room:'Senior Block B',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-science',classLevel:'SS3',name:'SS3 Science',stream:'Science',group:'Science',capacity:60,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-arts',classLevel:'SS3',name:'SS3 Arts',stream:'Arts',group:'Arts',capacity:54,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-social',classLevel:'SS3',name:'SS3 Social Science',stream:'Social Science',group:'Social Science',capacity:56,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active'},{id:'ss3-general',classLevel:'SS3',name:'SS3 General',stream:'General',group:'General',capacity:50,room:'Senior Block C',academicSession:ACADEMIC_SESSION,status:'active'}]);
+  const DEFAULT_USERS=Object.freeze([{id:'ST-2401',fullName:'Amina Yusuf Bello',firstName:'Amina',lastName:'Bello',classId:'ss2-science',role:'student',status:'active',guardian:'Yusuf Bello',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*90},{id:'ST-2402',fullName:'David Chukwu Okafor',firstName:'David',lastName:'Okafor',classId:'ss2-arts',role:'student',status:'active',guardian:'Chukwu Okafor',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*84},{id:'ST-2403',fullName:'Zainab Musa Ibrahim',firstName:'Zainab',lastName:'Ibrahim',classId:'ss3-social',role:'student',status:'active',guardian:'Musa Ibrahim',academicSession:ACADEMIC_SESSION,promotionStatus:'graduating',joinedAt:Date.now()-86400000*77},{id:'ST-2404',fullName:'Tolu Adeyemi James',firstName:'Tolu',lastName:'James',classId:'ss1-general',role:'student',status:'active',guardian:'Adeyemi James',academicSession:ACADEMIC_SESSION,promotionStatus:'review',joinedAt:Date.now()-86400000*46},{id:'AD-001',fullName:'Examination Administrator',firstName:'Examination',lastName:'Administrator',classId:'',role:'administrator',status:'active',guardian:'',academicSession:ACADEMIC_SESSION,promotionStatus:'',joinedAt:Date.now()-86400000*200}]);
+  const mergeDefaults=(stored,defaults)=>{const byId=new Map((Array.isArray(stored)?stored:[]).map((item)=>[item.id,item]));defaults.forEach((item)=>{if(!byId.has(item.id))byId.set(item.id,{...item});});return [...byId.values()];};
+  const listClasses=()=>mergeDefaults(readJson(CLASS_STORE_KEY,null)??readJson(LEGACY_CLASS_STORE_KEY,null),DEFAULT_CLASSES);
+  const saveClass=(input={})=>{const classLevel=String(input.classLevel||''),stream=String(input.stream||input.group||'General').trim().slice(0,40),name=String(input.name||`${classLevel} ${stream}`).trim().slice(0,60);if(!name||!['SS1','SS2','SS3'].includes(classLevel))throw new Error('Class name and level are required.');const item={id:String(input.id||makeId()).slice(0,24),classLevel,name,stream,group:String(input.group||stream).slice(0,40),capacity:clamp(Math.round(Number(input.capacity)||40),1,500),room:String(input.room||'').trim().slice(0,50),academicSession:String(input.academicSession||ACADEMIC_SESSION),status:input.status==='archived'?'archived':'active'};const classes=listClasses();writeJson(CLASS_STORE_KEY,[item,...classes.filter((entry)=>entry.id!==item.id)]);return item;};
+  const deleteClass=(classId)=>writeJson(CLASS_STORE_KEY,listClasses().filter((item)=>item.id!==classId));
+  const listUsers=()=>mergeDefaults(readJson(USER_STORE_KEY,null)??readJson(LEGACY_USER_STORE_KEY,null),DEFAULT_USERS);
+  const saveUser=(input={})=>{const fullName=sanitizeName(input.fullName||`${input.firstName||''} ${input.lastName||''}`),parts=fullName.split(/\s+/u).filter(Boolean);if(parts.length<2)throw new Error('Enter at least first and last name for the user.');const item={id:String(input.id||`ST-${Math.floor(1000+Math.random()*9000)}`).slice(0,24),fullName,firstName:sanitizeName(input.firstName||parts[0]).split(' ')[0],lastName:sanitizeName(input.lastName||parts.at(-1)).split(' ').at(-1),classId:String(input.classId||''),role:['student','teacher','administrator'].includes(input.role)?input.role:'student',status:input.status==='inactive'?'inactive':'active',guardian:sanitizeName(input.guardian||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),promotionStatus:String(input.promotionStatus||'on-track'),joinedAt:Number(input.joinedAt)||Date.now()};const current=listUsers();writeJson(USER_STORE_KEY,[item,...current.filter((entry)=>entry.id!==item.id)]);return item;};
+  const updateUserStatus=(userId,status)=>{const current=listUsers(),next=current.map((entry)=>entry.id===userId?{...entry,status:status==='inactive'?'inactive':'active'}:entry);writeJson(USER_STORE_KEY,next);return next.find((entry)=>entry.id===userId)||null;};
+  const updatePromotion=(userId,promotionStatus,classId=null)=>{const current=listUsers(),next=current.map((entry)=>entry.id===userId?{...entry,promotionStatus,classId:classId||entry.classId}:entry);writeJson(USER_STORE_KEY,next);return next.find((entry)=>entry.id===userId)||null;};
+  const deleteUser=(userId)=>writeJson(USER_STORE_KEY,listUsers().filter((entry)=>entry.id!==userId));
+  const listCustomQuestions=()=>{const value=readJson(CUSTOM_QUESTION_STORE_KEY,[]);return Array.isArray(value)?value:[];};
+  const saveCustomQuestion=(input)=>{const q={...input,id:Number(input.id)||Math.floor(100000+Math.random()*899999),custom:true};writeJson(CUSTOM_QUESTION_STORE_KEY,[q,...listCustomQuestions().filter((entry)=>entry.id!==q.id)].slice(0,250));return q;};
+  const deleteCustomQuestion=(questionId)=>writeJson(CUSTOM_QUESTION_STORE_KEY,listCustomQuestions().filter((item)=>item.id!==Number(questionId)));
+  const durationLabel=(seconds)=>{const value=Math.max(0,Number(seconds)||0);if(value<60)return `${value} sec`;if(value%3600===0)return `${value/3600} hr${value===3600?'':'s'}`;if(value>=3600)return `${Math.floor(value/3600)}h ${Math.round(value%3600/60)}m`;return `${Math.round(value/60)} min`;};
+  const clearSessions=()=>{localStorage.removeItem(SESSION_STORE_KEY);localStorage.removeItem(LEGACY_SESSION_STORE_KEY);};
+  const clearAttempts=()=>{localStorage.removeItem(ATTEMPT_STORE_KEY);localStorage.removeItem(LEGACY_ATTEMPT_STORE_KEY);};
+  const clearAllStudentStates=()=>{const keys=[];for(let i=0;i<localStorage.length;i+=1){const key=localStorage.key(i);if(key?.startsWith(STUDENT_STATE_PREFIX)||key?.startsWith(LEGACY_STUDENT_STATE_PREFIX)||key?.startsWith(RESET_MARKER_PREFIX))keys.push(key);}keys.forEach((key)=>localStorage.removeItem(key));const sessionKeys=[];for(let i=0;i<sessionStorage.length;i+=1){const key=sessionStorage.key(i);if(key?.startsWith(ACTIVE_CANDIDATE_PREFIX)||key===AUTH_STUDENT_KEY)sessionKeys.push(key);}sessionKeys.forEach((key)=>sessionStorage.removeItem(key));return keys.length+sessionKeys.length;};
+  const clearPrototypeData=()=>{const count=clearAllStudentStates();clearSessions();clearAttempts();clearStudentProfile();[USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY].forEach((key)=>localStorage.removeItem(key));return count;};
+  window.FestacolSessionStore=Object.freeze({PAYLOAD_VERSION,MODE_LABELS,TRACKS,ACADEMIC_SESSION,normalizeSession,encodeSession,decodeSession,getSessionLink,resolveSession,listSessions,saveSession,updateSessionStatus,deleteSession,getAttempts,recordAttempt,findAttempt,attemptsForCandidate,attemptsForStudent,attemptsForSession,hasSubmittedAttempt,resetUnfinishedAttempt,getStudentState,saveStudentState,clearStudentState,setActiveCandidate,getActiveCandidate,clearActiveCandidate,setStudentAuth,getStudentAuth,clearStudentAuth,getAttemptResetAt,isAttemptInvalidated,getStudentProfile,saveStudentProfile,clearStudentProfile,clearSessions,clearAttempts,clearAllStudentStates,clearPrototypeData,sanitizeName,sanitizeTitle,getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session',durationLabel,listClasses,saveClass,deleteClass,listUsers,saveUser,updateUserStatus,updatePromotion,deleteUser,listCustomQuestions,saveCustomQuestion,deleteCustomQuestion});
 })();

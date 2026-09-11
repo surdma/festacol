@@ -51,6 +51,7 @@ jobs:
           node --check tests/prototype.spec.js
           node --check playwright.config.js
           npm run audit:prototype
+          npm run test:contract
 
   e2e:
     name: Browser E2E, accessibility & responsiveness
