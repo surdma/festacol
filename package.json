@@ -6,7 +6,8 @@
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report",
     "audit:prototype": "node scripts/prototype-audit.mjs",
-    "check": "npm run audit:prototype && npm run test:e2e"
+    "test:contract": "node scripts/state-contract.mjs",
+    "check": "npm run audit:prototype && npm run test:contract && npm run test:e2e"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"
