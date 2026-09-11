@@ -32,8 +32,11 @@ async function createMathExam(page, { camera = false, seconds = 180, count = 1 }
   await page.locator('[data-v3-next]').click();
   await expect(page.locator('[data-proctor-review]')).toContainText(camera ? 'Required' : 'Off');
   await page.locator('[data-v3-next]').click();
-  await expect(page.locator('[data-session-link]')).toBeVisible();
-  const link = await page.locator('[data-session-link]').inputValue();
+  const linkInput = page.locator('[data-session-link]');
+  await expect(linkInput).toBeVisible();
+  await expect(page.locator('[data-exam-qr] svg')).toBeVisible();
+  const link = await linkInput.inputValue();
+  expect(new URL(link).pathname).toContain('/prototype/exam.html');
   const token = new URL(link).searchParams.get('session');
   const sessionId = await page.evaluate((value) => window.FestacolSessionStore.decodeSession(value).id, token);
   return { link, sessionId };
@@ -44,9 +47,10 @@ async function loginStudent(page, link, first = 'Amina', last = 'Bello') {
   await page.locator('#student-first-name').fill(first);
   await page.locator('#student-last-name').fill(last);
   await page.locator('#student-login-form button[type="submit"]').click();
+  await expect(page.getByText('Before you begin', { exact: true })).toBeVisible();
 }
 
-test('camera proctoring is off by default and portable when admin enables it', async ({ page }) => {
+test('camera proctoring stays off by default and survives direct QR/link delivery when enabled', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
@@ -60,20 +64,17 @@ test('camera proctoring is off by default and portable when admin enables it', a
 
   await loginStudent(page, link);
   await expect(page.getByText(/Camera required for this exam/i)).toBeVisible();
-  await page.locator('[data-enter-exam]').click();
   await page.getByRole('button', { name: 'Start examination' }).click();
   await expect(page.locator('.exam-card')).toBeVisible();
   await expect(page.locator('[data-camera-preview]')).toBeVisible();
   await expect(page.locator('[data-camera-preview]')).toContainText(/does not record, transmit, or automatically analyse/i);
 });
 
-test('background/minimize time is charged while intentional leave remains a resumable pause', async ({ page }) => {
+test('background/minimize time is charged while intentional navigation remains resumable', async ({ page }) => {
   await clearPrototypeStorage(page);
   const { link, sessionId } = await createMathExam(page, { camera: false, seconds: 180 });
   expect(await page.evaluate((href) => window.FestacolProctorPolicy.policyFromUrl(href)?.cameraRequired || false, link)).toBe(false);
-  expect(new URL(link).searchParams.has('camera')).toBe(false);
   await loginStudent(page, link);
-  await page.locator('[data-enter-exam]').click();
   await page.getByRole('button', { name: 'Start examination' }).click();
   await expect(page.locator('.exam-card')).toBeVisible();
 
@@ -117,7 +118,6 @@ test('camera-required exam blocks start when camera permission is denied', async
   await clearPrototypeStorage(page);
   const { link } = await createMathExam(page, { camera: true });
   await loginStudent(page, link);
-  await page.locator('[data-enter-exam]').click();
   await page.getByRole('button', { name: 'Start examination' }).click();
   await expect(page.locator('[data-camera-gate]')).toBeVisible();
   await expect(page.getByText(/Camera permission was denied/i)).toBeVisible();
