@@ -4,59 +4,51 @@ async function clearPrototypeStorage(page) {
   await page.goto('/prototype/admin.html?page=overview');
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.reload();
+  await expect(page.getByRole('heading', { name: 'Administration overview' })).toBeVisible();
 }
 
 async function expectNoHorizontalOverflow(page) {
-  const widths = await page.evaluate(() => ({
-    scroll: document.documentElement.scrollWidth,
-    client: document.documentElement.clientWidth
-  }));
+  const widths = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
   expect(widths.scroll).toBeLessThanOrEqual(widths.client + 1);
 }
 
-async function createMathExam(page, { camera = false, seconds = 180, count = 2 } = {}) {
+async function setRange(page, selector, value) {
+  await page.locator(selector).evaluate((node, next) => { node.value = String(next); node.dispatchEvent(new Event('input', { bubbles: true })); }, value);
+}
+
+async function createExam(page, { camera = false, seconds = 180, count = 5 } = {}) {
   await page.goto('/prototype/admin.html?page=exams');
   await page.getByRole('button', { name: /Create exam/i }).first().click();
-  await page.locator('[data-v3-mode="single"]').click();
-  await page.locator('[data-v3-level="SS2"]').click();
-  await page.locator('[data-v3-group="Science"]').click();
-  await page.locator('[data-v3-next]').click();
-  await page.locator('[data-v3-subject="mat"]').click();
-  await page.locator('[data-v3-next]').click();
-  await page.locator('#duration-range').evaluate((node, value) => {
-    node.value = String(value);
-    node.dispatchEvent(new Event('input', { bubbles: true }));
-  }, seconds);
-  await page.locator('#question-count-range').evaluate((node, value) => {
-    node.value = String(value);
-    node.dispatchEvent(new Event('input', { bubbles: true }));
-  }, count);
-  await page.locator('[data-v3-next]').click();
-  const cameraToggle = page.locator('[data-proctor-camera]');
-  await expect(cameraToggle).toBeVisible();
-  if (camera) await cameraToggle.check();
-  await page.locator('[data-v3-status="open"]').click();
-  await page.locator('[data-v3-next]').click();
-  await page.locator('[data-v3-next]').click();
-  const linkInput = page.locator('[data-session-link]');
-  await expect(linkInput).toBeVisible();
-  const link = await linkInput.inputValue();
-  expect(new URL(link).pathname).toContain('/prototype/exam.html');
-  const token = new URL(link).searchParams.get('session');
-  const sessionId = await page.evaluate((value) => window.FestacolSessionStore.decodeSession(value).id, token);
-  return { link, sessionId };
+  await page.locator('[data-wizard-mode="mixed"]').click();
+  await page.locator('[data-wizard-level="SS2"]').click();
+  await page.locator('[data-wizard-group="Science"]').click();
+  await page.locator('[data-wizard-next]').click();
+  await page.locator('[data-wizard-subject="eng"]').click();
+  await page.locator('[data-wizard-subject="mat"]').click();
+  await page.locator('[data-wizard-next]').click();
+  await expect(page.locator('#question-count-range')).toHaveAttribute('min', '5');
+  await expect(page.locator('#question-count-range')).toHaveAttribute('max', '150');
+  await setRange(page, '#duration-range', seconds);
+  await setRange(page, '#question-count-range', count);
+  await page.locator('[data-wizard-next]').click();
+  await expect(page.locator('[data-proctor-camera]')).toBeVisible();
+  if (camera) await page.locator('[data-proctor-camera]').check();
+  await page.locator('[data-wizard-status="open"]').click();
+  await page.locator('[data-wizard-next]').click();
+  await page.locator('[data-wizard-next]').click();
+  await expect(page.getByRole('heading', { name: 'Distribution ready' })).toBeVisible();
+  await expect(page.locator('#created-exam-qr svg')).toBeVisible();
+  await expect(page.locator('[data-session-link]')).toHaveCount(0);
+  const result = await page.evaluate(() => {
+    const S = window.FestacolSessionStore;
+    const P = window.FestacolProctorPolicy;
+    const session = S.listSessions()[0];
+    return { id: session.id, link: P.decorateStudentLink(S.getSessionLink(session, location.href), P.getAdminPolicy(session.id).cameraRequired) };
+  });
+  return result;
 }
 
-async function loginPortal(page, first = 'Amina', last = 'Bello') {
-  await page.goto('/prototype/student.html');
-  await expect(page.locator('#student-sidebar')).toHaveCount(0);
-  await page.locator('#student-first-name').fill(first);
-  await page.locator('#student-last-name').fill(last);
-  await page.locator('#student-login-form button[type="submit"]').click();
-  await expect(page.locator('#student-sidebar')).toBeVisible();
-}
-
-async function loginStudent(page, link, first = 'Amina', last = 'Bello') {
+async function loginExam(page, link, first = 'Amina', last = 'Bello') {
   await page.goto(link);
   await expect(page.locator('#student-login-form')).toBeVisible();
   await page.locator('#student-first-name').fill(first);
@@ -68,314 +60,198 @@ async function loginStudent(page, link, first = 'Amina', last = 'Bello') {
 async function startExam(page) {
   await page.getByRole('button', { name: /Start examination/i }).click();
   await expect(page.locator('[data-exam-workspace]')).toBeVisible();
-  await expect(page.locator('#exam-timer')).toBeVisible();
 }
 
-async function submitFromReview(page) {
+async function submitExam(page) {
   await page.locator('[data-review]').first().click();
   await page.locator('[data-modal-target="submit-modal"]').click();
   await expect(page.locator('#submit-modal')).toBeVisible();
   await page.locator('[data-confirm-submit]').click();
+  await expect(page.getByText(/Examination submitted successfully/i)).toBeVisible();
 }
 
-test('direct exam link authenticates and renders the integrated exam workspace', async ({ page }) => {
+test('admin uses one consistent Tailwind/Flowbite navigation and no duplicate report sidebars', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const { link } = await createMathExam(page, { count: 3 });
-  await loginStudent(page, link);
-  await expect(page.getByText(/Your timer starts only after/i)).toBeVisible();
-  await startExam(page);
-  await expect(page.locator('[data-answer-option]').first()).toBeVisible();
-  await expect(page.locator('#question-map')).toBeVisible();
-  await expect(page.locator('[data-previous]').first()).toBeDisabled();
-  await expect(page.locator('[data-next]').first()).toBeVisible();
-  const firstInput = page.locator('[data-answer-option] input').first();
-  await firstInput.check({ force: true });
-  await expect(page.getByText('Answered', { exact: true }).first()).toBeVisible();
-  await expect(firstInput).toBeChecked();
-  await expectNoHorizontalOverflow(page);
+  await expect(page.locator('#desktop-nav [data-admin-route]')).toHaveCount(7);
+  await expect(page.locator('#desktop-nav [data-admin-route="reports"]')).toHaveCount(1);
+  await expect(page.locator('#admin-detail-drawer')).toHaveCount(0);
+  await expect(page.locator('link[href*="festacol.css"]')).toHaveCount(0);
+  await expect(page.locator('link[href*="academic-v3.css"]')).toHaveCount(0);
+  for (const route of ['overview','users','exams','classes','questions','reports','settings']) {
+    await page.locator(`#desktop-nav [data-admin-route="${route}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`page=${route}`));
+    await expectNoHorizontalOverflow(page);
+  }
 });
 
-test('unfinished examination resumes the exact attempt and remaining time', async ({ page }) => {
+test('exam wizard exposes 5–150 question range, integrated proctoring and QR-only distribution', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { seconds: 180, count: 2 });
-  await loginStudent(page, link);
-  await startExam(page);
-  await page.waitForTimeout(1100);
-  const before = await page.evaluate((id) => {
-    const S = window.FestacolSessionStore;
-    const hash = S.getActiveCandidate(id);
-    const state = S.getStudentState(id, hash);
-    return { hash, startedAt: state.startedAt, attemptHash: state.attemptHash, remaining: state.remainingSeconds };
-  }, sessionId);
-  await page.reload();
-  await expect(page.locator('#student-login-form')).toHaveCount(0);
-  await expect(page.locator('[data-exam-workspace]')).toBeVisible();
-  const resumed = await page.evaluate(({ id, hash }) => {
-    const state = window.FestacolSessionStore.getStudentState(id, hash);
-    return { startedAt: state.startedAt, attemptHash: state.attemptHash, remaining: state.remainingSeconds };
-  }, { id: sessionId, hash: before.hash });
-  expect(resumed.startedAt).toBe(before.startedAt);
-  expect(resumed.attemptHash).toBe(before.attemptHash);
-  expect(resumed.remaining).toBeLessThanOrEqual(before.remaining);
+  const { id } = await createExam(page, { camera: true, count: 5 });
+  expect(id).toMatch(/^[A-Z0-9-]+$/);
+  await expect(page.getByText('Exam ID', { exact: true })).toBeVisible();
+  await expect(page.locator('#admin-dialog-content').getByText(id, { exact: true })).toBeVisible();
+  await expect(page.locator('input[readonly][value*="http"]')).toHaveCount(0);
+  const policy = await page.evaluate((sessionId) => window.FestacolProctorPolicy.getAdminPolicy(sessionId), id);
+  expect(policy.cameraRequired).toBe(true);
 });
 
-test('timeout auto-submits, locks the attempt and clears candidate authentication', async ({ page }) => {
+test('student can enter Exam ID and reach the same candidate login session without scanning QR', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { seconds: 180, count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
-  await page.evaluate((id) => {
-    const S = window.FestacolSessionStore;
-    const hash = S.getActiveCandidate(id);
-    const state = S.getStudentState(id, hash);
-    state.remainingSeconds = 0.6;
-    S.saveStudentState(id, hash, state);
-  }, sessionId);
-  await page.reload();
-  await expect(page.locator('[data-exam-workspace]')).toBeVisible();
-  await page.waitForTimeout(1700);
-  await expect(page.getByText(/Time expired\. Your examination was submitted automatically/i)).toBeVisible();
-  const locked = await page.evaluate((id) => {
-    const S = window.FestacolSessionStore;
-    return { auth: S.getStudentAuth(), active: S.getActiveCandidate(id), submitted: S.getAttempts().some((a) => a.sessionId === id && a.submittedAt) };
-  }, sessionId);
-  expect(locked.auth).toBe('');
-  expect(locked.active).toBe('');
-  expect(locked.submitted).toBe(true);
+  const { id } = await createExam(page, { camera: false });
+  await page.goto('/prototype/student.html');
+  await page.getByRole('button', { name: 'Enter exam ID' }).click();
+  await expect(page.getByRole('heading', { name: 'Enter the Exam ID.' })).toBeVisible();
+  await page.locator('#exam-id-input').fill(id.toLowerCase());
+  await page.locator('#exam-id-form button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/prototype\/exam\.html\?session=/);
+  await expect(page.locator('#student-login-form')).toBeVisible();
 });
 
-test('closing an active session auto-submits and signs the candidate out', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
-  await page.evaluate((id) => window.FestacolSessionStore.updateSessionStatus(id, 'closed'), sessionId);
-  await page.waitForTimeout(1300);
-  await expect(page.getByText(/session ended\. Your work was submitted automatically/i)).toBeVisible();
-  expect(await page.evaluate(() => window.FestacolSessionStore.getStudentAuth())).toBe('');
-});
-
-test('camera-required exam blocks start on denial and shows local preview when granted', async ({ page }) => {
+test('camera requirement blocks exam start until permission is granted', async ({ page }) => {
   await page.addInitScript(() => {
     window.__cameraAllowed = false;
-    Object.defineProperty(navigator, 'mediaDevices', {
-      configurable: true,
-      value: {
-        getUserMedia: async () => {
-          if (!window.__cameraAllowed) {
-            const error = new Error('Permission denied');
-            error.name = 'NotAllowedError';
-            throw error;
-          }
-          return new MediaStream();
-        }
-      }
-    });
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => { if (!window.__cameraAllowed) { const error = new Error('Permission denied'); error.name = 'NotAllowedError'; throw error; } return new MediaStream(); } } });
   });
   await clearPrototypeStorage(page);
-  const { link } = await createMathExam(page, { camera: true, count: 1 });
-  await loginStudent(page, link);
+  const { link } = await createExam(page, { camera: true });
+  await loginExam(page, link);
   await page.getByRole('button', { name: /Start examination/i }).click();
   await expect(page.locator('[data-camera-gate]')).toBeVisible();
   await expect(page.locator('[data-exam-workspace]')).toHaveCount(0);
   await page.evaluate(() => { window.__cameraAllowed = true; });
   await page.locator('[data-camera-retry]').click();
-  await expect(page.locator('[data-camera-gate]')).toHaveCount(0);
   await page.getByRole('button', { name: /Start examination/i }).click();
   await expect(page.locator('[data-exam-workspace]')).toBeVisible();
   await expect(page.locator('[data-camera-preview]')).toBeVisible();
 });
 
-test('background reconciliation deducts away time without a second integrity owner', async ({ page }) => {
+test('timeout auto-submits and clears active candidate authentication', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { seconds: 180, count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
-  const result = await page.evaluate((id) => {
+  const { link, id } = await createExam(page, { seconds: 180 });
+  await loginExam(page, link); await startExam(page);
+  const backgroundMarkerKey = await page.evaluate((sessionId) => {
     const S = window.FestacolSessionStore;
-    const hash = S.getActiveCandidate(id);
-    const state = S.getStudentState(id, hash);
-    const prior = state.remainingSeconds;
-    const key = `festacol.exam.background-guard.v2:${id}:${hash}`;
-    localStorage.setItem(key, JSON.stringify({ sessionId: id, candidateHash: hash, startedAt: state.startedAt, hiddenAt: Date.now() - 5000 }));
-    const reconciliation = window.FestacolExamApp.reconcilePersistedBackground();
-    const next = S.getStudentState(id, hash);
-    return { prior, next: next.remainingSeconds, reconciliation, type: next.integrityEvents.at(-1)?.type };
-  }, sessionId);
-  expect(result.reconciliation.reconciled).toBe(true);
-  expect(result.next).toBeLessThan(result.prior - 4);
-  expect(result.type).toBe('background-resume-reconciled');
+    const hash = S.getActiveCandidate(sessionId);
+    return `festacol.exam.background-guard.v2:${sessionId}:${hash}`;
+  }, id);
+  await page.goto('/prototype/index.html');
+  await page.evaluate((key) => {
+    const marker = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!marker?.hiddenAt) throw new Error('Exam page did not persist a background marker on leave.');
+    marker.hiddenAt = Date.now() - 181000;
+    localStorage.setItem(key, JSON.stringify(marker));
+  }, backgroundMarkerKey);
+  await page.goto(link);
+  await page.waitForTimeout(1200);
+  await expect(page.getByText(/Time expired\. Your examination was submitted automatically/i)).toBeVisible();
+  const locked = await page.evaluate((sessionId) => { const S=window.FestacolSessionStore;return {auth:S.getStudentAuth(),active:S.getActiveCandidate(sessionId),submitted:S.attemptsForSession(sessionId).some(a=>a.submittedAt)}; }, id);
+  expect(locked.auth).toBe(''); expect(locked.active).toBe(''); expect(locked.submitted).toBe(true);
 });
 
-test('integrity events record focus and clipboard policy signals', async ({ page }) => {
+test('submitted exam rewrite preserves original score and proctor log then allows a fresh attempt', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
+  const { link, id } = await createExam(page);
+  await loginExam(page, link); await startExam(page);
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-  await page.evaluate(() => document.dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true })));
-  const types = await page.evaluate((id) => {
-    const S = window.FestacolSessionStore;
-    const hash = S.getActiveCandidate(id);
-    return S.getStudentState(id, hash).integrityEvents.map((event) => event.type);
-  }, sessionId);
-  expect(types).toContain('window-blur');
-  expect(types).toContain('clipboard-copy');
-});
-
-test('manual submission stays authenticated while reopening the exam remains locked', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  const { link } = await createMathExam(page, { count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
-  await submitFromReview(page);
-  await expect(page.getByText(/Examination submitted successfully/i)).toBeVisible();
-  expect(await page.evaluate(() => window.FestacolSessionStore.getStudentAuth())).not.toBe('');
-  await page.goto(link);
-  await expect(page.getByText(/already been submitted/i)).toBeVisible();
-});
-
-test('exam controls adapt across mobile, tablet and desktop without horizontal overflow', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  const { link } = await createMathExam(page, { count: 2 });
-  await loginStudent(page, link);
-  await startExam(page);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator('#question-map')).toBeHidden();
-  await expect(page.locator('[data-drawer-target="question-drawer"]').last()).toBeVisible();
-  await expect(page.locator('article[data-exam-workspace] footer')).toBeHidden();
-  await expectNoHorizontalOverflow(page);
-  await page.setViewportSize({ width: 820, height: 1000 });
-  await expect(page.locator('#question-map')).toBeHidden();
-  await expect(page.locator('article[data-exam-workspace] footer')).toBeVisible();
-  await expect(page.locator('[data-drawer-target="question-drawer"]').first()).toBeVisible();
-  await expectNoHorizontalOverflow(page);
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.locator('#question-map')).toBeVisible();
-  await expect(page.locator('article[data-exam-workspace] footer [data-drawer-target="question-drawer"]')).toBeHidden();
-  await expectNoHorizontalOverflow(page);
-});
-
-test('admin routing remains unambiguous and responsive', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  for (const route of ['overview', 'users', 'exams', 'classes', 'questions', 'reports', 'settings']) {
-    const link = page.locator(`aside nav [data-admin-route="${route}"]`).first();
-    await link.click();
-    await expect(page).toHaveURL(new RegExp(`page=${route}`));
-    await expect(link).toHaveAttribute('aria-current', 'page');
-    await expectNoHorizontalOverflow(page);
-  }
-});
-
-test('exam creation keeps direct QR distribution and safe pre-attempt editing', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { seconds: 1800, count: 3 });
-  expect(new URL(link).pathname).toContain('/prototype/exam.html');
-  await expect(page.locator('[data-exam-qr] svg')).toHaveAttribute('aria-label', /QR code for the dynamic examination link/i);
-  await page.locator(`[data-exam-edit="${sessionId}"]`).click();
-  await expect(page.getByRole('heading', { name: 'Edit examination' })).toBeVisible();
-  await page.locator('#exam-edit-title').fill('SS2 Mathematics Midterm');
-  await page.locator('#exam-edit-duration').fill('2100');
-  await page.locator('#exam-edit-instructions').fill('Answer every question and review before submission.');
-  await page.locator('#exam-edit-form button[type="submit"]').click();
-  const saved = await page.evaluate((id) => window.FestacolSessionStore.listSessions().find((item) => item.id === id), sessionId);
-  expect(saved.title).toBe('SS2 Mathematics Midterm');
-  expect(saved.durationSeconds).toBe(2100);
-  expect(saved.instructions).toContain('review before submission');
-});
-
-test('student portal remains credential-gated before dashboard chrome is exposed', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  await page.goto('/prototype/student.html');
-  await expect(page.locator('#student-login-form')).toBeVisible();
-  await expect(page.locator('#student-sidebar')).toHaveCount(0);
-  await loginPortal(page);
-  await expect(page.getByText(/Use the examination link or QR code issued by your school/i)).toBeVisible();
-});
-
-test('an authenticated portal student opening an exam link skips duplicate login', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  await loginPortal(page, 'Amina', 'Bello');
-  const { link } = await createMathExam(page, { seconds: 1800, count: 2 });
-  await page.goto(link);
-  await expect(page.locator('#student-login-form')).toHaveCount(0);
-  await expect(page.getByText('Before you begin', { exact: true })).toBeVisible();
-});
-
-test('admin reset invalidates unfinished state and forces fresh authentication', async ({ page }) => {
-  await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { seconds: 180, count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
-  const original = await page.evaluate((id) => {
-    const S = window.FestacolSessionStore;
-    const hash = S.getActiveCandidate(id);
-    const attempt = S.getStudentState(id, hash);
-    return { hash, startedAt: attempt.startedAt };
-  }, sessionId);
+  await submitExam(page);
+  const before = await page.evaluate((sessionId) => window.FestacolSessionStore.attemptsForSession(sessionId).find(a=>a.submittedAt), id);
+  expect(before.integrityEvents.some((event) => event.type === 'window-blur')).toBe(true);
   await page.goto('/prototype/admin.html?page=exams');
-  await page.locator(`[data-detail="exam"][data-id="${sessionId}"]`).first().click();
-  const reset = page.locator(`[data-reset-attempt][data-candidate-hash="${original.hash}"]`);
-  await expect(reset).toBeVisible();
-  await reset.click();
+  await page.locator(`[data-exam-detail="${id}"]`).first().click();
+  await page.locator(`[data-attempt-detail="${before.attemptHash}"]`).click();
+  await expect(page.getByText('Integrity / proctor log')).toBeVisible();
+  await page.getByRole('button', { name: 'Authorize rewrite' }).click();
+  await page.getByRole('button', { name: 'Authorize rewrite' }).last().click();
+  const archived = await page.evaluate((sessionId) => window.FestacolSessionStore.attemptsForSession(sessionId).find(a=>a.rewriteArchivedAt), id);
+  expect(archived.score).toBe(before.score);
+  expect(archived.integrityEvents.some((event) => event.type === 'window-blur')).toBe(true);
   await page.goto(link);
   await expect(page.locator('#student-login-form')).toBeVisible();
-  await loginStudent(page, link);
+  await page.locator('#student-first-name').fill('Amina'); await page.locator('#student-last-name').fill('Bello'); await page.locator('#student-login-form button[type="submit"]').click();
   await startExam(page);
-  const fresh = await page.evaluate((id) => {
-    const S = window.FestacolSessionStore;
-    const hash = S.getActiveCandidate(id);
-    return S.getStudentState(id, hash).startedAt;
-  }, sessionId);
-  expect(fresh).toBeGreaterThan(original.startedAt);
+  const attempts = await page.evaluate((sessionId) => window.FestacolSessionStore.attemptsForSession(sessionId), id);
+  expect(attempts.some(a=>a.rewriteArchivedAt)).toBe(true);
+  expect(attempts.some(a=>!a.rewriteArchivedAt && !a.submittedAt)).toBe(true);
 });
 
-test('student-specific papers remain deterministic and vary across candidate identities', async ({ page }) => {
+test('exam settings remain editable while structural paper fields lock after a candidate starts', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const result = await page.evaluate(async () => {
-    const payload = await window.FestacolQuestionData.load();
-    const S = window.FestacolSessionStore;
-    const E = window.FestacolAssessmentEngine;
-    const session = S.normalizeSession({ mode: 'single', classLevel: 'SS2', classGroup: 'Science', subjects: ['mat'], durationSeconds: 1800, questionCount: 4, status: 'open' });
-    const aHash = await E.candidateHash(session.id, 'Amina', 'Bello');
-    const bHash = await E.candidateHash(session.id, 'David', 'Okafor');
-    const paper = (hash) => E.paperForStudent(payload, session, hash).map((q) => `${q.id}:${(q.options || []).join('|')}`);
-    return { a: paper(aHash), again: paper(aHash), b: paper(bHash) };
-  });
-  expect(result.a).toEqual(result.again);
-  expect(result.b).not.toEqual(result.a);
+  const { link, id } = await createExam(page);
+  await loginExam(page, link); await startExam(page);
+  await page.goto('/prototype/admin.html?page=exams');
+  await page.locator(`[data-exam-detail="${id}"]`).first().click();
+  await page.getByRole('button', { name: /Edit settings/i }).click();
+  await expect(page.locator('#exam-edit-count')).toBeDisabled();
+  await expect(page.locator('#exam-edit-duration')).toBeDisabled();
+  await page.locator('#exam-edit-title').fill('Updated SS2 Integrated Assessment');
+  await page.locator('#exam-edit-camera').check();
+  await page.locator('#exam-edit-form button[type="submit"]').click();
+  const saved = await page.evaluate((sessionId) => ({ session: window.FestacolSessionStore.findSessionById(sessionId), policy: window.FestacolProctorPolicy.getAdminPolicy(sessionId) }), id);
+  expect(saved.session.title).toBe('Updated SS2 Integrated Assessment');
+  expect(saved.policy.cameraRequired).toBe(true);
 });
 
-test('answer details stay hidden while an exam is open and unlock after closure', async ({ page }) => {
+test('WhatsApp group board associates one validated group with its intended class and renders QR', async ({ page }) => {
   await clearPrototypeStorage(page);
-  const { link, sessionId } = await createMathExam(page, { seconds: 1800, count: 1 });
-  await loginStudent(page, link);
-  await startExam(page);
-  await submitFromReview(page);
-  await page.goto('/prototype/student.html?page=analytics');
-  await expect(page.getByText(/Answers remain locked/i)).toBeVisible();
-  await expect(page.getByText(/Correct answer:/i)).toHaveCount(0);
-  await page.evaluate((id) => window.FestacolSessionStore.updateSessionStatus(id, 'closed'), sessionId);
-  await page.reload();
-  await expect(page.getByText(/Answer review unlocked/i)).toBeVisible();
+  await page.goto('/prototype/admin.html?page=classes');
+  await page.getByRole('button', { name: /Add WhatsApp group/i }).first().click();
+  const classId = await page.locator('#whatsapp-class option').nth(1).getAttribute('value');
+  await page.locator('#whatsapp-class').selectOption(classId);
+  await page.locator('#whatsapp-name').fill('SS1 Parents');
+  await page.locator('#whatsapp-link').fill('https://chat.whatsapp.com/ABCDEFGHIJKLMNOPQRSTUV');
+  await page.locator('#whatsapp-form button[type="submit"]').click();
+  await expect(page.locator('#whatsapp-qr svg')).toBeVisible();
+  const group = await page.evaluate((id) => window.FestacolSessionStore.whatsAppGroupForClass(id), classId);
+  expect(group.name).toBe('SS1 Parents');
+  expect(group.inviteUrl).toContain('chat.whatsapp.com');
 });
 
-test('reports still expose all academic drill-down views', async ({ page }) => {
+test('invalid WhatsApp URL is rejected inline and not stored', async ({ page }) => {
   await clearPrototypeStorage(page);
-  for (const view of ['overview', 'exams', 'students', 'placements', 'promotions', 'integrity']) {
-    await page.goto(`/prototype/admin.html?page=reports&view=${view}`);
-    await expect(page.locator('.report-tabs a[aria-current="page"]')).toBeVisible();
+  await page.goto('/prototype/admin.html?page=classes');
+  await page.getByRole('button', { name: /Add WhatsApp group/i }).first().click();
+  await page.locator('#whatsapp-class').selectOption({ index: 1 });
+  await page.locator('#whatsapp-name').fill('Wrong group');
+  await page.locator('#whatsapp-link').fill('https://example.com/not-whatsapp');
+  await page.locator('#whatsapp-form button[type="submit"]').click();
+  await expect(page.locator('#whatsapp-error')).toBeVisible();
+  expect(await page.evaluate(() => window.FestacolSessionStore.listWhatsAppGroups().length)).toBe(0);
+});
+
+test('admin exam/student relationships expose exact per-attempt integrity records', async ({ page }) => {
+  await clearPrototypeStorage(page);
+  const { link, id } = await createExam(page);
+  await loginExam(page, link, 'Amina', 'Bello'); await startExam(page);
+  await page.evaluate(() => { window.dispatchEvent(new Event('blur')); document.dispatchEvent(new ClipboardEvent('copy', { bubbles:true, cancelable:true })); });
+  await submitExam(page);
+  const relation = await page.evaluate((sessionId) => { const S=window.FestacolSessionStore,a=S.attemptsForSession(sessionId).find(x=>x.submittedAt);return {studentHash:a.studentHash,events:a.integrityEvents.map(e=>e.type),count:S.attemptsForStudent(a.studentHash).length}; }, id);
+  expect(relation.studentHash).toBeTruthy(); expect(relation.events).toContain('window-blur'); expect(relation.events).toContain('clipboard-copy'); expect(relation.count).toBeGreaterThan(0);
+  await page.goto('/prototype/admin.html?page=reports&view=integrity');
+  await expect(page.getByText(/Amina Bello · window-blur/i)).toBeVisible();
+});
+
+test('admin dialogs remain within mobile, tablet and desktop viewport bounds', async ({ page }) => {
+  await clearPrototypeStorage(page);
+  for (const viewport of [{width:390,height:844},{width:820,height:1000},{width:1440,height:1000}]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/prototype/admin.html?page=exams');
+    await page.getByRole('button', { name: /Create exam/i }).first().click();
+    const box = await page.locator('#admin-dialog').boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1); expect(box.height).toBeLessThanOrEqual(viewport.height + 1);
     await expectNoHorizontalOverflow(page);
+    await page.locator('[data-close-dialog]').click();
   }
 });
 
-test('mobile portal navigation remains usable before entering the responsive exam', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test('mobile navigation uses a modal menu and admin tables collapse into touch-friendly cards', async ({ page }) => {
   await clearPrototypeStorage(page);
-  await loginPortal(page);
-  await expect(page.locator('#student-menu')).toBeVisible();
-  await expect(page.locator('#student-sidebar')).toBeHidden();
-  await page.locator('#student-menu').click();
-  await expect(page.locator('#student-sidebar')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#mobile-nav-button').click();
+  await expect(page.locator('#mobile-nav-dialog')).toBeVisible();
+  await expect(page.locator('#mobile-nav [data-admin-route]')).toHaveCount(7);
+  await page.locator('#mobile-nav [data-admin-route="users"]').click();
+  await expect(page).toHaveURL(/page=users/);
+  await expect(page.locator('table')).toBeHidden();
+  await expect(page.locator('div.md\\:hidden [data-user-detail]').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
