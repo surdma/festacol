@@ -1,0 +1,51 @@
+name: Prototype UI Quality
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - 'work/**'
+    paths:
+      - 'prototype/**'
+      - 'scripts/prototype-audit.mjs'
+      - 'scripts/state-contract.mjs'
+      - 'package.json'
+      - '.github/workflows/prototype-ui.yml'
+  pull_request:
+    branches:
+      - master
+      - main
+    paths:
+      - 'prototype/**'
+      - 'scripts/prototype-audit.mjs'
+      - 'scripts/state-contract.mjs'
+      - 'package.json'
+      - '.github/workflows/prototype-ui.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prototype-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Source & design-system contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Validate prototype source contract
+        run: |
+          for file in prototype/js/*.js; do node --check "$file"; done
+          node --check scripts/prototype-audit.mjs
+          node --check scripts/state-contract.mjs
+          npm run audit:prototype
+          npm run test:contract
