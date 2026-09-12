@@ -9,9 +9,9 @@
 
 ## Repository-layout checkpoint
 
-Current `master` moved the Next.js app to repository root and isolated the prototype as its own package under `/prototype`. PR #11 has now been synchronized to that current master/planning lineage. Prototype validation files therefore live under `prototype/scripts/`, not the pre-move root `scripts/` directory.
+Current `master` moved the Next.js app to repository root and isolated the prototype as its own package under `/prototype`. PR #11 has been synchronized to that current master/planning lineage. Prototype validation files therefore live under `prototype/scripts/`, not the pre-move root `scripts/` directory.
 
-No Task 3 work may begin until the synchronized Task 1–2 contracts pass CI from this layout.
+The synchronized Task 1–2 contracts passed the current-layout CI gate in Prototype UI Quality run `34696743263` at head `07fb649150edd865a0f976cf31acf877c37964eb`: **Source & design-system contract passed** and **Chromium exam workflow passed**.
 
 ## Milestone checklist
 
@@ -35,12 +35,12 @@ No Task 3 work may begin until the synchronized Task 1–2 contracts pass CI fro
   - [x] Original Task 2 implementation commit `a49f10861cae568d81ec0f6ae7223f363bdd8d90` passed its source/state and Chromium regression workflow before the repository layout move.
   - [x] Preserve `prototype/js/shared.js` while synchronizing PR #11 to current master.
   - [x] Port the shared-runtime state contract to `prototype/scripts/state-contract.mjs`.
-- [ ] **Current-master reconciliation gate before Task 3**
+- [x] **Current-master reconciliation gate before Task 3**
   - [x] PR #10 contains the authoritative planning docs and implementation manifest.
   - [x] PR #11 explicitly descends from the current planning/master lineage.
   - [x] PR #11 uses current isolated `/prototype` package paths.
   - [x] Task 1–2 contracts are ported to `prototype/scripts/`.
-  - [ ] Current synchronized PR #11 CI passes source/state contract and Chromium regression jobs.
+  - [x] Current synchronized PR #11 CI passed source/state contract and Chromium regression jobs in run `34696743263`.
 - [ ] **Task 3 — Migrate Student surface to `student.js`**
 - [ ] **Task 4 — Migrate candidate Exam surface to `exam.js`**
 - [ ] **Task 5 — Answer-aware Question Bank and expanded validated seed bank (minimum 720 validated seed questions)**
@@ -66,7 +66,7 @@ The original Task 2 contracts covered namespace wiring, v2/v3 compatibility, can
 
 ## Current status
 
-**Task 1: COMPLETE on the approved behavior contract and ported to current layout.**  
-**Task 2: COMPLETE on the approved shared-runtime contract and ported to current layout.**  
-**Current-master reconciliation: CI verification pending.**  
-**Task 3: BLOCKED until the reconciliation CI gate is green.**
+**Task 1: COMPLETE / CI_VERIFIED on the approved behavior contract and current layout.**  
+**Task 2: COMPLETE / CI_VERIFIED on the approved shared-runtime contract and current layout.**  
+**Current-master reconciliation: COMPLETE / CI_VERIFIED via run `34696743263`.**  
+**Task 3: READY TO START, but not started.**
