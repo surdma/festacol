@@ -25,7 +25,7 @@ This file is the mandatory entry document for any agent implementing the Festaco
 - [UI/UX governance and depth contract](./specs/2026-09-12-admin-ui-ux-governance-and-depth-contract.md)
 - [Single-shell/Tailwind routing contract](./specs/2026-09-12-single-shell-tailwind-routing-contract.md)
 - [Question-bank expansion contract](./specs/2026-09-12-question-bank-expansion-contract.md)
-- [Implementation progress ledger](./progress/2026-09-12-admin-experience-revamp-progress.md) — exists on implementation PR #11 and is updated as milestones complete.
+- [Implementation progress ledger](./progress/2026-09-12-admin-experience-revamp-progress.md) — maintained on implementation PR #11.
 
 ## Task → governing-document map
 
@@ -65,14 +65,14 @@ prototype/
 └── playwright.config.js
 ```
 
-Therefore implementation work must not recreate the old pre-move root-level `scripts/`, `tests/`, `playwright.config.js`, or prototype package files. Prototype validation scripts belong in `prototype/scripts/` and run with `prototype/` as their working directory.
+Implementation work must not recreate the old pre-move root-level prototype scripts/tests/package layout. Prototype validation scripts belong in `prototype/scripts/` and GitHub Actions executes them with `prototype/` as the working directory.
 
 ## PR relationship invariant
 
 - **PR #10 is the approved planning parent.** It contains the requirements and this manifest.
-- **PR #11 is the implementation child.** It must remain based on `master`, carry the planning documents/manifest needed by implementing agents, and be updated milestone-by-milestone.
-- PR #11 must explicitly link PR #10, and PR #10 must explicitly link PR #11.
-- New implementation tasks must update PR #11 rather than opening disconnected implementation PRs unless the product owner explicitly requests a split.
+- **PR #11 is the implementation child.** It is based on `master`, carries the planning documents/manifest required by implementation agents, and is updated milestone-by-milestone.
+- PR #11 explicitly links PR #10, and PR #10 explicitly links PR #11.
+- New implementation tasks update PR #11 rather than opening disconnected implementation PRs unless the product owner explicitly requests a split.
 
 ## Completion invariant
 
