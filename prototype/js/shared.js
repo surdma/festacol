@@ -5,7 +5,6 @@
   const win = global.window || global;
   const ls = global.localStorage;
   const ss = global.sessionStorage;
-
   if (!ls || !ss) throw new Error('Festacol shared runtime requires localStorage and sessionStorage.');
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -46,7 +45,6 @@
     });
     return url.href;
   };
-
   const utils = Object.freeze({ clamp, uniqueStrings, sanitizeTitle, sanitizeName, normalizeText, durationLabel, routeUrl, utf8ToBase64Url, base64UrlToUtf8 });
 
   const store = (() => {
@@ -65,6 +63,7 @@
     const CLASS_STORE_KEY = 'festacol.admin.classes.v2';
     const LEGACY_CLASS_STORE_KEY = 'festacol.admin.classes.v1';
     const CUSTOM_QUESTION_STORE_KEY = 'festacol.admin.custom-questions.v1';
+    const QUESTION_OVERRIDE_STORE_KEY = 'festacol.admin.question-overrides.v1';
     const WHATSAPP_GROUP_STORE_KEY = 'festacol.admin.whatsapp-groups.v1';
     const PAYLOAD_VERSION = 3;
     const SUPPORTED_PAYLOAD_VERSIONS = new Set([2, 3]);
@@ -148,9 +147,35 @@
     const updateUserStatus = (userId, status) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, status: status === 'inactive' ? 'inactive' : 'active' } : entry); writeJson(ls, USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
     const updatePromotion = (userId, promotionStatus, classId = null) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, promotionStatus, classId: classId || entry.classId } : entry); writeJson(ls, USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
     const deleteUser = (userId) => writeJson(ls, USER_STORE_KEY, listUsers().filter((entry) => entry.id !== userId));
+
     const listCustomQuestions = () => { const value = readJson(ls, CUSTOM_QUESTION_STORE_KEY, []); return Array.isArray(value) ? value : []; };
-    const saveCustomQuestion = (input) => { const q = { ...input, id:Number(input.id)||Math.floor(100000+Math.random()*899999),custom:true }; writeJson(ls, CUSTOM_QUESTION_STORE_KEY,[q,...listCustomQuestions().filter((entry)=>entry.id!==q.id)].slice(0,250)); return q; };
-    const deleteCustomQuestion = (questionId) => writeJson(ls, CUSTOM_QUESTION_STORE_KEY, listCustomQuestions().filter((item) => item.id !== Number(questionId)));
+    const nextCustomQuestionId = () => { const ids = new Set(listCustomQuestions().map((item) => Number(item.id))); let id = Math.max(1000000, ...ids, 999999) + 1; while (ids.has(id)) id += 1; return id; };
+    const saveCustomQuestion = (input = {}) => {
+      const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
+      const id = supplied === null ? nextCustomQuestionId() : supplied;
+      if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
+      const existing = listCustomQuestions();
+      const duplicate = existing.find((entry) => Number(entry.id) === id);
+      if (duplicate && Number(input.id) === id && !input.custom) throw new Error(`Teacher-authored question id ${id} already exists.`);
+      const q = { ...input, id, custom: true, source: 'teacher' };
+      writeJson(ls, CUSTOM_QUESTION_STORE_KEY, [q, ...existing.filter((entry) => Number(entry.id) !== id)].slice(0,250));
+      return q;
+    };
+    const deleteCustomQuestion = (questionId) => writeJson(ls, CUSTOM_QUESTION_STORE_KEY, listCustomQuestions().filter((item) => Number(item.id) !== Number(questionId)));
+    const listQuestionOverrides = () => { const value = readJson(ls, QUESTION_OVERRIDE_STORE_KEY, []); return Array.isArray(value) ? value : []; };
+    const saveQuestionOverride = (questionId, patch = {}) => {
+      const id = Number(questionId);
+      if (!Number.isInteger(id) || id < 1) throw new Error('Question override requires a positive integer seed id.');
+      if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Question override patch must be an object.');
+      if (Object.hasOwn(patch, 'id') && Number(patch.id) !== id) throw new Error('A seed override cannot change the question id.');
+      const safePatch = JSON.parse(JSON.stringify({ ...patch, id: undefined }));
+      delete safePatch.id;
+      const item = { questionId: id, patch: safePatch, updatedAt: Date.now() };
+      writeJson(ls, QUESTION_OVERRIDE_STORE_KEY, [item, ...listQuestionOverrides().filter((entry) => Number(entry.questionId) !== id)].slice(0,720));
+      return item;
+    };
+    const resetQuestionOverride = (questionId) => writeJson(ls, QUESTION_OVERRIDE_STORE_KEY, listQuestionOverrides().filter((entry) => Number(entry.questionId) !== Number(questionId)));
+
     const normalizeWhatsAppUrl = (value) => { let url; try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid WhatsApp group invite link.'); } const host = url.hostname.toLowerCase(); if (url.protocol !== 'https:' || !['chat.whatsapp.com', 'www.whatsapp.com', 'whatsapp.com'].includes(host)) throw new Error('Use a secure WhatsApp group invite link from chat.whatsapp.com.'); if (host === 'chat.whatsapp.com' && url.pathname.replaceAll('/', '').length < 6) throw new Error('The WhatsApp invite code is incomplete.'); return url.href; };
     const saveWhatsAppGroup = (input = {}) => { const classId = String(input.classId || ''); const cls = listClasses().find((item) => item.id === classId); if (!cls) throw new Error('Choose an existing class for this WhatsApp group.'); const item = { id:String(input.id||makeId()).slice(0,24),classId,name:sanitizeTitle(input.name||`${cls.name} Parents`),inviteUrl:normalizeWhatsAppUrl(input.inviteUrl),createdAt:Number(input.createdAt)||Date.now(),updatedAt:Date.now() }; const current = listWhatsAppGroups(); writeJson(ls, WHATSAPP_GROUP_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id && entry.classId !== classId)].slice(0,80)); return item; };
     const deleteWhatsAppGroup = (groupId) => writeJson(ls, WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.id !== groupId));
@@ -158,8 +183,8 @@
     const clearSessions = () => { ls.removeItem(SESSION_STORE_KEY); ls.removeItem(LEGACY_SESSION_STORE_KEY); };
     const clearAttempts = () => { ls.removeItem(ATTEMPT_STORE_KEY); ls.removeItem(LEGACY_ATTEMPT_STORE_KEY); };
     const clearAllStudentStates = () => { const keys=[]; for(let i=0;i<ls.length;i+=1){const key=ls.key(i);if(key?.startsWith(STUDENT_STATE_PREFIX)||key?.startsWith(LEGACY_STUDENT_STATE_PREFIX)||key?.startsWith(RESET_MARKER_PREFIX))keys.push(key);} keys.forEach((key)=>ls.removeItem(key)); const sessionKeys=[]; for(let i=0;i<ss.length;i+=1){const key=ss.key(i);if(key?.startsWith(ACTIVE_CANDIDATE_PREFIX)||key===AUTH_STUDENT_KEY)sessionKeys.push(key);} sessionKeys.forEach((key)=>ss.removeItem(key)); return keys.length+sessionKeys.length; };
-    const clearPrototypeData = () => { const count=clearAllStudentStates(); clearSessions(); clearAttempts(); clearStudentProfile(); [USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY,WHATSAPP_GROUP_STORE_KEY].forEach((key)=>ls.removeItem(key)); return count; };
-    return Object.freeze({ PAYLOAD_VERSION, MODE_LABELS, TRACKS, ACADEMIC_SESSION, normalizeSession, encodeSession, decodeSession, getSessionLink, resolveSession, findSessionById, listSessions, saveSession, updateSessionStatus, deleteSession, getAttempts, recordAttempt, findAttempt, attemptsForCandidate, attemptsForStudent, attemptsForSession, hasSubmittedAttempt, resetUnfinishedAttempt, authorizeRewrite, getStudentState, saveStudentState, clearStudentState, setActiveCandidate, getActiveCandidate, clearActiveCandidate, setStudentAuth, getStudentAuth, clearStudentAuth, getAttemptResetAt, isAttemptInvalidated, getStudentProfile, saveStudentProfile, clearStudentProfile, clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData, sanitizeName, sanitizeTitle, getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session', durationLabel, listClasses, saveClass, deleteClass, listUsers, saveUser, updateUserStatus, updatePromotion, deleteUser, listCustomQuestions, saveCustomQuestion, deleteCustomQuestion, listWhatsAppGroups, saveWhatsAppGroup, deleteWhatsAppGroup, whatsAppGroupForClass });
+    const clearPrototypeData = () => { const count=clearAllStudentStates(); clearSessions(); clearAttempts(); clearStudentProfile(); [USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY,QUESTION_OVERRIDE_STORE_KEY,WHATSAPP_GROUP_STORE_KEY].forEach((key)=>ls.removeItem(key)); return count; };
+    return Object.freeze({ PAYLOAD_VERSION, MODE_LABELS, TRACKS, ACADEMIC_SESSION, normalizeSession, encodeSession, decodeSession, getSessionLink, resolveSession, findSessionById, listSessions, saveSession, updateSessionStatus, deleteSession, getAttempts, recordAttempt, findAttempt, attemptsForCandidate, attemptsForStudent, attemptsForSession, hasSubmittedAttempt, resetUnfinishedAttempt, authorizeRewrite, getStudentState, saveStudentState, clearStudentState, setActiveCandidate, getActiveCandidate, clearActiveCandidate, setStudentAuth, getStudentAuth, clearStudentAuth, getAttemptResetAt, isAttemptInvalidated, getStudentProfile, saveStudentProfile, clearStudentProfile, clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData, sanitizeName, sanitizeTitle, getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session', durationLabel, listClasses, saveClass, deleteClass, listUsers, saveUser, updateUserStatus, updatePromotion, deleteUser, listQuestionOverrides, saveQuestionOverride, resetQuestionOverride, listCustomQuestions, saveCustomQuestion, deleteCustomQuestion, listWhatsAppGroups, saveWhatsAppGroup, deleteWhatsAppGroup, whatsAppGroupForClass });
   })();
 
   const proctor = (() => {
@@ -182,23 +207,136 @@
 
   const questions = (() => {
     const SUPPORTED_TYPES = new Set(['single', 'multi', 'boolean', 'fill', 'fill-multi']);
+    const SUPPORTED_LEVELS = new Set(['SS1', 'SS2', 'SS3']);
+    const SUPPORTED_PATHWAYS = new Set(store.TRACKS);
+    const SUPPORTED_MODES = new Set(['qualifier', 'mixed', 'single', 'waec']);
+    const SUPPORTED_DIFFICULTY = new Set(['easy', 'medium', 'hard']);
     let baseCache = null;
-    const validateQuestion = (question, ids) => { if (!question || !Number.isInteger(question.id) || ids.has(question.id)) throw new Error('Every question must have a unique integer id.'); if (!question.subject || !question.subjectCode || !question.domain || !question.label || !question.prompt) throw new Error(`Question ${question.id} is missing required metadata.`); if (!SUPPORTED_TYPES.has(question.type)) throw new Error(`Question ${question.id} has an unsupported response type.`); if (!Array.isArray(question.levels) || question.levels.length === 0) throw new Error(`Question ${question.id} needs at least one class level.`); if (!Array.isArray(question.examModes) || question.examModes.length === 0) throw new Error(`Question ${question.id} needs at least one exam mode.`); if ((question.type === 'single' || question.type === 'multi') && (!Array.isArray(question.options) || question.options.length < 2)) throw new Error(`Question ${question.id} must provide options.`); if (question.type === 'multi' && (!Number.isInteger(question.requiredSelections) || question.requiredSelections < 1 || question.requiredSelections > question.options.length)) throw new Error(`Question ${question.id} has an invalid selection count.`); if ((question.type === 'fill' || question.type === 'fill-multi') && (!Array.isArray(question.fillTemplate) || !question.fillTemplate.some((part) => part?.blank))) throw new Error(`Question ${question.id} needs a response blank.`); ids.add(question.id); };
-    const validatePayload = (payload) => { if (!payload || !payload.questionSetId || !Array.isArray(payload.questions) || payload.questions.length === 0) throw new Error('Question data is unavailable.'); if (!Array.isArray(payload.subjectCatalog) || payload.subjectCatalog.length === 0) throw new Error('Question subject catalogue is unavailable.'); const ids = new Set(); payload.questions.forEach((question) => validateQuestion(question, ids)); return { ...payload, assessmentAlignment: { ...(payload.assessmentAlignment || {}), note: 'Prototype scoring keys are evaluated client-side only to exercise analytics and placement. They are inspectable and are not a security boundary; production answer keys, authentication, scoring and attempt allocation must live on a protected server.' } }; };
+
+    const fillBlanks = (question) => (Array.isArray(question.fillTemplate) ? question.fillTemplate : []).filter((part) => part?.blank).map((part) => String(part.blank));
+    const validateAnswerShape = (q) => {
+      if (q.type === 'single' && (!Array.isArray(q.options) || !q.options.includes(q.answer))) throw new Error(`Question ${q.id} has an invalid single-choice answer.`);
+      if (q.type === 'boolean' && typeof q.answer !== 'boolean') throw new Error(`Question ${q.id} has an invalid true/false answer.`);
+      if (q.type === 'multi' && (!Array.isArray(q.answers) || q.answers.length !== q.requiredSelections || q.answers.some((answer) => !q.options.includes(answer)) || new Set(q.answers.map(normalizeText)).size !== q.answers.length)) throw new Error(`Question ${q.id} has invalid multiple-choice answers.`);
+      if (q.type === 'fill' && (!Array.isArray(q.acceptedAnswers) || !q.acceptedAnswers.length || q.acceptedAnswers.some((answer) => Array.isArray(answer) || !normalizeText(answer)))) throw new Error(`Question ${q.id} needs accepted fill answers.`);
+      if (q.type === 'fill-multi') {
+        const blanks = fillBlanks(q);
+        if (!blanks.length || !Array.isArray(q.acceptedAnswers) || q.acceptedAnswers.length !== blanks.length || q.acceptedAnswers.some((entry) => !Array.isArray(entry) || !entry.length || entry.some((answer) => !normalizeText(answer)))) throw new Error(`Question ${q.id} needs accepted fill answers for every blank.`);
+      }
+    };
+    const validateQuestion = (question, ids, subjectCodes) => {
+      if (!question || !Number.isInteger(question.id) || ids.has(question.id)) throw new Error('Every question must have a unique integer id.');
+      if (!question.subject || !question.subjectCode || !subjectCodes.has(question.subjectCode) || !question.domain || !question.label || !question.prompt || !String(question.explanation || '').trim()) throw new Error(`Question ${question.id} is missing required metadata.`);
+      if (!SUPPORTED_TYPES.has(question.type)) throw new Error(`Question ${question.id} has an unsupported response type.`);
+      if (!Array.isArray(question.levels) || !question.levels.length || question.levels.some((level) => !SUPPORTED_LEVELS.has(level))) throw new Error(`Question ${question.id} needs valid class levels.`);
+      if (!Array.isArray(question.pathways) || !question.pathways.length || question.pathways.some((pathway) => !SUPPORTED_PATHWAYS.has(pathway))) throw new Error(`Question ${question.id} needs valid pathways.`);
+      if (!Array.isArray(question.examModes) || !question.examModes.length || question.examModes.some((mode) => !SUPPORTED_MODES.has(mode))) throw new Error(`Question ${question.id} needs valid exam modes.`);
+      if (!SUPPORTED_DIFFICULTY.has(question.difficulty)) throw new Error(`Question ${question.id} needs a valid difficulty.`);
+      if ((question.type === 'single' || question.type === 'multi') && (!Array.isArray(question.options) || question.options.length < 2 || new Set(question.options.map(normalizeText)).size !== question.options.length)) throw new Error(`Question ${question.id} must provide unique options.`);
+      if (question.type === 'multi' && (!Number.isInteger(question.requiredSelections) || question.requiredSelections < 1 || question.requiredSelections > question.options.length)) throw new Error(`Question ${question.id} has an invalid selection count.`);
+      if ((question.type === 'fill' || question.type === 'fill-multi') && !fillBlanks(question).length) throw new Error(`Question ${question.id} needs a response blank.`);
+      validateAnswerShape(question);
+      ids.add(question.id);
+    };
+    const validatePayload = (payload, { minimumQuestions = 1 } = {}) => {
+      if (!payload || !payload.questionSetId || !Array.isArray(payload.questions) || payload.questions.length < minimumQuestions) throw new Error(`Question data must include at least ${minimumQuestions} question${minimumQuestions === 1 ? '' : 's'}.`);
+      if (!Array.isArray(payload.subjectCatalog) || !payload.subjectCatalog.length) throw new Error('Question subject catalogue is unavailable.');
+      const subjectCodes = new Set();
+      for (const subject of payload.subjectCatalog) {
+        if (!subject?.code || subjectCodes.has(subject.code) || !subject.label || !Array.isArray(subject.levels) || !subject.levels.length || !Array.isArray(subject.modes) || !subject.modes.length || !Array.isArray(subject.pathways) || !subject.pathways.length) throw new Error('Question subject catalogue contains invalid or duplicate records.');
+        subjectCodes.add(subject.code);
+      }
+      const ids = new Set();
+      payload.questions.forEach((question) => validateQuestion(question, ids, subjectCodes));
+      return { ...payload, assessmentAlignment: { ...(payload.assessmentAlignment || {}), note: 'Prototype scoring keys are evaluated client-side only to exercise analytics and placement. They are inspectable and are not a security boundary; production answer keys, authentication, scoring and attempt allocation must live on a protected server.' } };
+    };
+    const routePathway = (session = {}) => {
+      const explicit = String(session.pathway || session.stream || '').trim();
+      if (SUPPORTED_PATHWAYS.has(explicit)) return explicit;
+      const classGroup = String(session.classGroup || '').trim();
+      return SUPPORTED_PATHWAYS.has(classGroup) ? classGroup : '';
+    };
+    const isEligible = (question, session) => {
+      if (!question.levels.includes(session.classLevel) || !question.examModes.includes(session.mode)) return false;
+      if (session.mode === 'qualifier') {
+        if (session.subjects?.length && !session.subjects.includes(question.subjectCode)) return false;
+        const requested = uniqueStrings(session.placementTracks).filter((track) => SUPPORTED_PATHWAYS.has(track));
+        return !requested.length || requested.some((track) => question.pathways.includes(track));
+      }
+      if (!session.subjects?.includes(question.subjectCode)) return false;
+      const pathway = routePathway(session);
+      return !pathway || question.pathways.includes(pathway);
+    };
+    const validateRoutingCoverage = (payload) => {
+      for (const subject of payload.subjectCatalog) {
+        for (const level of subject.levels) {
+          const modes = subject.modes.filter((mode) => mode !== 'waec' || level === 'SS3');
+          for (const mode of modes) {
+            const pathways = subject.pathways.length ? subject.pathways : [...store.TRACKS];
+            for (const pathway of pathways) {
+              const session = { classLevel: level, mode, subjects: [subject.code], classGroup: pathway, placementTracks: [pathway] };
+              if (!payload.questions.some((question) => isEligible(question, session))) throw new Error(`Question bank has no eligible inventory for ${subject.code}/${level}/${mode}/${pathway}.`);
+            }
+          }
+        }
+      }
+      return true;
+    };
     const resolveUrl = () => { const script = global.document?.currentScript; if (script?.src) return new URL('../data/questions.json', script.src).href; const base = global.document?.baseURI || global.location?.href || 'http://localhost/prototype/index.html'; return new URL('./data/questions.json', base).href; };
-    const load = async () => { if (!baseCache) { if (typeof global.fetch !== 'function') throw new Error('Question data cannot be loaded in this environment.'); const response = await global.fetch(resolveUrl(), { headers: { Accept: 'application/json' }, cache: 'no-store' }); if (!response.ok) throw new Error(`Question data request failed (${response.status}).`); baseCache = validatePayload(await response.json()); } const customQuestions = store.listCustomQuestions(); if (!customQuestions.length) return baseCache; return validatePayload({ ...baseCache, questions: [...customQuestions, ...baseCache.questions] }); };
-    const availableSubjects = (payload, classLevel, mode) => payload.subjectCatalog.filter((subject) => { if (!subject.levels.includes(classLevel)) return false; return payload.questions.some((question) => question.subjectCode === subject.code && question.levels.includes(classLevel) && question.examModes.includes(mode)); });
-    const eligibleQuestions = (payload, session) => payload.questions.filter((question) => { if (!question.levels.includes(session.classLevel) || !question.examModes.includes(session.mode)) return false; if (session.mode === 'qualifier') return !session.subjects?.length || session.subjects.includes(question.subjectCode); return session.subjects.includes(question.subjectCode); });
+    const applyOverrides = (payload) => {
+      const seedIds = new Set(payload.questions.map((question) => question.id));
+      const overrideRecords = store.listQuestionOverrides();
+      for (const record of overrideRecords) {
+        if (!seedIds.has(Number(record?.questionId))) throw new Error(`Question override ${record?.questionId} does not match a seed question.`);
+      }
+      const overrides = new Map(overrideRecords.map((entry) => [Number(entry.questionId), entry]));
+      const mergedSeeds = payload.questions.map((question) => {
+        const record = overrides.get(question.id);
+        if (!record) return { ...question, source: question.source || 'seed' };
+        return { ...question, ...(record.patch || {}), id: question.id, source: 'edited-seed' };
+      });
+      const validCustom = [];
+      const quarantinedCustomQuestions = [];
+      for (const raw of store.listCustomQuestions()) {
+        if (seedIds.has(Number(raw?.id)) || validCustom.some((item) => item.id === Number(raw?.id))) throw new Error(`Teacher-authored question id ${raw?.id} duplicates an existing question id.`);
+        const candidate = { ...raw, custom: true, source: 'teacher' };
+        try {
+          const ids = new Set(mergedSeeds.map((item) => item.id));
+          validateQuestion(candidate, ids, new Set(payload.subjectCatalog.map((item) => item.code)));
+          validCustom.push(candidate);
+        } catch (error) {
+          quarantinedCustomQuestions.push({ ...candidate, validationError: error.message });
+        }
+      }
+      const combined = validatePayload({ ...payload, questions: [...mergedSeeds, ...validCustom] });
+      return { ...combined, quarantinedCustomQuestions };
+    };
+    const load = async () => {
+      if (!baseCache) {
+        if (typeof global.fetch !== 'function') throw new Error('Question data cannot be loaded in this environment.');
+        const response = await global.fetch(resolveUrl(), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        if (!response.ok) throw new Error(`Question data request failed (${response.status}).`);
+        baseCache = validatePayload(await response.json(), { minimumQuestions: 720 });
+        validateRoutingCoverage(baseCache);
+      }
+      const merged = applyOverrides(baseCache);
+      validateRoutingCoverage({ ...merged, questions: merged.questions.filter((question) => !question.custom) });
+      return merged;
+    };
+    const availableSubjects = (payload, classLevel, mode, pathway = '') => payload.subjectCatalog.filter((subject) => {
+      if (!subject.levels.includes(classLevel)) return false;
+      return payload.questions.some((question) => isEligible(question, { classLevel, mode, subjects: [subject.code], classGroup: pathway, placementTracks: pathway ? [pathway] : [] }));
+    });
+    const eligibleQuestions = (payload, session) => payload.questions.filter((question) => isEligible(question, session));
     const interleaveBySubject = (items, subjectOrder, limit) => { const buckets = new Map(subjectOrder.map((code) => [code, []])); items.forEach((question) => { if (!buckets.has(question.subjectCode)) buckets.set(question.subjectCode, []); buckets.get(question.subjectCode).push(question); }); const orderedCodes = [...buckets.keys()]; const result = []; let cursor = 0; while (result.length < limit && orderedCodes.some((code) => buckets.get(code).length > 0)) { const code = orderedCodes[cursor % orderedCodes.length]; const bucket = buckets.get(code); if (bucket.length > 0) result.push(bucket.shift()); cursor += 1; } return result; };
     const questionsForSession = (payload, session) => { const candidates = eligibleQuestions(payload, session); const limit = Math.min(session.questionCount, candidates.length); if (session.mode === 'single' || session.mode === 'waec') return candidates.slice(0, limit); const subjectOrder = session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]; return interleaveBySubject(candidates, subjectOrder, limit); };
     const subjectByCode = (payload, code) => payload.subjectCatalog.find((subject) => subject.code === code) || null;
     const questionById = (payload, id) => payload.questions.find((question) => question.id === Number(id)) || null;
-    return Object.freeze({ load, validatePayload, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
+    return Object.freeze({ load, validatePayload, validateAnswerShape, validateRoutingCoverage, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
   })();
 
   const assessment = (() => {
     const TRACKS = Object.freeze(['Science', 'Arts', 'Social Science']);
-    const ANSWER_KEYS = Object.freeze({ 1: 'were', 2: 'Rain', 3: '36', 4: '65°', 5: 'Evaporation', 6: ['Solar energy', 'Wind energy'], 7: 'Protecting public property', 8: true, 9: 'Invoice', 10: 'Printer', 11: 'T7!qP2#zL9', 12: true, 13: 'hard-working', 14: 'had come', 15: 'analyses', 16: 'He had prepared consistently', 17: '5', 18: '2⁵', 19: '8', 20: '36°', 21: 'Chloroplast', 22: 'population', 23: ['Glucose', 'Oxygen'], 24: 'Electron', 25: true, 26: 'valence electrons', 27: '50 km/h', 28: 'Elastic potential energy', 29: true, 30: 'inflation', 31: 'Labour', 32: 'Judiciary', 33: 'choose representatives', 34: 'personification', 35: 'drama', 36: 'Obeying lawful rules', 37: true, 38: 'contours', 39: 'Barometer', 40: ['Crop rotation', 'Adding compost'], 41: 'Hoe', 42: true, 43: 'Router' });
     const TRACK_WEIGHTS = Object.freeze({ Science: Object.freeze({ 'q-math': 1.5, 'q-bst': 1.55, 'q-digital': 1.05, 'q-eng': .75, 'q-social': .55, 'q-business': .45 }), Arts: Object.freeze({ 'q-eng': 1.55, 'q-social': 1.25, 'q-business': .7, 'q-digital': .55, 'q-math': .55, 'q-bst': .45 }), 'Social Science': Object.freeze({ 'q-social': 1.45, 'q-business': 1.45, 'q-eng': 1.0, 'q-math': .85, 'q-digital': .75, 'q-bst': .55 }) });
     const normalizeNamePart = (value) => String(value ?? '').trim().replace(/[^\p{L}\p{M}' -]/gu, '').replace(/\s+/gu, ' ').slice(0, 40);
     const candidateCredentials = (firstName, lastName) => { const first = normalizeNamePart(firstName); const last = normalizeNamePart(lastName); if (first.length < 2) throw new Error('Enter the student first name.'); if (last.length < 2) throw new Error('Enter the student last name.'); return { firstName: first, lastName: last, fullName: `${first} ${last}` }; };
@@ -209,16 +347,49 @@
     const seedFrom = (value) => { let seed = 2166136261; for (const char of String(value)) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619) >>> 0; return seed || 0x9e3779b9; };
     const rngFor = (seedInput) => { let state = seedFrom(seedInput); return () => { state += 0x6D2B79F5; let value = state; value = Math.imul(value ^ value >>> 15, value | 1); value ^= value + Math.imul(value ^ value >>> 7, value | 61); return ((value ^ value >>> 14) >>> 0) / 4294967296; }; };
     const shuffled = (items, seed) => { const output = [...items]; const random = rngFor(seed); for (let index = output.length - 1; index > 0; index -= 1) { const swap = Math.floor(random() * (index + 1)); [output[index], output[swap]] = [output[swap], output[index]]; } return output; };
-    const eligibleQuestions = (payload, session) => payload.questions.filter((question) => { if (!question.levels.includes(session.classLevel) || !question.examModes.includes(session.mode)) return false; if (session.mode === 'qualifier') return !session.subjects?.length || session.subjects.includes(question.subjectCode); return session.subjects.includes(question.subjectCode); });
-    const paperForStudent = (payload, session, studentHashValue) => { const candidates = eligibleQuestions(payload, session); const target = Math.min(Number(session.questionCount) || 0, candidates.length); if (!target) return []; const subjectOrder = session.mode === 'single' || session.mode === 'waec' ? [...new Set(candidates.map((question) => question.subjectCode))] : (session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]); const randomizeQuestions = session.randomization?.questionOrder !== false; const collisionSalt = session.randomization?.minimizePaperCollisions !== false ? `${studentHashValue}|${session.id}` : String(session.id); const orderedSubjects = randomizeQuestions ? shuffled(subjectOrder, `${collisionSalt}|subjects`) : [...subjectOrder]; const buckets = new Map(orderedSubjects.map((code) => [code, randomizeQuestions ? shuffled(candidates.filter((question) => question.subjectCode === code), `${collisionSalt}|${code}`) : candidates.filter((question) => question.subjectCode === code)])); const selected = []; let cursor = 0; while (selected.length < target && [...buckets.values()].some((bucket) => bucket.length)) { const code = orderedSubjects[cursor % orderedSubjects.length]; const bucket = buckets.get(code); if (bucket?.length) selected.push(bucket.shift()); cursor += 1; } return selected.map((question, index) => { const clone = { ...question }; if (Array.isArray(question.options) && session.randomization?.optionOrder !== false) clone.options = shuffled(question.options, `${studentHashValue}|${session.id}|${question.id}|${index}`); if (Array.isArray(question.fillTemplate)) clone.fillTemplate = question.fillTemplate.map((part) => ({ ...part })); return clone; }); };
-    const valueIsCorrect = (question, response) => { const key = ANSWER_KEYS[question.id]; if (key === undefined) return null; if (Array.isArray(key)) { const received = Array.isArray(response) ? response.map(normalizeText).sort() : []; const expected = key.map(normalizeText).sort(); return received.length === expected.length && received.every((value, index) => value === expected[index]); } if (question.type === 'fill' || question.type === 'fill-multi') { const values = response && typeof response === 'object' ? Object.values(response) : [response]; return values.length > 0 && normalizeText(values[0]) === normalizeText(key); } if (typeof key === 'boolean') return response === key; return normalizeText(response) === normalizeText(key); };
-    const answerDisplay = (question) => { const key = ANSWER_KEYS[question.id]; if (Array.isArray(key)) return key.join(' + '); if (key === true) return 'True'; if (key === false) return 'False'; return String(key ?? 'Scoring key unavailable'); };
+    const paperForStudent = (payload, session, studentHashValue) => { const candidates = questions.eligibleQuestions(payload, session); const target = Math.min(Number(session.questionCount) || 0, candidates.length); if (!target) return []; const subjectOrder = session.mode === 'single' || session.mode === 'waec' ? [...new Set(candidates.map((question) => question.subjectCode))] : (session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]); const randomizeQuestions = session.randomization?.questionOrder !== false; const collisionSalt = session.randomization?.minimizePaperCollisions !== false ? `${studentHashValue}|${session.id}` : String(session.id); const orderedSubjects = randomizeQuestions ? shuffled(subjectOrder, `${collisionSalt}|subjects`) : [...subjectOrder]; const buckets = new Map(orderedSubjects.map((code) => [code, randomizeQuestions ? shuffled(candidates.filter((question) => question.subjectCode === code), `${collisionSalt}|${code}`) : candidates.filter((question) => question.subjectCode === code)])); const selected = []; let cursor = 0; while (selected.length < target && [...buckets.values()].some((bucket) => bucket.length)) { const code = orderedSubjects[cursor % orderedSubjects.length]; const bucket = buckets.get(code); if (bucket?.length) selected.push(bucket.shift()); cursor += 1; } return selected.map((question, index) => { const clone = { ...question }; if (Array.isArray(question.options) && session.randomization?.optionOrder !== false) clone.options = shuffled(question.options, `${studentHashValue}|${session.id}|${question.id}|${index}`); if (Array.isArray(question.fillTemplate)) clone.fillTemplate = question.fillTemplate.map((part) => ({ ...part })); return clone; }); };
+    const normalizeBoolean = (value) => { if (value === true || value === false) return value; const text = normalizeText(value); if (text === 'true') return true; if (text === 'false') return false; return null; };
+    const matchesAccepted = (value, accepted) => accepted.some((answer) => normalizeText(value) === normalizeText(answer));
+    const scoreQuestion = (question, response) => {
+      try {
+        if (!question || !question.type) return false;
+        if (question.type === 'single') return normalizeText(response) !== '' && normalizeText(response) === normalizeText(question.answer);
+        if (question.type === 'boolean') { const received = normalizeBoolean(response); return received !== null && received === question.answer; }
+        if (question.type === 'multi') {
+          if (!Array.isArray(response) || !Array.isArray(question.answers)) return false;
+          const received = [...new Set(response.map(normalizeText).filter(Boolean))].sort();
+          const expected = [...new Set(question.answers.map(normalizeText).filter(Boolean))].sort();
+          return received.length === expected.length && received.every((value, index) => value === expected[index]);
+        }
+        if (question.type === 'fill') {
+          const value = response && typeof response === 'object' && !Array.isArray(response) ? Object.values(response)[0] : response;
+          return normalizeText(value) !== '' && Array.isArray(question.acceptedAnswers) && matchesAccepted(value, question.acceptedAnswers);
+        }
+        if (question.type === 'fill-multi') {
+          if (!Array.isArray(question.acceptedAnswers)) return false;
+          const blanks = (question.fillTemplate || []).filter((part) => part?.blank).map((part) => String(part.blank));
+          const values = Array.isArray(response) ? response : (response && typeof response === 'object' ? blanks.map((key) => response[key]) : []);
+          return values.length === question.acceptedAnswers.length && values.every((value, index) => normalizeText(value) !== '' && matchesAccepted(value, question.acceptedAnswers[index] || []));
+        }
+        return false;
+      } catch { return false; }
+    };
+    const valueIsCorrect = scoreQuestion;
+    const answerDisplay = (question) => {
+      if (!question) return 'Scoring key unavailable';
+      if (question.type === 'multi') return Array.isArray(question.answers) ? question.answers.join(' + ') : 'Scoring key unavailable';
+      if (question.type === 'fill') return Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers.join(' / ') : 'Scoring key unavailable';
+      if (question.type === 'fill-multi') return Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers.map((answers) => Array.isArray(answers) ? answers.join(' / ') : '').join(' + ') : 'Scoring key unavailable';
+      if (question.answer === true) return 'True';
+      if (question.answer === false) return 'False';
+      return String(question.answer ?? 'Scoring key unavailable');
+    };
     function placementFor(result, session) { const enabled = (session.placementTracks || TRACKS).filter((track) => TRACKS.includes(track)); const tracks = enabled.length ? enabled : [...TRACKS]; const stats = new Map(result.subjectStats.map((item) => [item.subjectCode, item.percent])); const scoredTracks = tracks.map((track) => { const weights = TRACK_WEIGHTS[track]; let totalWeight = 0, weighted = 0; Object.entries(weights).forEach(([subjectCode, weight]) => { if (!stats.has(subjectCode)) return; totalWeight += weight; weighted += stats.get(subjectCode) * weight; }); const academic = totalWeight ? weighted / totalWeight : result.accuracy; const score = academic * .82 + result.paceIndex * .08 + result.completion * .08 + result.integrityScore * .02; return { track, score: Math.round(score), academic: Math.round(academic) }; }).sort((a, b) => b.score - a.score); const best = scoredTracks[0], second = scoredTracks[1], gap = second ? best.score - second.score : 15; const confidence = clamp(55 + gap * 3 + Math.round((best.score - 50) * .25), 55, 96); return { assignedTrack: best.track, confidence, trackScores: scoredTracks, basis: 'Assessment accuracy, subject profile, completion, pace and recorded integrity signals', note: 'This is an exam-derived placement recommendation, not a permanent measure of intelligence.' }; }
-    const scoreAttempt = (paper, state, session) => { const details = paper.map((question) => { const response = state.responses?.[String(question.id)]; const correct = valueIsCorrect(question, response); return { questionId: question.id, subjectCode: question.subjectCode, subject: question.subject, domain: question.domain, correct, response: response ?? null, correctAnswer: answerDisplay(question), seconds: Math.max(0, Number(state.questionTimings?.[String(question.id)]) || 0) }; }); const scored = details.filter((item) => item.correct !== null); const correctCount = scored.filter((item) => item.correct).length; const accuracy = scored.length ? Math.round(correctCount / scored.length * 100) : 0; const answered = paper.filter((question) => { const value = state.responses?.[String(question.id)]; return Array.isArray(value) ? value.length > 0 : value && typeof value === 'object' ? Object.values(value).some((v) => String(v ?? '').trim()) : value === true || value === false || String(value ?? '').trim().length > 0; }).length; const completion = paper.length ? Math.round(answered / paper.length * 100) : 0; const activeElapsed = Number(state.elapsedActiveSeconds); const elapsedSeconds = Math.max(1, Math.round(Number.isFinite(activeElapsed) && activeElapsed > 0 ? activeElapsed : ((state.submittedAt || Date.now()) - (state.startedAt || Date.now())) / 1000)); const durationSeconds = Math.max(30, Number(session.durationSeconds) || Number(session.durationMinutes) * 60 || 3600); const avgSeconds = paper.length ? Math.round(elapsedSeconds / paper.length) : 0; const expectedPerQuestion = Math.max(10, durationSeconds / Math.max(1, paper.length)); const paceIndex = Math.round(clamp(100 - Math.max(0, avgSeconds - expectedPerQuestion * .55) / expectedPerQuestion * 65, 25, 100)); const integrityEvents = Array.isArray(state.integrityEvents) ? state.integrityEvents : []; const integrityScore = Math.max(0, 100 - integrityEvents.filter((event) => !['focus-return', 'fullscreen-enter'].includes(event.type)).length * 8); const bySubject = {}; for (const item of details) { const bucket = bySubject[item.subjectCode] ||= { subjectCode: item.subjectCode, subject: item.subject, total: 0, correct: 0, seconds: 0 }; bucket.total += 1; if (item.correct) bucket.correct += 1; bucket.seconds += item.seconds; } const subjectStats = Object.values(bySubject).map((bucket) => ({ ...bucket, percent: bucket.total ? Math.round(bucket.correct / bucket.total * 100) : 0 })); const reasoningIndex = Math.round(accuracy * .78 + completion * .14 + paceIndex * .08); const result = { correctCount, scoredCount: scored.length, accuracy, completion, elapsedSeconds, avgSeconds, paceIndex, reasoningIndex, integrityScore, integrityEventCount: integrityEvents.length, subjectStats, details }; if (session.mode === 'qualifier') result.placement = placementFor(result, session); return result; };
+    const scoreAttempt = (paper, state, session) => { const details = paper.map((question) => { const response = state.responses?.[String(question.id)]; const correct = scoreQuestion(question, response); return { questionId: question.id, subjectCode: question.subjectCode, subject: question.subject, domain: question.domain, correct, response: response ?? null, correctAnswer: answerDisplay(question), seconds: Math.max(0, Number(state.questionTimings?.[String(question.id)]) || 0) }; }); const correctCount = details.filter((item) => item.correct).length; const accuracy = details.length ? Math.round(correctCount / details.length * 100) : 0; const answered = paper.filter((question) => { const value = state.responses?.[String(question.id)]; return Array.isArray(value) ? value.length > 0 : value && typeof value === 'object' ? Object.values(value).some((v) => String(v ?? '').trim()) : value === true || value === false || String(value ?? '').trim().length > 0; }).length; const completion = paper.length ? Math.round(answered / paper.length * 100) : 0; const activeElapsed = Number(state.elapsedActiveSeconds); const elapsedSeconds = Math.max(1, Math.round(Number.isFinite(activeElapsed) && activeElapsed > 0 ? activeElapsed : ((state.submittedAt || Date.now()) - (state.startedAt || Date.now())) / 1000)); const durationSeconds = Math.max(30, Number(session.durationSeconds) || Number(session.durationMinutes) * 60 || 3600); const avgSeconds = paper.length ? Math.round(elapsedSeconds / paper.length) : 0; const expectedPerQuestion = Math.max(10, durationSeconds / Math.max(1, paper.length)); const paceIndex = Math.round(clamp(100 - Math.max(0, avgSeconds - expectedPerQuestion * .55) / expectedPerQuestion * 65, 25, 100)); const integrityEvents = Array.isArray(state.integrityEvents) ? state.integrityEvents : []; const integrityScore = Math.max(0, 100 - integrityEvents.filter((event) => !['focus-return', 'fullscreen-enter'].includes(event.type)).length * 8); const bySubject = {}; for (const item of details) { const bucket = bySubject[item.subjectCode] ||= { subjectCode: item.subjectCode, subject: item.subject, total: 0, correct: 0, seconds: 0 }; bucket.total += 1; if (item.correct) bucket.correct += 1; bucket.seconds += item.seconds; } const subjectStats = Object.values(bySubject).map((bucket) => ({ ...bucket, percent: bucket.total ? Math.round(bucket.correct / bucket.total * 100) : 0 })); const reasoningIndex = Math.round(accuracy * .78 + completion * .14 + paceIndex * .08); const result = { correctCount, scoredCount: details.length, accuracy, completion, elapsedSeconds, avgSeconds, paceIndex, reasoningIndex, integrityScore, integrityEventCount: integrityEvents.length, subjectStats, details }; if (session.mode === 'qualifier') result.placement = placementFor(result, session); return result; };
     const paperFingerprint = async (sessionId, studentHashValue, paper) => hashText(`${sessionId}|${studentHashValue}|${paper.map((question) => `${question.id}:${(question.options || []).join('~')}`).join('|')}`);
     const attemptHash = async (sessionId, studentHashValue, fingerprint) => hashText(`attempt|${sessionId}|${studentHashValue}|${fingerprint}`);
     const answersMayBeRevealed = (session, effectiveStatus = session?.status) => { if (!session) return false; if (effectiveStatus === 'closed') return true; return Boolean(session.endsAt && Date.now() > Number(session.endsAt)); };
-    return Object.freeze({ TRACKS, candidateCredentials, studentHash, candidateHash, hashText, paperForStudent, paperFingerprint, attemptHash, scoreAttempt, valueIsCorrect, answerDisplay, answersMayBeRevealed });
+    return Object.freeze({ TRACKS, candidateCredentials, studentHash, candidateHash, hashText, paperForStudent, paperFingerprint, attemptHash, scoreQuestion, scoreAttempt, valueIsCorrect, answerDisplay, answersMayBeRevealed });
   })();
 
   const qr = (() => {
