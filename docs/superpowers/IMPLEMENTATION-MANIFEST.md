@@ -16,6 +16,27 @@ This file is the mandatory entry document for any agent implementing the Festaco
 5. Apply the current RelvorLabs Engineering Lead, HANDOFF protocol, and `using-superpowers` skill.
 6. Do not mark a task complete until the progress ledger, validation evidence, commit, push, and PR checklist all agree.
 
+## Precedence rules for known planning contradictions
+
+When documents disagree, use this order rather than guessing:
+
+1. **Current repository/master state** controls physical paths, package boundaries, and files that actually exist.
+2. **This manifest** controls which documents an implementation task must read and the current PR relationship.
+3. **`2026-09-12-single-shell-tailwind-routing-contract.md`** and its execution plan override older statements about `index.html`, alias pages, Flowbite CSS, standalone page shells, and final CSS ownership.
+4. **`2026-09-12-question-bank-expansion-contract.md`** overrides every older `500+` seed-bank minimum with **at least 720 validated seed questions**.
+5. **`2026-09-12-admin-ui-ux-governance-and-depth-contract.md`** and the UI/UX execution gates override weaker or older UI implementation guidance.
+6. The broader main design/spec and implementation plan remain authoritative for requirements not superseded above.
+
+Concrete consequences:
+
+- the prototype is currently an isolated package under `/prototype`;
+- prototype validation scripts are `prototype/scripts/prototype-audit.mjs` and `prototype/scripts/state-contract.mjs`;
+- `prototype/index.html` becomes the canonical application shell;
+- `admin.html`, `student.html`, and `exam.html` remain thin forwarding aliases rather than independent shells;
+- the final prototype has zero repository `.css` files and no Flowbite CSS dependency;
+- the final question-bank minimum is 720 validated seed questions;
+- stale pre-move path snippets in older plans must not be recreated.
+
 ## Source-of-truth documents
 
 - [Main implementation plan](./plans/2026-09-12-admin-experience-revamp.md)
