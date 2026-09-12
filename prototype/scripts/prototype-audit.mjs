@@ -120,8 +120,12 @@ if (studentRuntimeReady) {
     if (studentAlias.includes(forbidden)) throw new Error(`Student alias must stay thin and dependency-free: ${forbidden}`);
   }
 
-  for (const token of ['exam-id-launch', 'exam-id-dialog', 'exam-id-form', 'findSessionById', 'decorateStudentLink', "utils.routeUrl('student'", "utils.routeUrl('exam'"]) {
+  for (const token of ['exam-id-launch', 'exam-id-dialog', 'exam-id-form', 'findSessionById', 'decorateStudentLink']) {
     if (!studentRuntime.includes(token)) throw new Error(`Migrated Student runtime missing ${token}`);
+  }
+  for (const route of ['student', 'exam']) {
+    const routeCall = new RegExp(`utils\\.routeUrl\\(\\s*['"]${route}['"]`, 'u');
+    if (!routeCall.test(studentRuntime)) throw new Error(`Migrated Student runtime missing canonical ${route} routeUrl call`);
   }
   for (const forbidden of ['FestacolSessionStore', 'FestacolQuestionData', 'FestacolAssessmentEngine', 'FestacolProctorPolicy', './student.html', './exam.html', 'student-sidebar-open', 'badge badge-', 'class="field']) {
     if (studentRuntime.includes(forbidden)) throw new Error(`Migrated Student runtime still depends on legacy behavior/style: ${forbidden}`);
