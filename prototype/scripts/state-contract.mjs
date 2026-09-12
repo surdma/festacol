@@ -9,7 +9,7 @@ const sessionStorage = { get length(){return sessions.size}, key(i){return [...s
 const ctx = { window:{}, localStorage, sessionStorage, crypto:webcrypto, TextEncoder, TextDecoder, btoa:(v)=>Buffer.from(v,'binary').toString('base64'), atob:(v)=>Buffer.from(v,'base64').toString('binary'), URL, console, Date, Math, setTimeout, clearTimeout };
 ctx.globalThis=ctx;ctx.window=ctx;
 vm.createContext(ctx);
-for (const file of ['session-store.js','assessment-engine.js']) vm.runInContext(fs.readFileSync(new URL(`../prototype/js/${file}`, import.meta.url),'utf8'),ctx,{filename:file});
+for (const file of ['session-store.js','assessment-engine.js']) vm.runInContext(fs.readFileSync(new URL(`../js/${file}`, import.meta.url),'utf8'),ctx,{filename:file});
 const S=ctx.FestacolSessionStore,E=ctx.FestacolAssessmentEngine;
 
 localStorage.setItem('festacol.exam.sessions.v3', JSON.stringify([{id:'OLD1',version:3,title:'Legacy stored exam',classLevel:'SS2',classGroup:'General',academicSession:'2026/2027',term:'First term',mode:'single',subjects:['mat'],placementTracks:[],durationSeconds:600,durationMinutes:10,questionCount:1,status:'open',instructions:'',startsAt:null,endsAt:null,attemptLimit:1,integrityPolicy:{},randomization:{},createdAt:1}]));

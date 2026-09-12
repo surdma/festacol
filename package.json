@@ -1,15 +1,49 @@
 {
-  "name": "festacol-prototype-ui",
+  "name": "festacol",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
   "scripts": {
-    "test:e2e": "playwright test",
-    "test:e2e:report": "playwright show-report",
-    "audit:prototype": "node scripts/prototype-audit.mjs",
-    "test:contract": "node scripts/state-contract.mjs",
-    "check": "npm run audit:prototype && npm run test:contract"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "@shadcn/react": "^0.3.1",
+    "class-variance-authority": "^0.7.1",
+    "cmdk": "^1.1.1",
+    "cn": "^0.2.6",
+    "date-fns": "^4.4.0",
+    "embla-carousel-react": "^8.6.0",
+    "input-otp": "^1.5.0",
+    "lucide-react": "^1.45.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-day-picker": "^10.0.1",
+    "react-dom": "19.2.8",
+    "react-resizable-panels": "^4.12.4",
+    "recharts": "3.8.0",
+    "shadcn": "^4.21.0",
+    "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
-  }
+    "@biomejs/biome": "2.4.2",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "prisma": "8.0.0-rc.13",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.13",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@10.33.2"
 }
