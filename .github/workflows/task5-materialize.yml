@@ -23,6 +23,7 @@ jobs:
           set -euo pipefail
           cat task5_payload.part* | base64 --decode | gzip --decompress > /tmp/task5.tar
           tar -xf /tmp/task5.tar
+          sed -i 's/[[:space:]]\+$//' docs/superpowers/progress/2026-09-12-task-5-closure.md
           node --check prototype/js/shared.js
           node prototype/scripts/state-contract.mjs
 
