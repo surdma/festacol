@@ -1,0 +1,46 @@
+name: Task 5 Payload Materializer
+
+on:
+  push:
+    branches:
+      - work/task5-materialize
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ !contains(github.event.head_commit.message, 'materialize validated payload') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out transport branch
+        uses: actions/checkout@v4
+
+      - name: Reconstruct validated Task 5 files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat task5_payload.part* | base64 --decode | gzip --decompress > /tmp/task5.tar
+          tar -xf /tmp/task5.tar
+          node --check prototype/js/shared.js
+          node prototype/scripts/state-contract.mjs
+
+      - name: Commit materialized files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            prototype/data/questions.json \
+            prototype/js/shared.js \
+            prototype/scripts/prototype-audit.mjs \
+            prototype/scripts/state-contract.mjs \
+            docs/superpowers/progress/2026-09-12-task-5-closure.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No materialized changes to commit.'
+            exit 0
+          fi
+          git commit -m 'chore(task5): materialize validated payload'
+          git push
