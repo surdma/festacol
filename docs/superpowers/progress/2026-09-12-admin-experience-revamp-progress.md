@@ -7,6 +7,7 @@
 **Mandatory task map:** [`docs/superpowers/IMPLEMENTATION-MANIFEST.md`](../IMPLEMENTATION-MANIFEST.md)  
 **Canonical Task 1–2 closure checklist:** [`2026-09-12-task-1-2-closure.md`](./2026-09-12-task-1-2-closure.md)  
 **Canonical Task 3 closure checklist:** [`2026-09-12-task-3-closure.md`](./2026-09-12-task-3-closure.md)  
+**Canonical Task 4 closure checklist:** [`2026-09-12-task-4-closure.md`](./2026-09-12-task-4-closure.md)  
 **Policy:** Every completed milestone must be validated, checked here, committed, pushed, and verified on the remote branch before the next milestone is represented as complete.
 
 ## Repository-layout checkpoint
@@ -54,7 +55,18 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
   - [x] Repair the initially corrupted Student candidate and harden the source audit rather than accepting a failed CI run.
   - [x] Prototype UI Quality run `34706597298` passed **Source & design-system contract** and **Chromium exam workflow** at implementation head `dd61b68db035d9ad8c0d35388e620cdb78c9cad0`.
   - [x] Publish per-step Task 3 closure evidence in `2026-09-12-task-3-closure.md`.
-- [ ] **Task 4 — Migrate candidate Exam surface to `exam.js`**
+- [x] **Task 4 — Migrate candidate Exam surface to `exam.js`**
+  - [x] Port candidate authentication, briefing, camera gate/retry/preview, every current response type, timer, navigation/review, submission, locked/result and unfinished-resume states to `prototype/js/exam.js`.
+  - [x] Preserve focus/visibility, clipboard, fullscreen, camera, elapsed-time, background-marker reconciliation, timeout and session-ended integrity behavior.
+  - [x] Preserve automatic auth/candidate cleanup, manual-submit behavior, reset invalidation, submitted-attempt lock and authorized rewrite semantics.
+  - [x] Make `index.html?route=exam` canonical and `exam.html` a thin query-preserving compatibility alias.
+  - [x] Keep Exam UI Tailwind-authored through the shared index shell with no Flowbite CSS or repository Exam CSS dependency.
+  - [x] Update the source audit to enforce direct `exam.js` ownership and reject legacy Exam globals/direct page links.
+  - [x] Add browser coverage proving `exam.html` preserves `session` and extra query state while forwarding to the canonical Exam route.
+  - [x] Local syntax/source checks passed before Git handoff.
+  - [x] Prototype UI Quality run `34708086401` passed **Source & design-system contract** and **Chromium exam workflow** at implementation commit `e7ccfffd13af96ea061833fa5c24ad890a037dcb`.
+  - [x] Independent review verdict: **APPROVE**.
+  - [x] Publish per-step Task 4 closure evidence in `2026-09-12-task-4-closure.md`.
 - [ ] **Task 5 — Answer-aware Question Bank and expanded validated seed bank (minimum 720 validated seed questions)**
 - [ ] **Task 6 — Rebuild canonical shell/Admin runtime**
 - [ ] **Task 7 — Students, Staff, Classes, WhatsApp, Settings**
@@ -82,15 +94,22 @@ The Task 2 contracts cover namespace wiring, v2/v3 compatibility, canonical exam
 
 The first pushed candidate correctly failed CI because its `student.js` blob was corrupted. That failure was not ignored: the runtime and audit were repaired, the route-source assertion was made formatting-safe, and Prototype UI Quality run `34706597298` then passed both source/design-system validation and the real Chromium workflow. Full per-step evidence is in the canonical Task 3 closure checklist.
 
+## Task 4 evidence
+
+`prototype/js/exam.js` now owns the complete candidate Exam execution path through `window.Festacol`: authentication, deterministic paper allocation, briefing, camera/proctor gate, response capture, timer/background reconciliation, integrity events, resume, review, submission, scoring and locked/result states. `prototype/index.html?route=exam` is canonical and `prototype/exam.html` is the thin compatibility alias.
+
+Task 4 retained the legacy `exam-app.js` file only as a rollback/reference artifact for Task 12 cleanup; it is no longer the canonical Exam runtime. Prototype UI Quality run `34708086401` passed both source/design-system validation and the Chromium regression suite, including the new query-preserving Exam alias test. Full per-step evidence is in the canonical Task 4 closure checklist.
+
 ## Question-bank boundary
 
-The current verified inventory remains **43 questions**. Task 3 does not include Question Bank expansion. The answer-aware schema migration and expansion to at least **720 validated seed questions** remain entirely under Task 5.
+The current verified inventory remains **43 questions**. Tasks 1–4 do not include Question Bank expansion. The answer-aware schema migration and expansion to at least **720 validated seed questions** remain entirely under Task 5.
 
 ## Current status
 
 **Task 1: COMPLETE / CI_VERIFIED on the approved behavior contract and current layout.**  
 **Task 2: COMPLETE / CI_VERIFIED on the approved shared-runtime contract and current layout.**  
 **Current-master reconciliation: COMPLETE / CI_VERIFIED via run `34696743263`.**  
-**Task 3: COMPLETE / CI_VERIFIED via run `34706597298` at implementation head `dd61b68db035d9ad8c0d35388e620cdb78c9cad0`.**  
+**Task 3: COMPLETE / CI_VERIFIED via run `34706597298`.**  
+**Task 4: COMPLETE / CI_VERIFIED via run `34708086401` at implementation commit `e7ccfffd13af96ea061833fa5c24ad890a037dcb`.**  
 **Question bank at this milestone: 43 questions; Task 5 not started.**  
-**Next milestone: Task 4 — candidate Exam migration.**
+**Next milestone: Task 5 — answer-aware Question Bank and validated seed expansion.**
