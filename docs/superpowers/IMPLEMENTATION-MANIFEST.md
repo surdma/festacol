@@ -47,13 +47,14 @@ Concrete consequences:
 - [Single-shell/Tailwind routing contract](./specs/2026-09-12-single-shell-tailwind-routing-contract.md)
 - [Question-bank expansion contract](./specs/2026-09-12-question-bank-expansion-contract.md)
 - [Implementation progress ledger](./progress/2026-09-12-admin-experience-revamp-progress.md)
+- [Canonical Task 1–2 closure checklist](./progress/2026-09-12-task-1-2-closure.md)
 
 ## Task → governing-document map
 
 | Task | Primary plan | Governing contracts that must also be read |
 | --- | --- | --- |
-| **1. Preservation contracts and migration guardrails** | Main implementation plan — Task 1 | Main design spec; single-shell routing contract; current master `/prototype` package layout |
-| **2. Consolidate shared domain behavior into `shared.js`** | Main implementation plan — Task 2 | Main design spec shared-runtime section; single-shell routing contract; preservation/state contracts |
+| **1. Preservation contracts and migration guardrails** | Main implementation plan — Task 1 | Main design spec; single-shell routing contract; current master `/prototype` package layout; **Task 1–2 closure checklist for completed-step evidence** |
+| **2. Consolidate shared domain behavior into `shared.js`** | Main implementation plan — Task 2 | Main design spec shared-runtime section; single-shell routing contract; preservation/state contracts; **Task 1–2 closure checklist for completed-step evidence** |
 | **3. Migrate Student surface to `student.js`** | Main implementation plan — Task 3 | Single-shell routing execution **Gate E**; single-shell routing contract **Student** section; UI/UX governance; Tailwind-only styling contract |
 | **4. Migrate candidate Exam surface to `exam.js`** | Main implementation plan — Task 4 | Single-shell routing execution **Gate F**; exam behavior requirements in main design spec; UI/UX governance; Tailwind-only styling contract |
 | **5. Answer-aware Question Bank and seed expansion** | Main implementation plan — Task 5 | Question-bank expansion contract; main design spec Question Bank/scoring sections; minimum **720 validated seed questions** |
@@ -105,3 +106,5 @@ A task is complete only when all are true:
 - the progress ledger marks it complete with evidence;
 - the PR #11 checklist marks it complete;
 - the milestone commit is pushed and its remote SHA is verified.
+
+For Tasks 1 and 2, `progress/2026-09-12-task-1-2-closure.md` is the canonical per-step completion checklist and evidence record. It exists specifically to remove ambiguity from the original planning template's historical unchecked boxes and pre-move paths.
