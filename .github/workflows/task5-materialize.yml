@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   materialize:
-    if: ${{ github.event.head_commit.message == 'ci(task5): run materializer' }}
+    if: >-
+      github.event.head_commit.message == 'ci(task5): run materializer'
     runs-on: ubuntu-latest
     steps:
       - name: Check out transport branch
