@@ -5,6 +5,7 @@
 **Planning parent:** [PR #10](https://github.com/surdma/festacol/pull/10)  
 **Implementation PR:** [PR #11](https://github.com/surdma/festacol/pull/11)  
 **Mandatory task map:** [`docs/superpowers/IMPLEMENTATION-MANIFEST.md`](../IMPLEMENTATION-MANIFEST.md)  
+**Canonical Task 1–2 closure checklist:** [`2026-09-12-task-1-2-closure.md`](./2026-09-12-task-1-2-closure.md)  
 **Policy:** Every completed milestone must be validated, checked here, committed, pushed, and verified on the remote branch before the next milestone is represented as complete.
 
 ## Repository-layout checkpoint
@@ -24,6 +25,7 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
   - [x] Verify the pre-mutation runtime baseline from the successful original prototype workflow at `43313acc38ba682a66bda3706ac444d905da7844`.
   - [x] Original Task 1 commit `8bc3e909f0831fcfdfd433c63310563624cdf325` passed its source/state and Chromium regression workflow before the repository layout move.
   - [x] Port the preservation audit to current master layout at `prototype/scripts/prototype-audit.mjs`.
+  - [x] Publish the detailed legacy-method/consumer mapping and per-step closure evidence in `2026-09-12-task-1-2-closure.md`.
 - [x] **Task 2 — Consolidate shared domain behavior into `shared.js`**
   - [x] Move storage/session/attempt/user/class/WhatsApp behavior into `Festacol.store` without changing storage keys or v2/v3 compatibility.
   - [x] Move camera/proctor policy and decorated candidate-link behavior into `Festacol.proctor`.
@@ -35,6 +37,7 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
   - [x] Original Task 2 implementation commit `a49f10861cae568d81ec0f6ae7223f363bdd8d90` passed its source/state and Chromium regression workflow before the repository layout move.
   - [x] Preserve `prototype/js/shared.js` while synchronizing PR #11 to current master.
   - [x] Port the shared-runtime state contract to `prototype/scripts/state-contract.mjs`.
+  - [x] Publish the per-step Task 2 parity/closure evidence in `2026-09-12-task-1-2-closure.md`.
 - [x] **Current-master reconciliation gate before Task 3**
   - [x] PR #10 contains the authoritative planning docs and implementation manifest.
   - [x] PR #11 explicitly descends from the current planning/master lineage.
@@ -56,17 +59,22 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
 
 ## Task 1 evidence
 
-The preservation layer guards the existing exam/session/user/class/attempt behavior before consumer migration. It includes one-current-class, retained attempt history, rewrite/reset boundaries, source-contract staging for the four-runtime target, and compatibility routing requirements.
+The preservation layer guards the existing exam/session/user/class/attempt behavior before consumer migration. It includes one-current-class, retained attempt history, rewrite/reset boundaries, source-contract staging for the four-runtime target, and compatibility routing requirements. The detailed method/consumer inventory is recorded in the canonical Task 1–2 closure checklist.
 
 ## Task 2 evidence
 
 `prototype/js/shared.js` is a single self-contained runtime. It does not dynamically load the legacy JavaScript files and can initialize without a DOM, allowing the Node state contract to execute the exact browser-domain runtime. Temporary `FestacolSessionStore`, `FestacolQuestionData`, `FestacolAssessmentEngine`, `FestacolProctorPolicy`, and `FestacolQR` aliases intentionally point to the new `Festacol` modules until later consumer migrations remove them.
 
-The original Task 2 contracts covered namespace wiring, v2/v3 compatibility, canonical exam routing, deterministic papers, scoring parity, rewrite/reset, one-class storage, retained history, WhatsApp, proctor links, QR SVG generation, invalid sessions/questions, reset equality boundaries, route normalization, answer-order parity, and QR capacity guards.
+The Task 2 contracts cover namespace wiring, v2/v3 compatibility, canonical exam routing, deterministic papers, scoring parity, rewrite/reset, one-class storage, retained history, WhatsApp, proctor links, QR SVG generation, invalid sessions/questions, reset equality boundaries, route normalization, answer-order parity, and QR capacity guards.
+
+## Question-bank boundary at Task 2 closure
+
+The current verified inventory is **43 questions**. No Task 1 or Task 2 completion claim includes the Question Bank expansion. The answer-aware schema migration and expansion to at least **720 validated seed questions** remain entirely under Task 5.
 
 ## Current status
 
 **Task 1: COMPLETE / CI_VERIFIED on the approved behavior contract and current layout.**  
 **Task 2: COMPLETE / CI_VERIFIED on the approved shared-runtime contract and current layout.**  
 **Current-master reconciliation: COMPLETE / CI_VERIFIED via run `34696743263`.**  
+**Question bank at this milestone: 43 questions; Task 5 not started.**  
 **Task 3: READY TO START, but not started.**
