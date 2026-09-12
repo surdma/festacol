@@ -20,7 +20,7 @@ module.exports = defineConfig({
   ],
   webServer: {
     command: 'python3 -m http.server 4173 --bind 127.0.0.1',
-    url: 'http://127.0.0.1:4173/prototype/admin.html?page=overview',
+    url: 'http://127.0.0.1:4173/admin.html?page=overview',
     reuseExistingServer: !process.env.CI,
     timeout: 15000
   }

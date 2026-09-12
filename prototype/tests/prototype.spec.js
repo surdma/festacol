@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 async function clearPrototypeStorage(page) {
-  await page.goto('/prototype/admin.html?page=overview');
+  await page.goto('/admin.html?page=overview');
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Administration overview' })).toBeVisible();
@@ -17,7 +17,7 @@ async function setRange(page, selector, value) {
 }
 
 async function createExam(page, { camera = false, seconds = 180, count = 5 } = {}) {
-  await page.goto('/prototype/admin.html?page=exams');
+  await page.goto('/admin.html?page=exams');
   await page.getByRole('button', { name: /Create exam/i }).first().click();
   await page.locator('[data-wizard-mode="mixed"]').click();
   await page.locator('[data-wizard-level="SS2"]').click();
@@ -98,12 +98,12 @@ test('exam wizard exposes 5–150 question range, integrated proctoring and QR-o
 test('student can enter Exam ID and reach the same candidate login session without scanning QR', async ({ page }) => {
   await clearPrototypeStorage(page);
   const { id } = await createExam(page, { camera: false });
-  await page.goto('/prototype/student.html');
+  await page.goto('/student.html');
   await page.getByRole('button', { name: 'Enter exam ID' }).click();
   await expect(page.getByRole('heading', { name: 'Enter the Exam ID.' })).toBeVisible();
   await page.locator('#exam-id-input').fill(id.toLowerCase());
   await page.locator('#exam-id-form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/prototype\/exam\.html\?session=/);
+  await expect(page).toHaveURL(/\/exam\.html\?session=/);
   await expect(page.locator('#student-login-form')).toBeVisible();
 });
 
@@ -134,7 +134,7 @@ test('timeout auto-submits and clears active candidate authentication', async ({
     const hash = S.getActiveCandidate(sessionId);
     return `festacol.exam.background-guard.v2:${sessionId}:${hash}`;
   }, id);
-  await page.goto('/prototype/index.html');
+  await page.goto('/index.html');
   await page.evaluate((key) => {
     const marker = JSON.parse(localStorage.getItem(key) || 'null');
     if (!marker?.hiddenAt) throw new Error('Exam page did not persist a background marker on leave.');
@@ -156,7 +156,7 @@ test('submitted exam rewrite preserves original score and proctor log then allow
   await submitExam(page);
   const before = await page.evaluate((sessionId) => window.FestacolSessionStore.attemptsForSession(sessionId).find(a=>a.submittedAt), id);
   expect(before.integrityEvents.some((event) => event.type === 'window-blur')).toBe(true);
-  await page.goto('/prototype/admin.html?page=exams');
+  await page.goto('/admin.html?page=exams');
   await page.locator(`[data-exam-detail="${id}"]`).first().click();
   await page.locator(`[data-attempt-detail="${before.attemptHash}"]`).click();
   await expect(page.getByText('Integrity / proctor log')).toBeVisible();
@@ -178,7 +178,7 @@ test('exam settings remain editable while structural paper fields lock after a c
   await clearPrototypeStorage(page);
   const { link, id } = await createExam(page);
   await loginExam(page, link); await startExam(page);
-  await page.goto('/prototype/admin.html?page=exams');
+  await page.goto('/admin.html?page=exams');
   await page.locator(`[data-exam-detail="${id}"]`).first().click();
   await page.getByRole('button', { name: /Edit settings/i }).click();
   await expect(page.locator('#exam-edit-count')).toBeDisabled();
@@ -193,7 +193,7 @@ test('exam settings remain editable while structural paper fields lock after a c
 
 test('WhatsApp group board associates one validated group with its intended class and renders QR', async ({ page }) => {
   await clearPrototypeStorage(page);
-  await page.goto('/prototype/admin.html?page=classes');
+  await page.goto('/admin.html?page=classes');
   await page.getByRole('button', { name: /Add WhatsApp group/i }).first().click();
   const classId = await page.locator('#whatsapp-class option').nth(1).getAttribute('value');
   await page.locator('#whatsapp-class').selectOption(classId);
@@ -208,7 +208,7 @@ test('WhatsApp group board associates one validated group with its intended clas
 
 test('invalid WhatsApp URL is rejected inline and not stored', async ({ page }) => {
   await clearPrototypeStorage(page);
-  await page.goto('/prototype/admin.html?page=classes');
+  await page.goto('/admin.html?page=classes');
   await page.getByRole('button', { name: /Add WhatsApp group/i }).first().click();
   await page.locator('#whatsapp-class').selectOption({ index: 1 });
   await page.locator('#whatsapp-name').fill('Wrong group');
@@ -226,7 +226,7 @@ test('admin exam/student relationships expose exact per-attempt integrity record
   await submitExam(page);
   const relation = await page.evaluate((sessionId) => { const S=window.FestacolSessionStore,a=S.attemptsForSession(sessionId).find(x=>x.submittedAt);return {studentHash:a.studentHash,events:a.integrityEvents.map(e=>e.type),count:S.attemptsForStudent(a.studentHash).length}; }, id);
   expect(relation.studentHash).toBeTruthy(); expect(relation.events).toContain('window-blur'); expect(relation.events).toContain('clipboard-copy'); expect(relation.count).toBeGreaterThan(0);
-  await page.goto('/prototype/admin.html?page=reports&view=integrity');
+  await page.goto('/admin.html?page=reports&view=integrity');
   await expect(page.getByText(/Amina Bello · window-blur/i)).toBeVisible();
 });
 
@@ -234,7 +234,7 @@ test('admin dialogs remain within mobile, tablet and desktop viewport bounds', a
   await clearPrototypeStorage(page);
   for (const viewport of [{width:390,height:844},{width:820,height:1000},{width:1440,height:1000}]) {
     await page.setViewportSize(viewport);
-    await page.goto('/prototype/admin.html?page=exams');
+    await page.goto('/admin.html?page=exams');
     await page.getByRole('button', { name: /Create exam/i }).first().click();
     const box = await page.locator('#admin-dialog').boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1); expect(box.height).toBeLessThanOrEqual(viewport.height + 1);

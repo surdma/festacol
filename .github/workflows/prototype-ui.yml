@@ -8,11 +8,6 @@ on:
       - 'work/**'
     paths:
       - 'prototype/**'
-      - 'scripts/prototype-audit.mjs'
-      - 'scripts/state-contract.mjs'
-      - 'tests/**'
-      - 'playwright.config.js'
-      - 'package.json'
       - '.github/workflows/prototype-ui.yml'
   pull_request:
     branches:
@@ -20,11 +15,6 @@ on:
       - main
     paths:
       - 'prototype/**'
-      - 'scripts/prototype-audit.mjs'
-      - 'scripts/state-contract.mjs'
-      - 'tests/**'
-      - 'playwright.config.js'
-      - 'package.json'
       - '.github/workflows/prototype-ui.yml'
 
 permissions:
@@ -33,6 +23,10 @@ permissions:
 concurrency:
   group: prototype-ui-${{ github.ref }}
   cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: prototype
 
 jobs:
   source-contract:
@@ -48,7 +42,7 @@ jobs:
           node-version: 22
       - name: Validate prototype source contract
         run: |
-          for file in prototype/js/*.js; do node --check "$file"; done
+          for file in js/*.js; do node --check "$file"; done
           node --check scripts/prototype-audit.mjs
           node --check scripts/state-contract.mjs
           node --check tests/prototype.spec.js
@@ -81,7 +75,7 @@ jobs:
         with:
           name: playwright-browser-results
           path: |
-            playwright-results.json
-            test-results/
+            prototype/playwright-results.json
+            prototype/test-results/
           if-no-files-found: ignore
           retention-days: 7
