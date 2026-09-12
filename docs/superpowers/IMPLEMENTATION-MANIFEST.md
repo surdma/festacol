@@ -49,6 +49,7 @@ Concrete consequences:
 - [Implementation progress ledger](./progress/2026-09-12-admin-experience-revamp-progress.md)
 - [Canonical Task 1–2 closure checklist](./progress/2026-09-12-task-1-2-closure.md)
 - [Canonical Task 3 closure checklist](./progress/2026-09-12-task-3-closure.md)
+- [Canonical Task 4 closure checklist](./progress/2026-09-12-task-4-closure.md)
 
 ## Task → governing-document map
 
@@ -57,7 +58,7 @@ Concrete consequences:
 | **1. Preservation contracts and migration guardrails** | Main implementation plan — Task 1 | Main design spec; single-shell routing contract; current master `/prototype` package layout; **Task 1–2 closure checklist for completed-step evidence** |
 | **2. Consolidate shared domain behavior into `shared.js`** | Main implementation plan — Task 2 | Main design spec shared-runtime section; single-shell routing contract; preservation/state contracts; **Task 1–2 closure checklist for completed-step evidence** |
 | **3. Migrate Student surface to `student.js`** | Main implementation plan — Task 3 | Single-shell routing execution **Gate E**; single-shell routing contract **Student** section; UI/UX governance; Tailwind-only styling contract; **Task 3 closure checklist for completed-step evidence** |
-| **4. Migrate candidate Exam surface to `exam.js`** | Main implementation plan — Task 4 | Single-shell routing execution **Gate F**; exam behavior requirements in main design spec; UI/UX governance; Tailwind-only styling contract |
+| **4. Migrate candidate Exam surface to `exam.js`** | Main implementation plan — Task 4 | Single-shell routing execution **Gate F**; exam behavior requirements in main design spec; UI/UX governance; Tailwind-only styling contract; **Task 4 closure checklist for completed-step evidence** |
 | **5. Answer-aware Question Bank and seed expansion** | Main implementation plan — Task 5 | Question-bank expansion contract; main design spec Question Bank/scoring sections; minimum **720 validated seed questions** |
 | **6. Canonical index shell + Admin runtime** | Main implementation plan — Task 6 | Single-shell execution **Gates B–D**; UI/UX execution Gates 0–4; routing contract; UI/UX governance |
 | **7. Students, Staff, Classes, WhatsApp, Settings** | Main implementation plan — Task 7 | Main design spec domain sections; UI/UX execution Gate 8 route-specific requirements; UI/UX governance |
@@ -109,6 +110,7 @@ A task is complete only when all are true:
 - the milestone commit is pushed and its remote SHA is verified.
 
 For Tasks 1 and 2, `progress/2026-09-12-task-1-2-closure.md` is the canonical per-step completion checklist and evidence record.  
-For Task 3, `progress/2026-09-12-task-3-closure.md` is the canonical per-step completion checklist and evidence record.
+For Task 3, `progress/2026-09-12-task-3-closure.md` is the canonical per-step completion checklist and evidence record.  
+For Task 4, `progress/2026-09-12-task-4-closure.md` is the canonical per-step completion checklist and evidence record.
 
 These closure files exist specifically to remove ambiguity from the original planning template's historical unchecked boxes, superseded routing examples, and pre-move paths.
