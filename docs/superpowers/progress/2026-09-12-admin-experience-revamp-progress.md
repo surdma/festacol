@@ -8,6 +8,7 @@
 **Canonical Task 1–2 closure checklist:** [`2026-09-12-task-1-2-closure.md`](./2026-09-12-task-1-2-closure.md)  
 **Canonical Task 3 closure checklist:** [`2026-09-12-task-3-closure.md`](./2026-09-12-task-3-closure.md)  
 **Canonical Task 4 closure checklist:** [`2026-09-12-task-4-closure.md`](./2026-09-12-task-4-closure.md)  
+**Canonical Task 5 closure checklist:** [`2026-09-12-task-5-closure.md`](./2026-09-12-task-5-closure.md)  
 **Policy:** Every completed milestone must be validated, checked here, committed, pushed, and verified on the remote branch before the next milestone is represented as complete.
 
 ## Repository-layout checkpoint
@@ -67,7 +68,18 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
   - [x] Prototype UI Quality run `34708086401` passed **Source & design-system contract** and **Chromium exam workflow** at implementation commit `e7ccfffd13af96ea061833fa5c24ad890a037dcb`.
   - [x] Independent review verdict: **APPROVE**.
   - [x] Publish per-step Task 4 closure evidence in `2026-09-12-task-4-closure.md`.
-- [ ] **Task 5 — Answer-aware Question Bank and expanded validated seed bank (minimum 720 validated seed questions)**
+- [x] **Task 5 — Answer-aware Question Bank and expanded validated seed bank (minimum 720 validated seed questions)**
+  - [x] Expand the seed bank to exactly 720 validated questions across all 18 advertised subject codes.
+  - [x] Add type-correct answer metadata and shared answer-shape validation for `single`, `multi`, `boolean`, `fill`, and `fill-multi`.
+  - [x] Preserve legacy IDs 1–43 scoring parity while removing the hardcoded question-ID answer table.
+  - [x] Score candidate responses from question metadata through `Festacol.assessment.scoreQuestion`.
+  - [x] Add seed override/reset APIs and validated teacher-authored custom-question merge behavior.
+  - [x] Quarantine malformed legacy custom questions so answerless records cannot enter candidate papers.
+  - [x] Enforce mode/level/subject/pathway eligibility and minimum five-question inventory for every advertised slice.
+  - [x] Enforce duplicate/filler-marker/answer-shape/metadata checks in source/state contracts.
+  - [x] Independent reviewer verdict: **APPROVE**.
+  - [x] Prototype UI Quality run `34722000365` passed **Source & design-system contract** and **Chromium exam workflow** at implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`.
+  - [x] Publish per-step Task 5 closure evidence in `2026-09-12-task-5-closure.md`.
 - [ ] **Task 6 — Rebuild canonical shell/Admin runtime**
 - [ ] **Task 7 — Students, Staff, Classes, WhatsApp, Settings**
 - [ ] **Task 8 — Examination management and lifecycle**
@@ -100,9 +112,15 @@ The first pushed candidate correctly failed CI because its `student.js` blob was
 
 Task 4 retained the legacy `exam-app.js` file only as a rollback/reference artifact for Task 12 cleanup; it is no longer the canonical Exam runtime. Prototype UI Quality run `34708086401` passed both source/design-system validation and the Chromium regression suite, including the new query-preserving Exam alias test. Full per-step evidence is in the canonical Task 4 closure checklist.
 
+## Task 5 evidence
+
+`prototype/data/questions.json` now contains exactly **720 validated seed questions** across all 18 advertised subject codes. `prototype/js/shared.js` validates type-specific answer metadata, applies seed overrides, validates teacher-authored custom questions, quarantines malformed legacy custom records, filters eligibility across mode/level/subject/pathway, and scores all supported response types from question metadata rather than a hardcoded question-ID answer table.
+
+The Task 5 state/source contracts prove legacy IDs 1–43 retain scoring parity, all five supported response types score correctly, malformed schemas and ID collisions are rejected, every advertised eligibility slice supports the five-question minimum, and duplicate/filler-marker/answer-leak checks remain active. Prototype UI Quality run `34722000365` passed both source/design-system validation and the Chromium regression suite at implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`. Full evidence is in the canonical Task 5 closure checklist.
+
 ## Question-bank boundary
 
-The current verified inventory remains **43 questions**. Tasks 1–4 do not include Question Bank expansion. The answer-aware schema migration and expansion to at least **720 validated seed questions** remain entirely under Task 5.
+The verified seed inventory is now **720 questions**. Task 5 owns and has completed the answer-aware schema migration, metadata-driven scoring, validated seed expansion, local seed overrides, validated teacher custom-question merge behavior, and eligibility/inventory contracts. Advanced teacher-facing Question Bank administration remains a separate Task 10 surface milestone.
 
 ## Current status
 
@@ -111,5 +129,5 @@ The current verified inventory remains **43 questions**. Tasks 1–4 do not incl
 **Current-master reconciliation: COMPLETE / CI_VERIFIED via run `34696743263`.**  
 **Task 3: COMPLETE / CI_VERIFIED via run `34706597298`.**  
 **Task 4: COMPLETE / CI_VERIFIED via run `34708086401` at implementation commit `e7ccfffd13af96ea061833fa5c24ad890a037dcb`.**  
-**Question bank at this milestone: 43 questions; Task 5 not started.**  
-**Next milestone: Task 5 — answer-aware Question Bank and validated seed expansion.**
+**Task 5: COMPLETE / CI_VERIFIED via run `34722000365` at implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`; 720 validated seed questions are active.**  
+**Next milestone: Task 6 — rebuild the canonical shell/Admin runtime.**

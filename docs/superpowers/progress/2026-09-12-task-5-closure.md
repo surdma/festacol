@@ -1,8 +1,8 @@
 # Task 5 Closure — Answer-Aware Question Bank
 
-**Task:** 5 — Make Questions Answer-Aware and Expand the Bank
-**Branch:** `work/admin-experience-complete-revamp`
-**Status at implementation handoff:** COMMIT_READY; remote CI verification follows the milestone push.
+**Task:** 5 — Make Questions Answer-Aware and Expand the Bank  
+**Branch:** `work/admin-experience-complete-revamp`  
+**Status:** COMPLETE / CI_VERIFIED
 
 ## Acceptance evidence
 
@@ -32,9 +32,17 @@ Independent reviewer gate                                  APPROVE
 
 The state/integration contract exercises the real Task 5 domain path with the static data file and shared runtime: seed loading/validation, legacy 1–43 scoring parity, all five response types, malformed-schema rejection, seed override/reset, teacher-authored scoring, quarantine of answerless legacy custom content, pathway/level exclusion, deterministic paper construction, attempt scoring, rewrite/reset equality boundary, one-class storage, WhatsApp, proctor decoration, QR generation, and retained attempt history after session deletion.
 
-## Integration boundary
+## Remote integration verification
 
-A full local repository checkout is unavailable in the execution environment because direct GitHub DNS resolution fails. The complete Chromium Student/Exam regression workflow therefore remains the post-push GitHub Actions gate. Task 5 introduces no new rendered surface; the affected runtime/data path is independently executed before Git handoff.
+Implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec` was pushed to PR #11 and verified by **Prototype UI Quality** run `34722000365`.
+
+- [x] **Source & design-system contract** — success.
+- [x] Source job reported `Prototype audit passed: 720 questions; Task 5 answer-aware contract active`.
+- [x] Source job reported `state/shared contract: PASS (720 validated seeds)`.
+- [x] **Chromium exam workflow** — success.
+- [x] PR #11 remained mergeable after the Task 5 implementation push.
+
+Task 5 introduces no new rendered surface; the existing Chromium Student/Exam workflow supplies the browser regression gate while the answer-aware data/runtime path is exercised directly by the source/state contracts.
 
 ## Reviewer verdict
 
@@ -42,4 +50,4 @@ A full local repository checkout is unavailable in the execution environment bec
 
 ## Git/Release
 
-The implementation is authorized as **COMMIT_READY**. The remote milestone SHA and CI run are recorded here after the push is verified.
+**COMPLETE / CI_VERIFIED.** The Task 5 implementation landed in PR #11 as commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`. GitHub Actions run `34722000365` completed successfully with both required jobs green. No transport payload chunks, temporary materializer workflow, or transport marker were included in the PR implementation commit.
