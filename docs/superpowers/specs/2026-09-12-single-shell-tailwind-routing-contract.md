@@ -7,24 +7,25 @@
 
 ## 1. Authority and precedence
 
-This specification corrects the prototype planning set after the earlier single-shell wording became too aggressive.
+This specification is the canonical routing/styling architecture for the Festacol prototype revamp.
 
-Where an earlier planning document conflicts with this file, this file controls for:
+Where any earlier planning document conflicts with this file, this file controls for:
 
 - the relationship between `index.html`, `admin.html`, `student.html`, and `exam.html`;
 - canonical surface routing;
-- what “inherit from index” means for a static prototype;
+- what “inherit from index” means in this static prototype;
 - Tailwind CSS ownership of application styling;
-- removal of repository CSS files;
+- CSS-file removal;
 - shared head/theme/dependency ownership;
 - permanent source-contract expectations.
 
-The following earlier claims are explicitly superseded and must not be implemented:
+The following earlier interpretations are explicitly invalid and must not be implemented:
 
-- that `admin.html`, `student.html`, or `exam.html` must be deleted;
-- that `index.html` is the only HTML file allowed under `/prototype`;
-- that source contracts should fail merely because those three surface HTML files exist;
-- that the surface aliases are obsolete after routing moves to `index.html`.
+- deleting `admin.html`, `student.html`, or `exam.html`;
+- making `index.html` the only HTML file under `/prototype`;
+- allowing each surface HTML file to own an independent full application shell/head/theme;
+- keeping `index.html` as only a simple redirect to `student.html`;
+- failing source contracts merely because the three surface HTML aliases exist.
 
 This remains a planning-only contract. It does not authorize production implementation by itself.
 
@@ -49,32 +50,34 @@ prototype/
     └── exam.js
 ```
 
-Their roles are different and must not be conflated.
+Their roles are intentionally different.
 
-### 2.1 `index.html` — canonical entry point and base shell
+### 2.1 `index.html` — canonical entry point and base application shell
 
-`prototype/index.html` is the canonical application entry point and owns the real application shell.
+`prototype/index.html` is the canonical application entry point and the only HTML file that owns the real application shell.
 
 It owns:
 
 - the shared `<head>` contract;
-- fonts;
-- Tailwind browser v4;
-- the Tailwind theme/configuration block;
+- DM Sans and Manrope font delivery;
+- Tailwind CSS browser v4;
+- the shared Tailwind theme/configuration block;
 - global metadata/accessibility baseline;
-- Flowbite JavaScript where needed;
+- Flowbite JavaScript where required;
 - the shared application root;
-- route parsing/normalization;
+- route parsing and normalization;
 - loading `shared.js` first;
-- allowlisted loading of the selected surface runtime.
+- allowlisted selection/loading of the active surface runtime.
 
-### 2.2 `admin.html`, `student.html`, `exam.html` — inherited route aliases
+`index.html` is therefore the source of truth from which all product surfaces inherit their shell, theme, dependency baseline, and application root.
 
-These files remain supported routes, but they must **inherit the real application shell from `index.html` rather than duplicate it**.
+### 2.2 `admin.html`, `student.html`, and `exam.html` — inherited route aliases
 
-Static HTML does not provide native document inheritance. Therefore, for this prototype, “inherit from index” means each surface HTML file is a deliberately thin route alias/compatibility entry document that forwards into the canonical `index.html` shell while preserving meaningful query state.
+These files remain supported URLs, but they do **not** become separate application shells.
 
-They must not become independent copies of the application shell, theme, component system, or full page markup.
+Static HTML has no native document-inheritance syntax. For this project, “inherits from `index.html`” has one precise meaning:
+
+> each surface HTML file is a thin compatibility/route document that preserves its query state and forwards into the canonical `index.html` shell for that surface.
 
 Required behavior:
 
@@ -89,18 +92,25 @@ exam.html?<session/candidate query state>
 → index.html?route=exam&<same session/candidate query state>
 ```
 
-The aliases may contain only the minimal metadata/redirect/bootstrap needed to preserve navigation plus a useful `<noscript>` fallback. They must not load separate local CSS, duplicate the full Tailwind theme, or mount a second independent UI runtime.
+The aliases may contain only the minimal metadata/forwarding bootstrap and a useful `<noscript>` fallback.
 
-This gives the project both:
+They must not:
 
-- one canonical entry/base shell (`index.html`), and
-- stable route-specific HTML addresses (`admin.html`, `student.html`, `exam.html`) that inherit through routing.
+- duplicate the full shared `<head>`;
+- load their own Tailwind browser runtime;
+- load their own theme block;
+- load local CSS;
+- load `shared.js` or their surface runtime directly;
+- mount independent Admin/Student/Exam page markup;
+- create a separate component/design system.
+
+This gives the product both stable route-specific HTML addresses and one real shared application shell.
 
 ---
 
-## 3. Canonical route state
+## 3. Canonical surface routing
 
-The canonical top-level surface selector is:
+Canonical top-level surface state is:
 
 ```text
 route=student
@@ -108,7 +118,7 @@ route=admin
 route=exam
 ```
 
-Canonical application URLs are:
+Canonical URLs are:
 
 ```text
 index.html?route=student
@@ -124,14 +134,14 @@ Routing rules:
 
 - missing `route` in `index.html` defaults safely to Student;
 - unsupported `route` values normalize safely to Student;
-- `admin.html` always resolves to `route=admin`;
-- `student.html` always resolves to `route=student`;
-- `exam.html` always resolves to `route=exam`;
-- aliases preserve unrelated required query parameters when forwarding;
-- Admin preserves the nested `page=`, record, `tab=`, `modal=`, `attempt=`, `view=`, and `step=` query-state model;
-- Exam preserves the validated session/candidate query contract unless repository evidence requires a separately approved migration;
+- `admin.html` always forwards with `route=admin`;
+- `student.html` always forwards with `route=student`;
+- `exam.html` always forwards with `route=exam`;
+- aliases preserve all unrelated required query parameters;
+- Admin preserves nested `page`, record identifiers, `tab`, `modal`, `attempt`, `view`, and `step` state;
+- Exam preserves the validated session/candidate query contract unless a separately approved migration changes it;
 - meaningful navigation uses History API state so Back/Forward restores nested Admin pages and overlays predictably;
-- a centralized URL helper must generate canonical links rather than allowing each runtime to assemble incompatible URLs.
+- canonical link construction is centralized rather than independently reimplemented by each surface.
 
 Internally generated links should prefer canonical `index.html?route=...` URLs. The three surface HTML aliases remain supported for compatibility, bookmarks, and direct human navigation.
 
@@ -139,7 +149,7 @@ Internally generated links should prefer canonical `index.html?route=...` URLs. 
 
 ## 4. Route-aware runtime loading
 
-The target remains exactly four local runtime JavaScript files:
+The target contains exactly four local runtime JavaScript files:
 
 - `prototype/js/shared.js`;
 - `prototype/js/admin.js`;
@@ -152,10 +162,10 @@ No `router.js`, `app.js`, `bootstrap.js`, or fifth local runtime file is introdu
 
 1. parse and normalize `route`;
 2. load `shared.js` first;
-3. select only `student`, `admin`, or `exam` from an explicit allowlist;
-4. load the selected surface runtime;
-5. expose the normalized surface state without duplicating domain rules;
-6. update title/metadata when needed;
+3. select only `student`, `admin`, or `exam` through an explicit allowlist;
+4. load only the selected surface runtime;
+5. expose normalized surface state without duplicating domain rules;
+6. update document title/metadata when needed;
 7. provide the common application root and accessible loading/failure state.
 
 The route loader must never construct an arbitrary script URL directly from untrusted query text.
@@ -166,13 +176,13 @@ The alias HTML files do not load `admin.js`, `student.js`, or `exam.js` themselv
 
 ## 5. Tailwind-only authored styling contract
 
-Festacol-authored styling must be expressed through Tailwind CSS v4 utilities plus the Tailwind browser theme/configuration in `index.html`.
+Festacol-authored styling must be expressed through Tailwind CSS v4 utilities plus the Tailwind browser theme/configuration owned by `index.html`.
 
 ### 5.1 Zero repository CSS files
 
 The final `/prototype` tree must contain zero repository `.css` files.
 
-The current files below are migration/removal targets after their visible behavior has been mapped to Tailwind utilities:
+The current migration/removal targets are:
 
 ```text
 prototype/assets/academic-v3.css
@@ -211,14 +221,14 @@ The canonical shell keeps head setup equivalent to:
 </style>
 ```
 
-The font stylesheet is permitted only for font delivery.
+The Google Fonts stylesheet is permitted only for font delivery.
 
 The application must not recreate its design system in:
 
 - local `.css` files;
 - generated CSS assets;
 - page-specific stylesheets;
-- a second regular `<style>` block;
+- a second ordinary `<style>` block;
 - app-authored `style="..."` attributes used as a styling escape hatch;
 - CSSOM-injected application layout/component rules.
 
@@ -228,16 +238,16 @@ Use Tailwind utilities for:
 
 - layout and spacing;
 - typography and color;
-- borders/radius/rings;
-- depth/elevation/shadows;
+- borders, radius, rings;
+- depth, elevation, and shadows;
 - modal backdrop blur;
-- focus/hover/active/disabled states;
+- focus, hover, active, and disabled states;
 - responsive transformations;
 - transitions and reduced-motion behavior.
 
 Use complete utility class names. Arbitrary values are allowed where the approved UI system requires them.
 
-Flowbite remains the component/interaction reference. Flowbite JavaScript 4.0.1 may be used for interaction behavior, while the component markup carries its visual styling through Tailwind utilities. The target does not depend on a Flowbite CSS stylesheet.
+Flowbite remains the component/interaction reference. Flowbite JavaScript 4.0.1 may provide interaction behavior, while the component markup carries its visual styling through Tailwind utilities. The target does not depend on a Flowbite CSS stylesheet.
 
 ApexCharts may use chart-specific JavaScript visual options required by the library; surrounding application UI remains Tailwind-authored.
 
@@ -245,7 +255,7 @@ ApexCharts may use chart-specific JavaScript visual options required by the libr
 
 ## 6. Dependency inheritance
 
-`index.html` owns the dependency baseline that the routed surfaces inherit:
+`index.html` owns the dependency baseline inherited by all surfaces:
 
 - DM Sans 400/500/600/700;
 - Manrope 500/600/700/800;
@@ -276,7 +286,7 @@ Compatibility alias:
 student.html?<query>
 ```
 
-The alias preserves relevant query state, adds `route=student`, and forwards to `index.html`. `student.js` owns Student rendering and Exam ID UI after the canonical shell loads.
+The alias preserves relevant query state, forces `route=student`, and forwards to `index.html`. `student.js` owns Student rendering and Exam ID UI after the canonical shell loads.
 
 ### Admin
 
@@ -292,7 +302,7 @@ Compatibility alias:
 admin.html?page=overview
 ```
 
-The alias preserves Admin nested query state, adds `route=admin`, and forwards to `index.html`. `admin.js` owns the complete Admin rendering after the canonical shell loads.
+The alias preserves Admin nested query state, forces `route=admin`, and forwards to `index.html`. `admin.js` owns the complete Admin rendering after the canonical shell loads.
 
 ### Exam
 
@@ -308,7 +318,7 @@ Compatibility alias:
 exam.html?<session/candidate state>
 ```
 
-The alias preserves the full meaningful Exam query state, adds `route=exam`, and forwards to `index.html`. `exam.js` owns the candidate workspace after the canonical shell loads.
+The alias preserves the full meaningful Exam query state, forces `route=exam`, and forwards to `index.html`. `exam.js` owns the candidate workspace after the canonical shell loads.
 
 ---
 
@@ -342,7 +352,7 @@ No compatibility alias may silently lose a nested Admin query, Exam session iden
 After implementation, the Node/source audit must enforce all of the following:
 
 1. `prototype/index.html` exists and is the canonical application shell.
-2. `prototype/admin.html`, `prototype/student.html`, and `prototype/exam.html` also exist as supported thin aliases.
+2. `prototype/admin.html`, `prototype/student.html`, and `prototype/exam.html` also exist as required thin aliases.
 3. the aliases do not contain full duplicated application UIs.
 4. the aliases forward to the correct `index.html?route=...` surface while preserving required query state.
 5. the aliases do not load local application CSS or independent page-specific runtime stacks.
@@ -353,10 +363,10 @@ After implementation, the Node/source audit must enforce all of the following:
 10. `index.html` contains the required `style[type="text/tailwindcss"]` theme/configuration block.
 11. route selection is allowlisted to Student/Admin/Exam.
 12. unsupported route values cannot inject an arbitrary script path.
-13. internal generated links resolve to canonical index routes unless a compatibility alias is intentionally being exercised.
+13. internally generated links resolve to canonical index routes unless a compatibility alias is intentionally being exercised.
 14. nested Admin history and Exam query-state preservation remain intact.
 
-The audit must **not** fail merely because `admin.html`, `student.html`, or `exam.html` exists; their continued presence is now required.
+The audit must **not** fail merely because `admin.html`, `student.html`, or `exam.html` exists; their continued presence is required.
 
 ---
 
@@ -385,10 +395,10 @@ For each alias verify:
 - it forwards to `index.html`;
 - it selects the correct surface;
 - required query state survives;
+- no redirect loop occurs;
 - no duplicate shell flashes or initializes;
-- no missing CSS request occurs;
 - no local `.css` request occurs;
-- the resulting UI uses the same head/theme/dependency contract as the canonical route.
+- the resulting UI uses the shared index head/theme/dependency contract.
 
 Minimum viewports remain:
 
@@ -404,21 +414,21 @@ All prior UX, accessibility, modal, Stepper, nested navigation, responsive, and 
 
 The correction is satisfied only when the eventual implementation and source contracts enforce all of the following:
 
-1. `index.html` is the canonical application entry point and base shell.
+1. `index.html` is the canonical application entry point and real base shell.
 2. `admin.html`, `student.html`, and `exam.html` remain supported route aliases.
-3. those aliases inherit the index shell by forwarding into the appropriate canonical route rather than duplicating the shell.
+3. those aliases inherit from index by forwarding into the appropriate canonical route rather than duplicating the shell.
 4. `route=student`, `route=admin`, and `route=exam` are canonical surface selectors.
-5. alias forwarding preserves meaningful query state.
+5. alias forwarding preserves meaningful query state and cannot loop.
 6. exactly four local runtime JavaScript files remain.
 7. no fifth router/bootstrap local JavaScript file is added.
 8. the final `/prototype` tree contains zero `.css` files.
 9. Festacol-authored styling is Tailwind utility driven.
 10. the shared Tailwind theme/configuration remains in the `index.html` head.
-11. no second CSS component system is recreated through regular style blocks, inline style attributes, or CSSOM injection.
+11. no second CSS component system is recreated through ordinary style blocks, inline style attributes, or CSSOM injection.
 12. Admin nested navigation remains compatible with the approved deep-navigation contract.
 13. Exam preserves the validated session/candidate query contract.
 14. canonical and alias routes are both covered by source contracts and Dogfood.
-15. all earlier requirements to delete the three surface HTML files are treated as superseded.
+15. the older requirements to delete the three surface HTML files are invalid and must not be followed.
 16. the existing UI/UX governance, Flowbite component semantics, accessibility, responsive behavior, and validation gates remain binding.
 
 **Status after this correction:** `PLANNED` only. Production implementation remains blocked until product-owner approval.
