@@ -14,13 +14,22 @@
       --font-sans: "DM Sans", sans-serif;
       --font-display: "Manrope", sans-serif;
     }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
   </style>
 </head>
 <body class="min-h-dvh bg-neutral-50 font-sans text-neutral-950 antialiased">
-  <a href="#app" class="fixed left-4 top-4 z-[100] -translate-y-24 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white transition focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-neutral-300 motion-reduce:transition-none">Skip to application</a>
+  <a href="#app" class="fixed left-4 top-4 z-[200] -translate-y-24 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white transition focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-neutral-300 motion-reduce:transition-none">Skip to application</a>
   <div id="app" tabindex="-1" class="min-h-dvh outline-none">
     <main class="grid min-h-dvh place-items-center p-6">
-      <div class="rounded-2xl border border-neutral-200 bg-white p-7 text-center shadow-sm">
+      <div class="rounded-2xl border border-neutral-200 bg-white p-7 text-center shadow-sm" role="status" aria-live="polite">
         <span class="mx-auto grid size-11 place-items-center rounded-xl bg-neutral-950 text-sm font-black text-white">F</span>
         <h1 class="mt-5 font-display text-2xl font-extrabold">Opening Festacol…</h1>
       </div>
@@ -36,6 +45,10 @@
       const requested = current.searchParams.get('route') || 'student';
       const knownRoutes = new Set(['student', 'admin', 'exam']);
       const route = knownRoutes.has(requested) ? requested : 'student';
+      const runtimeByRoute = Object.freeze({
+        student: './js/student.js',
+        exam: './js/exam.js'
+      });
 
       if (!window.Festacol) {
         app.innerHTML = '<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">Festacol could not start.</h1><p class="mt-2 text-sm">The shared application runtime is unavailable.</p></div></main>';
@@ -47,8 +60,8 @@
         history.replaceState({}, '', current.href);
       }
 
-      if (route === 'admin' || route === 'exam') {
-        const target = new URL(route === 'admin' ? './admin.html' : './exam.html', location.href);
+      if (route === 'admin') {
+        const target = new URL('./admin.html', location.href);
         const forwarded = new URLSearchParams(location.search);
         forwarded.delete('route');
         target.search = forwarded.toString();
@@ -56,12 +69,16 @@
         return;
       }
 
-      document.title = 'Festacol · Student Dashboard';
-      document.querySelector('meta[name="description"]')?.setAttribute('content', 'Festacol student academic intelligence dashboard');
+      const metadata = route === 'exam'
+        ? ['Festacol · Examination', 'Festacol secure student computer-based examination workspace']
+        : ['Festacol · Student Dashboard', 'Festacol student academic intelligence dashboard'];
+      document.title = metadata[0];
+      document.querySelector('meta[name="description"]')?.setAttribute('content', metadata[1]);
+
       const script = document.createElement('script');
-      script.src = './js/student.js';
+      script.src = runtimeByRoute[route];
       script.addEventListener('error', () => {
-        app.innerHTML = '<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">Student workspace unavailable.</h1><p class="mt-2 text-sm">The Student runtime could not be loaded.</p></div></main>';
+        app.innerHTML = `<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">${route === 'exam' ? 'Examination' : 'Student workspace'} unavailable.</h1><p class="mt-2 text-sm">The selected Festacol runtime could not be loaded.</p></div></main>`;
       });
       document.body.append(script);
     })();

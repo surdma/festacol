@@ -1,0 +1,831 @@
+(() => {
+  'use strict';
+
+  const { store, questions, assessment, proctor, utils } = window.Festacol || {};
+  const root = document.getElementById('app');
+  if (!store || !questions || !assessment || !proctor || !utils || !root) {
+    throw new Error('Festacol examination dependencies are unavailable.');
+  }
+
+  const C = Object.freeze({
+    primary: 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus:outline-none focus:ring-4 focus:ring-neutral-300 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none',
+    secondary: 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-50 focus:outline-none focus:ring-4 focus:ring-neutral-200 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none',
+    quiet: 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-950 focus:outline-none focus:ring-4 focus:ring-neutral-200 motion-reduce:transition-none',
+    field: 'block min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-base text-neutral-950 shadow-sm outline-none transition focus:border-neutral-950 focus:ring-4 focus:ring-neutral-200 motion-reduce:transition-none',
+    card: 'rounded-2xl border border-neutral-200 bg-white shadow-sm'
+  });
+
+  const params = new URL(location.href).searchParams;
+  const token = params.get('session');
+  let session = null;
+  let data = null;
+  let paper = [];
+  let profile = null;
+  let candidateHash = '';
+  let state = null;
+  let timer = null;
+  let lastTick = Date.now();
+  let cameraRequired = false;
+  let cameraStream = null;
+  let cameraReady = false;
+  let cameraRequest = null;
+  let timeoutSubmitting = false;
+  let lastIntegrityEvent = { type: '', at: 0 };
+
+  const esc = (value) => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
+  const portalHref = (page = 'home') => utils.routeUrl('student', { page }, location.href);
+  const afterRender = () => queueMicrotask(() => window.initFlowbite?.());
+  const formatDuration = (seconds) => utils.durationLabel(seconds);
+  const formatTime = (seconds) => {
+    const value = Math.max(0, Math.ceil(Number(seconds) || 0));
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor((value % 3600) / 60);
+    const remaining = value % 60;
+    return hours
+      ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`
+      : `${minutes}:${String(remaining).padStart(2, '0')}`;
+  };
+
+  const pageBrand = (compact = false) => `
+    <a href="${portalHref()}" class="inline-flex min-w-0 items-center gap-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-neutral-200">
+      <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 font-display text-sm font-extrabold text-white">F</span>
+      ${compact ? '' : '<span class="min-w-0"><strong class="block truncate text-sm font-semibold text-neutral-950">Festacol</strong><span class="block truncate text-xs text-neutral-500">Student examination</span></span>'}
+    </a>`;
+
+  const alertMarkup = (tone, title, detail, id = '') => {
+    const tones = {
+      danger: 'border-red-200 bg-red-50 text-red-900',
+      warning: 'border-amber-200 bg-amber-50 text-amber-900',
+      success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+      info: 'border-neutral-200 bg-neutral-50 text-neutral-800'
+    };
+    const role = tone === 'danger' || tone === 'warning' ? 'alert' : 'status';
+    return `<div ${id ? `id="${id}"` : ''} class="rounded-xl border p-4 text-sm ${tones[tone] || tones.info}" role="${role}"><strong class="font-semibold">${esc(title)}</strong><p class="mt-1 leading-6">${esc(detail)}</p></div>`;
+  };
+
+  const resolveCurrentSession = () => {
+    if (!session) return null;
+    session = store.resolveSession(session) || session;
+    return session;
+  };
+
+  const effectiveStatus = () => {
+    const current = resolveCurrentSession();
+    if (!current) return 'missing';
+    if (current.status !== 'open') return current.status;
+    if (current.startsAt && Date.now() < Number(current.startsAt)) return 'scheduled';
+    if (current.endsAt && Date.now() >= Number(current.endsAt)) return 'closed';
+    return 'open';
+  };
+
+  const stopTimer = () => {
+    if (timer) clearInterval(timer);
+    timer = null;
+  };
+
+  const stopCamera = () => {
+    cameraStream?.getTracks?.().forEach((track) => track.stop());
+    cameraStream = null;
+    cameraReady = false;
+    document.querySelector('[data-camera-preview]')?.remove();
+  };
+
+  const fatal = (eyebrow, title, detail, action = '') => {
+    stopTimer();
+    stopCamera();
+    root.innerHTML = `<main class="min-h-dvh bg-neutral-100 p-4 sm:p-7"><div class="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-5xl overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-xl sm:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[.78fr_1.22fr]"><section class="flex flex-col justify-between border-b border-neutral-800 bg-neutral-950 p-7 text-white sm:p-9 lg:border-b-0 lg:border-r"><div>${pageBrand(true)}</div><div class="mt-16"><p class="text-xs font-semibold uppercase tracking-[.16em] text-neutral-500">${esc(eyebrow)}</p><p class="mt-3 max-w-sm text-base leading-7 text-neutral-400">Secure computer-based examination workspace.</p></div></section><section class="flex items-center p-7 sm:p-10"><div class="w-full max-w-xl"><h1 class="font-display text-3xl font-extrabold tracking-tight text-neutral-950">${esc(title)}</h1><p class="mt-4 text-base leading-7 text-neutral-600">${esc(detail)}</p>${action ? `<div class="mt-7">${action}</div>` : ''}</div></section></div></main>`;
+    afterRender();
+  };
+
+  const markerKey = (hash = candidateHash || store.getActiveCandidate(session?.id)) => `festacol.exam.background-guard.v2:${session?.id || 'unknown'}:${hash || 'anonymous'}`;
+  const readMarker = (hash = candidateHash) => {
+    try { return JSON.parse(localStorage.getItem(markerKey(hash)) || 'null'); } catch { return null; }
+  };
+  const writeMarker = (value, hash = candidateHash) => {
+    if (!hash || !session?.id) return;
+    localStorage.setItem(markerKey(hash), JSON.stringify(value));
+  };
+  const clearMarker = (hash = candidateHash) => {
+    if (hash && session?.id) localStorage.removeItem(markerKey(hash));
+  };
+
+  const seriousIntegrityCount = () => (state?.integrityEvents || []).filter((event) => ![
+    'focus-return', 'fullscreen-enter', 'camera-restored', 'background-resume-reconciled'
+  ].includes(event.type)).length;
+
+  const updateChrome = () => {
+    const timerText = document.getElementById('exam-timer');
+    const timerBox = document.getElementById('exam-timer-box');
+    const integrity = root.querySelector('[data-integrity-count]');
+    const camera = root.querySelector('[data-camera-status]');
+    if (timerText) timerText.textContent = formatTime(state?.remainingSeconds);
+    if (timerBox) {
+      const remaining = Number(state?.remainingSeconds) || 0;
+      timerBox.className = remaining <= 60
+        ? 'rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-right text-red-900 motion-safe:animate-pulse'
+        : remaining <= 300
+          ? 'rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-right text-amber-900'
+          : 'rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-right text-neutral-950';
+    }
+    if (integrity) integrity.textContent = String(seriousIntegrityCount());
+    if (camera) camera.textContent = cameraReady ? 'Camera on' : 'Camera required';
+  };
+
+  const showToast = (tone, title, detail, duration = 6500) => {
+    document.querySelector('[data-exam-toast]')?.remove();
+    const toast = document.createElement('div');
+    toast.dataset.examToast = 'true';
+    toast.className = 'fixed left-1/2 top-4 z-[120] w-[min(92vw,38rem)] -translate-x-1/2 rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xl';
+    toast.innerHTML = `${alertMarkup(tone, title, detail).replace('rounded-xl border', 'border-0')}<button type="button" class="absolute right-2 top-2 grid size-11 place-items-center rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-100 focus:outline-none focus:ring-4 focus:ring-neutral-200" aria-label="Dismiss notification" data-toast-close>Close</button>`;
+    document.body.append(toast);
+    toast.querySelector('[data-toast-close]')?.addEventListener('click', () => toast.remove());
+    setTimeout(() => toast.remove(), duration);
+  };
+
+  const persist = () => {
+    if (!state || state.submittedAt) return false;
+    if (store.isAttemptInvalidated(session.id, candidateHash, state.startedAt)) {
+      showReset();
+      return false;
+    }
+    state.lastActiveAt = Date.now();
+    return store.saveStudentState(session.id, candidateHash, state);
+  };
+
+  const recordIntegrity = (type, detail = '', { notify = true } = {}) => {
+    if (!state?.startedAt || state.submittedAt) return;
+    const now = Date.now();
+    if (lastIntegrityEvent.type === type && now - lastIntegrityEvent.at < 750) return;
+    lastIntegrityEvent = { type, at: now };
+    state.integrityEvents ||= [];
+    state.integrityEvents.push({ type, detail, at: now });
+    state.integrityEvents = state.integrityEvents.slice(-100);
+    persist();
+    updateChrome();
+    const threshold = Math.max(1, Number(session?.integrityPolicy?.warnAfter) || 2);
+    const count = seriousIntegrityCount();
+    if (notify && count >= threshold && ['tab-hidden', 'window-blur', 'fullscreen-exit', 'clipboard-copy', 'clipboard-cut', 'clipboard-paste', 'camera-ended'].includes(type)) {
+      showToast('warning', 'Integrity warning recorded', `This examination has recorded ${count} integrity event${count === 1 ? '' : 's'}. Stay on the exam screen and follow the school rules.`);
+    }
+  };
+
+  const reconcilePersistedBackground = () => {
+    if (!candidateHash || !session?.id) return { reconciled: false, elapsedSeconds: 0 };
+    const marker = readMarker(candidateHash);
+    const saved = store.getStudentState(session.id, candidateHash);
+    if (!marker?.hiddenAt || !saved?.startedAt || saved.submittedAt || Number(marker.startedAt) !== Number(saved.startedAt)) {
+      clearMarker(candidateHash);
+      return { reconciled: false, elapsedSeconds: 0 };
+    }
+    const elapsedSeconds = Math.max(0, (Date.now() - Number(marker.hiddenAt)) / 1000);
+    if (elapsedSeconds < 0.5) {
+      clearMarker(candidateHash);
+      return { reconciled: false, elapsedSeconds: 0 };
+    }
+    saved.remainingSeconds = Math.max(0, (Number(saved.remainingSeconds) || 0) - elapsedSeconds);
+    saved.elapsedActiveSeconds = (Number(saved.elapsedActiveSeconds) || 0) + elapsedSeconds;
+    saved.integrityEvents = Array.isArray(saved.integrityEvents) ? saved.integrityEvents : [];
+    saved.integrityEvents.push({ type: 'background-resume-reconciled', detail: `${Math.round(elapsedSeconds)}s counted while away`, at: Date.now() });
+    saved.integrityEvents = saved.integrityEvents.slice(-100);
+    store.saveStudentState(session.id, candidateHash, saved);
+    state = saved;
+    clearMarker(candidateHash);
+    return { reconciled: true, elapsedSeconds };
+  };
+
+  const ensureCameraPreview = () => {
+    if (!cameraReady || !cameraStream || document.querySelector('[data-camera-preview]')) return;
+    const panel = document.createElement('aside');
+    panel.dataset.cameraPreview = 'true';
+    panel.className = 'fixed bottom-24 right-3 z-[70] w-40 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:bottom-5 sm:right-5 sm:w-56';
+    panel.innerHTML = '<div class="relative aspect-video bg-black"><video data-camera-video class="h-full w-full object-cover" autoplay muted playsinline aria-label="Candidate camera preview"></video><span class="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-900">Live camera</span></div><div class="hidden p-3 sm:block"><p class="text-xs font-semibold text-neutral-950">Local camera preview</p><p class="mt-1 text-[11px] leading-4 text-neutral-500">Not recorded, uploaded or analysed by this prototype.</p></div>';
+    document.body.append(panel);
+    const video = panel.querySelector('[data-camera-video]');
+    video.srcObject = cameraStream;
+    video.play().catch(() => {});
+  };
+
+  const cameraGate = (message, activeExam = Boolean(state?.startedAt && !state?.submittedAt)) => {
+    let overlay = document.querySelector('[data-camera-gate]');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.dataset.cameraGate = 'true';
+      overlay.className = 'fixed inset-0 z-[130] grid place-items-center bg-black/60 p-4 backdrop-blur-sm';
+      document.body.append(overlay);
+    }
+    overlay.innerHTML = `<section class="w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="camera-gate-title" aria-describedby="camera-gate-description" tabindex="-1"><div class="border-b border-neutral-200 bg-neutral-50 p-5"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Camera required</p><h2 id="camera-gate-title" class="mt-1 font-display text-2xl font-extrabold text-neutral-950">${activeExam ? 'Restore camera access to continue.' : 'Enable your camera before starting.'}</h2></div><div class="space-y-4 p-5"><p id="camera-gate-description" class="text-base leading-7 text-neutral-600">${esc(message)}</p>${alertMarkup('info', 'Privacy in this prototype', 'The video is shown only as a live local preview. It is not recorded, uploaded, stored or automatically analysed.')}</div><div class="border-t border-neutral-200 p-5"><button class="${C.primary} w-full" data-camera-retry>Enable camera</button></div></section>`;
+    const dialog = overlay.querySelector('[role="dialog"]');
+    queueMicrotask(() => dialog?.focus({ preventScroll: true }));
+    overlay.querySelector('[data-camera-retry]')?.addEventListener('click', () => requestCamera().catch(() => {}), { once: true });
+  };
+
+  const requestCamera = async () => {
+    if (!cameraRequired || cameraReady) return true;
+    if (cameraRequest) return cameraRequest;
+    cameraRequest = (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        cameraGate('This browser does not provide camera access. Use a supported browser or ask the administrator for a non-camera session.');
+        return false;
+      }
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        cameraReady = true;
+        for (const track of cameraStream.getVideoTracks()) {
+          track.addEventListener('ended', () => {
+            if (!state?.submittedAt) {
+              cameraReady = false;
+              recordIntegrity('camera-ended', 'Camera stream ended during the examination.');
+              document.querySelector('[data-camera-preview]')?.remove();
+              cameraGate('The camera stream stopped. Restore camera access to continue the monitored examination.', true);
+            }
+          }, { once: true });
+        }
+        document.querySelector('[data-camera-gate]')?.remove();
+        ensureCameraPreview();
+        if (state?.startedAt && !state.submittedAt) recordIntegrity('camera-restored', 'Camera access active.', { notify: false });
+        updateChrome();
+        return true;
+      } catch (error) {
+        cameraReady = false;
+        const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+        cameraGate(denied
+          ? 'Camera permission was denied. This examination cannot start or continue until permission is granted.'
+          : 'The camera could not be opened. Check that another app is not using it, then try again.');
+        return false;
+      } finally {
+        cameraRequest = null;
+      }
+    })();
+    return cameraRequest;
+  };
+
+  const hydrateExistingAuth = async () => {
+    profile = store.getStudentProfile();
+    if (!profile?.studentHash || store.getStudentAuth() !== profile.studentHash) return false;
+    const active = store.getActiveCandidate(session.id);
+    const resetAt = store.getAttemptResetAt(session.id, active);
+    if (resetAt && resetAt > Number(profile.updatedAt || 0)) {
+      store.clearStudentAuth();
+      store.clearActiveCandidate(session.id);
+      return false;
+    }
+    candidateHash = active;
+    if (!candidateHash && profile.firstName && profile.lastName) {
+      candidateHash = await assessment.candidateHash(session.id, profile.firstName, profile.lastName);
+      store.setActiveCandidate(session.id, candidateHash);
+    }
+    return Boolean(candidateHash);
+  };
+
+  const authenticate = async (firstName, lastName) => {
+    const credentials = assessment.candidateCredentials(firstName, lastName);
+    const studentHash = await assessment.studentHash(credentials.firstName, credentials.lastName);
+    candidateHash = await assessment.candidateHash(session.id, credentials.firstName, credentials.lastName);
+    const existing = store.getStudentState(session.id, candidateHash);
+    profile = store.saveStudentProfile({
+      ...credentials,
+      studentHash,
+      candidateHash,
+      currentClassId: existing?.classGroup || session.classGroup,
+      academicSession: session.academicSession
+    });
+    store.setStudentAuth(studentHash);
+    store.setActiveCandidate(session.id, candidateHash);
+    return profile;
+  };
+
+  const authView = (message = '') => {
+    root.innerHTML = `<main class="min-h-dvh bg-neutral-100 p-4 sm:p-7"><div class="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-xl sm:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(420px,.82fr)]"><section class="flex flex-col justify-between bg-neutral-950 p-7 text-white sm:p-10"><div class="flex items-center gap-3"><span class="grid size-10 place-items-center rounded-xl bg-white text-sm font-black text-black">F</span><div><strong class="block font-display text-sm font-extrabold">Festacol</strong><span class="text-xs text-neutral-400">Student examination</span></div></div><div class="py-14"><span class="inline-flex rounded-full border border-neutral-700 px-3 py-1 text-xs font-semibold text-neutral-300">Direct examination access</span><h1 class="mt-5 max-w-xl font-display text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">${esc(session.title)}</h1><p class="mt-5 max-w-lg text-base leading-7 text-neutral-400">Authenticate with the candidate credentials assigned by the school. Your exact paper, timer and attempt state are tied to this examination link.</p></div><span class="text-xs text-neutral-500">${esc(session.classLevel)} · ${esc(store.getModeLabel(session.mode))}</span></section><section class="flex items-center p-7 sm:p-10"><form id="student-login-form" class="mx-auto w-full max-w-lg space-y-5" novalidate><div><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Candidate sign in</p><h2 class="mt-2 font-display text-2xl font-extrabold tracking-tight text-neutral-950">Enter your assigned details.</h2></div>${message ? alertMarkup('danger', 'Sign-in unsuccessful', message, 'login-error') : ''}<div><label for="student-first-name" class="mb-2 block text-sm font-semibold text-neutral-900">First name <span class="font-normal text-neutral-500">· username</span></label><input id="student-first-name" name="firstName" class="${C.field}" autocomplete="given-name" required></div><div><label for="student-last-name" class="mb-2 block text-sm font-semibold text-neutral-900">Last name <span class="font-normal text-neutral-500">· password</span></label><input id="student-last-name" name="lastName" type="password" class="${C.field}" autocomplete="current-password" required></div><button type="submit" class="${C.primary} w-full">Continue to examination</button><p class="text-center text-xs leading-5 text-neutral-500">Use only the identity assigned to you. One submitted attempt is final.</p></form></section></div></main>`;
+    const form = root.querySelector('#student-login-form');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      try {
+        const formData = new FormData(form);
+        await authenticate(formData.get('firstName'), formData.get('lastName'));
+        await enterAuthenticatedFlow();
+      } catch (error) {
+        authView(error?.message || 'Unable to sign in with those credentials.');
+      }
+    });
+    afterRender();
+  };
+
+  const briefingView = () => {
+    const subjects = (session.subjects || []).map((code) => questions.subjectByCode(data, code)?.label || code).join(', ') || store.getModeLabel(session.mode);
+    root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<span class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">Attempt 1 of 1</span></div></header><div class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]"><div class="p-6 sm:p-8 lg:p-10"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Before you begin</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950 sm:text-4xl">${esc(session.title)}</h1><p class="mt-4 max-w-2xl text-base leading-7 text-neutral-600">Read the information below carefully. Your timer starts only after you select Start examination.</p><div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Duration</span><strong class="mt-1 block text-sm text-neutral-950">${esc(formatDuration(session.durationSeconds))}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Questions</span><strong class="mt-1 block text-sm text-neutral-950">${paper.length}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Coverage</span><strong class="mt-1 block truncate text-sm text-neutral-950" title="${esc(subjects)}">${esc(subjects)}</strong></div></div><div class="mt-7 space-y-4">${session.instructions ? alertMarkup('info', 'School instruction', session.instructions) : ''}${cameraRequired ? alertMarkup('warning', 'Camera required', 'Camera permission must remain active during this session. The local preview is not recorded by this prototype.') : ''}<div class="rounded-xl border border-neutral-200 p-5"><h2 class="text-sm font-semibold text-neutral-950">Examination rules</h2><ul class="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-600"><li>Stay on the examination screen. Leaving the tab or exiting required fullscreen is recorded.</li><li>Clipboard actions can be blocked and recorded when the school enables that policy.</li><li>Your remaining time continues to be accounted for while the exam is backgrounded or reloaded.</li><li>Use Flag for review and the navigator before final submission. Submission cannot be undone.</li></ul></div></div><button type="button" class="${C.primary} mt-7 w-full sm:w-auto" data-start>Start examination</button></div><aside class="border-t border-neutral-200 bg-neutral-950 p-6 text-white lg:border-l lg:border-t-0 lg:p-7"><div class="sticky top-6"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Integrity-aware session</p><h2 class="mt-3 font-display text-lg font-bold">Keep the examination foregrounded.</h2><p class="mt-2 text-sm leading-6 text-neutral-400">Focus changes, fullscreen exits and blocked clipboard actions can be recorded with the attempt so the school can review context.</p><div class="mt-6 rounded-xl border border-neutral-800 p-4 text-xs leading-5 text-neutral-400"><strong class="text-neutral-200">Important</strong><br>This browser prototype is not a tamper-proof production invigilation system.</div></div></aside></div></section></div></main>`;
+    root.querySelector('[data-start]')?.addEventListener('click', startExam);
+    afterRender();
+  };
+
+  const fillKeys = (question) => {
+    let index = 0;
+    return (Array.isArray(question.fillTemplate) ? question.fillTemplate : [])
+      .filter((part) => part?.blank)
+      .map((part) => String(part.blank === true ? `b${index++}` : part.blank));
+  };
+
+  const responseStatus = (question) => {
+    const response = state?.responses?.[String(question.id)];
+    if (question.type === 'multi') {
+      const count = Array.isArray(response) ? response.length : 0;
+      if (!count) return 'unanswered';
+      return question.requiredSelections && count !== Number(question.requiredSelections) ? 'incomplete' : 'answered';
+    }
+    if (question.type === 'fill' || question.type === 'fill-multi') {
+      const keys = fillKeys(question);
+      const values = response && typeof response === 'object' ? response : {};
+      const filled = keys.filter((key) => String(values[key] ?? '').trim()).length;
+      if (!filled) return 'unanswered';
+      return filled < keys.length ? 'incomplete' : 'answered';
+    }
+    if (question.type === 'boolean') return response === true || response === false ? 'answered' : 'unanswered';
+    return response !== undefined && response !== null && String(response).trim() ? 'answered' : 'unanswered';
+  };
+
+  const counts = () => paper.reduce((acc, question) => {
+    acc[responseStatus(question)] += 1;
+    return acc;
+  }, { answered: 0, incomplete: 0, unanswered: 0 });
+
+  const statusMeta = (status) => status === 'answered'
+    ? ['Answered', 'bg-emerald-100 text-emerald-800']
+    : status === 'incomplete'
+      ? ['Incomplete', 'bg-amber-100 text-amber-800']
+      : ['Unanswered', 'bg-neutral-100 text-neutral-600'];
+
+  const navigatorButton = (question, index, review = false) => {
+    const status = responseStatus(question);
+    const current = Number(state?.currentIndex || 0) === index;
+    const flagged = state?.flagged?.includes(question.id);
+    const stateClass = current
+      ? 'border-neutral-950 bg-neutral-950 text-white'
+      : status === 'answered'
+        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+        : status === 'incomplete'
+          ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+          : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100';
+    return `<button type="button" class="relative grid min-h-11 min-w-11 place-items-center rounded-xl border text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-neutral-200 motion-reduce:transition-none ${stateClass}" ${review ? `data-go-review="${index}"` : `data-go="${index}"`} aria-label="Question ${index + 1}, ${status}${flagged ? ', flagged' : ''}" ${current ? 'aria-current="step"' : ''}>${index + 1}${flagged ? '<span class="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>' : ''}</button>`;
+  };
+
+  const progressMarkup = () => {
+    const index = Number(state?.currentIndex || 0);
+    const value = paper.length ? Math.round(((index + 1) / paper.length) * 100) : 0;
+    return `<div class="mb-4"><div class="mb-2 flex items-center justify-between text-xs font-medium text-neutral-500"><span>Question ${index + 1} of ${paper.length}</span><span>${value}% through paper</span></div><progress class="block h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 accent-black" value="${index + 1}" max="${paper.length}" aria-label="Examination progress">${value}%</progress></div>`;
+  };
+
+  const renderTriangle = () => `<figure class="mb-6 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 p-4"><svg class="mx-auto h-52 w-full max-w-md" viewBox="0 0 400 220" role="img" aria-label="Triangle diagram with angles A 50 degrees and B 65 degrees"><path d="M65 185 205 35 340 185Z" fill="white" stroke="black" stroke-width="3"/><text x="52" y="204" font-size="16">A = 50°</text><text x="301" y="204" font-size="16">B = 65°</text><text x="192" y="28" font-size="16">C</text></svg><figcaption class="mt-2 text-center text-xs text-neutral-500">Diagram not drawn to scale.</figcaption></figure>`;
+
+  const renderTable = (table) => {
+    const headers = Array.isArray(table?.headers) ? table.headers : [];
+    const rows = Array.isArray(table?.rows) ? table.rows : [];
+    if (!headers.length && !rows.length) return '';
+    return `<div class="mb-6 overflow-x-auto rounded-xl border border-neutral-200"><table class="w-full min-w-[30rem] text-left text-sm text-neutral-700"><thead class="bg-neutral-100 text-xs uppercase tracking-wide text-neutral-600"><tr>${headers.map((cell) => `<th scope="col" class="px-4 py-3 font-semibold">${esc(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr class="border-t border-neutral-200 bg-white">${(Array.isArray(row) ? row : []).map((cell) => `<td class="px-4 py-3">${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  };
+
+  const option = (question, value, label, index, checked, type = 'radio') => {
+    const inputId = `q-${question.id}-${index}`;
+    const marker = label || String.fromCharCode(65 + index);
+    const markerShape = type === 'checkbox' ? 'rounded-md' : 'rounded-full';
+    const selected = checked ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50';
+    const markerSelected = checked ? 'border-white/40 bg-white text-black' : 'border-neutral-300 bg-neutral-50 text-neutral-700';
+    return `<label for="${inputId}" data-answer-option class="group relative block cursor-pointer"><input id="${inputId}" class="peer sr-only" type="${type}" name="q-${question.id}" value="${esc(value)}" ${checked ? 'checked' : ''}><span class="flex min-h-16 items-start gap-3 rounded-xl border p-4 text-base font-medium transition peer-focus-visible:ring-4 peer-focus-visible:ring-neutral-200 motion-reduce:transition-none ${selected}"><span class="grid size-8 shrink-0 place-items-center ${markerShape} border text-xs font-bold ${markerSelected}">${esc(marker)}</span><span class="min-w-0 flex-1 pt-1 leading-6">${esc(value)}</span></span></label>`;
+  };
+
+  const renderControl = (question) => {
+    const response = state.responses?.[String(question.id)];
+    if (question.type === 'single') {
+      return `<fieldset class="grid gap-3"><legend class="sr-only">Choose one answer</legend>${(question.options || []).map((value, index) => option(question, value, '', index, response === value)).join('')}</fieldset>`;
+    }
+    if (question.type === 'multi') {
+      return `<fieldset class="grid gap-3"><legend class="sr-only">Choose the required answers</legend>${question.requiredSelections ? `<div class="flex items-center justify-between gap-3"><p class="text-sm font-semibold text-neutral-700">Select exactly ${question.requiredSelections} answer${Number(question.requiredSelections) === 1 ? '' : 's'}.</p><span class="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600">${Array.isArray(response) ? response.length : 0}/${question.requiredSelections}</span></div>` : ''}<div id="selection-limit" class="hidden">${alertMarkup('warning', 'Selection limit reached', `Choose no more than ${question.requiredSelections} answers.`)}</div>${(question.options || []).map((value, index) => option(question, value, '', index, Array.isArray(response) && response.includes(value), 'checkbox')).join('')}</fieldset>`;
+    }
+    if (question.type === 'boolean') {
+      return `<fieldset class="grid gap-3 sm:grid-cols-2"><legend class="sr-only">Choose true or false</legend>${[[true, 'True'], [false, 'False']].map(([value, label], index) => option(question, String(value), label, index, response === value)).join('')}</fieldset>`;
+    }
+    if (question.type === 'fill' || question.type === 'fill-multi') {
+      const values = response && typeof response === 'object' ? response : {};
+      let index = 0;
+      const parts = Array.isArray(question.fillTemplate) ? question.fillTemplate : [{ text: question.prompt }, { blank: true }];
+      return `<div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4 sm:p-5"><div class="flex flex-col gap-3 text-base leading-8 text-neutral-950 sm:flex-row sm:flex-wrap sm:items-baseline">${parts.map((part) => {
+        if (!part?.blank) return `<span>${esc(part?.text || '')}</span>`;
+        const key = String(part.blank === true ? `b${index}` : part.blank);
+        index += 1;
+        return `<span class="block w-full sm:w-auto sm:min-w-64"><label class="sr-only" for="fill-${question.id}-${esc(key)}">Answer blank ${index}</label><input id="fill-${question.id}-${esc(key)}" class="${C.field}" data-fill-key="${esc(key)}" value="${esc(values[key] || '')}" autocomplete="off" spellcheck="false" placeholder="${esc(part.placeholder || 'Type your answer')}"></span>`;
+      }).join('')}</div></div>`;
+    }
+    return alertMarkup('danger', 'Unsupported question', 'This response type cannot be displayed. Ask the administrator to review the question configuration.');
+  };
+
+  const cameraPill = () => cameraRequired ? `<span class="inline-flex min-h-9 items-center rounded-xl border ${cameraReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'} px-2.5 text-xs font-semibold"><span data-camera-status>${cameraReady ? 'Camera on' : 'Camera required'}</span></span>` : '';
+
+  const examView = () => {
+    const index = Number(state.currentIndex || 0);
+    const question = paper[index];
+    if (!question) {
+      fatal('Paper error', 'This question could not be loaded.', 'The saved examination state points to a question that is no longer available. Ask the administrator for assistance.');
+      return;
+    }
+    const summary = counts();
+    const meta = statusMeta(responseStatus(question));
+    const flagged = state.flagged?.includes(question.id);
+    root.innerHTML = `<div class="min-h-dvh bg-neutral-100 pb-24 text-neutral-950 md:pb-8"><header class="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur"><div class="mx-auto flex max-w-7xl items-center gap-3 px-3 py-3 sm:px-5 lg:px-7"><div class="min-w-0 flex-1">${pageBrand(true)}<div class="ml-3 inline-block max-w-[calc(100%-4rem)] align-middle"><strong class="block truncate text-sm font-semibold text-neutral-950">${esc(session.title)}</strong><span class="block truncate text-xs text-neutral-500">${esc(profile.fullName)} · ${esc(session.classLevel)}</span></div></div><div class="hidden items-center gap-2 xl:flex"><span class="rounded-xl bg-neutral-100 px-3 py-2 text-xs font-medium text-neutral-600">Q <strong class="text-neutral-950">${index + 1}/${paper.length}</strong></span><span class="rounded-xl bg-neutral-100 px-3 py-2 text-xs font-medium text-neutral-600">Answered <strong class="text-neutral-950">${summary.answered}</strong></span><span class="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-neutral-700">Integrity <strong data-integrity-count>${seriousIntegrityCount()}</strong></span></div>${cameraPill()}<div id="exam-timer-box" class="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-right text-neutral-950"><span class="hidden text-[10px] font-medium uppercase tracking-wide text-neutral-500 sm:block">Time left</span><strong id="exam-timer" class="font-display text-base font-extrabold tabular-nums sm:text-lg">${formatTime(state.remainingSeconds)}</strong></div></div></header><main class="mx-auto grid max-w-7xl gap-5 px-3 py-4 sm:px-5 sm:py-5 lg:px-7 xl:grid-cols-[minmax(0,1fr)_19rem]"><section class="min-w-0">${progressMarkup()}<article data-exam-workspace class="overflow-hidden ${C.card}"><div class="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-4 sm:px-6"><div class="flex min-w-0 items-center gap-3"><span class="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 text-sm font-bold text-white">${index + 1}</span><div class="min-w-0"><p class="truncate text-xs font-semibold uppercase tracking-[.12em] text-neutral-500">${esc(question.subject)}</p><p class="mt-0.5 truncate text-sm font-medium text-neutral-700">${esc(question.label || question.domain || 'Examination question')}</p></div></div><div class="flex items-center gap-2"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${meta[1]}">${meta[0]}</span><button type="button" class="${C.quiet} !min-h-11 !px-3" data-flag="${question.id}" aria-pressed="${flagged ? 'true' : 'false'}">${flagged ? 'Flagged' : 'Flag for review'}</button></div></div><div class="p-4 sm:p-6 lg:p-8">${question.passage ? `<aside class="mb-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4 sm:p-5"><p class="text-xs font-semibold uppercase tracking-[.12em] text-neutral-500">Read the passage</p><p class="mt-2 whitespace-pre-line text-base leading-7 text-neutral-700">${esc(question.passage)}</p></aside>` : ''}${question.diagram === 'triangle' ? renderTriangle() : ''}${question.table ? renderTable(question.table) : ''}<h1 class="max-w-4xl font-display text-xl font-extrabold leading-8 tracking-tight text-neutral-950 sm:text-2xl sm:leading-9">${esc(question.prompt)}</h1>${question.instruction ? `<p class="mt-2 text-sm font-semibold text-neutral-600">${esc(question.instruction)}</p>` : ''}<div class="mt-6">${renderControl(question)}</div></div><footer class="hidden items-center justify-between gap-3 border-t border-neutral-200 bg-white p-4 md:flex sm:p-5"><button type="button" class="${C.secondary} xl:hidden" data-question-menu>Questions</button><div class="ml-auto flex gap-2"><button type="button" class="${C.secondary}" data-previous ${index === 0 ? 'disabled' : ''}>Previous</button><button type="button" class="${C.primary}" data-next>${index >= paper.length - 1 ? 'Review examination' : 'Next'}</button></div></footer></article></section><aside id="question-map" class="hidden xl:block"><div class="sticky top-24 ${C.card} p-5"><div class="flex items-start justify-between gap-3"><div><p class="text-sm font-semibold text-neutral-950">Question navigator</p><p class="mt-1 text-xs text-neutral-500">${summary.answered} answered · ${summary.incomplete} incomplete</p></div><button type="button" class="${C.quiet} !min-h-11" data-review>Review</button></div><div class="mt-4 grid grid-cols-5 gap-2">${paper.map((item, itemIndex) => navigatorButton(item, itemIndex)).join('')}</div><button type="button" class="${C.secondary} mt-5 w-full" data-review>Review examination</button></div></aside></main><div class="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 backdrop-blur md:hidden"><div class="mx-auto grid max-w-lg grid-cols-[auto_1fr_1fr] gap-2"><button type="button" class="${C.secondary} !px-3" data-question-menu aria-label="Open question navigator">Questions</button><button type="button" class="${C.secondary} !px-3" data-previous ${index === 0 ? 'disabled' : ''}>Previous</button><button type="button" class="${C.primary} !px-3" data-next>${index >= paper.length - 1 ? 'Review' : 'Next'}</button></div></div><div id="question-drawer" class="fixed inset-y-0 right-0 z-[90] hidden w-[min(88vw,22rem)] overflow-y-auto border-l border-neutral-200 bg-white p-5 shadow-2xl" tabindex="-1" aria-labelledby="question-drawer-label"><div class="flex items-center justify-between"><div><h2 id="question-drawer-label" class="font-display text-lg font-bold text-neutral-950">Question navigator</h2><p class="mt-1 text-xs text-neutral-500">${summary.answered} of ${paper.length} answered</p></div><button type="button" class="grid size-11 place-items-center rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-100 focus:outline-none focus:ring-4 focus:ring-neutral-200" data-question-close>Close</button></div><div class="mt-5 grid grid-cols-5 gap-2">${paper.map((item, itemIndex) => navigatorButton(item, itemIndex)).join('')}</div><button type="button" class="${C.primary} mt-6 w-full" data-review>Review examination</button></div><button data-question-scrim class="fixed inset-0 z-[80] hidden bg-black/40 backdrop-blur-sm" aria-label="Close question navigator"></button></div>`;
+    bindExam();
+    updateChrome();
+    if (cameraReady) ensureCameraPreview();
+    afterRender();
+  };
+
+  const reviewView = () => {
+    recordElapsed(false);
+    persist();
+    const summary = counts();
+    const issues = summary.unanswered + summary.incomplete;
+    root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<div class="text-right"><strong class="block max-w-[13rem] truncate text-sm text-neutral-950 sm:max-w-sm">${esc(session.title)}</strong><span class="text-xs text-neutral-500">Review · timer continues</span></div></div></header><div class="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="border-b border-neutral-200 p-6 sm:p-8"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Final review</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950">Check your paper before submitting.</h1><p class="mt-3 max-w-2xl text-base leading-7 text-neutral-600">Open any question to revise your response or review a flag. Submission is final.</p><div class="mt-5">${issues ? alertMarkup('warning', 'Paper not fully complete', `${summary.unanswered} unanswered · ${summary.incomplete} incomplete.`) : alertMarkup('success', 'All questions answered', 'You can still revisit any question before submitting.')}</div></div><div class="grid grid-cols-2 gap-3 border-b border-neutral-200 bg-neutral-50 p-5 sm:grid-cols-4">${[['Answered', summary.answered], ['Incomplete', summary.incomplete], ['Unanswered', summary.unanswered], ['Flagged', state.flagged?.length || 0]].map(([label, value]) => `<div class="rounded-xl border border-neutral-200 bg-white p-4"><span class="text-xs font-semibold uppercase tracking-wide text-neutral-500">${label}</span><strong class="mt-1 block text-2xl font-extrabold text-neutral-950">${value}</strong></div>`).join('')}</div><div class="p-5 sm:p-7"><div class="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">${paper.map((question, index) => navigatorButton(question, index, true)).join('')}</div><div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button type="button" class="${C.secondary}" data-back-exam>Back to questions</button><button type="button" class="${C.primary}" data-modal-target="submit-modal">Submit examination</button></div></div></section></div><dialog id="submit-modal" class="w-[calc(100%_-_1.5rem)] max-w-lg rounded-2xl border border-neutral-200 bg-white p-0 text-neutral-950 shadow-2xl backdrop:bg-neutral-950/50 backdrop:backdrop-blur-sm"><div class="p-5"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Final action</p><h2 class="mt-1 font-display text-2xl font-extrabold text-neutral-950">Submit this examination?</h2><div class="mt-4">${issues ? alertMarkup('warning', 'Some questions need attention', `${summary.unanswered} unanswered · ${summary.incomplete} incomplete.`) : alertMarkup('success', 'Paper complete', 'All questions are answered.')}</div><p class="mt-4 text-sm leading-6 text-neutral-600">Once submitted, Attempt 1 of 1 is locked and cannot be restarted.</p><div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" class="${C.secondary}" data-submit-cancel>Continue reviewing</button><button type="button" class="${C.primary}" data-confirm-submit>Submit examination</button></div></div></dialog></main>`;
+    bindReview();
+    updateChrome();
+    if (cameraReady) ensureCameraPreview();
+    afterRender();
+  };
+
+  const recordElapsed = (autoSubmit = true) => {
+    if (!state?.startedAt || state.submittedAt || timeoutSubmitting) return;
+    const now = Date.now();
+    const delta = Math.max(0, (now - lastTick) / 1000);
+    lastTick = now;
+    state.remainingSeconds = Math.max(0, (Number(state.remainingSeconds) || 0) - delta);
+    state.elapsedActiveSeconds = (Number(state.elapsedActiveSeconds) || 0) + delta;
+    const question = paper[state.currentIndex || 0];
+    if (question) {
+      state.questionTimings ||= {};
+      state.questionTimings[String(question.id)] = (Number(state.questionTimings[String(question.id)]) || 0) + delta;
+    }
+    if (!autoSubmit) return;
+    const status = effectiveStatus();
+    if (status === 'closed') {
+      timeoutSubmitting = true;
+      persist();
+      submitExam({ automatic: true, reason: 'session-ended' });
+      return;
+    }
+    if (state.remainingSeconds <= 0) {
+      timeoutSubmitting = true;
+      state.remainingSeconds = 0;
+      persist();
+      submitExam({ automatic: true, reason: 'time-expired' });
+    }
+  };
+
+  const startTimer = () => {
+    stopTimer();
+    lastTick = Date.now();
+    timer = setInterval(() => {
+      recordElapsed(true);
+      updateChrome();
+      if (state && !state.submittedAt && !timeoutSubmitting) persist();
+    }, 1000);
+  };
+
+  const lockedView = () => {
+    const attempt = store.findAttempt(session.id, candidateHash);
+    fatal('Attempt complete', 'This examination has already been submitted.', 'Attempt 1 of 1 is locked and cannot be restarted.', `<div class="flex flex-wrap gap-3"><a class="${C.primary}" href="${portalHref('analytics')}">Open result & analytics</a><span class="inline-flex min-h-11 items-center rounded-xl border border-neutral-200 bg-neutral-50 px-4 text-sm font-semibold text-neutral-950">Score ${attempt?.score ?? 0}%</span></div>`);
+  };
+
+  const showReset = () => {
+    stopTimer();
+    stopCamera();
+    store.clearStudentAuth();
+    store.clearActiveCandidate(session.id);
+    fatal('Attempt reset', 'This unfinished attempt was reset by an administrator.', 'Authenticate again with the same assigned credentials to start a fresh attempt.', `<a class="${C.primary}" href="${esc(location.href)}">Authenticate again</a>`);
+  };
+
+  const startExam = async () => {
+    if (effectiveStatus() !== 'open') {
+      await enterAuthenticatedFlow();
+      return;
+    }
+    if (cameraRequired && !cameraReady) {
+      const granted = await requestCamera();
+      if (!granted) return;
+    }
+    const existing = store.getStudentState(session.id, candidateHash);
+    if (existing?.startedAt && !existing.submittedAt) {
+      state = existing;
+      paper = assessment.paperForStudent(data, session, candidateHash);
+      reconcilePersistedBackground();
+      if (state.remainingSeconds <= 0) {
+        timeoutSubmitting = true;
+        submitExam({ automatic: true, reason: 'time-expired' });
+        return;
+      }
+      startTimer();
+      examView();
+      return;
+    }
+    if (store.hasSubmittedAttempt(session.id, candidateHash)) {
+      lockedView();
+      return;
+    }
+    const resetAt = store.getAttemptResetAt(session.id, candidateHash);
+    paper = assessment.paperForStudent(data, session, candidateHash);
+    const fingerprint = await assessment.paperFingerprint(session.id, candidateHash, paper);
+    const attemptHash = await assessment.attemptHash(session.id, candidateHash, fingerprint);
+    const now = Date.now();
+    state = {
+      version: 4,
+      candidateHash,
+      studentHash: profile.studentHash,
+      studentName: profile.fullName,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      startedAt: Math.max(now, resetAt + 1),
+      submittedAt: null,
+      attemptHash,
+      paperFingerprint: fingerprint,
+      questionIds: paper.map((question) => question.id),
+      responses: {},
+      flagged: [],
+      questionTimings: {},
+      currentIndex: 0,
+      remainingSeconds: session.durationSeconds,
+      elapsedActiveSeconds: 0,
+      integrityEvents: []
+    };
+    store.saveStudentState(session.id, candidateHash, state);
+    store.recordAttempt({
+      id: attemptHash.slice(0, 12), attemptHash, candidateHash,
+      studentHash: profile.studentHash, paperFingerprint: fingerprint,
+      sessionId: session.id, sessionTitle: session.title,
+      firstName: profile.firstName, lastName: profile.lastName, studentName: profile.fullName,
+      classLevel: session.classLevel, classGroup: session.classGroup,
+      academicSession: session.academicSession, mode: session.mode, subjects: session.subjects,
+      startedAt: state.startedAt, remainingSeconds: state.remainingSeconds,
+      questionCount: paper.length, questionIds: state.questionIds
+    });
+    try {
+      if (session.integrityPolicy?.fullscreenPrompt && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+        recordIntegrity('fullscreen-enter', 'Fullscreen mode entered.', { notify: false });
+      }
+    } catch {
+      recordIntegrity('fullscreen-denied', 'Fullscreen permission was denied.');
+    }
+    startTimer();
+    examView();
+  };
+
+  const submitExam = ({ automatic = false, reason = 'manual' } = {}) => {
+    if (!state || state.submittedAt) return;
+    if (!timeoutSubmitting) recordElapsed(false);
+    stopTimer();
+    state.submittedAt = Date.now();
+    const result = assessment.scoreAttempt(paper, state, session);
+    Object.assign(state, {
+      score: result.accuracy,
+      completion: result.completion,
+      paceIndex: result.paceIndex,
+      reasoningIndex: result.reasoningIndex,
+      integrityScore: result.integrityScore,
+      subjectStats: result.subjectStats,
+      placement: result.placement || null,
+      details: result.details,
+      submissionReason: reason
+    });
+    store.saveStudentState(session.id, candidateHash, state);
+    store.recordAttempt({
+      id: state.attemptHash.slice(0, 12), attemptHash: state.attemptHash, candidateHash,
+      studentHash: profile.studentHash, paperFingerprint: state.paperFingerprint,
+      sessionId: session.id, sessionTitle: session.title,
+      firstName: profile.firstName, lastName: profile.lastName, studentName: profile.fullName,
+      classLevel: session.classLevel, classGroup: session.classGroup,
+      academicSession: session.academicSession, mode: session.mode,
+      sessionStatus: session.status, sessionEndsAt: session.endsAt, subjects: session.subjects,
+      startedAt: state.startedAt, submittedAt: state.submittedAt,
+      remainingSeconds: state.remainingSeconds, elapsedActiveSeconds: state.elapsedActiveSeconds,
+      answered: counts().answered, questionCount: paper.length, score: result.accuracy,
+      correctCount: result.correctCount, completion: result.completion,
+      paceIndex: result.paceIndex, reasoningIndex: result.reasoningIndex,
+      integrityScore: result.integrityScore, integrityEvents: state.integrityEvents,
+      subjectStats: result.subjectStats, placement: result.placement || null,
+      details: result.details, questionIds: state.questionIds, submissionReason: reason
+    });
+    clearMarker(candidateHash);
+    stopCamera();
+    if (document.fullscreenElement) document.exitFullscreen?.().catch?.(() => {});
+    if (automatic) {
+      store.clearStudentAuth();
+      store.clearActiveCandidate(session.id);
+    }
+    const heading = reason === 'time-expired'
+      ? 'Time expired. Your examination was submitted automatically.'
+      : reason === 'session-ended'
+        ? 'The examination session ended. Your work was submitted automatically.'
+        : 'Examination submitted successfully.';
+    root.innerHTML = `<main class="grid min-h-dvh place-items-center bg-neutral-100 p-4 sm:p-6"><section class="w-full max-w-2xl overflow-hidden ${C.card}"><div class="border-b border-neutral-200 bg-neutral-950 p-6 text-white sm:p-8"><span class="inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-black">Attempt locked</span><h1 class="mt-5 font-display text-3xl font-extrabold leading-tight tracking-tight">${heading}</h1><p class="mt-3 text-sm leading-6 text-neutral-400">Your first and only attempt is final.${automatic ? ' For security, this candidate session has also been signed out.' : ''}</p></div><div class="p-6 sm:p-8"><div class="flex flex-wrap items-end justify-between gap-5"><div><span class="text-xs font-semibold uppercase tracking-[.12em] text-neutral-500">Score</span><strong class="mt-1 block font-display text-5xl font-extrabold text-neutral-950">${result.accuracy}%</strong></div>${result.placement ? `<div class="max-w-xs text-right"><span class="text-xs font-semibold uppercase tracking-[.12em] text-neutral-500">Recommended stream</span><strong class="mt-1 block text-lg font-semibold text-neutral-950">${esc(result.placement.assignedTrack)}</strong><span class="text-xs text-neutral-500">${result.placement.confidence}% confidence</span></div>` : ''}</div><a href="${portalHref('analytics')}" class="${C.primary} mt-7 w-full">${automatic ? 'Sign in to view dashboard' : 'Open student dashboard'}</a></div></section></main>`;
+    timeoutSubmitting = false;
+    afterRender();
+  };
+
+  const goTo = (index) => {
+    recordElapsed(false);
+    state.currentIndex = Math.max(0, Math.min(paper.length - 1, Number(index) || 0));
+    persist();
+    examView();
+  };
+
+  const openQuestionDrawer = () => {
+    root.querySelector('#question-drawer')?.classList.remove('hidden');
+    root.querySelector('[data-question-scrim]')?.classList.remove('hidden');
+    root.querySelector('#question-drawer button')?.focus();
+  };
+  const closeQuestionDrawer = () => {
+    root.querySelector('#question-drawer')?.classList.add('hidden');
+    root.querySelector('[data-question-scrim]')?.classList.add('hidden');
+  };
+
+  const bindExam = () => {
+    const question = paper[state.currentIndex];
+    root.querySelectorAll(`input[name="q-${question.id}"]`).forEach((input) => input.addEventListener('change', () => {
+      if (question.type === 'multi') {
+        const selected = [...root.querySelectorAll(`input[name="q-${question.id}"]:checked`)].map((node) => node.value);
+        if (question.requiredSelections && selected.length > Number(question.requiredSelections)) {
+          input.checked = false;
+          root.querySelector('#selection-limit')?.classList.remove('hidden');
+          showToast('warning', 'Selection limit reached', `Choose exactly ${question.requiredSelections} answers for this question.`, 3500);
+          return;
+        }
+        state.responses[String(question.id)] = selected;
+      } else if (question.type === 'boolean') {
+        state.responses[String(question.id)] = input.value === 'true';
+      } else {
+        state.responses[String(question.id)] = input.value;
+      }
+      persist();
+      examView();
+    }));
+    root.querySelectorAll('[data-fill-key]').forEach((input) => input.addEventListener('input', () => {
+      state.responses[String(question.id)] ||= {};
+      state.responses[String(question.id)][input.dataset.fillKey] = input.value;
+      persist();
+    }));
+    root.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => goTo(button.dataset.go)));
+    root.querySelector('[data-flag]')?.addEventListener('click', (event) => {
+      const id = Number(event.currentTarget.dataset.flag);
+      state.flagged ||= [];
+      state.flagged = state.flagged.includes(id) ? state.flagged.filter((value) => value !== id) : [...state.flagged, id];
+      persist();
+      examView();
+    });
+    root.querySelectorAll('[data-previous]').forEach((button) => button.addEventListener('click', () => goTo(state.currentIndex - 1)));
+    root.querySelectorAll('[data-next]').forEach((button) => button.addEventListener('click', () => state.currentIndex >= paper.length - 1 ? reviewView() : goTo(state.currentIndex + 1)));
+    root.querySelectorAll('[data-review]').forEach((button) => button.addEventListener('click', reviewView));
+    root.querySelectorAll('[data-question-menu]').forEach((button) => button.addEventListener('click', openQuestionDrawer));
+    root.querySelector('[data-question-close]')?.addEventListener('click', closeQuestionDrawer);
+    root.querySelector('[data-question-scrim]')?.addEventListener('click', closeQuestionDrawer);
+  };
+
+  const bindReview = () => {
+    const dialog = root.querySelector('#submit-modal');
+    root.querySelector('[data-back-exam]')?.addEventListener('click', examView);
+    root.querySelectorAll('[data-go-review]').forEach((button) => button.addEventListener('click', () => goTo(button.dataset.goReview)));
+    root.querySelector('[data-modal-target="submit-modal"]')?.addEventListener('click', () => dialog?.showModal());
+    root.querySelector('[data-submit-cancel]')?.addEventListener('click', () => dialog?.close());
+    dialog?.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    root.querySelector('[data-confirm-submit]')?.addEventListener('click', () => {
+      dialog?.close();
+      submitExam({ automatic: false, reason: 'manual' });
+    });
+  };
+
+  const enterAuthenticatedFlow = async () => {
+    const status = effectiveStatus();
+    if (status !== 'open') {
+      fatal('Session unavailable', 'This examination is not open.', status === 'scheduled'
+        ? 'The session is scheduled but has not started yet.'
+        : 'The school has closed or disabled this examination.', `<a class="${C.primary}" href="${portalHref()}">Return to student portal</a>`);
+      return;
+    }
+    if (store.hasSubmittedAttempt(session.id, candidateHash)) {
+      lockedView();
+      return;
+    }
+    state = store.getStudentState(session.id, candidateHash);
+    if (state?.startedAt && store.isAttemptInvalidated(session.id, candidateHash, state.startedAt)) {
+      showReset();
+      return;
+    }
+    paper = assessment.paperForStudent(data, session, candidateHash);
+    if (!paper.length) {
+      fatal('Paper unavailable', 'No questions match this examination configuration.', 'Ask the administrator to review the class, mode, subjects and question count.');
+      return;
+    }
+    if (state?.startedAt && !state.submittedAt) {
+      const reconciliation = reconcilePersistedBackground();
+      if (reconciliation.reconciled) {
+        showToast('warning', 'Background time counted', `${Math.max(1, Math.round(reconciliation.elapsedSeconds))} seconds were deducted while the examination was away from the foreground.`);
+      }
+      if (state.remainingSeconds <= 0) {
+        timeoutSubmitting = true;
+        submitExam({ automatic: true, reason: 'time-expired' });
+        return;
+      }
+      if (cameraRequired) await requestCamera();
+      startTimer();
+      examView();
+      return;
+    }
+    briefingView();
+  };
+
+  window.addEventListener('blur', () => {
+    if (document.hidden) return;
+    recordIntegrity('window-blur', 'Examination window lost focus.');
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!state?.startedAt || state.submittedAt) return;
+    if (document.hidden) {
+      recordElapsed(false);
+      persist();
+      writeMarker({ sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() });
+      recordIntegrity('tab-hidden', 'Examination tab became hidden.');
+      return;
+    }
+    recordElapsed(false);
+    clearMarker(candidateHash);
+    recordIntegrity('focus-return', 'Candidate returned to the examination.', { notify: false });
+    persist();
+    updateChrome();
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!state?.startedAt || state.submittedAt || !session?.integrityPolicy?.fullscreenPrompt) return;
+    if (document.fullscreenElement) {
+      recordIntegrity('fullscreen-enter', 'Fullscreen mode active.', { notify: false });
+      return;
+    }
+    recordIntegrity('fullscreen-exit', 'Candidate exited fullscreen mode.');
+    showToast('warning', 'Fullscreen exited', 'This event has been recorded. Return to fullscreen if your school requires it.');
+  });
+
+  ['copy', 'cut', 'paste'].forEach((type) => document.addEventListener(type, (event) => {
+    if (!state?.startedAt || state.submittedAt || !session?.integrityPolicy?.clipboardGuard) return;
+    event.preventDefault();
+    recordIntegrity(`clipboard-${type}`, `${type} action blocked by examination policy.`);
+  }));
+
+  window.addEventListener('pagehide', () => {
+    if (!state?.startedAt || state.submittedAt) {
+      stopCamera();
+      return;
+    }
+    recordElapsed(false);
+    persist();
+    const existing = readMarker(candidateHash);
+    writeMarker(existing?.hiddenAt ? existing : { sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() });
+    stopCamera();
+  });
+
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted && state?.startedAt && !state.submittedAt) {
+      const reconciliation = reconcilePersistedBackground();
+      if (reconciliation.reconciled) {
+        lastTick = Date.now();
+        updateChrome();
+      }
+      if (cameraRequired && !cameraReady) requestCamera().catch(() => {});
+    }
+  });
+
+  try {
+    session = store.resolveSession(store.decodeSession(token));
+    cameraRequired = Boolean(proctor.rememberFromUrl(session.id, location.href)?.cameraRequired);
+  } catch (error) {
+    fatal('Invalid exam link', 'This examination link cannot be opened.', error?.message || 'The session token is missing or invalid.');
+    return;
+  }
+
+  questions.load().then(async (payload) => {
+    data = payload;
+    if (!(await hydrateExistingAuth())) {
+      authView();
+      return;
+    }
+    await enterAuthenticatedFlow();
+  }).catch((error) => fatal('Exam unavailable', 'The examination could not be prepared.', error?.message || 'Question data could not be loaded.'));
+
+  window.FestacolExamApp = Object.freeze({
+    requestCamera,
+    reconcilePersistedBackground,
+    get cameraRequired() { return cameraRequired; },
+    get cameraReady() { return cameraReady; }
+  });
+})();

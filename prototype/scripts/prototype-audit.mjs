@@ -27,6 +27,7 @@ const targetRuntime = ['js/shared.js', 'js/admin.js', 'js/student.js', 'js/exam.
 const targetSurfaces = ['index.html', 'admin.html', 'student.html', 'exam.html'];
 const targetRuntimeReady = targetRuntime.every(exists);
 const studentRuntimeReady = exists('js/student.js');
+const examRuntimeReady = exists('js/exam.js');
 
 const assertUniqueIds = (file) => {
   const source = read(file);
@@ -35,16 +36,12 @@ const assertUniqueIds = (file) => {
   if (duplicates.length) throw new Error(`${file} contains duplicate ids: ${[...new Set(duplicates)].join(', ')}`);
 };
 
-// Admin and Exam remain on their verified legacy shells until Tasks 6 and 4.
-for (const file of ['admin.html', 'exam.html']) {
-  const source = read(file);
-  for (const token of ['@tailwindcss/browser@4', 'flowbite@4.0.1/dist/flowbite.min.css', 'flowbite@4.0.1/dist/flowbite.min.js']) {
-    if (!source.includes(token)) throw new Error(`${file} is missing ${token}`);
-  }
-  assertUniqueIds(file);
-}
-
+// Admin remains on its verified legacy shell until Task 6.
 const adminHtml = read('admin.html');
+for (const token of ['@tailwindcss/browser@4', 'flowbite@4.0.1/dist/flowbite.min.css', 'flowbite@4.0.1/dist/flowbite.min.js']) {
+  if (!adminHtml.includes(token)) throw new Error(`admin.html is missing ${token}`);
+}
+assertUniqueIds('admin.html');
 for (const forbidden of ['./assets/festacol.css', './assets/academic-v3.css', 'admin-core-a.js', 'admin-core-b.js', 'admin-pages-a.js', 'admin-pages-b.js', 'admin-workflows-a.js', 'admin-workflows-b.js', 'admin-details.js', 'admin-academic.js', 'admin-proctor-hotfix.js', 'admin-detail-drawer', 'admin-drawer-scrim']) {
   if (adminHtml.includes(forbidden)) throw new Error(`Admin must not load legacy/duplicate layer: ${forbidden}`);
 }
@@ -84,17 +81,6 @@ for (const token of ['questionCount < 5', 'questionCount > 150', 'findSessionByI
 const css = read('assets/festacol.css');
 if (css.includes('festacol-exam.css')) throw new Error('Shared legacy CSS still imports deleted festacol-exam.css');
 
-const examHtml = read('exam.html');
-for (const obsolete of ['./assets/festacol.css', './assets/academic-v3.css', './js/student-app.js', './js/exam-integrity-hotfix.js']) {
-  if (examHtml.includes(obsolete)) throw new Error(`Exam page loads obsolete layer: ${obsolete}`);
-}
-if (!examHtml.includes('./js/exam-app.js')) throw new Error('Exam page must load the single exam-app runtime');
-
-const exam = read('js/exam-app.js');
-for (const token of ['data-exam-workspace', 'requestCamera', 'reconcilePersistedBackground', 'visibilitychange', 'clipboard-', 'time-expired', 'session-ended', 'Store.clearStudentAuth()']) {
-  if (!exam.includes(token)) throw new Error(`Exam runtime missing ${token}`);
-}
-
 const payload = JSON.parse(read('data/questions.json'));
 if (!Array.isArray(payload.questions) || payload.questions.length < 20) throw new Error('Question bank is unexpectedly small or invalid.');
 for (const type of ['single', 'multi', 'boolean', 'fill']) {
@@ -130,27 +116,53 @@ if (studentRuntimeReady) {
   for (const forbidden of ['FestacolSessionStore', 'FestacolQuestionData', 'FestacolAssessmentEngine', 'FestacolProctorPolicy', './student.html', './exam.html', 'student-sidebar-open', 'badge badge-', 'class="field']) {
     if (studentRuntime.includes(forbidden)) throw new Error(`Migrated Student runtime still depends on legacy behavior/style: ${forbidden}`);
   }
-  assertUniqueIds('index.html');
   assertUniqueIds('student.html');
 }
 
-// Final four-runtime architecture activates only after all surfaces have migrated.
+if (examRuntimeReady) {
+  const indexHtml = read('index.html');
+  const examAlias = read('exam.html');
+  const examRuntime = read('js/exam.js');
+
+  for (const token of ['./js/exam.js', './js/student.js', './js/shared.js', 'flowbite@4.0.1/dist/flowbite.min.js', 'type="text/tailwindcss"']) {
+    if (!indexHtml.includes(token)) throw new Error(`Canonical Exam shell missing ${token}`);
+  }
+  if (/route === ['"]admin['"] \|\| route === ['"]exam['"]/u.test(indexHtml) || indexHtml.includes("'./exam.html'")) {
+    throw new Error('Canonical index shell must load exam.js directly instead of redirecting Exam to exam.html.');
+  }
+  if (!/runtimeByRoute[\s\S]*exam:\s*['"]\.\/js\/exam\.js['"]/u.test(indexHtml)) {
+    throw new Error('Canonical index shell must explicitly allowlist the Exam runtime.');
+  }
+
+  if (!examAlias.includes('index.html') || !/set\(['"]route['"]\s*,\s*['"]exam['"]\)/u.test(examAlias)) {
+    throw new Error('exam.html must forward to index.html with route=exam.');
+  }
+  for (const forbidden of ['@tailwindcss/browser@4', 'flowbite.min.css', 'flowbite.min.js', './js/shared.js', './js/exam.js', './js/exam-app.js', './js/session-store.js', '<link rel="stylesheet"']) {
+    if (examAlias.includes(forbidden)) throw new Error(`Exam alias must stay thin and dependency-free: ${forbidden}`);
+  }
+
+  for (const token of ['data-exam-workspace', 'requestCamera', 'reconcilePersistedBackground', 'visibilitychange', 'clipboard-', 'time-expired', 'session-ended', 'store.clearStudentAuth()', 'assessment.paperForStudent', 'assessment.scoreAttempt', 'questions.load', "utils.routeUrl('student'"]) {
+    if (!examRuntime.includes(token)) throw new Error(`Migrated Exam runtime missing ${token}`);
+  }
+  for (const forbidden of ['FestacolSessionStore', 'FestacolQuestionData', 'FestacolAssessmentEngine', 'FestacolProctorPolicy', './student.html', './exam.html']) {
+    if (examRuntime.includes(forbidden)) throw new Error(`Migrated Exam runtime still depends on legacy behavior/routing: ${forbidden}`);
+  }
+  assertUniqueIds('exam.html');
+}
+
+assertUniqueIds('index.html');
+
+// Final four-runtime architecture activates only after Admin has migrated as well.
 if (targetRuntimeReady) {
   for (const file of [...targetRuntime, ...targetSurfaces]) {
     if (!exists(file)) throw new Error(`Missing target prototype file: ${file}`);
   }
-
   const indexHtml = read('index.html');
   for (const forbidden of ['flowbite.min.css', '<link rel="stylesheet" href="./assets/', './js/session-store.js', './js/question-data.js', './js/assessment-engine.js', './js/proctor-policy.js', './js/qr.js']) {
     if (indexHtml.includes(forbidden)) throw new Error(`Canonical index shell contains forbidden legacy/style dependency: ${forbidden}`);
   }
-
   for (const file of targetSurfaces) assertUniqueIds(file);
-  const aliasRoutes = new Map([
-    ['admin.html', 'admin'],
-    ['student.html', 'student'],
-    ['exam.html', 'exam']
-  ]);
+  const aliasRoutes = new Map([['admin.html', 'admin'], ['student.html', 'student'], ['exam.html', 'exam']]);
   for (const [file, route] of aliasRoutes) {
     const source = read(file);
     const routePattern = new RegExp(`(?:route=${route}|set\\(['"']route['"']\\s*,\\s*['"']${route}['"']\\))`, 'u');
@@ -159,4 +171,4 @@ if (targetRuntimeReady) {
   }
 }
 
-console.log(`Prototype audit passed: ${payload.questions.length} questions; preservation contract active; Student migration ${studentRuntimeReady ? 'active' : 'staged'}; final target ${targetRuntimeReady ? 'active' : 'staged'}.`);
+console.log(`Prototype audit passed: ${payload.questions.length} questions; preservation contract active; Student migration ${studentRuntimeReady ? 'active' : 'staged'}; Exam migration ${examRuntimeReady ? 'active' : 'staged'}; final target ${targetRuntimeReady ? 'active' : 'staged'}.`);

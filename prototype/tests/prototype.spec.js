@@ -103,7 +103,21 @@ test('student can enter Exam ID and reach the same candidate login session witho
   await expect(page.getByRole('heading', { name: 'Enter the Exam ID.' })).toBeVisible();
   await page.locator('#exam-id-input').fill(id.toLowerCase());
   await page.locator('#exam-id-form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/exam\.html\?session=/);
+  await expect(page).toHaveURL(/\/index\.html\?.*route=exam.*session=/);
+  await expect(page.locator('#student-login-form')).toBeVisible();
+});
+
+test('exam compatibility alias preserves session state and forwards to the canonical exam route', async ({ page }) => {
+  await clearPrototypeStorage(page);
+  const { link } = await createExam(page, { camera: false });
+  const alias = new URL(link);
+  expect(alias.pathname).toMatch(/\/exam\.html$/);
+  alias.searchParams.set('candidate', 'compatibility-check');
+  await page.goto(alias.href);
+  await expect(page).toHaveURL(/\/index\.html\?.*route=exam/);
+  const routed = new URL(page.url());
+  expect(routed.searchParams.get('session')).toBeTruthy();
+  expect(routed.searchParams.get('candidate')).toBe('compatibility-check');
   await expect(page.locator('#student-login-form')).toBeVisible();
 });
 
