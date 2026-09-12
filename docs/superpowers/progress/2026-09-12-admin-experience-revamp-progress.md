@@ -6,6 +6,7 @@
 **Implementation PR:** [PR #11](https://github.com/surdma/festacol/pull/11)  
 **Mandatory task map:** [`docs/superpowers/IMPLEMENTATION-MANIFEST.md`](../IMPLEMENTATION-MANIFEST.md)  
 **Canonical Task 1–2 closure checklist:** [`2026-09-12-task-1-2-closure.md`](./2026-09-12-task-1-2-closure.md)  
+**Canonical Task 3 closure checklist:** [`2026-09-12-task-3-closure.md`](./2026-09-12-task-3-closure.md)  
 **Policy:** Every completed milestone must be validated, checked here, committed, pushed, and verified on the remote branch before the next milestone is represented as complete.
 
 ## Repository-layout checkpoint
@@ -44,7 +45,15 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
   - [x] PR #11 uses current isolated `/prototype` package paths.
   - [x] Task 1–2 contracts are ported to `prototype/scripts/`.
   - [x] Current synchronized PR #11 CI passed source/state contract and Chromium regression jobs in run `34696743263`.
-- [ ] **Task 3 — Migrate Student surface to `student.js`**
+- [x] **Task 3 — Migrate Student surface to `student.js`**
+  - [x] Move Student dashboard/auth/render logic to `prototype/js/student.js` using `window.Festacol` modules.
+  - [x] Move Exam ID modal/form behavior into `student.js`, including case-insensitive lookup and missing/draft/closed/scheduled feedback.
+  - [x] Make `index.html?route=student` canonical and `student.html` a thin query-preserving alias.
+  - [x] Replace Student-local CSS dependencies/classes with explicit Tailwind utilities; no Flowbite CSS on the canonical Student shell.
+  - [x] Preserve focus, Escape/backdrop, mobile navigation, profile, attempts, analytics, placement, answer-lock, logout, and active-attempt resume behavior.
+  - [x] Repair the initially corrupted Student candidate and harden the source audit rather than accepting a failed CI run.
+  - [x] Prototype UI Quality run `34706597298` passed **Source & design-system contract** and **Chromium exam workflow** at implementation head `dd61b68db035d9ad8c0d35388e620cdb78c9cad0`.
+  - [x] Publish per-step Task 3 closure evidence in `2026-09-12-task-3-closure.md`.
 - [ ] **Task 4 — Migrate candidate Exam surface to `exam.js`**
 - [ ] **Task 5 — Answer-aware Question Bank and expanded validated seed bank (minimum 720 validated seed questions)**
 - [ ] **Task 6 — Rebuild canonical shell/Admin runtime**
@@ -67,14 +76,21 @@ The preservation layer guards the existing exam/session/user/class/attempt behav
 
 The Task 2 contracts cover namespace wiring, v2/v3 compatibility, canonical exam routing, deterministic papers, scoring parity, rewrite/reset, one-class storage, retained history, WhatsApp, proctor links, QR SVG generation, invalid sessions/questions, reset equality boundaries, route normalization, answer-order parity, and QR capacity guards.
 
-## Question-bank boundary at Task 2 closure
+## Task 3 evidence
 
-The current verified inventory is **43 questions**. No Task 1 or Task 2 completion claim includes the Question Bank expansion. The answer-aware schema migration and expansion to at least **720 validated seed questions** remain entirely under Task 5.
+`prototype/js/student.js` now owns the Student authentication/dashboard/profile/attempt/analytics/progress/Exam-ID interactions through `window.Festacol`. `prototype/index.html?route=student` is the canonical Student surface and `prototype/student.html` is the thin compatibility alias. Student styling is Tailwind-utility authored and the migrated Student path no longer loads Flowbite CSS or repository Student CSS.
+
+The first pushed candidate correctly failed CI because its `student.js` blob was corrupted. That failure was not ignored: the runtime and audit were repaired, the route-source assertion was made formatting-safe, and Prototype UI Quality run `34706597298` then passed both source/design-system validation and the real Chromium workflow. Full per-step evidence is in the canonical Task 3 closure checklist.
+
+## Question-bank boundary
+
+The current verified inventory remains **43 questions**. Task 3 does not include Question Bank expansion. The answer-aware schema migration and expansion to at least **720 validated seed questions** remain entirely under Task 5.
 
 ## Current status
 
 **Task 1: COMPLETE / CI_VERIFIED on the approved behavior contract and current layout.**  
 **Task 2: COMPLETE / CI_VERIFIED on the approved shared-runtime contract and current layout.**  
 **Current-master reconciliation: COMPLETE / CI_VERIFIED via run `34696743263`.**  
+**Task 3: COMPLETE / CI_VERIFIED via run `34706597298` at implementation head `dd61b68db035d9ad8c0d35388e620cdb78c9cad0`.**  
 **Question bank at this milestone: 43 questions; Task 5 not started.**  
-**Task 3: READY TO START, but not started.**
+**Next milestone: Task 4 — candidate Exam migration.**
