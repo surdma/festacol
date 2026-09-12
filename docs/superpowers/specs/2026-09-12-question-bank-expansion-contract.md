@@ -55,7 +55,7 @@ Answer metadata is:
 
 ## Validation gate
 
-`prototype-audit.mjs` and `state-contract.mjs` must eventually fail on:
+`prototype/scripts/prototype-audit.mjs` and `prototype/scripts/state-contract.mjs` must eventually fail on:
 
 - fewer than 720 validated seed records;
 - duplicate IDs;
