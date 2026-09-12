@@ -50,7 +50,7 @@ const archived=S.authorizeRewrite(qualifier.id,candidateHash);
 if(!archived.rewriteArchivedAt||archived.rewriteSourceAttemptHash!==candidateHash)throw new Error('rewrite did not archive original attempt');
 if(S.findAttempt(qualifier.id,candidateHash))throw new Error('rewrite did not release current candidate lock');
 if(S.attemptsForStudent(studentHash).length!==1||S.attemptsForSession(qualifier.id).length!==1)throw new Error('rewrite archive relationship was lost');
-const replacementStart=Date.now()+2;
+const replacementStart=archived.rewriteArchivedAt+1;
 S.recordAttempt({id:'A2',attemptHash:'replacement',candidateHash,studentHash,sessionId:qualifier.id,sessionTitle:qualifier.title,studentName:'Amina Bello',startedAt:replacementStart});
 if(!S.findAttempt(qualifier.id,candidateHash)||S.attemptsForSession(qualifier.id).length!==2)throw new Error('rewrite replacement attempt failed');
 
@@ -62,9 +62,23 @@ S.recordAttempt({id:'R1',attemptHash:'R1',candidateHash:resumeHash,studentHash:r
 const reset=S.resetUnfinishedAttempt(qualifier.id,resumeHash);
 if(!reset.resetAt||S.findAttempt(qualifier.id,resumeHash)||S.getStudentState(qualifier.id,resumeHash)||S.getStudentAuth())throw new Error('unfinished reset failed');
 
+// One current class per student remains a scalar relationship, never a membership list.
+const currentStudent=S.listUsers().find((user)=>user.role==='student');
+const destinationClass=S.listClasses().find((item)=>item.id!==currentStudent.classId&&item.classLevel==='SS2')||S.listClasses().find((item)=>item.id!==currentStudent.classId);
+const movedStudent=S.saveUser({...currentStudent,classId:destinationClass.id});
+const storedStudent=S.listUsers().find((user)=>user.id===currentStudent.id);
+if(Array.isArray(movedStudent.classId)||Array.isArray(storedStudent.classId)||storedStudent.classId!==destinationClass.id)throw new Error('student class relationship is not exactly one scalar classId');
+
 const classId=S.listClasses().find(c=>c.classLevel==='SS1').id;
 const group=S.saveWhatsAppGroup({classId,name:'SS1 Parents',inviteUrl:'https://chat.whatsapp.com/ABCDEFGHIJKLMNOPQRSTUV'});
 if(S.whatsAppGroupForClass(classId)?.id!==group.id)throw new Error('WhatsApp class association failed');
 let badWhatsApp=false;try{S.saveWhatsAppGroup({classId,name:'Bad',inviteUrl:'https://example.com/group'});}catch{badWhatsApp=true;}if(!badWhatsApp)throw new Error('invalid WhatsApp link was accepted');
+
+// Removing an examination definition must not erase its audit/attempt history.
+const retainedAttemptCount=S.attemptsForSession(qualifier.id).length;
+if(retainedAttemptCount<2)throw new Error('retained-history precondition failed');
+S.deleteSession(qualifier.id);
+if(S.findSessionById(qualifier.id))throw new Error('session definition was not deleted');
+if(S.attemptsForSession(qualifier.id).length!==retainedAttemptCount)throw new Error('deleting a session erased retained attempt history');
 
 console.log('state/assessment contract: PASS');
