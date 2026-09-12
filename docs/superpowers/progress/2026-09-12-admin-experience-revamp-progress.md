@@ -2,8 +2,16 @@
 
 **Started:** 2026-09-12  
 **Implementation branch:** `work/admin-experience-complete-revamp`  
-**Approved planning head:** `3549633877bcd257f5a42967e5e3507a980bf24a`  
+**Planning parent:** [PR #10](https://github.com/surdma/festacol/pull/10)  
+**Implementation PR:** [PR #11](https://github.com/surdma/festacol/pull/11)  
+**Mandatory task map:** [`docs/superpowers/IMPLEMENTATION-MANIFEST.md`](../IMPLEMENTATION-MANIFEST.md)  
 **Policy:** Every completed milestone must be validated, checked here, committed, pushed, and verified on the remote branch before the next milestone is represented as complete.
+
+## Repository-layout checkpoint
+
+Current `master` moved the Next.js app to repository root and isolated the prototype as its own package under `/prototype`. PR #11 has now been synchronized to that current master/planning lineage. Prototype validation files therefore live under `prototype/scripts/`, not the pre-move root `scripts/` directory.
+
+No Task 3 work may begin until the synchronized Task 1–2 contracts pass CI from this layout.
 
 ## Milestone checklist
 
@@ -13,21 +21,26 @@
   - [x] Stage the canonical `index.html`/route-alias/Tailwind-only final-shell assertions.
   - [x] Add one-current-class and retained-attempt-history executable assertions.
   - [x] Preserve the old Playwright journeys in the manual Dogfood acceptance matrix.
-  - [x] Verify the pre-mutation runtime baseline from the successful `master` workflow at `43313acc38ba682a66bda3706ac444d905da7844` (Prototype UI Quality run `34624502020`).
-  - [x] Verify the pushed Task 1 commit `8bc3e909f0831fcfdfd433c63310563624cdf325` with Prototype UI Quality run `34687063219`: source/state contract **success**, Chromium workflow **success**.
+  - [x] Verify the pre-mutation runtime baseline from the successful original prototype workflow at `43313acc38ba682a66bda3706ac444d905da7844`.
+  - [x] Original Task 1 commit `8bc3e909f0831fcfdfd433c63310563624cdf325` passed its source/state and Chromium regression workflow before the repository layout move.
+  - [x] Port the preservation audit to current master layout at `prototype/scripts/prototype-audit.mjs`.
 - [x] **Task 2 — Consolidate shared domain behavior into `shared.js`**
   - [x] Move storage/session/attempt/user/class/WhatsApp behavior into `Festacol.store` without changing storage keys or v2/v3 compatibility.
   - [x] Move camera/proctor policy and decorated candidate-link behavior into `Festacol.proctor`.
   - [x] Move the real local QR encoder into `Festacol.qr`.
-  - [x] Move current hashing/randomization/scoring/placement behavior into `Festacol.assessment` without yet changing the 1–43 answer model.
-  - [x] Move current question loading/validation/eligibility/custom-question merge into `Festacol.questions`.
-  - [x] Add `Festacol.utils` with shared sanitation/formatting and canonical `index.html?route=...` URL generation.
-  - [x] Preserve temporary legacy globals as aliases to the new modules until Student/Exam/Admin consumers migrate.
-  - [x] Point `scripts/state-contract.mjs` at `shared.js` only.
-  - [x] Local primary contract passed: namespace wiring, v2/v3 session compatibility, canonical exam route, deterministic papers, scoring parity, rewrite/reset, one-class storage, retained history, WhatsApp, proctor links, QR SVG.
-  - [x] Independent adversarial contract passed: invalid sessions/questions, reset equality boundary, route normalization, answer-order parity, proctor false/true policy, QR capacity guard.
-  - [x] Independent code review: **APPROVE WITH NON-BLOCKING NOTE** — no consumer is switched in Task 2; browser-specific local smoke is blocked by this container's Chromium policy, so pushed CI is the browser-regression gate.
-  - [x] Verify pushed Task 2 commit `a49f10861cae568d81ec0f6ae7223f363bdd8d90` with Prototype UI Quality run `34691922172`: **Source & design-system contract success** and **Chromium exam workflow success**.
+  - [x] Move question loading/validation/eligibility into `Festacol.questions` while keeping answer-key migration for Task 5.
+  - [x] Move assessment identity/deterministic-paper/scoring/placement logic into `Festacol.assessment`.
+  - [x] Add canonical `index.html?route=...` URL construction in `Festacol.utils`.
+  - [x] Keep temporary legacy globals only as migration aliases until Student/Exam/Admin consumers move.
+  - [x] Original Task 2 implementation commit `a49f10861cae568d81ec0f6ae7223f363bdd8d90` passed its source/state and Chromium regression workflow before the repository layout move.
+  - [x] Preserve `prototype/js/shared.js` while synchronizing PR #11 to current master.
+  - [x] Port the shared-runtime state contract to `prototype/scripts/state-contract.mjs`.
+- [ ] **Current-master reconciliation gate before Task 3**
+  - [x] PR #10 contains the authoritative planning docs and implementation manifest.
+  - [x] PR #11 explicitly descends from the current planning/master lineage.
+  - [x] PR #11 uses current isolated `/prototype` package paths.
+  - [x] Task 1–2 contracts are ported to `prototype/scripts/`.
+  - [ ] Current synchronized PR #11 CI passes source/state contract and Chromium regression jobs.
 - [ ] **Task 3 — Migrate Student surface to `student.js`**
 - [ ] **Task 4 — Migrate candidate Exam surface to `exam.js`**
 - [ ] **Task 5 — Answer-aware Question Bank and expanded validated seed bank (minimum 720 validated seed questions)**
@@ -43,41 +56,17 @@
 
 ## Task 1 evidence
 
-### Legacy → target ownership map
-
-| Legacy global | Target owner | Primary preserved responsibilities |
-| --- | --- | --- |
-| `FestacolSessionStore` | `Festacol.store` + `Festacol.utils` | sessions, attempts, rewrite/reset, users/classes, WhatsApp, browser persistence, session-link helpers |
-| `FestacolQuestionData` | `Festacol.questions` | seed/custom loading, validation, subjects, eligibility, lookup |
-| `FestacolAssessmentEngine` | `Festacol.assessment` | identity hashes, deterministic papers, scoring, placement, attempt/paper fingerprints |
-| `FestacolProctorPolicy` | `Festacol.proctor` | camera policy, URL policy persistence/decorating |
-| `FestacolQR` | `Festacol.qr` | QR SVG creation/rendering |
-
-Primary current consumers to preserve during migration are `admin-app.js`, `student-dashboard.js`, `exam-app.js`, the inline Student Exam-ID flow, `scripts/state-contract.mjs`, and the browser acceptance journeys formerly encoded in `tests/prototype.spec.js`.
-
-### Baseline and pushed evidence
-
-The exact production runtime baseline on `master` (`43313acc38ba682a66bda3706ac444d905da7844`) completed **Prototype UI Quality** successfully in workflow run `34624502020`. Task 1 was committed as `8bc3e909f0831fcfdfd433c63310563624cdf325`; GitHub Actions run `34687063219` completed successfully with both **Source & design-system contract** and **Chromium exam workflow** passing.
+The preservation layer guards the existing exam/session/user/class/attempt behavior before consumer migration. It includes one-current-class, retained attempt history, rewrite/reset boundaries, source-contract staging for the four-runtime target, and compatibility routing requirements.
 
 ## Task 2 evidence
 
-`prototype/js/shared.js` is a single self-contained runtime. It does not dynamically load the legacy JavaScript files and can initialize without a DOM, which allows the Node state contract to execute the exact browser-domain runtime. The current legacy page runtimes remain untouched in this milestone and are migrated in later tasks, so temporary `FestacolSessionStore`, `FestacolQuestionData`, `FestacolAssessmentEngine`, `FestacolProctorPolicy`, and `FestacolQR` aliases intentionally point to the new `Festacol` modules.
+`prototype/js/shared.js` is a single self-contained runtime. It does not dynamically load the legacy JavaScript files and can initialize without a DOM, allowing the Node state contract to execute the exact browser-domain runtime. Temporary `FestacolSessionStore`, `FestacolQuestionData`, `FestacolAssessmentEngine`, `FestacolProctorPolicy`, and `FestacolQR` aliases intentionally point to the new `Festacol` modules until later consumer migrations remove them.
 
-Executed locally before Git handoff:
-
-```text
-node --check prototype/js/shared.js                         PASS
-node --check scripts/state-contract.mjs                   PASS
-node scripts/state-contract.mjs                           state/shared contract: PASS
-independent Task 2 adversarial contract                   PASS
-```
-
-Task 2 was committed and pushed as `a49f10861cae568d81ec0f6ae7223f363bdd8d90` (`refactor: consolidate prototype runtime`). GitHub Actions run `34691922172` completed successfully. Job `103548574944` (**Source & design-system contract**) passed, including the migrated shared-runtime state contract. Job `103548590092` (**Chromium exam workflow**) also passed, proving the untouched legacy Student/Admin/Exam consumers did not regress while the shared runtime was introduced.
-
-The local Chromium policy limitation therefore remains an environment-only limitation and is not treated as a product defect.
+The original Task 2 contracts covered namespace wiring, v2/v3 compatibility, canonical exam routing, deterministic papers, scoring parity, rewrite/reset, one-class storage, retained history, WhatsApp, proctor links, QR SVG generation, invalid sessions/questions, reset equality boundaries, route normalization, answer-order parity, and QR capacity guards.
 
 ## Current status
 
-**Task 1: COMPLETE / CI_VERIFIED.**  
-**Task 2: COMPLETE / CI_VERIFIED.**  
-**Next implementation owner:** Frontend Engineer + Test/Reviewer for Task 3 Student migration to `student.js`, followed by Git/Release after focused browser regression evidence.
+**Task 1: COMPLETE on the approved behavior contract and ported to current layout.**  
+**Task 2: COMPLETE on the approved shared-runtime contract and ported to current layout.**  
+**Current-master reconciliation: CI verification pending.**  
+**Task 3: BLOCKED until the reconciliation CI gate is green.**
