@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const { store, questions, assessment, proctor, utils } = window.Festacol || {};
+  const { store, assessment, proctor, utils } = window.Festacol || {};
   const root = document.getElementById('app');
-  if (!store || !questions || !assessment || !proctor || !utils || !root) {
+  if (!store || !assessment || !proctor || !utils || !root) {
     throw new Error('Festacol student dependencies are unavailable.');
   }
 
@@ -11,9 +11,9 @@
     question: 'https://raw.githubusercontent.com/themesberg/flowbite-illustrations/main/src/3d/light/man-question-marks.svg'
   });
   const PAGES = new Set(['home', 'exams', 'analytics', 'history', 'progress', 'profile']);
-  const url = new URL(location.href);
-  const token = url.searchParams.get('session');
-  let page = PAGES.has(url.searchParams.get('page')) ? url.searchParams.get('page') : 'home';
+  const currentUrl = new URL(location.href);
+  const token = currentUrl.searchParams.get('session');
+  let page = PAGES.has(currentUrl.searchParams.get('page')) ? currentUrl.searchParams.get('page') : 'home';
   let session = null;
   let sessionError = '';
   let lastDialogFocus = null;
@@ -26,17 +26,19 @@
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 
+  const fieldClass = 'mt-2 block min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-base text-neutral-950 shadow-sm outline-none transition focus:border-neutral-950 focus:ring-4 focus:ring-neutral-200 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 motion-reduce:transition-none';
+  const primaryButton = 'inline-flex min-h-11 items-center justify-center rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus:outline-none focus:ring-4 focus:ring-neutral-300 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none';
+  const secondaryButton = 'inline-flex min-h-11 items-center justify-center rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50 focus:outline-none focus:ring-4 focus:ring-neutral-200 motion-reduce:transition-none';
+  const cardClass = 'rounded-2xl border border-neutral-200 bg-white shadow-sm';
+  const raisedCardClass = 'rounded-2xl border border-neutral-200 bg-white shadow-lg shadow-neutral-950/5';
+  const eyebrowClass = 'text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500';
+
   const badgeClasses = Object.freeze({
     brand: 'inline-flex min-h-7 items-center rounded-full bg-neutral-950 px-2.5 py-1 text-xs font-semibold text-white',
     neutral: 'inline-flex min-h-7 items-center rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-700',
     success: 'inline-flex min-h-7 items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-200',
     warning: 'inline-flex min-h-7 items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200'
   });
-  const fieldClass = 'mt-2 block min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-base text-neutral-950 shadow-sm outline-none transition focus:border-neutral-950 focus:ring-4 focus:ring-neutral-200 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500';
-  const primaryButton = 'inline-flex min-h-11 items-center justify-center rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus:outline-none focus:ring-4 focus:ring-neutral-300 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none';
-  const cardClass = 'rounded-2xl border border-neutral-200 bg-white shadow-sm';
-  const raisedCardClass = 'rounded-2xl border border-neutral-200 bg-white shadow-lg shadow-neutral-950/5';
-  const eyebrowClass = 'text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500';
 
   try {
     if (token) session = store.resolveSession(store.decodeSession(token));
@@ -58,7 +60,11 @@
     return assessment.answersMayBeRevealed(source, source?.status);
   };
   const navHref = (next) => utils.routeUrl('student', { page: next }, location.href);
-  const examHref = () => utils.routeUrl('exam', { session: token || undefined }, location.href);
+  const examHref = (examSession = session) => utils.routeUrl(
+    'exam',
+    examSession ? { session: store.encodeSession(examSession) } : { session: token || undefined },
+    location.href
+  );
   const badge = (text, tone = 'neutral') => `<span class="${badgeClasses[tone] || badgeClasses.neutral}">${escapeHtml(text)}</span>`;
 
   const navItems = Object.freeze([
@@ -89,7 +95,12 @@
       </form>
     </dialog>`;
 
-  const gate = (message = '') => `
+  const mount = (markup) => {
+    root.innerHTML = `${markup}${examAccessMarkup()}`;
+    bindExamAccess();
+  };
+
+  const gateMarkup = (message = '') => `
     <main class="min-h-dvh bg-neutral-100 p-4 sm:p-7">
       <div class="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-xl sm:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[.85fr_1.15fr]">
         <section class="flex flex-col justify-between bg-neutral-950 p-7 text-white sm:p-10">
@@ -102,4 +113,246 @@
             ${badge('Student authentication', 'brand')}
             <h2 class="mt-4 font-display text-3xl font-extrabold text-neutral-950">Sign in with your candidate credentials.</h2>
             <p class="mt-3 text-base leading-7 text-neutral-600">Your first name is your username and your last name is your password.${session ? ' After sign in, Festacol will open the exact examination from your link.' : ''}</p>
-            ${message ? `<div class="mt-5 rounded-x²È="25…Á•!Ñµ°¡ÕÉÉ•¹Ðü¹™¥ÉÍÑ9…µ”ñð€œœ¥ôˆ‘¥Í…‰±•øð½‘¥Øøñ‘¥Øøñ±…‰•°™½Èô‰ÁÉ½™¥±”µ±…ÍÐµ¹…µ”ˆ±…ÍÌô‰Ñ•áÐµÍ´™½¹ÐµÍ•µ¥‰½±ˆù1…ÍÐ¹…µ”ð½±…‰•°øñ¥¹ÁÕÐ¥ô‰ÁÉ½™¥±”µ±…ÍÐµ¹…µ”ˆ±…ÍÌôˆ‘í™¥•±‘±…ÍÍôˆÙ…±Õ”ôˆ‘í•Í…Á•!Ñµ°¡ÕÉÉ•¹Ðü¹±…ÍÑ9…µ”ñð€œœ¥ôˆ‘¥Í…‰±•øð½‘¥Øøñ‘¥Øøñ±…‰•°™½Èô‰ÁÉ½™¥±”µÕ…É‘¥…¸ˆ±…ÍÌô‰Ñ•áÐµÍ´™½¹ÐµÍ•µ¥‰½±ˆùÕ…É‘¥…¸ð½±…‰•°øñ¥¹ÁÕÐ¥ô‰ÁÉ½™¥±”µÕ…É‘¥…¸ˆ±…ÍÌôˆ‘í™¥•±‘±…ÍÍôˆÙ…±Õ”ôˆ‘í•Í…Á•!Ñµ°¡ÕÉÉ•¹Ðü¹Õ…É‘¥…¸ñð€œœ¥ôˆøð½‘¥Øøñ‘¥Øøñ±…‰•°™½Èô‰ÁÉ½™¥±”µÁ¡½¹”ˆ±…ÍÌô‰Ñ•áÐµÍ´™½¹ÐµÍ•µ¥‰½±ˆùA¡½¹”ð½±…‰•°øñ¥¹ÁÕÐ¥ô‰ÁÉ½™¥±”µÁ¡½¹”ˆ±…ÍÌôˆ‘í™¥•±‘±…ÍÍôˆÙ…±Õ”ôˆ‘í•Í…Á•!Ñµ°¡ÕÉÉ•¹Ðü¹Á¡½¹”ñð€œœ¥ôˆøð½‘¥Øøñ‰ÕÑÑ½¸±…ÍÌôˆ‘íÁÉ¥µ…Éå	ÕÑÑ½¹ôÍ´é½°µÍÁ…¸´ÈˆÑåÁ”ô‰ÍÕ‰µ¥ÐˆùM…Ù”ÁÉ½™¥±”ð½‰ÕÑÑ½¸øð½™½É´øð½Í•Ñ¥½¸ù€ì(€ôì((€½¹ÍÐÉ•¹‘•È€ô€ ¤€ôøì(€€€±•Ð½¹Ñ•¹Ðì(€€€¥˜€¡Í•ÍÍ¥½¹ÉÉ½È¤½¹Ñ•¹Ð€ô…Ñ”¡Í•ÍÍ¥½¹ÉÉ½È¤ì(€€€•±Í”¥˜€ …Á½ÉÑ…±ÕÑ¡• ¤¤½¹Ñ•¹Ð€ô…Ñ” ¤ì(€€€•±Í”¥˜€¡Í•ÍÍ¥½¸¤ì(€€€€€±½…Ñ¥½¸¹É•Á±…”¡•á…µ!É•˜ ¤¤ì(€€€€€É•ÑÕÉ¸ì(€€€ô•±Í”ì(€€€€€½¹ÍÐÁ…•I•¹‘•É•È€ôì¡½µ”è‘…Í¡‰½…É°•á…µÌè•á…µÍA…”°…¹…±åÑ¥Ìè…¹…±åÑ¥ÍA…”°¡¥ÍÑ½Éäè¡¥ÍÑ½ÉåA…”°ÁÉ½É•ÍÌèÁÉ½É•ÍÍA…”°ÁÉ½™¥±”èÁÉ½™¥±•A…”õmÁ…•tì(€€€€€½¹Ñ•¹Ð€ôÍ¡•±°¡Á…•I•¹‘•É•È ¤¤ì(€€€ô(€€€É½½Ð¹¥¹¹•É!Q50€ô€‘í½¹Ñ•¹Ñô‘í•á…µ•ÍÍ5…É­ÕÀ ¥õ€ì(€€€‰¥¹‘½µµ½¸ ¤ì(€€€¥˜€¡Á½ÉÑ…±ÕÑ¡• ¤€˜˜€…Í•ÍÍ¥½¸¤‰¥¹‘A½ÉÑ…° ¤ì(€€€•±Í”‰¥¹‘…Ñ” ¤ì(€ôì((€½¹ÍÐ‰¥¹‘…Ñ”€ô€ ¤€ôøì(€€€‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµ±½¥¸µ™½É´œ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ÍÕ‰µ¥Ðœ°…Íå¹Œ€¡•Ù•¹Ð¤€ôøì(€€€€€•Ù•¹Ð¹ÁÉ•Ù•¹Ñ•™…Õ±Ð ¤ì(€€€€€½¹ÍÐ•ÉÉ½È€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµ±½¥¸µ•ÉÉ½Èœ¤ì(€€€€€ÑÉäì(€€€€€€€½¹ÍÐ™¥ÉÍÐ€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµ™¥ÉÍÐµ¹…µ”œ¤¹Ù…±Õ”ì(€€€€€€€½¹ÍÐ±…ÍÐ€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµ±…ÍÐµ¹…µ”œ¤¹Ù…±Õ”ì(€€€€€€€½¹ÍÐÉ•‘•¹Ñ¥…±Ì€ô…ÍÍ•ÍÍµ•¹Ð¹…¹‘¥‘…Ñ•É•‘•¹Ñ¥…±Ì¡™¥ÉÍÐ°±…ÍÐ¤ì(€€€€€€€½¹ÍÐÍÑÕ‘•¹Ñ!…Í €ô…Ý…¥Ð…ÍÍ•ÍÍµ•¹Ð¹ÍÑÕ‘•¹Ñ!…Í ¡™¥ÉÍÐ°±…ÍÐ¤ì(€€€€€€€ÍÑ½É”¹Í•ÑMÑÕ‘•¹ÑÕÑ ¡ÍÑÕ‘•¹Ñ!…Í ¤ì(€€€€€€€½¹ÍÐ•á¥ÍÑ¥¹œ€ôÁÉ½™¥±” ¤ì(€€€€€€€ÍÑ½É”¹Í…Ù•MÑÕ‘•¹ÑAÉ½™¥±”¡ì€¸¸¹•á¥ÍÑ¥¹œ°™¥ÉÍÑ9…µ”èÉ•‘•¹Ñ¥…±Ì¹™¥ÉÍÑ9…µ”°±…ÍÑ9…µ”èÉ•‘•¹Ñ¥…±Ì¹±…ÍÑ9…µ”°™Õ±±9…µ”èÉ•‘•¹Ñ¥…±Ì¹™Õ±±9…µ”°…¹‘¥‘…Ñ•!…Í è•á¥ÍÑ¥¹œü¹…¹‘¥‘…Ñ•!…Í ñðÍÑÕ‘•¹Ñ!…Í °ÍÑÕ‘•¹Ñ!…Í °……‘•µ¥M•ÍÍ¥½¸èÍ•ÍÍ¥½¸ü¹……‘•µ¥M•ÍÍ¥½¸ñð•á¥ÍÑ¥¹œü¹……‘•µ¥M•ÍÍ¥½¸ñðÍÑ½É”¹5%}MMM%=8ô¤ì(€€€€€€€¥˜€¡Í•ÍÍ¥½¸¤ì(€€€€€€€€€½¹ÍÐ…¹‘¥‘…Ñ•!…Í €ô…Ý…¥Ð…ÍÍ•ÍÍµ•¹Ð¹…¹‘¥‘…Ñ•!…Í ¡Í•ÍÍ¥½¸¹¥°™¥ÉÍÐ°±…ÍÐ¤ì(€€€€€€€€€ÍÑ½É”¹Í•ÑÑ¥Ù•…¹‘¥‘…Ñ”¡Í•ÍÍ¥½¸¹¥°…¹‘¥‘…Ñ•!…Í ¤ì(€€€€€€€€€ÍÑ½É”¹Í…Ù•MÑÕ‘•¹ÑAÉ½™¥±”¡ì€¸¸¹ÍÑ½É”¹•ÑMÑÕ‘•¹ÑAÉ½™¥±” ¤°…¹‘¥‘…Ñ•!…Í °ÕÉÉ•¹Ñ±…ÍÍ%èÍ•ÍÍ¥½¸¹±…ÍÍÉ½ÕÀ°……‘•µ¥M•ÍÍ¥½¸èÍ•ÍÍ¥½¸¹……‘•µ¥M•ÍÍ¥½¸ô¤ì(€€€€€€€€€±½…Ñ¥½¸¹É•Á±…”¡•á…µ!É•˜ ¤¤ì(€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€ô(€€€€€€€É•¹‘•È ¤ì(€€€€€ô…Ñ €¡™…¥±ÕÉ”¤ì(€€€€€€€•ÉÉ½È¹Ñ•áÑ½¹Ñ•¹Ð€ô™…¥±ÕÉ”¹µ•ÍÍ…”ì(€€€€€€€•ÉÉ½È¹±…ÍÍ1¥ÍÐ¹É•µ½Ù” ¡¥‘‘•¸œ¤ì(€€€€€ô(€€€ô¤ì(€ôì((€½¹ÍÐ±½Í•5•¹Ô€ô€ ¤€ôøì(€€€½¹ÍÐÍ¥‘•‰…È€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹ÐµÍ¥‘•‰…Èœ¤ì(€€€½¹ÍÐÍÉ¥´€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹ÐµÍÉ¥´œ¤ì(€€€½¹ÍÐµ•¹Ô€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµµ•¹Ôœ¤ì(€€€Í¥‘•‰…Èü¹±…ÍÍ1¥ÍÐ¹…‘ ¡¥‘‘•¸œ¤ì(€€€Í¥‘•‰…Èü¹±…ÍÍ1¥ÍÐ¹É•µ½Ù” ™±•àœ¤ì(€€€ÍÉ¥´ü¹±…ÍÍ1¥ÍÐ¹…‘ ¡¥‘‘•¸œ¤ì(€€€µ•¹Ôü¹Í•ÑÑÑÉ¥‰ÕÑ” …É¥„µ•áÁ…¹‘•œ°€™…±Í”œ¤ì(€€€¥˜€¡±…ÍÑ5•¹Õ½ÕÌ¥¹ÍÑ…¹•½˜!Q51±•µ•¹Ð¤±…ÍÑ5•¹Õ½ÕÌ¹™½ÕÌ ¤ì(€€€±…ÍÑ5•¹Õ½ÕÌ€ô¹Õ±°ì(€ôì((€½¹ÍÐ‰¥¹‘A½ÉÑ…°€ô€ ¤€ôøì(€€€½¹ÍÐµ•¹Ô€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµµ•¹Ôœ¤ì(€€€µ•¹Ôü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°€ ¤€ôøì(€€€€€±…ÍÑ5•¹Õ½ÕÌ€ô‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðì(€€€€€½¹ÍÐÍ¥‘•‰…È€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹ÐµÍ¥‘•‰…Èœ¤ì(€€€€€Í¥‘•‰…Èü¹±…ÍÍ1¥ÍÐ¹É•µ½Ù” ¡¥‘‘•¸œ¤ì(€€€€€Í¥‘•‰…Èü¹±…ÍÍ1¥ÍÐ¹…‘ ™±•àœ¤ì(€€€€€‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹ÐµÍÉ¥´œ¤ü¹±…ÍÍ1¥ÍÐ¹É•µ½Ù” ¡¥‘‘•¸œ¤ì(€€€€€µ•¹Ô¹Í•ÑÑÑÉ¥‰ÕÑ” …É¥„µ•áÁ…¹‘•œ°€ÑÉÕ”œ¤ì(€€€€€Í¥‘•‰…Èü¹ÅÕ•ÉåM•±•Ñ½È „œ¤ü¹™½ÕÌ ¤ì(€€€ô¤ì(€€€‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹ÐµÍÉ¥´œ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°±½Í•5•¹Ô¤ì(€€€‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµµ•¹Ôµ±½Í”œ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°±½Í•5•¹Ô¤ì(€€€‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È m‘…Ñ„µÍÑÕ‘•¹Ðµ±½½ÕÑtœ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°€ ¤€ôøì(€€€€€ÍÑ½É”¹±•…ÉMÑÕ‘•¹ÑÕÑ  ¤ì(€€€€€É•¹‘•È ¤ì(€€€ô¤ì(€€€‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹ÐµÁÉ½™¥±”µ™½É´œ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ÍÕ‰µ¥Ðœ°€¡•Ù•¹Ð¤€ôøì(€€€€€•Ù•¹Ð¹ÁÉ•Ù•¹Ñ•™…Õ±Ð ¤ì(€€€€€½¹ÍÐÕÉÉ•¹Ð€ôÁÉ½™¥±” ¤ì(€€€€€ÍÑ½É”¹Í…Ù•MÑÕ‘•¹ÑAÉ½™¥±”¡ì€¸¸¹ÕÉÉ•¹Ð°Õ…É‘¥…¸è‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÁÉ½™¥±”µÕ…É‘¥…¸œ¤¹Ù…±Õ”°Á¡½¹”è‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÁÉ½™¥±”µÁ¡½¹”œ¤¹Ù…±Õ”ô¤ì(€€€€€É•¹‘•È ¤ì(€€€ô¤ì(€ôì((€½¹ÍÐÍ¡½Ýá…µÉÉ½È€ô€¡µ•ÍÍ…”¤€ôøì(€€€½¹ÍÐ•ÉÉ½È€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ•ÉÉ½Èœ¤ì(€€€¥˜€ …•ÉÉ½È¤É•ÑÕÉ¸ì(€€€•ÉÉ½È¹Ñ•áÑ½¹Ñ•¹Ð€ôµ•ÍÍ…”ì(€€€•ÉÉ½È¹±…ÍÍ1¥ÍÐ¹É•µ½Ù” ¡¥‘‘•¸œ¤ì(€ôì((€½¹ÍÐ‰¥¹‘½µµ½¸€ô€ ¤€ôøì(€€€½¹ÍÐ±…Õ¹ €ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ±…Õ¹ œ¤ì(€€€½¹ÍÐ‘¥…±½œ€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ‘¥…±½œœ¤ì(€€€½¹ÍÐ±½Í”€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ±½Í”œ¤ì(€€€½¹ÍÐ™½É´€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ™½É´œ¤ì(€€€½¹ÍÐ¥¹ÁÕÐ€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ¥¹ÁÕÐœ¤ì(€€€½¹ÍÐ•ÉÉ½È€ô‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% •á…´µ¥µ•ÉÉ½Èœ¤ì((€€€±…Õ¹ ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°€ ¤€ôøì(€€€€€±…ÍÑ¥…±½½ÕÌ€ô‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðì(€€€€€¥˜€¡•ÉÉ½È¤ì•ÉÉ½È¹Ñ•áÑ½¹Ñ•¹Ð€ô€œœì•ÉÉ½È¹±…ÍÍ1¥ÍÐ¹…‘ ¡¥‘‘•¸œ¤ìô(€€€€€¥˜€¡¥¹ÁÕÐ¤¥¹ÁÕÐ¹Ù…±Õ”€ô€œœì(€€€€€‘¥…±½œü¹Í¡½Ý5½‘…° ¤ì(€€€€€ÅÕ•Õ•5¥É½Ñ…Í¬  ¤€ôø¥¹ÁÕÐü¹™½ÕÌ ¤¤ì(€€€ô¤ì(€€€±½Í”ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°€ ¤€ôø‘¥…±½œü¹±½Í” ¤¤ì(€€€‘¥…±½œü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±¥¬œ°€¡•Ù•¹Ð¤€ôøì(€€€€€¥˜€¡•Ù•¹Ð¹Ñ…É•Ð€ôôô‘¥…±½œ¤‘¥…±½œ¹±½Í” ¤ì(€€€ô¤ì(€€€‘¥…±½œü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È …¹•°œ°€¡•Ù•¹Ð¤€ôøì(€€€€€•Ù•¹Ð¹ÁÉ•Ù•¹Ñ•™…Õ±Ð ¤ì(€€€€€‘¥…±½œ¹±½Í” ¤ì(€€€ô¤ì(€€€‘¥…±½œü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ±½Í”œ°€ ¤€ôøì(€€€€€¥˜€¡±…ÍÑ¥…±½½ÕÌ¥¹ÍÑ…¹•½˜!Q51±•µ•¹Ð¤±…ÍÑ¥…±½½ÕÌ¹™½ÕÌ ¤ì(€€€€€±…ÍÑ¥…±½½ÕÌ€ô¹Õ±°ì(€€€ô¤ì(€€€™½É´ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ÍÕ‰µ¥Ðœ°€¡•Ù•¹Ð¤€ôøì(€€€€€•Ù•¹Ð¹ÁÉ•Ù•¹Ñ•™…Õ±Ð ¤ì(€€€€€¥˜€¡•ÉÉ½È¤ì•ÉÉ½È¹Ñ•áÑ½¹Ñ•¹Ð€ô€œœì•ÉÉ½È¹±…ÍÍ1¥ÍÐ¹…‘ ¡¥‘‘•¸œ¤ìô(€€€€€½¹ÍÐ¥€ô¥¹ÁÕÐ¹Ù…±Õ”¹ÑÉ¥´ ¤¹Ñ½UÁÁ•É…Í” ¤ì(€€€€€½¹ÍÐÍ•±•Ñ•€ôÍÑ½É”¹™¥¹‘M•ÍÍ¥½¹	å%¡¥¤ì(€€€€€¥˜€ …Í•±•Ñ•¤ì(€€€€€€€Í¡½Ýá…µÉÉ½È 9¼•á…µ¥¹…Ñ¥½¸µ…Ñ¡•ÌÑ¡…Ð%¸¡•¬Ñ¡”¡…É…Ñ•ÉÌ…¹ÑÉä……¥¸¸œ¤ì(€€€€€€€É•ÑÕÉ¸ì(€€€€€ô(€€€€€¥˜€¡Í•±•Ñ•¹ÍÑ…ÑÕÌ€ôôô€‘É…™Ðœ¤ì(€€€€€€€Í¡½Ýá…µÉÉ½È Q¡¥Ì•á…µ¥¹…Ñ¥½¸¡…Ì¹½Ð‰••¸ÁÕ‰±¥Í¡•å•Ð¸œ¤ì(€€€€€€€É•ÑÕÉ¸ì(€€€€€ô(€€€€€½¹ÍÐ±¥¹¬€ôÁÉ½Ñ½È¹‘•½É…Ñ•MÑÕ‘•¹Ñ1¥¹¬¡ÍÑ½É”¹•ÑM•ÍÍ¥½¹1¥¹¬¡Í•±•Ñ•°±½…Ñ¥½¸¹¡É•˜¤°ÁÉ½Ñ½È¹•Ñ‘µ¥¹A½±¥ä¡Í•±•Ñ•¹¥¤¹…µ•É…I•ÅÕ¥É•¤ì(€€€€€±½…Ñ¥½¸¹…ÍÍ¥¸¡±¥¹¬¤ì(€€€ô¤ì((€€€É½½Ð¹½¹­•å‘½Ý¸€ô€¡•Ù•¹Ð¤€ôøì(€€€€€¥˜€¡•Ù•¹Ð¹­•ä€ôôô€Í…Á”œ€˜˜‘½Õµ•¹Ð¹•Ñ±•µ•¹Ñ	å% ÍÑÕ‘•¹Ðµµ•¹Ôœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” …É¥„µ•áÁ…¹‘•œ¤€ôôô€ÑÉÕ”œ¤±½Í•5•¹Ô ¤ì(€€€ôì(€ôì((€É½½Ð¹¥¹¹•É!Q50€ô€œñµ…¥¸±…ÍÌô‰É¥µ¥¸µ µ‘Ù Á±…”µ¥Ñ•µÌµ•¹Ñ•È‰œµ¹•ÕÑÉ…°´ÔÀÀ´Øˆøñ‘¥Ø±…ÍÌô‰É½Õ¹‘•´Éá°‰½É‘•È‰½É‘•Èµ¹•ÕÑÉ…°´ÈÀÀ‰œµÝ¡¥Ñ”À´ÜÑ•áÐµ•¹Ñ•ÈÍ¡…‘½ÜµÍ´ˆøñÍÁ…¸±…ÍÌô‰µàµ…ÕÑ¼É¥Í¥é”´ÄÄÁ±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰œµ¹•ÕÑÉ…°´äÔÀÑ•áÐµÍ´™½¹Ðµ‰±…¬Ñ•áÐµÝ¡¥Ñ”ˆùð½ÍÁ…¸øñ Ä±…ÍÌô‰µÐ´Ô™½¹Ðµ‘¥ÍÁ±…äÑ•áÐ´Éá°™½¹Ðµ•áÑÉ…‰½±Ñ•áÐµ¹•ÕÑÉ…°´äÔÀˆù=Á•¹¥¹œå½ÕÈ……‘•µ¥ŒÝ½É­ÍÁ…—Š˜ð½ Äøð½‘¥Øøð½µ…¥¸øœì(€ÅÕ•ÍÑ¥½¹Ì¹±½… ¤¹Ñ¡•¸¡É•¹‘•È¤¹…Ñ  ¡™…¥±ÕÉ”¤€ôøì(€€€É½½Ð¹¥¹¹•É!Q50€ô€ñµ…¥¸±…ÍÌô‰É¥µ¥¸µ µ‘Ù Á±…”µ¥Ñ•µÌµ•¹Ñ•È‰œµ¹•ÕÑÉ…°´ÔÀÀ´Øˆøñ‘¥Ø±…ÍÌô‰µ…àµÜµ±œÉ½Õ¹‘•´Éá°‰½É‘•È‰½É‘•ÈµÉ•´ÈÀÀ‰œµÉ•´ÔÀÀ´ØÑ•áÐµÉ•´äÀÀˆøñÍÑÉ½¹œ±…ÍÌô‰‰±½¬™½¹Ðµ‘¥ÍÁ±…äÑ•áÐµ±œˆùEÕ•ÍÑ¥½¸‘…Ñ„Õ¹…Ù…¥±…‰±”ð½ÍÑÉ½¹œøñÍÁ…¸±…ÍÌô‰µÐ´È‰±½¬Ñ•áÐµÍ´ˆø‘í•Í…Á•!Ñµ°¡™…¥±ÕÉ”¹µ•ÍÍ…”¥ôð½ÍÁ…¸øð½‘¥Øøð½µ…¥¸ø‘í•á…µ•ÍÍ5…É­ÕÀ ¥õ€ì(€€€‰¥¹‘½µµ½¸ ¤ì(€ô¤ì)ô¤ ¤ì(
+            ${message ? `<div class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert"><strong class="block font-semibold">Unable to continue</strong><span class="mt-1 block">${escapeHtml(message)}</span></div>` : ''}
+            <form id="student-login-form" class="mt-7 grid gap-4 sm:grid-cols-2" novalidate>
+              <label for="student-first-name" class="text-sm font-semibold text-neutral-800">First name Â· username</label>
+              <label for="student-last-name" class="text-sm font-semibold text-neutral-800 sm:col-start-2">Last name Â· password</label>
+              <input id="student-first-name" class="${fieldClass} mt-0" autocomplete="given-name" required>
+              <input id="student-last-name" type="password" class="${fieldClass} mt-0" autocomplete="current-password" required>
+              <p id="student-login-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800 sm:col-span-2" role="alert"></p>
+              <button class="${primaryButton} sm:col-span-2" type="submit">${session ? 'Continue to examination' : 'Open student portal'}</button>
+            </form>
+            ${session ? `<div class="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><p class="${eyebrowClass}">Linked examination</p><strong class="mt-1 block text-sm text-neutral-950">${escapeHtml(session.title)}</strong><span class="mt-1 block text-xs text-neutral-500">${escapeHtml(session.classLevel)} Â· ${escapeHtml(store.getModeLabel(session.mode))}</span></div>` : ''}
+          </div>
+        </section>
+      </div>
+    </main>`;
+
+  const shellMarkup = (content) => {
+    const current = profile();
+    const activeTitle = navItems.find(([key]) => key === page)?.[1] || 'Dashboard';
+    const navigation = navItems.map(([key, label]) => {
+      const active = page === key;
+      return `<a href="${navHref(key)}" class="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-neutral-200 motion-reduce:transition-none ${active ? 'bg-neutral-950 text-white' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-950'}" ${active ? 'aria-current="page"' : ''}>${escapeHtml(label)}</a>`;
+    }).join('');
+    const initials = `${current?.firstName?.[0] || ''}${current?.lastName?.[0] || ''}` || 'S';
+
+    return `<div class="min-h-dvh bg-neutral-50">
+      <button id="student-menu" type="button" class="fixed left-4 top-4 z-40 grid size-11 place-items-center rounded-xl border border-neutral-200 bg-white text-sm font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50 focus:outline-none focus:ring-4 focus:ring-neutral-200 lg:hidden motion-reduce:transition-none" aria-controls="student-sidebar" aria-expanded="false">Menu</button>
+      <div id="student-scrim" class="fixed inset-0 z-40 hidden bg-neutral-950/40 backdrop-blur-sm lg:hidden"></div>
+      <aside id="student-sidebar" class="fixed inset-y-0 left-0 z-50 hidden w-[min(19rem,88vw)] flex-col border-r border-neutral-200 bg-white shadow-2xl shadow-neutral-950/10 lg:flex lg:w-72 lg:shadow-none">
+        <div class="p-5"><a href="${navHref('home')}" class="flex min-h-11 items-center gap-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-neutral-200"><span class="grid size-11 place-items-center rounded-xl bg-neutral-950 text-sm font-black text-white">F</span><span><strong class="block font-display text-base font-extrabold text-neutral-950">Festacol</strong><small class="block text-xs text-neutral-500">Student intelligence portal</small></span></a></div>
+        <nav class="grid gap-1 px-3" aria-label="Student navigation">${navigation}</nav>
+        <div class="mt-auto border-t border-neutral-200 p-4"><div class="flex items-center gap-3"><span class="grid size-11 shrink-0 place-items-center rounded-full bg-neutral-100 text-xs font-bold text-neutral-700">${escapeHtml(initials)}</span><div class="min-w-0 flex-1"><strong class="block truncate text-sm text-neutral-900">${escapeHtml(current?.fullName || 'Student')}</strong><span class="text-xs text-neutral-500">${escapeHtml(current?.academicSession || store.ACADEMIC_SESSION)}</span></div><button class="${secondaryButton} min-h-10 px-3 text-xs" type="button" data-student-logout>Sign out</button></div></div>
+      </aside>
+      <main class="min-h-dvh lg:pl-72">
+        <header class="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 px-4 py-3 pl-16 backdrop-blur lg:pl-6"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4"><div><p class="${eyebrowClass}">Student portal</p><h1 class="font-display text-lg font-extrabold text-neutral-950">${escapeHtml(activeTitle)}</h1></div>${badge(current?.academicSession || store.ACADEMIC_SESSION, 'brand')}</div></header>
+        <div class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-7">${content}</div>
+      </main>
+    </div>`;
+  };
+
+  const metric = (label, value, detail) => `<article class="relative min-h-32 overflow-hidden ${cardClass} p-4"><span class="absolute right-4 top-4 size-2.5 rounded-full bg-neutral-950 ring-4 ring-neutral-100"></span><span class="${eyebrowClass}">${escapeHtml(label)}</span><strong class="mt-3 block font-display text-2xl font-extrabold tabular-nums text-neutral-950">${escapeHtml(value)}</strong><small class="mt-2 block text-xs leading-5 text-neutral-500">${escapeHtml(detail)}</small></article>`;
+
+  const activeAttemptCard = () => {
+    const open = attempts().find((attempt) => attempt.startedAt && !attempt.submittedAt);
+    if (!open) return `<section class="${raisedCardClass} overflow-hidden lg:grid lg:grid-cols-[1fr_280px]"><div class="p-6 sm:p-8">${badge('No active exam')}<h2 class="mt-4 font-display text-3xl font-extrabold text-neutral-950">Use the examination link or QR code issued by your school.</h2><p class="mt-3 max-w-xl text-base leading-7 text-neutral-600">Exam links carry the exact session configuration. After authentication, they open directly into instructions or resume the same attempt.</p></div><div class="relative overflow-hidden border-t border-neutral-200 bg-neutral-100 p-5 lg:border-l lg:border-t-0"><img src="${ART.question}" alt="Student considering an examination question" class="mx-auto h-52 max-w-full" loading="lazy"></div></section>`;
+    const savedSession = store.listSessions().find((item) => item.id === open.sessionId);
+    if (!savedSession) return `<section class="${raisedCardClass} p-6">${badge('In progress', 'warning')}<h2 class="mt-3 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(open.sessionTitle)}</h2><p class="mt-2 text-sm leading-6 text-neutral-600">Reopen the original exam link to resume this attempt.</p></section>`;
+    return `<section class="${raisedCardClass} p-6 sm:p-8">${badge('In progress', 'warning')}<h2 class="mt-4 font-display text-3xl font-extrabold text-neutral-950">${escapeHtml(open.sessionTitle)}</h2><p class="mt-2 text-base leading-7 text-neutral-600">Your exact attempt is saved and can be resumed while the examination remains available.</p><a class="${primaryButton} mt-6" href="${examHref(savedSession)}">Resume examination</a></section>`;
+  };
+
+  const dashboard = () => {
+    const all = attempts();
+    const submitted = all.filter((attempt) => attempt.submittedAt);
+    const average = submitted.length ? Math.round(submitted.reduce((total, attempt) => total + (attempt.score || 0), 0) / submitted.length) : 0;
+    const integrity = submitted.length ? Math.round(submitted.reduce((total, attempt) => total + (attempt.integrityScore ?? 100), 0) / submitted.length) : null;
+    return `${activeAttemptCard()}<section class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">${metric('Completed', submitted.length, 'submitted exams')}${metric('Average', submitted.length ? `${average}%` : 'â€”', 'across scored attempts')}${metric('Integrity', integrity === null ? 'â€”' : `${integrity}%`, 'recorded browser signals')}${metric('Academic session', profile()?.academicSession || store.ACADEMIC_SESSION, 'current student profile')}</section>`;
+  };
+
+  const attemptRow = (attempt, trailing) => `<div class="flex min-h-[4.5rem] items-center gap-3 border-b border-neutral-100 px-4 py-3 last:border-b-0"><div class="min-w-0 flex-1"><strong class="block truncate text-sm text-neutral-950">${escapeHtml(attempt.sessionTitle)}</strong><span class="mt-1 block text-xs text-neutral-500">${escapeHtml(attempt.classLevel || 'â€”')} Â· ${attempt.submittedAt ? 'Submitted' : 'In progress'}</span></div>${trailing}</div>`;
+  const examsPage = () => `<section class="${cardClass} overflow-hidden"><div class="border-b border-neutral-200 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Exam activity</h2><p class="mt-1 text-sm text-neutral-500">All attempts associated with this student identity.</p></div>${attempts().length ? attempts().map((attempt) => attemptRow(attempt, badge(attempt.submittedAt ? 'Locked' : 'Resume', attempt.submittedAt ? 'success' : 'warning'))).join('') : '<p class="p-6 text-sm text-neutral-500">No exam attempts yet.</p>'}</section>`;
+
+  const analyticsPage = () => {
+    const submitted = attempts().filter((attempt) => attempt.submittedAt);
+    if (!submitted.length) return `<section class="${cardClass} p-7 text-sm text-neutral-600">No submitted results yet.</section>`;
+    const attempt = submitted[0];
+    const unlocked = answerUnlocked(attempt);
+    const subjectStats = (attempt.subjectStats || []).map((item) => `<div class="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3"><span class="text-sm text-neutral-700">${escapeHtml(item.subject)}</span><strong class="tabular-nums text-neutral-950">${escapeHtml(`${item.percent}%`)}</strong></div>`).join('');
+    const details = unlocked ? (attempt.details || []).map((detail, index) => `<article class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><strong class="text-sm text-neutral-950">Question ${index + 1}</strong><p class="mt-1 text-xs text-neutral-500">Correct answer: ${escapeHtml(detail.correctAnswer || 'Unavailable')}</p></article>`).join('') : '';
+    return `<section class="grid grid-cols-2 gap-3 xl:grid-cols-4">${metric('Score', `${attempt.score ?? 0}%`, 'latest submitted exam')}${metric('Completion', `${attempt.completion ?? 100}%`, 'questions completed')}${metric('Pace', `${attempt.paceIndex ?? 0}`, 'exam-derived pace index')}${metric('Integrity', `${attempt.integrityScore ?? 100}%`, 'browser integrity score')}</section><section class="${cardClass} mt-5 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Subject performance</h2><div class="mt-4 grid gap-3">${subjectStats || '<p class="text-sm text-neutral-500">No subject breakdown available.</p>'}</div><div class="mt-5 rounded-xl border p-4 text-sm ${unlocked ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-blue-200 bg-blue-50 text-blue-900'}"><strong class="block font-semibold">${unlocked ? 'Answer review unlocked' : 'Answers remain locked'}</strong><span class="mt-1 block">${unlocked ? 'The examination is closed, so review details may now be displayed.' : 'Correct answers are hidden until the administrator closes the examination.'}</span></div>${details ? `<div class="mt-4 grid gap-3">${details}</div>` : ''}</section>`;
+  };
+
+  const historyPage = () => `<section class="${cardClass} overflow-hidden"><div class="border-b border-neutral-200 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Exam history</h2></div>${attempts().length ? attempts().map((attempt) => attemptRow(attempt, `<strong class="tabular-nums text-neutral-950">${attempt.submittedAt ? `${attempt.score ?? 0}%` : 'â€”'}</strong>`)).join('') : '<p class="p-6 text-sm text-neutral-500">No history yet.</p>'}</section>`;
+
+  const progressPage = () => {
+    const completed = attempts().filter((attempt) => attempt.submittedAt);
+    const qualifier = completed.find((attempt) => attempt.placement);
+    const placement = qualifier?.placement;
+    return `<section class="grid gap-5 lg:grid-cols-2"><article class="${raisedCardClass} p-6"><p class="${eyebrowClass}">Academic session</p><h2 class="mt-2 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(profile()?.academicSession || store.ACADEMIC_SESSION)}</h2><p class="mt-2 text-sm text-neutral-600">Student: ${escapeHtml(profile()?.fullName || 'â€”')}</p></article><article class="${raisedCardClass} p-6"><p class="${eyebrowClass}">Placement / promotion</p><h2 class="mt-2 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(placement?.assignedTrack || 'Pending')}</h2><p class="mt-2 text-sm text-neutral-600">${placement ? `${escapeHtml(placement.confidence)}% confidence Â· exam-derived recommendation` : 'Complete a qualifier or promotion assessment to populate this view.'}</p></article></section>`;
+  };
+
+  const profilePage = () => {
+    const current = profile();
+    return `<section class="${raisedCardClass} max-w-3xl p-6"><h2 class="font-display text-lg font-extrabold text-neutral-950">Profile management</h2><p class="mt-2 text-sm leading-6 text-neutral-600">Your examination identity is fixed to the authenticated first and last name. Contact the school to change those credentials.</p><form id="student-profile-form" class="mt-6 grid gap-4 sm:grid-cols-2"><label for="profile-first" class="text-sm font-semibold text-neutral-800">First name</label><label for="profile-last" class="text-sm font-semibold text-neutral-800 sm:col-start-2">Last name</label><input id="profile-first" class="${fieldClass} mt-0" value="${escapeHtml(current?.firstName || '')}" disabled><input id="profile-last" class="${fieldClass} mt-0" value="${escapeHtml(current?.lastName || '')}" disabled><label for="profile-guardian" class="text-sm font-semibold text-neutral-800">Guardian</label><label for="profile-phone" class="text-sm font-semibold text-neutral-800 sm:col-start-2">Phone</label><input id="profile-guardian" class="${fieldClass} mt-0" value="${escapeHtml(current?.guardian || '')}"><input id="profile-phone" class="${fieldClass} mt-0" value="${escapeHtml(current?.phone || '')}"><button class="${primaryButton} sm:col-span-2" type="submit">Save profile</button></form></section>`;
+  };
+
+  const render = () => {
+    if (sessionError) {
+      mount(gateMarkup(sessionError));
+      bindGate();
+      return;
+    }
+    if (!portalAuthed()) {
+      mount(gateMarkup());
+      bindGate();
+      return;
+    }
+    if (session) {
+      location.replace(examHref(session));
+      return;
+    }
+    const renderPage = { home: dashboard, exams: examsPage, analytics: analyticsPage, history: historyPage, progress: progressPage, profile: profilePage }[page] || dashboard;
+    mount(shellMarkup(renderPage()));
+    bindPortal();
+  };
+
+  const bindGate = () => {
+    document.getElementById('student-login-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const error = document.getElementById('student-login-error');
+      error?.classList.add('hidden');
+      try {
+        const first = document.getElementById('student-first-name')?.value || '';
+        const last = document.getElementById('student-last-name')?.value || '';
+        const credentials = assessment.candidateCredentials(first, last);
+        const studentHash = await assessment.studentHash(first, last);
+        store.setStudentAuth(studentHash);
+        const existing = profile();
+        store.saveStudentProfile({ ...existing, firstName: credentials.firstName, lastName: credentials.lastName, fullName: credentials.fullName, candidateHash: existing?.candidateHash || studentHash, studentHash, academicSession: session?.academicSession || existing?.academicSession || store.ACADEMIC_SESSION });
+        if (session) {
+          const candidateHash = await assessment.candidateHash(session.id, first, last);
+          store.setActiveCandidate(session.id, candidateHash);
+          store.saveStudentProfile({ ...store.getStudentProfile(), candidateHash, currentClassId: session.classGroup, academicSession: session.academicSession });
+          location.replace(examHref(session));
+          return;
+        }
+        render();
+      } catch (failure) {
+        if (error) {
+          error.textContent = failure.message;
+          error.classList.remove('hidden');
+        }
+      }
+    });
+  };
+
+  const closeMenu = ({ restoreFocus = true } = {}) => {
+    const sidebar = document.getElementById('student-sidebar');
+    const scrim = document.getElementById('student-scrim');
+    const trigger = document.getElementById('student-menu');
+    sidebar?.classList.add('hidden');
+    sidebar?.classList.remove('flex');
+    scrim?.classList.add('hidden');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) lastMenuFocus?.focus?.();
+  };
+
+  const bindPortal = () => {
+    const menu = document.getElementById('student-menu');
+    menu?.addEventListener('click', () => {
+      const sidebar = document.getElementById('student-sidebar');
+      const scrim = document.getElementById('student-scrim');
+      lastMenuFocus = document.activeElement;
+      sidebar?.classList.remove('hidden');
+      sidebar?.classList.add('flex');
+      scrim?.classList.remove('hidden');
+      menu.setAttribute('aria-expanded', 'true');
+      sidebar?.querySelector('a')?.focus();
+    });
+    document.getElementById('student-scrim')?.addEventListener('click', () => closeMenu());
+    document.querySelector('[data-student-logout]')?.addEventListener('click', () => {
+      store.clearStudentAuth();
+      render();
+    });
+    document.getElementById('student-profile-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const current = profile();
+      store.saveStudentProfile({ ...current, guardian: document.getElementById('profile-guardian')?.value || '', phone: document.getElementById('profile-phone')?.value || '' });
+      render();
+    });
+  };
+
+  function bindExamAccess() {
+    const launch = document.getElementById('exam-id-launch');
+    const dialog = document.getElementById('exam-id-dialog');
+    const close = document.getElementById('exam-id-close');
+    const form = document.getElementById('exam-id-form');
+    const input = document.getElementById('exam-id-input');
+    const error = document.getElementById('exam-id-error');
+    if (!launch || !dialog || !form || !input || !error) return;
+
+    const closeDialog = () => {
+      if (dialog.open) dialog.close();
+      lastDialogFocus?.focus?.();
+    };
+
+    launch.addEventListener('click', () => {
+      lastDialogFocus = document.activeElement;
+      error.classList.add('hidden');
+      error.textContent = '';
+      dialog.showModal();
+      queueMicrotask(() => input.focus());
+    });
+    close?.addEventListener('click', closeDialog);
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) closeDialog();
+    });
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeDialog();
+    });
+    dialog.addEventListener('close', () => {
+      lastDialogFocus?.focus?.();
+    });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      error.classList.add('hidden');
+      error.textContent = '';
+      const id = input.value.trim().toUpperCase();
+      const found = store.findSessionById(id);
+      if (!found) {
+        error.textContent = 'No examination matches that ID. Check the characters and try again.';
+        error.classList.remove('hidden');
+        return;
+      }
+      if (found.status === 'draft') {
+        error.textContent = 'This examination has not been published yet.';
+        error.classList.remove('hidden');
+        return;
+      }
+      if (found.status === 'closed' || (found.endsAt && Date.now() > found.endsAt)) {
+        error.textContent = 'This examination is closed.';
+        error.classList.remove('hidden');
+        return;
+      }
+      if (found.startsAt && Date.now() < found.startsAt) {
+        error.textContent = 'This examination is not open yet.';
+        error.classList.remove('hidden');
+        return;
+      }
+      const link = proctor.decorateStudentLink(store.getSessionLink(found, location.href), proctor.getAdminPolicy(found.id).cameraRequired);
+      location.assign(link);
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const dialog = document.getElementById('exam-id-dialog');
+    if (dialog?.open) return;
+    const sidebar = document.getElementById('student-sidebar');
+    if (sidebar && !sidebar.classList.contains('hidden') && matchMedia('(max-width: 1023px)').matches) closeMenu();
+  });
+
+  render();
+})();
