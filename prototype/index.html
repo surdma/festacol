@@ -1,1 +1,70 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Festacol</title></head><body><script>const target=new URL('./student.html',location.href);target.search=location.search;location.replace(target.href);</script><noscript><a href="./student.html">Open Festacol student dashboard</a></noscript></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Festacol student and examination workspace">
+  <title>Festacol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: "DM Sans", sans-serif;
+      --font-display: "Manrope", sans-serif;
+    }
+  </style>
+</head>
+<body class="min-h-dvh bg-neutral-50 font-sans text-neutral-950 antialiased">
+  <a href="#app" class="fixed left-4 top-4 z-[100] -translate-y-24 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white transition focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-neutral-300 motion-reduce:transition-none">Skip to application</a>
+  <div id="app" tabindex="-1" class="min-h-dvh outline-none">
+    <main class="grid min-h-dvh place-items-center p-6">
+      <div class="rounded-2xl border border-neutral-200 bg-white p-7 text-center shadow-sm">
+        <span class="mx-auto grid size-11 place-items-center rounded-xl bg-neutral-950 text-sm font-black text-white">F</span>
+        <h1 class="mt-5 font-display text-2xl font-extrabold">Opening Festacol…</h1>
+      </div>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
+  <script src="./js/shared.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const app = document.getElementById('app');
+      const current = new URL(location.href);
+      const requested = current.searchParams.get('route') || 'student';
+      const knownRoutes = new Set(['student', 'admin', 'exam']);
+      const route = knownRoutes.has(requested) ? requested : 'student';
+
+      if (!window.Festacol) {
+        app.innerHTML = '<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">Festacol could not start.</h1><p class="mt-2 text-sm">The shared application runtime is unavailable.</p></div></main>';
+        return;
+      }
+
+      if (route !== requested || !current.searchParams.has('route')) {
+        current.searchParams.set('route', route);
+        history.replaceState({}, '', current.href);
+      }
+
+      if (route === 'admin' || route === 'exam') {
+        const target = new URL(route === 'admin' ? './admin.html' : './exam.html', location.href);
+        const forwarded = new URLSearchParams(location.search);
+        forwarded.delete('route');
+        target.search = forwarded.toString();
+        location.replace(target.href);
+        return;
+      }
+
+      document.title = 'Festacol · Student Dashboard';
+      document.querySelector('meta[name="description"]')?.setAttribute('content', 'Festacol student academic intelligence dashboard');
+      const script = document.createElement('script');
+      script.src = './js/student.js';
+      script.addEventListener('error', () => {
+        app.innerHTML = '<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">Student workspace unavailable.</h1><p class="mt-2 text-sm">The Student runtime could not be loaded.</p></div></main>';
+      });
+      document.body.append(script);
+    })();
+  </script>
+</body>
+</html>
