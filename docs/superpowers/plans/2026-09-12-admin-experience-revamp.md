@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Consolidate the Festacol prototype to four JavaScript runtimes and deliver the complete teacher-facing admin revamp without regressing student/exam behavior.
+**Goal:** Consolidate the Festacol prototype to four JavaScript runtimes and deliver the complete teacher-facing admin revamp without regressing student or examination behavior.
 
-**Architecture:** Replace the current eight-file runtime with `shared.js`, `admin.js`, `student.js`, and `exam.js`. `shared.js` owns all cross-page domain/state/scoring/question/proctor/QR behavior through one `window.Festacol` namespace; page runtimes own only their respective DOM and interaction concerns. Remove Playwright from the prototype and retain lightweight Node source/state contracts plus mandatory browser dogfood before Git handoff.
+**Architecture:** Replace the current eight-file runtime with `shared.js`, `admin.js`, `student.js`, and `exam.js`. `shared.js` owns cross-page domain/state/scoring/question/proctor/QR behavior through one `window.Festacol` namespace; page runtimes own only their respective DOM and interaction concerns. Remove Playwright from the prototype and retain lightweight Node source/state contracts plus mandatory browser dogfood before Git handoff.
 
 **Tech Stack:** Static HTML, vanilla JavaScript, browser localStorage/sessionStorage, Tailwind CSS browser v4, Flowbite 4.0.1, Flowbite Icons, ApexCharts 3.46.0, Simple-DataTables 9.0.3, Node.js source/state contract scripts.
 
@@ -29,7 +29,7 @@
 - Notifications use an anchored Flowbite Popover/Dropdown beside the bell trigger.
 - Query parameters drive meaningful page, tab, record, filter, report, modal, and builder-step state.
 - Question scoring reads answer metadata from question records; do not keep a hardcoded ID→answer table.
-- Seed bank target is approximately 500 validated questions with level/pathway routing that prevents inappropriate questions reaching a candidate.
+- Seed bank target is at least 500 validated questions unless the product owner explicitly revises that target before execution.
 - Playwright, `playwright.config.js`, `tests/prototype.spec.js`, Playwright package scripts/dependency, and browser CI are removed.
 - Permanent automated validation is Node/source/state-contract based; browser behavior is validated by mandatory Dogfood/Chrome DevTools execution.
 - Only Git/Release performs final commit/push/PR operations after validation gates; do not commit broken intermediate refactors.
@@ -41,48 +41,48 @@
 ### Runtime files
 
 - `prototype/js/shared.js`
-  - storage/state normalization
-  - sessions and encoded payload compatibility
-  - users/staff/classes/WhatsApp
-  - question loading/validation/eligibility/overrides
-  - paper allocation/randomization
-  - scoring/subject stats/placement
-  - integrity/proctor/camera policy
-  - QR generation
-  - shared utilities
+  - storage/state normalization;
+  - sessions and encoded payload compatibility;
+  - users/staff/classes/WhatsApp;
+  - question loading/validation/eligibility/overrides;
+  - paper allocation/randomization;
+  - scoring/subject stats/placement;
+  - integrity/proctor/camera policy;
+  - QR generation;
+  - shared utilities.
 
 - `prototype/js/admin.js`
-  - admin URL state/router
-  - Flowbite component lifecycle
-  - Overview, Students, Staff, Examinations, Classes, Question Bank, Reports, Settings
-  - exam builder/edit/distribution
-  - charts/data tables
+  - admin URL state/router;
+  - Flowbite component lifecycle;
+  - Overview, Students, Staff, Examinations, Classes, Question Bank, Reports, Settings;
+  - exam builder/edit/distribution;
+  - charts/data tables.
 
 - `prototype/js/student.js`
-  - student dashboard rendering
-  - Exam ID modal/form
-  - student-facing navigation/interactions
+  - student dashboard rendering;
+  - Exam ID modal/form;
+  - student-facing navigation/interactions.
 
 - `prototype/js/exam.js`
-  - candidate login/start
-  - camera gate/preview
-  - exam workspace/questions/timer
-  - integrity listeners
-  - resume/reconcile/submit/result UI
+  - candidate login/start;
+  - camera gate/preview;
+  - exam workspace/questions/timer;
+  - integrity listeners;
+  - resume/reconcile/submit/result UI.
 
 ### Data
 
 - `prototype/data/questions.json`
-  - ~500 validated seed questions
-  - answer metadata included per question type
-  - level/pathway/mode/difficulty/domain metadata
+  - at least 500 validated seed questions;
+  - answer metadata per response type;
+  - level/pathway/mode/difficulty/domain metadata.
 
 ### HTML
 
 - `prototype/admin.html`
 - `prototype/student.html`
 - `prototype/exam.html`
-- `prototype/index.html` (simple redirect retained)
+- `prototype/index.html` — retain simple redirect to `student.html`.
 
 ### Permanent validation
 
@@ -91,7 +91,7 @@
 - `package.json`
 - `.github/workflows/prototype-ui.yml`
 
-### Files removed after migration
+### Files removed after successful migration
 
 - `prototype/js/admin-app.js`
 - `prototype/js/assessment-engine.js`
@@ -106,7 +106,7 @@
 
 ---
 
-## Task 1: Convert Current Behavior Into a Non-Playwright Preservation Contract
+## Task 1: Convert Existing Behavior Into a Non-Playwright Preservation Contract
 
 **Files:**
 - Modify: `scripts/prototype-audit.mjs`
@@ -115,18 +115,18 @@
 - Read: `tests/prototype.spec.js`
 
 **Interfaces:**
-- Consumes: current runtime behavior and the scenarios encoded in the existing Playwright suite.
-- Produces: source/state contracts plus a concrete manual browser acceptance checklist from the design spec.
+- Consumes: current runtime behavior and scenarios encoded in the existing Playwright suite.
+- Produces: executable source/state contracts and the manual browser acceptance matrix in the design spec.
 
-- [ ] **Step 1: Inventory current public shared methods before refactor**
+- [ ] **Step 1: Inventory every current shared method and consumer before refactoring**
 
-Record every current method used by page runtimes or contract scripts, including sessions, attempts, rewrite/reset, users/classes, questions, scoring, proctor policy, QR, and candidate identity helpers. Use repository-wide search rather than assuming exports are unused.
+Search all HTML, runtime JS, Node contracts, and the Playwright suite for current `FestacolSessionStore`, `FestacolQuestionData`, `FestacolAssessmentEngine`, `FestacolProctorPolicy`, and `FestacolQR` calls. Produce a working mapping from each method to its target `Festacol.store`, `.questions`, `.assessment`, `.proctor`, `.qr`, or `.utils` owner.
 
-Expected result: every current page call site maps to a target `Festacol.<module>.<method>` owner before any old file is deleted.
+Acceptance: no legacy export is deleted until every repository consumer has a target mapping.
 
-- [ ] **Step 2: Update the source audit to describe the final four-runtime architecture**
+- [ ] **Step 2: Stage the final four-runtime source contract in `prototype-audit.mjs`**
 
-The audit must ultimately require:
+The final runtime assertion is:
 
 ```js
 const requiredRuntime = [
@@ -135,15 +135,16 @@ const requiredRuntime = [
   'prototype/js/student.js',
   'prototype/js/exam.js'
 ];
+for (const file of requiredRuntime) {
+  if (!fs.existsSync(path.join(root, file))) throw new Error(`Missing target prototype runtime: ${file}`);
+}
 ```
 
-and reject the eight legacy runtime paths after migration.
+Keep this final assertion disabled only while consumers are being migrated; activate it atomically in Task 12 when all four files are live.
 
-Do not make this assertion active until the target files exist; structure the refactor so the audit can be switched atomically with the migration.
+- [ ] **Step 3: Define the final admin head/source assertions**
 
-- [ ] **Step 3: Add final admin head/source contract assertions**
-
-Require the exact pinned resources:
+The final audit must require:
 
 ```js
 for (const token of [
@@ -158,41 +159,30 @@ for (const token of [
 }
 ```
 
-Reject local admin CSS and old runtime script tags.
+It must reject local admin CSS links and all old admin runtime script tags.
 
-- [ ] **Step 4: Expand `state-contract.mjs` coverage before changing shared behavior**
+- [ ] **Step 4: Expand `state-contract.mjs` with one-class and retained-history assertions**
 
-Keep current session migration/round-trip, deterministic paper, scoring, integrity, rewrite, reset, student relationship, and WhatsApp assertions. Add explicit checks for:
+Keep current session migration/round-trip, deterministic paper, scoring, integrity, rewrite, reset, student relationship, and WhatsApp assertions. Add a one-class assertion by saving one known student with a different `classId` and verifying the stored record contains one class value, not an array or multiple memberships.
 
-```js
-// one current class per student
-const before = S.listUsers().find((u) => u.id === 'ST-2401');
-S.saveUser({ ...before, classId: 'ss3-science' });
-if (S.listUsers().find((u) => u.id === 'ST-2401').classId !== 'ss3-science') {
-  throw new Error('single current class assignment failed');
-}
-```
+Also assert that deleting a session definition does not remove already-recorded attempts for that session ID.
 
-Also add final assertions for seed-question override/reset and answer-aware custom-question scoring once those APIs are implemented in Task 5.
+- [ ] **Step 5: Preserve current browser scenarios as mandatory Dogfood scenarios**
 
-- [ ] **Step 5: Extract browser scenarios from the old Playwright file into the implementation Dogfood checklist**
+Carry these old Playwright expectations into the manual acceptance matrix without weakening them:
 
-Ensure the final execution checklist explicitly includes:
-
-- admin eight-route navigation and no overflow;
-- Exam ID login path;
+- admin navigation and no horizontal overflow;
+- Exam ID login;
 - camera denial/retry;
-- timeout auto-submit;
-- rewrite archive/fresh attempt;
+- timeout auto-submit and auth cleanup;
+- rewrite archive plus fresh attempt;
 - structural edit locks;
-- WhatsApp valid/invalid link;
-- exact integrity event drill-down;
-- modal viewport bounds;
-- mobile navigation/cards.
+- WhatsApp valid/invalid URL handling;
+- exact integrity-event drill-down;
+- modal viewport containment;
+- mobile navigation and touch-friendly record presentation.
 
-The scenarios remain requirements even though the Playwright implementation is removed later.
-
-- [ ] **Step 6: Run current pre-refactor contracts**
+- [ ] **Step 6: Execute the current baseline before production mutation**
 
 Run:
 
@@ -201,11 +191,11 @@ npm run check
 node --check tests/prototype.spec.js
 ```
 
-Expected: current baseline passes before production mutation. If it does not, classify failures before proceeding.
+Expected: the current source/state contracts and Playwright source syntax pass before consolidation begins. If a task-related failure exists, classify and resolve or record it before continuing.
 
 ---
 
-## Task 2: Build `shared.js` and Preserve Storage/Session Compatibility
+## Task 2: Consolidate Shared Domain Logic Into `shared.js`
 
 **Files:**
 - Create: `prototype/js/shared.js`
@@ -216,59 +206,40 @@ Expected: current baseline passes before production mutation. If it does not, cl
 - Produces: `window.Festacol = Object.freeze({ store, questions, assessment, proctor, qr, utils })`.
 - Consumed later by: `admin.js`, `student.js`, `exam.js`.
 
-- [ ] **Step 1: Create the namespace skeleton without page DOM rendering**
+The exact public module ownership is:
 
-Use one IIFE:
-
-```js
-(() => {
-  'use strict';
-
-  const utils = Object.freeze({ /* shared pure helpers */ });
-  const store = Object.freeze({ /* persistence/domain state */ });
-  const questions = Object.freeze({ /* question access */ });
-  const assessment = Object.freeze({ /* paper/scoring/placement */ });
-  const proctor = Object.freeze({ /* integrity/camera policy */ });
-  const qr = Object.freeze({ /* SVG QR rendering */ });
-
-  window.Festacol = Object.freeze({ store, questions, assessment, proctor, qr, utils });
-})();
+```text
+Festacol.store       persistence, sessions, attempts, users, classes, WhatsApp, overrides
+Festacol.questions   loading, validation, merge, subject lookup, eligibility
+Festacol.assessment  identity hashes, paper allocation, scoring, placement, integrity score
+Festacol.proctor     camera/integrity policy and decorated candidate-link behavior
+Festacol.qr          QR SVG generation/rendering
+Festacol.utils       pure shared formatting/escaping/clipboard/URL helpers
 ```
 
-Do not expose page renderer functions here.
+- [ ] **Step 1: Move storage/session/attempt/user/class/WhatsApp logic without changing storage keys**
 
-- [ ] **Step 2: Move storage/session/user/class/WhatsApp behavior from `session-store.js`**
+Preserve the current keys, payload version handling, v2/v3 decode behavior, normalization, and semantics for session, attempt, rewrite/reset, active-candidate, student-auth, class, user, and WhatsApp operations.
 
-Preserve existing storage keys and compatibility behavior. Keep normalization rules and method semantics for:
+- [ ] **Step 2: Move proctor policy into `Festacol.proctor`**
 
-- `listSessions`, `saveSession`, `findSessionById`, status/delete/link helpers;
-- attempts and exact student/session relationships;
-- active candidate/auth/student state;
-- rewrite/reset;
-- profile;
-- classes/users/status/promotion;
-- WhatsApp groups;
-- granular clear functions.
+Preserve camera-required and integrity-policy storage semantics and current candidate-link decoration behavior.
 
-- [ ] **Step 3: Move proctor policy into `Festacol.proctor`**
+- [ ] **Step 3: Move QR behavior into `Festacol.qr`**
 
-Preserve camera-required and integrity policy storage semantics and URL/session decoration behavior.
+Preserve SVG output used by exam distribution and WhatsApp QR display.
 
-- [ ] **Step 4: Move QR renderer into `Festacol.qr`**
+- [ ] **Step 4: Move current assessment behavior into `Festacol.assessment` before changing the answer model**
 
-Keep deterministic SVG generation used by examination and WhatsApp distribution.
+Move candidate/student hashing, deterministic randomization, paper fingerprint, attempt hash, score result construction, integrity scoring, and placement weighting without changing current outcomes.
 
-- [ ] **Step 5: Temporarily retain existing answer behavior while moving assessment functions**
+- [ ] **Step 5: Move current question loading/eligibility into `Festacol.questions`**
 
-Move candidate/student hashing, deterministic randomization, paper fingerprint, attempt hash, score result construction, integrity scoring, and placement weighting into `Festacol.assessment` without changing answers yet. Task 5 replaces hardcoded answers only after the new question schema is available.
+Preserve subject catalogue, level/mode eligibility, interleaving, question lookup, and current custom-question merge behavior until Task 5 upgrades the schema.
 
-- [ ] **Step 6: Move question loading/eligibility into `Festacol.questions`**
+- [ ] **Step 6: Point `state-contract.mjs` to `shared.js` only**
 
-Preserve current subject catalogue and mode/level filtering.
-
-- [ ] **Step 7: Point `state-contract.mjs` at only `shared.js`**
-
-Replace multi-file VM loading with:
+Load one runtime in the VM and bind the submodules:
 
 ```js
 vm.runInContext(
@@ -276,17 +247,19 @@ vm.runInContext(
   ctx,
   { filename: 'shared.js' }
 );
-const { store: S, assessment: A, questions: Q } = ctx.Festacol;
+const S = ctx.Festacol.store;
+const A = ctx.Festacol.assessment;
+const Q = ctx.Festacol.questions;
 ```
 
-- [ ] **Step 8: Run shared contract**
+- [ ] **Step 7: Execute the shared contract**
 
 ```bash
 node --check prototype/js/shared.js
 node scripts/state-contract.mjs
 ```
 
-Expected: current state/session/assessment contract passes before any consumer is migrated.
+Expected: the existing state/session/assessment behavior passes before any page runtime is switched to the new namespace.
 
 ---
 
@@ -300,46 +273,42 @@ Expected: current state/session/assessment contract passes before any consumer i
 
 **Interfaces:**
 - Consumes: `window.Festacol`.
-- Produces: student dashboard and Exam ID interaction with no other local runtime dependency.
+- Produces: student dashboard and Exam ID interactions with no additional local runtime dependency.
 
-- [ ] **Step 1: Move student-dashboard DOM logic into `student.js`**
+- [ ] **Step 1: Move all student-dashboard DOM/render logic into `student.js`**
 
-Replace references such as `FestacolSessionStore`/`FestacolAssessmentEngine` with destructured shared modules:
+At the top of `student.js`, fail fast if shared dependencies are unavailable and bind only the modules actually used:
 
 ```js
-const { store, assessment, proctor, utils } = window.Festacol;
+const { store, assessment, proctor, utils } = window.Festacol || {};
+if (!store || !assessment || !proctor || !utils) throw new Error('Festacol student dependencies are unavailable.');
 ```
 
-- [ ] **Step 2: Move inline Exam ID script into `student.js`**
+- [ ] **Step 2: Move the inline Exam ID modal/form behavior into `student.js`**
 
-Preserve:
+Preserve case-insensitive lookup, missing/draft/closed session messaging according to current rules, decorated candidate link behavior, and modal Escape/backdrop/focus restoration.
 
-- case-insensitive Exam ID lookup;
-- missing/draft exam errors;
-- camera-aware decorated examination URL;
-- modal close/backdrop/Escape/focus behavior.
+- [ ] **Step 3: Simplify local script loading in `student.html`**
 
-- [ ] **Step 3: Simplify `student.html` local scripts**
-
-The final local runtime sequence is exactly:
+Final local runtime sequence:
 
 ```html
 <script src="./js/shared.js"></script>
 <script src="./js/student.js"></script>
 ```
 
-Keep Flowbite CDN loading before those files.
+Flowbite CDN remains before these local scripts.
 
-- [ ] **Step 4: Run syntax/source contract in transitional mode**
+- [ ] **Step 4: Execute syntax checks**
 
 ```bash
-node --check prototype/js/student.js
 node --check prototype/js/shared.js
+node --check prototype/js/student.js
 ```
 
-- [ ] **Step 5: Browser-smoke the student dashboard and Exam ID form manually**
+- [ ] **Step 5: Focused browser smoke**
 
-Using the local static server, confirm the dashboard renders and a known session ID can route to the exam login. This is a focused implementation smoke, not the final Dogfood gate.
+Serve the repository and verify the student dashboard renders, the Exam ID modal opens/closes, and a known open session ID reaches the same exam login URL as the session link.
 
 ---
 
@@ -352,31 +321,21 @@ Using the local static server, confirm the dashboard renders and a known session
 
 **Interfaces:**
 - Consumes: `Festacol.store`, `.questions`, `.assessment`, `.proctor`, `.utils`.
-- Produces: complete candidate examination UI/runtime.
+- Produces: complete candidate examination workspace.
 
-- [ ] **Step 1: Port exam DOM/workspace logic without simplifying behavior**
+- [ ] **Step 1: Port all current examination UI states before redesigning anything**
 
-Preserve all current states and handlers before changing visual details:
+Preserve login, before-you-begin state, camera gate/retry/preview, every current question response type, timer, question navigation, review, submit modal, result/locked state, and unfinished-attempt resume.
 
-- login;
-- before-you-begin state;
-- camera gate/retry/preview;
-- question response types;
-- timer;
-- review;
-- submit modal;
-- result/locked state;
-- resume unfinished state.
+- [ ] **Step 2: Preserve integrity and elapsed-time behavior**
 
-- [ ] **Step 2: Preserve integrity listeners and background reconciliation**
+Keep window/tab visibility/blur handling, clipboard events, fullscreen events, elapsed-active-time tracking, background marker reconciliation, and timeout submission.
 
-Keep tab/window visibility/blur, clipboard, fullscreen, elapsed-active-time, timeout and persisted background marker behavior.
+- [ ] **Step 3: Preserve auth/candidate cleanup semantics**
 
-- [ ] **Step 3: Preserve session/candidate cleanup rules**
+Timeout and successful submission clear the active student auth/candidate state at the same lifecycle points as the current runtime.
 
-Timeout and successful submission still clear active auth/candidate state at the correct time.
-
-- [ ] **Step 4: Simplify `exam.html` local scripts**
+- [ ] **Step 4: Simplify local scripts in `exam.html`**
 
 Final local runtime sequence:
 
@@ -385,7 +344,7 @@ Final local runtime sequence:
 <script src="./js/exam.js"></script>
 ```
 
-- [ ] **Step 5: Run syntax/shared-state checks**
+- [ ] **Step 5: Execute syntax/state checks**
 
 ```bash
 node --check prototype/js/exam.js
@@ -394,11 +353,11 @@ node scripts/state-contract.mjs
 
 - [ ] **Step 6: Focused browser smoke**
 
-Manually exercise one normal candidate start/answer/submit path and one camera-required start. Do not delete old exam runtime until this succeeds.
+Exercise one normal candidate start/answer/submit path and one camera-required start with denial then retry. Do not delete `exam-app.js` until both paths work through `exam.js`.
 
 ---
 
-## Task 5: Make the Question Bank Answer-Aware and Scale the Seed Data
+## Task 5: Make Questions Answer-Aware and Expand the Bank
 
 **Files:**
 - Modify: `prototype/data/questions.json`
@@ -407,99 +366,93 @@ Manually exercise one normal candidate start/answer/submit path and one camera-r
 - Modify: `scripts/prototype-audit.mjs`
 
 **Interfaces:**
-- Produces: generic answer-aware question records, override APIs, ~500-question validated seed bank.
-- Consumed by: admin builder/question bank and candidate scoring.
+- Produces: generic answer-aware records, browser-local overrides, and at least 500 validated seed questions.
+- Consumed by: candidate scoring, builder inventory, and Question Bank administration.
 
-- [ ] **Step 1: Define answer-aware validation in `Festacol.questions`**
+- [ ] **Step 1: Implement exact answer-shape validation**
 
-Validate by type:
-
-```js
-if (q.type === 'single' && !q.options.includes(q.answer)) throw new Error(...);
-if (q.type === 'boolean' && typeof q.answer !== 'boolean') throw new Error(...);
-if (q.type === 'multi' && (!Array.isArray(q.answers) || q.answers.length !== q.requiredSelections)) throw new Error(...);
-if ((q.type === 'fill' || q.type === 'fill-multi') && !q.acceptedAnswers) throw new Error(...);
-```
-
-Also validate level/pathway/mode/subject/difficulty metadata.
-
-- [ ] **Step 2: Replace hardcoded ID answer keys with generic scoring**
-
-`assessment.scoreQuestion(question, response)` reads the answer fields from the question itself. Preserve existing normalization behavior such as trimmed/case-normalized fill answers.
-
-No `ANSWER_KEYS = { 1: ..., 43: ... }` table remains.
-
-- [ ] **Step 3: Add seed-question override persistence**
-
-Add shared store APIs with explicit names:
+Add a shared validator with concrete failures:
 
 ```js
-listQuestionOverrides()
-saveQuestionOverride(questionId, patch)
-resetQuestionOverride(questionId)
-listCustomQuestions()
-saveCustomQuestion(question)
-deleteCustomQuestion(questionId)
+const validateAnswerShape = (q) => {
+  if (q.type === 'single' && (!Array.isArray(q.options) || !q.options.includes(q.answer))) {
+    throw new Error(`Question ${q.id} has an invalid single-choice answer.`);
+  }
+  if (q.type === 'boolean' && typeof q.answer !== 'boolean') {
+    throw new Error(`Question ${q.id} has an invalid true/false answer.`);
+  }
+  if (q.type === 'multi' && (!Array.isArray(q.answers) || q.answers.length !== q.requiredSelections || q.answers.some((answer) => !q.options.includes(answer)))) {
+    throw new Error(`Question ${q.id} has invalid multiple-choice answers.`);
+  }
+  if ((q.type === 'fill' || q.type === 'fill-multi') && (!Array.isArray(q.acceptedAnswers) || q.acceptedAnswers.length === 0)) {
+    throw new Error(`Question ${q.id} needs accepted fill answers.`);
+  }
+};
 ```
 
-`questions.load()` merges in this order:
+Validate `levels`, `pathways`, `examModes`, `subjectCode`, `domain`, and `difficulty` in the same question-validation pass.
 
-1. seed JSON;
-2. seed overrides by ID;
-3. teacher-authored questions.
+- [ ] **Step 2: Replace the hardcoded answer-key table with generic scoring**
 
-- [ ] **Step 4: Migrate the existing 43 seed questions to answer metadata**
+Implement `assessment.scoreQuestion(question, response)` so:
 
-Use the current answer key as the source of truth so existing scores do not change.
+- single and boolean compare normalized scalar values;
+- multi compares the exact required answer set independent of selection order;
+- fill/fill-multi compare normalized text against accepted-answer entries;
+- unanswered/invalid responses score incorrect without throwing.
 
-- [ ] **Step 5: Expand to the approved ~500-question target**
+Delete the 1–43 answer-key object only after the current 43 seed records contain equivalent answer metadata.
 
-Use academically coherent original items. Every item must have explicit metadata and a valid answer. Distribution must provide practical coverage for:
+- [ ] **Step 3: Add exact question-override APIs**
 
-- Entrance/BECE readiness `q-*` domains;
-- SS1 core/common and pathway subjects;
-- SS2 core/common and pathway subjects;
-- SS3/external-practice senior subjects.
-
-Do not simply tag one senior question as valid for all SS1–SS3 when its difficulty/content is level-specific. Most new senior items should carry the actual intended level(s).
-
-- [ ] **Step 6: Enforce pathway compatibility**
-
-Question eligibility is the intersection of:
+`Festacol.store` must expose:
 
 ```text
-session mode
-∩ class level
-∩ selected subject
-∩ selected/current pathway where applicable
+listQuestionOverrides() -> Array<QuestionOverride>
+saveQuestionOverride(questionId, patch) -> QuestionOverride
+resetQuestionOverride(questionId) -> void
+listCustomQuestions() -> Array<Question>
+saveCustomQuestion(question) -> Question
+deleteCustomQuestion(questionId) -> void
 ```
 
-Common/core subjects can list multiple pathways. Science-only content does not silently enter Arts/Social Science papers.
+`questions.load()` returns the validated seed bank with seed overrides merged by ID, followed by teacher-authored questions, and rejects duplicate final IDs.
 
-- [ ] **Step 7: Audit inventory coverage**
+- [ ] **Step 4: Migrate the existing 43 questions to answer metadata without changing their current scored result**
 
-`prototype-audit.mjs` must fail if:
+For each existing ID, use the current `assessment-engine.js` key as the migration source. Run the state contract against representative single, multi, boolean, and fill items before deleting the old key table.
 
-- question IDs duplicate;
-- answers are malformed;
-- total validated bank does not meet the approved target;
-- any advertised subject/level/mode has no eligible questions;
-- required response types disappear.
+- [ ] **Step 5: Expand the seed dataset to at least 500 original validated items**
 
-Do not fake a 500 label independently of loaded data.
+Required coverage groups:
 
-- [ ] **Step 8: Extend state contract for question edits and scoring**
+- incoming SS1 Entrance/BECE readiness across all `q-*` subjects;
+- SS1 core/common and pathway subjects;
+- SS2 core/common and pathway subjects;
+- SS3 senior/external-practice subjects.
 
-Add checks proving:
+Each new senior item carries the actual intended `levels` and `pathways`. Do not mark a level-specific item as valid for all SS1–SS3 merely to increase eligible counts.
 
-- seed answer scores correctly;
-- seed override changes the rendered/scored answer consistently;
-- reset restores seed answer;
-- custom question with answer can be scored;
-- SS1 eligibility excludes an SS2/SS3-only item;
-- pathway filter excludes an incompatible subject/item.
+- [ ] **Step 6: Make eligibility the intersection of mode, level, subject, and pathway**
 
-- [ ] **Step 9: Run data/shared contracts**
+Common/core questions may list multiple pathways. Science-only questions require Science compatibility; Arts/Social Science routing follows their declared pathway metadata.
+
+- [ ] **Step 7: Make the source audit fail on incomplete bank quality**
+
+Audit failures must include duplicate IDs, malformed answer metadata, fewer than 500 validated seed questions, missing supported response types, or any advertised subject/level/mode slice with zero eligible items.
+
+- [ ] **Step 8: Extend `state-contract.mjs`**
+
+Add executable checks proving:
+
+- migrated seed answer scoring matches prior behavior;
+- a seed override changes both loaded content and scoring answer;
+- reset restores seed behavior;
+- a teacher-authored answer-aware question scores correctly;
+- SS1 eligibility excludes a question restricted to SS2/SS3;
+- a non-Science pathway excludes a Science-only question.
+
+- [ ] **Step 9: Execute data/shared contracts**
 
 ```bash
 node --check prototype/js/shared.js
@@ -507,11 +460,11 @@ npm run audit:prototype
 npm run test:contract
 ```
 
-Expected: all seed questions validate and generic scorer passes preserved/current cases.
+Expected: all seed records validate and generic scoring/eligibility contracts pass.
 
 ---
 
-## Task 6: Rebuild `admin.html` Shell and Create `admin.js`
+## Task 6: Rebuild the Admin Shell and Create `admin.js`
 
 **Files:**
 - Modify: `prototype/admin.html`
@@ -521,20 +474,18 @@ Expected: all seed questions validate and generic scorer passes preserved/curren
 
 **Interfaces:**
 - Consumes: `window.Festacol`, Flowbite, ApexCharts, Simple-DataTables.
-- Produces: admin shell, routing, overlay/popover lifecycle used by later admin tasks.
+- Produces: admin routing, overlay/popover lifecycle, eight-route shell.
 
 - [ ] **Step 1: Install the exact required admin head contract**
 
-Use the exact fonts/Tailwind/Flowbite/two supplied inline style blocks from the design specification.
-
-Replace the unpinned ApexCharts skeleton line with exactly:
+Use the exact fonts, Tailwind, Flowbite CSS, and supplied inline style blocks in the design specification. Use only the pinned plugin scripts:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.46.0/dist/apexcharts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/simple-datatables@9.0.3"></script>
 ```
 
-Do not add local admin CSS.
+Do not include the generic unpinned ApexCharts script and do not load local admin CSS.
 
 - [ ] **Step 2: Load Flowbite plus only the two local admin runtimes**
 
@@ -544,24 +495,21 @@ Do not add local admin CSS.
 <script src="./js/admin.js"></script>
 ```
 
-- [ ] **Step 3: Implement centralized URL state**
+- [ ] **Step 3: Implement one URL-state parser/builder**
 
-Use one state parser/builder supporting:
+The normalized state keys are:
 
-```js
-{
-  page, view, tab, modal, step,
-  student, staff, exam, classId, question, attempt,
-  q, status, level, pathway, subject, type, difficulty, source
-}
+```text
+page view tab modal step student staff exam classId question attempt
+q status level pathway subject type difficulty source
 ```
 
-Normalize legacy `page=users` to Students with `history.replaceState`.
+Normalize legacy `page=users` to `page=students` with `history.replaceState`.
 
-- [ ] **Step 4: Render eight routes from one navigation definition**
+- [ ] **Step 4: Render eight routes from one source**
 
 ```js
-const ROUTES = [
+const ROUTES = Object.freeze([
   ['overview', 'Overview'],
   ['students', 'Students'],
   ['staff', 'Staff'],
@@ -570,34 +518,34 @@ const ROUTES = [
   ['questions', 'Question Bank'],
   ['reports', 'Reports'],
   ['settings', 'Settings']
-];
+]);
 ```
 
-Desktop and mobile nav consume the same list.
+Desktop and mobile navigation consume this same array.
 
-- [ ] **Step 5: Use Flowbite Icons instead of guessed SVG paths**
+- [ ] **Step 5: Fetch and use verified Flowbite Icons**
 
-For each required icon, fetch the matching SVG from Flowbite Icons and store only its verified markup/path in the runtime. Cover at least navigation, bell, search, add, copy, share, edit, delete, check, warning, chart/report, QR, camera, and back/close.
+For navigation, bell, search, add, copy, share, edit, delete, check, warning, chart/report, QR, camera, back, and close, copy the corresponding SVG from `https://flowbite.com/icons/`. Do not use handwritten substitute glyphs or another icon family.
 
-- [ ] **Step 6: Implement Flowbite modal lifecycle with blurred dynamic backdrop**
+- [ ] **Step 6: Use Flowbite Modal with a blurred dynamic backdrop**
 
-Use Flowbite Modal or matching component contract with backdrop classes equivalent to:
+Configure the modal backdrop with classes equivalent to:
 
 ```js
-'bg-gray-900/50 fixed inset-0 z-40 backdrop-blur-sm'
+const backdropClasses = 'bg-gray-900/50 fixed inset-0 z-40 backdrop-blur-sm';
 ```
 
-Do not use a record-detail side drawer.
+Use a bounded centered/modal placement for record detail/edit/confirm. Do not implement a record side drawer.
 
-- [ ] **Step 7: Implement notification Flowbite Popover/Dropdown anchored to the bell**
+- [ ] **Step 7: Use Flowbite Popover/Dropdown for notifications**
 
-The target/trigger relationship must be explicit. Never reuse the centered admin modal for notifications.
+The notification target is positioned relative to the bell trigger, closes on outside/Escape, and is never rendered by the centered modal host.
 
-- [ ] **Step 8: Wire `popstate` and deep-modal restoration**
+- [ ] **Step 8: Restore overlays from URL on `popstate`**
 
-Back/Forward must open/close the correct overlay and preserve parent filters.
+Opening/closing a modal changes only its URL keys. Browser Back/Forward restores the same page, filters, tab, record, and overlay state.
 
-- [ ] **Step 9: Run syntax/source audit**
+- [ ] **Step 9: Execute source checks**
 
 ```bash
 node --check prototype/js/admin.js
@@ -606,55 +554,58 @@ node scripts/prototype-audit.mjs
 
 ---
 
-## Task 7: Implement Students, Staff, Classes and Settings Without Lost Behavior
+## Task 7: Implement Students, Staff, Classes, WhatsApp, and Settings
 
 **Files:**
 - Modify: `prototype/js/admin.js`
 
 **Interfaces:**
 - Consumes: `Festacol.store` users/classes/WhatsApp/attempt APIs and `Festacol.assessment.studentHash`.
-- Produces: academic management pages and student relationship drill-down.
+- Produces: academic management pages and relationship drill-down.
 
 - [ ] **Step 1: Build Students directory**
 
-Filters: search, level, pathway/class, status, performance/placement state when derivable. Use Simple-DataTables on suitable desktop tables and responsive cards on narrow screens.
+Filters: search, level, class/pathway, account status, and derived performance/placement state. Use Simple-DataTables on large desktop tables and responsive cards on narrow screens.
 
 - [ ] **Step 2: Build student deep profile**
 
-Tabs/sections connect identity → current class → exams → exact attempts → performance → placement → integrity → rewrites.
+The profile connects identity → current class → examinations → exact attempts → performance → placement → integrity → rewrites. Every attempt link carries the exact attempt hash.
 
-- [ ] **Step 3: Preserve student mutations**
+- [ ] **Step 3: Preserve student add/edit/suspend/activate behavior**
 
-Add/edit and suspend/activate remain available. Class edit is a single-select move, never a multi-pathway assignment.
+Class assignment is a single select. Saving a new class replaces the previous `classId`; the UI describes this as moving the student.
 
-- [ ] **Step 4: Build Staff page separately**
+- [ ] **Step 4: Build Staff separately**
 
-Only teacher/administrator roles appear. Preserve appropriate add/edit/status controls.
+Only `teacher` and `administrator` roles render in Staff. Preserve appropriate add/edit/status actions without student academic columns.
 
 - [ ] **Step 5: Rebuild Classes by SS level then pathway**
 
-Show capacity, occupancy, remaining places, room, student list, WhatsApp status, and performance deep link.
+Show capacity, occupancy, remaining places, room, student list, WhatsApp mapping, and class-performance deep link.
 
 - [ ] **Step 6: Enforce safe class deletion**
 
-Before delete:
+Use this decision before invoking `store.deleteClass(classId)`:
 
 ```js
-const assigned = store.listUsers().filter((u) => u.role === 'student' && u.classId === classId);
-if (assigned.length) {
-  // reject and tell administrator to move students first
+const assignedStudents = store.listUsers().filter((user) => user.role === 'student' && user.classId === classId);
+if (assignedStudents.length > 0) {
+  throw new Error(`Move ${assignedStudents.length} assigned student${assignedStudents.length === 1 ? '' : 's'} before deleting this class.`);
 }
+store.deleteClass(classId);
 ```
+
+Show the error as a teacher-facing alert/toast rather than allowing destructive deletion.
 
 - [ ] **Step 7: Preserve WhatsApp group CRUD and QR**
 
-Keep secure invite-host validation and one mapping per class.
+Keep secure WhatsApp host validation, one group per class, add/edit/delete, and QR rendering.
 
-- [ ] **Step 8: Build Settings with granular data controls**
+- [ ] **Step 8: Preserve granular Settings data controls**
 
-Preserve clear sessions, attempts, WhatsApp, question overrides/authored items, student runtime state where supported, and full reset. Confirm destructive actions.
+Keep clear sessions, attempts, WhatsApp mappings, local question overrides/authored questions, student runtime state where supported, and full reset. Each destructive action confirms exactly what is removed.
 
-- [ ] **Step 9: Run syntax/state contracts**
+- [ ] **Step 9: Execute contracts**
 
 ```bash
 node --check prototype/js/admin.js
@@ -663,78 +614,49 @@ npm run test:contract
 
 ---
 
-## Task 8: Redesign Examination Management, Edit and Distribution
+## Task 8: Redesign Examination List, Detail, Edit, Distribution, and Lifecycle
 
 **Files:**
 - Modify: `prototype/js/admin.js`
 
 **Interfaces:**
-- Consumes: sessions, attempts, proctor policy, QR, share/clipboard helpers.
-- Produces: examination list/detail/edit/distribution/lifecycle controls.
+- Consumes: sessions, attempts, proctor policy, QR, clipboard/share helpers.
+- Produces: complete examination-management workflow.
 
 - [ ] **Step 1: Build filterable Examinations list**
 
-Support title/ID search plus status, level, purpose, class/pathway, and subject where applicable.
+Filters: title/Exam ID, status, level, purpose, class/pathway, and subject when relevant. Show title, audience, coverage, question count, duration, candidates/submissions, and status.
 
-- [ ] **Step 2: Build deep detail around four jobs**
+- [ ] **Step 2: Build deep detail around four teacher jobs**
 
-Sections/tabs:
+Sections/tabs: Distribute, Control, Candidates, Results & Analytics. No side drawer.
 
-- Distribute;
-- Control;
-- Candidates;
-- Results/Analytics.
+- [ ] **Step 3: Add QR, Exam ID, Copy address, and Share examination**
 
-No side drawer.
+Use Flowbite Clipboard/copy visual treatment and the verified Flowbite copy/share icons. Use `navigator.share` when available; if Web Share is unavailable, copy the URL with `navigator.clipboard.writeText`. Treat `AbortError` as user cancellation, not a failure toast.
 
-- [ ] **Step 3: Add QR, Exam ID, Copy address and Share examination**
-
-Use Flowbite Clipboard/copy pattern and a verified Flowbite copy icon.
-
-Shared helper behavior:
-
-```js
-async function shareExam(session) {
-  const url = Festacol.store.getSessionLink(session, location.href);
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: session.title, url });
-      return { shared: true };
-    } catch (error) {
-      if (error?.name === 'AbortError') return { cancelled: true };
-    }
-  }
-  await navigator.clipboard.writeText(url);
-  return { copied: true };
-}
-```
-
-Do not display a giant raw URL field.
+Do not render a large raw URL input.
 
 - [ ] **Step 4: Preserve lifecycle actions**
 
-- close/reopen;
-- duplicate as draft;
-- delete session definition without deleting historical attempts;
-- reset unfinished attempt;
-- authorize rewrite and preserve archived attempt.
+Keep close/reopen, duplicate as draft, delete session definition while retaining attempts, reset unfinished attempt, and authorize rewrite with archived prior attempt.
 
 - [ ] **Step 5: Redesign Edit Examination**
 
-Use clear sections: identity, audience/coverage, paper, delivery, integrity/camera, instructions. When attempts exist, locked structural controls show explanatory text.
+Sections: Examination identity, Audience & coverage, Paper, Delivery, Integrity & camera, Candidate instructions. When a candidate has started, locked paper-identity fields show an explanation stating why they are locked.
 
-- [ ] **Step 6: Make exact attempts navigable**
+- [ ] **Step 6: Make candidate/submission records deep-link to exact attempts**
 
-Candidate/submission rows link with `attempt=` and preserve examination context.
+Use `attempt=` and preserve the parent `exam=` context in the URL.
 
-- [ ] **Step 7: Run shared contract plus focused browser smoke**
+- [ ] **Step 7: Execute contracts and a focused browser smoke**
 
 ```bash
 node --check prototype/js/admin.js
 npm run test:contract
 ```
 
-Manually create an exam, copy/share it, close/reopen it, and inspect an attempt.
+Then manually create an exam, copy/share it, close/reopen it, inspect an attempt, and confirm delete-session does not erase attempt history.
 
 ---
 
@@ -745,11 +667,11 @@ Manually create an exam, copy/share it, close/reopen it, and inspect an attempt.
 
 **Interfaces:**
 - Consumes: question inventory/eligibility, session normalization, class/pathway data, proctor policy.
-- Produces: normal class assessment, Entrance Exam, and external-practice creation flows.
+- Produces: class assessment, Entrance Exam, and external-practice creation flows.
 
 - [ ] **Step 1: Use the Flowbite Stepper pattern**
 
-Five stages:
+Stages:
 
 1. Purpose & Audience
 2. Coverage
@@ -757,50 +679,35 @@ Five stages:
 4. Integrity & Delivery
 5. Review & Publish
 
-Show active/completed state with circular indicators/checks.
+Completed steps use circular check indicators and the active step remains visually and semantically distinct.
 
 - [ ] **Step 2: Implement purpose-specific branching**
 
-Entrance Exam uses the lighter configuration path and internal `qualifier`. Class Assessment resolves valid single/mixed behavior. External Exam Practice uses existing `waec` compatibility mode.
+Entrance Exam uses the lighter configuration path with internal `qualifier`. Class Assessment resolves valid single/mixed behavior. External Exam Practice uses current `waec` compatibility mode.
 
-- [ ] **Step 3: Use semantic circular selection controls**
+- [ ] **Step 3: Use real radio/checkbox semantics for selection cards**
 
-Cards wrap real radio/checkbox inputs. Do not use click-only div state.
+The visible circular selection indicator mirrors a native radio/checkbox input. Keyboard activation and focus must work without custom click-only div logic.
 
-- [ ] **Step 4: Filter coverage before the teacher chooses a paper size**
+- [ ] **Step 4: Calculate eligible inventory before paper size**
 
-Selected level/pathway/mode/subject drives `questions.eligible(...)`. Display the eligible count before continuing.
+Selected mode, level, pathway, and subject filters produce an `eligibleQuestions` array. Show its length before Stage 3.
 
-- [ ] **Step 5: Implement improved range controls**
+- [ ] **Step 5: Implement range bounds from real data**
 
-Question count:
+Question range maximum is `Math.min(150, eligibleQuestions.length)` and minimum remains 5. Duration remains 30–10800 seconds. If eligible count is below 5, block publishing and explain that more compatible questions are required.
 
-```js
-const maxQuestions = Math.min(150, eligible.length);
-```
+- [ ] **Step 6: Implement integrity controls with Flowbite form patterns**
 
-Duration remains 30–10800 seconds. Show selected value and meaningful endpoints beside the Flowbite range control.
+Focus monitoring, fullscreen prompt, clipboard guard, camera requirement, warn threshold, and initial status use Flowbite checkbox/toggle/radio/range patterns.
 
-- [ ] **Step 6: Implement integrity controls**
+- [ ] **Step 7: Build final review summary and publish**
 
-Use Flowbite checkbox/toggle/radio patterns for focus monitoring, fullscreen prompt, clipboard guard, camera requirement, warn threshold, and status.
+Show audience, pathway/class, subjects, available/requested questions, duration, integrity/camera, and status. Successful save transitions directly to distribution with QR, Exam ID, Copy address, and Share examination.
 
-- [ ] **Step 7: Build final review summary**
+- [ ] **Step 8: Focused browser smoke both creation paths**
 
-Teacher sees audience, pathway/class, subjects, eligible/requested questions, duration, integrity/camera, and status before publish.
-
-- [ ] **Step 8: Publish directly into distribution state**
-
-Success opens the distribution UI with QR, Exam ID, copy, and share controls.
-
-- [ ] **Step 9: Focused browser smoke both branches**
-
-Create:
-
-- one SS2 class assessment;
-- one SS1 Entrance & Placement Exam.
-
-Confirm each saved session has valid mode/level/subjects/count/policy.
+Create one SS2 class assessment and one SS1 Entrance & Placement Exam. Verify saved mode, level, subjects, question count, duration, policy, and status.
 
 ---
 
@@ -810,141 +717,114 @@ Confirm each saved session has valid mode/level/subjects/count/policy.
 - Modify: `prototype/js/admin.js`
 
 **Interfaces:**
-- Consumes: answer-aware merged question inventory from `Festacol.questions` and override/custom mutation APIs from `Festacol.store`.
-- Produces: teacher question management without directly mutating the static JSON file at runtime.
+- Consumes: merged answer-aware question inventory and question override/custom mutation APIs.
+- Produces: teacher question management without attempting to rewrite the static JSON file from the browser.
 
-- [ ] **Step 1: Show actual inventory metrics**
+- [ ] **Step 1: Show real inventory metrics**
 
-Display total loaded/valid questions and useful counts by level/pathway/subject/source. Never hardcode “500”.
+Read counts from the loaded validated bank. Show total plus useful level/pathway/subject/source counts. Never hardcode the 500 count in UI copy.
 
-- [ ] **Step 2: Add advanced filters**
+- [ ] **Step 2: Add query-backed advanced filters**
 
-Query-backed filters:
+Filters: search, SS level, pathway/category, subject, domain/topic, response type, difficulty, exam purpose, and seed/edited/teacher-authored source.
 
-- search;
-- SS1/SS2/SS3;
-- Science/Arts/Social Science/Common;
-- subject;
-- domain;
-- response type;
-- difficulty;
-- exam purpose;
-- seed/edited/teacher-authored.
+- [ ] **Step 3: Use Simple-DataTables for large record navigation**
 
-- [ ] **Step 3: Use Simple-DataTables where it improves large-bank navigation**
+Use its sort/search/pagination where useful. Keep academic/domain filters outside the table rather than implementing a second pagination/search engine.
 
-Do not duplicate its search/sort/pagination with a second custom implementation. Keep domain filters outside/above the table.
+- [ ] **Step 4: Build question detail with hidden answer by default**
 
-- [ ] **Step 4: Build question detail with Reveal answer**
+Provide explicit **Reveal answer**. When revealed, show answer and explanation without exposing them in the collapsed list view.
 
-Answer starts hidden. An explicit administrator action reveals answer + explanation. The page should still make the question readable when answer is hidden.
+- [ ] **Step 5: Build one type-aware question/answer editor**
 
-- [ ] **Step 5: Build one coherent editor for question and answer**
+Single choice requires options and one selected answer; boolean requires true/false; multi requires the declared selection count and matching answer set; fill/fill-multi requires one or more normalized accepted answers. Save rejects malformed combinations before persistence.
 
-Editor supports type-specific fields. For example, a single-choice question requires options and one answer; multi-choice requires exact required selections and matching answers.
+- [ ] **Step 6: Persist seed edits as overrides and support reset**
 
-- [ ] **Step 6: Persist seed edits as overrides**
+Seed save calls `saveQuestionOverride(questionId, patch)`; Restore original calls `resetQuestionOverride(questionId)`. New teacher-authored records use `saveCustomQuestion` and can be edited/deleted.
 
-Saving a seed item calls `saveQuestionOverride(id, patch)`. “Restore original” calls `resetQuestionOverride(id)`.
+- [ ] **Step 7: Show compatibility preview**
 
-- [ ] **Step 7: Preserve teacher-authored CRUD**
+Display the levels, pathways, subjects, and exam purposes that can receive the question so administrators can see routing impact before saving.
 
-New local questions can be created/edited/deleted with valid answers and metadata.
-
-- [ ] **Step 8: Add compatibility preview**
-
-Show which levels/pathways/exam purposes are eligible to receive the question. This should help prevent accidental Science/Arts or SS-level routing mistakes.
-
-- [ ] **Step 9: Run contracts and manually score an edited item**
+- [ ] **Step 8: Execute contracts and prove one edited answer end-to-end**
 
 ```bash
 npm run check
 ```
 
-Then create/edit a local question through Admin, launch a compatible paper, answer it, and confirm scoring uses the saved answer definition.
+Then edit a compatible question answer through Admin, launch a candidate paper containing the edited record, submit the edited correct answer, and verify scoring uses the override.
 
 ---
 
-## Task 11: Implement Relationship-Based Reports and Integrity/Placement Drill-Down
+## Task 11: Implement Relationship-Based Reports, Merit, Placement, and Integrity
 
 **Files:**
 - Modify: `prototype/js/admin.js`
 
 **Interfaces:**
-- Consumes: exact attempts, sessions, students, classes, subject stats, placement and integrity events.
-- Produces: real-data reports with deep links to source records.
+- Consumes: exact attempts, sessions, students, classes, subject stats, placement results, integrity events.
+- Produces: real-data reports with source-record deep links.
 
-- [ ] **Step 1: Create report routing**
+- [ ] **Step 1: Implement report views**
 
-Views:
+Canonical `view=` values are `overview`, `class`, `pathway`, `exam`, `student`, `merit`, `placement`, and `integrity`.
 
-```text
-overview
-class
-pathway
-exam
-student
-merit
-placement
-integrity
-```
+- [ ] **Step 2: Class performance**
 
-All report filters/deep links use query parameters.
+Show participation/submissions, average and median where data exists, subject results, merit context, and student drill-down.
 
-- [ ] **Step 2: Build class performance**
+- [ ] **Step 3: Pathway/category performance**
 
-Show submissions/participation, average/median when data exists, subject results, merit context, and student drill-down.
+Compare Science, Arts, and Social Science from actual enrolled class assignments and submitted attempts only.
 
-- [ ] **Step 3: Build pathway/category performance**
+- [ ] **Step 4: Examination performance and merit**
 
-Compare Science/Arts/Social Science only from actual enrolled class assignments and submitted attempts.
+Show score distribution, subject performance, ranking/merit, and integrity exceptions from the exact examination submissions.
 
-- [ ] **Step 4: Build examination analytics and merit**
+- [ ] **Step 5: Individual student performance**
 
-Use real submissions for score distribution, subject performance, rankings, and integrity exceptions.
+Show exam history, score/subject stats, trend where meaningful, merit context, placement, and integrity history. Every row/chart point can navigate to the source exam/attempt.
 
-- [ ] **Step 5: Build individual student performance**
+- [ ] **Step 6: Entrance placement capacity analytics**
 
-Every chart/table point must remain traceable to exact exam/attempt data.
+For each pathway show configured capacity, enrolled occupancy, places remaining, number recommended, number already placed, and number awaiting placement.
 
-- [ ] **Step 6: Build Entrance placement capacity analytics**
+- [ ] **Step 7: Exact integrity report**
 
-For each pathway show capacity, occupancy, places remaining, recommended, placed, and awaiting placement.
+Each integrity record includes student, examination, exact attempt, event type, and event time and deep-links to the attempt log.
 
-- [ ] **Step 7: Build exact integrity report**
+- [ ] **Step 8: Use ApexCharts only for supported analytical relationships**
 
-Show student + exam + exact attempt + chronological event type/time. Deep link to attempt detail.
+Every chart has title/labels/tooltips and a nearby numeric/table summary. Destroy stale chart instances before rendering replacement route data.
 
-- [ ] **Step 8: Use ApexCharts only where it communicates a real relationship**
+- [ ] **Step 9: Focused browser drill-down**
 
-Charts receive accessible title/labels/tooltips plus an adjacent numerical/table summary. Destroy/recreate chart instances cleanly when route state changes.
-
-- [ ] **Step 9: Browser-smoke chart/report drill-down**
-
-From class report click student → exam → attempt → integrity log and verify URL/state remains coherent.
+Navigate Class report → Student → Examination → Attempt → Integrity log and verify query state/back navigation remains coherent.
 
 ---
 
 ## Task 12: Atomically Remove Legacy Runtimes and Playwright, Then Simplify CI
 
 **Files:**
-- Delete: eight legacy/runtime files replaced above
+- Delete: eight legacy runtime files listed in Target File Map
 - Delete: `tests/prototype.spec.js`
 - Delete: `playwright.config.js`
 - Modify: `package.json`
 - Modify: `.github/workflows/prototype-ui.yml`
-- Modify/finalize: `scripts/prototype-audit.mjs`
+- Finalize: `scripts/prototype-audit.mjs`
 
 **Interfaces:**
-- Produces: final four-runtime prototype and dependency-free Node validation flow.
+- Produces: final four-runtime prototype with dependency-light Node validation.
 
-- [ ] **Step 1: Verify all HTML consumers use target runtimes before deletion**
+- [ ] **Step 1: Verify no live consumer references an old runtime filename**
 
-Search for every old filename. Expected references after migration: zero outside planning/history documentation.
+Search every prototype HTML/JS/script/workflow file. Old runtime filenames may remain only in documentation/history, not in runtime consumers.
 
-- [ ] **Step 2: Delete the legacy runtime files**
+- [ ] **Step 2: Delete the eight replaced runtime files**
 
-Delete:
+Remove:
 
 ```text
 prototype/js/admin-app.js
@@ -957,20 +837,13 @@ prototype/js/session-store.js
 prototype/js/student-dashboard.js
 ```
 
-- [ ] **Step 3: Remove Playwright files**
+- [ ] **Step 3: Delete Playwright-specific files**
 
-Delete:
-
-```text
-tests/prototype.spec.js
-playwright.config.js
-```
+Remove `tests/prototype.spec.js` and `playwright.config.js`.
 
 - [ ] **Step 4: Simplify `package.json`**
 
-Remove `@playwright/test`, `test:e2e`, and `test:e2e:report`.
-
-Keep scripts equivalent to:
+Remove `@playwright/test`, `test:e2e`, and `test:e2e:report`. Final scripts are:
 
 ```json
 {
@@ -982,119 +855,107 @@ Keep scripts equivalent to:
 }
 ```
 
-If no other dependency remains, keep `devDependencies` empty or remove it rather than retaining unused browser tooling.
+If no dependency remains, remove the empty `devDependencies` object rather than leaving stale package metadata.
 
-- [ ] **Step 5: Remove browser job from `.github/workflows/prototype-ui.yml`**
+- [ ] **Step 5: Remove the browser job from `.github/workflows/prototype-ui.yml`**
 
-Keep one source/domain contract job that sets up Node and runs:
+Keep a single source/domain contract job that checks out the repo, sets up Node 22, and runs `npm run check`. Do not install browser binaries or upload Playwright artifacts.
 
-```bash
-npm run check
-```
+- [ ] **Step 6: Activate the final source audit**
 
-Do not install Chromium/Playwright and do not upload browser test artifacts.
+The audit must prove:
 
-- [ ] **Step 6: Finalize source audit**
-
-Assert:
-
-- exact four runtime files exist;
+- exactly the four target runtime files exist under `prototype/js/`;
 - old runtime files do not exist;
-- admin exact head/CDNs exist;
-- admin no local CSS;
-- admin loads only shared.js/admin.js locally;
-- student loads shared.js/student.js;
-- exam loads shared.js/exam.js;
-- question data meets schema/count/coverage contract;
+- admin exact required CDN/head tokens exist;
+- admin loads no local CSS;
+- admin local scripts are `shared.js` then `admin.js`;
+- student local scripts are `shared.js` then `student.js`;
+- exam local scripts are `shared.js` then `exam.js`;
+- question schema/count/coverage is valid;
 - required shared/admin behavior markers exist;
-- no Playwright config/test import remains.
+- Playwright config/import references are gone from executable project files.
 
-- [ ] **Step 7: Run full local static/domain validation**
+- [ ] **Step 7: Execute the final automated validation**
 
 ```bash
 npm run check
 ```
 
-Expected: PASS with no Playwright installation required.
+Expected: PASS without installing Playwright or Chromium.
 
 ---
 
-## Task 13: Independent Test Review, Code Review and Browser Dogfood
+## Task 13: Independent Test Review, Code Review, and Browser Dogfood
 
 **Files:**
-- No production mutation unless a gate returns a defect to the owning implementation task.
+- No production mutation unless a failed gate is returned to the owning implementation task.
 
 **Interfaces:**
-- Consumes: completed implementation and spec acceptance criteria.
+- Consumes: completed implementation and acceptance criteria.
 - Produces: LOCALLY_VALIDATED → REVIEWED → INTEGRATION_VERIFIED evidence.
 
-- [ ] **Step 1: Independent Test Engineer validates Node contracts**
-
-Execute independently:
+- [ ] **Step 1: Independent Test Engineer executes Node contracts**
 
 ```bash
 npm run check
 ```
 
-Confirm the contract would fail for missing runtime files, malformed questions, broken scoring/rewrite, and incompatible eligibility rather than merely printing green output.
+The Test Engineer must inspect the assertions and confirm they would fail for a missing target runtime, malformed question answer, broken rewrite/reset, lost attempt history, and invalid level/pathway eligibility.
 
-- [ ] **Step 2: Independent Code Reviewer inspects the full refactor, not only admin.js**
+- [ ] **Step 2: Independent Code Reviewer challenges the full replacement**
 
-Reviewer must compare removed/replaced behavior against old consumers and specifically challenge:
+Review old behavior and new consumers, not only the final diff shape. Blocking areas:
 
-- localStorage/session compatibility;
-- hidden behavior lost in consolidation;
-- duplicate domain rules outside shared.js;
+- storage/session compatibility;
+- behavior omitted during consolidation;
+- duplicated domain rules outside `shared.js`;
 - question-answer/scoring consistency;
 - one-class invariant;
 - delete/rewrite history safety;
-- query/back-forward behavior;
+- query Back/Forward correctness;
 - accessibility/focus/modal/popover behavior;
 - unnecessary custom components where Flowbite exists;
-- accidental use of raw/guessed icons;
-- stale Playwright references.
+- guessed/non-Flowbite icons;
+- stale Playwright runtime/config references.
 
-Blocking verdict returns work to the appropriate task.
+- [ ] **Step 3: Integration/Dogfood Engineer serves the real static prototype**
 
-- [ ] **Step 3: Integration/Dogfood Engineer runs real browser exploration**
-
-Use the current `dogfood` and browser/Chrome DevTools workflow, not Playwright.
-
-Serve the repository locally, then exercise at:
+Use the current `dogfood` and Chrome DevTools/browser workflow, not Playwright. Exercise at:
 
 ```text
-390×844
-820×1000
-1440×1000
+390×844 mobile
+820×1000 tablet
+1440×1000 desktop
 ```
 
-- [ ] **Step 4: Dogfood admin shell and navigation**
+- [ ] **Step 4: Dogfood admin shell/navigation**
 
-Verify eight routes, legacy users alias, mobile nav, no overflow, deep modal history, blurred backdrop, anchored notifications, no side detail drawer, no local admin CSS.
+Verify eight routes, legacy users alias, mobile navigation, no horizontal overflow, deep-modal history, blurred backdrop, anchored notification popover, no record-detail drawer, and no local admin CSS request.
 
 - [ ] **Step 5: Dogfood Students/Staff/Classes**
 
-Verify separation, profile/exam/attempt drill-down, suspend/activate, one-class move, class capacity, safe delete, WhatsApp valid/invalid CRUD and QR.
+Verify directory separation, student profile/exam/attempt drill-down, suspend/activate, single-class move, class capacity, blocked occupied-class deletion, empty-class deletion, WhatsApp valid/invalid CRUD and QR.
 
-- [ ] **Step 6: Dogfood builder/exam distribution**
+- [ ] **Step 6: Dogfood builder and examination distribution**
 
-Create normal class assessment and Entrance Exam; verify eligibility, count sliders, integrity/camera, publish, QR, Exam ID, Copy address, Share fallback.
+Create one normal assessment and one Entrance Exam; verify eligibility, range bounds, integrity/camera controls, publish, QR, Exam ID, Copy address, native Share where supported, and clipboard fallback.
 
 - [ ] **Step 7: Dogfood candidate workflows**
 
-Exercise Exam ID, candidate login, camera denial/retry, normal answering/resume/submit, integrity events, timeout auto-submit, one-attempt lock, reset unfinished, rewrite authorization and archived prior result.
+Exercise Exam ID, login, camera denial/retry, answer/resume/submit, integrity events, timeout auto-submit/auth cleanup, one-attempt lock, unfinished reset, rewrite authorization, and archived prior result.
 
 - [ ] **Step 8: Dogfood Question Bank**
 
-Filter a large bank, reveal answer, edit seed override, reset override, create/edit/delete teacher question, and prove the edited answer affects a compatible candidate score.
+Verify actual inventory count, combined filters, Reveal answer, seed override edit/reset, teacher-authored create/edit/delete, routing compatibility preview, and end-to-end scoring of an edited answer.
 
 - [ ] **Step 9: Dogfood Reports**
 
-Verify class, pathway, exam, student, merit, placement, and integrity reports use real records and deep-link to the exact attempt.
+Verify class, pathway, examination, student, merit, placement, and integrity views use real records and deep-link to exact attempts.
 
-- [ ] **Step 10: Document defects with reproducible evidence**
+- [ ] **Step 10: Record reproducible evidence for any defect**
 
-Any blocking defect returns to the owning implementation task. Do not proceed to Git while known requested behavior is broken.
+Any blocking defect routes back to the implementation owner. Do not advance to Git with known requested behavior broken.
 
 ---
 
@@ -1104,12 +965,12 @@ Any blocking defect returns to the owning implementation task. Do not proceed to
 - Entire intended implementation diff.
 
 **Interfaces:**
-- Consumes: COMMIT_READY evidence from Lead after Test, Review and Dogfood gates.
-- Produces: verified commit, pushed branch, implementation PR and CI status.
+- Consumes: COMMIT_READY evidence after Test, Review, and Dogfood gates.
+- Produces: verified commit, pushed branch, implementation PR, and CI status.
 
 - [ ] **Step 1: Git/Release independently verifies repository state**
 
-Inspect:
+Run and inspect:
 
 ```bash
 git status
@@ -1118,21 +979,13 @@ git diff
 git log --oneline --decorate -n 10
 ```
 
-Confirm there are no temporary harnesses, unrelated files, generated browser artifacts, or incomplete migrations.
+Reject temporary harnesses, unrelated files, generated browser artifacts, and incomplete migrations.
 
-- [ ] **Step 2: Verify the final changed-file set is explained**
+- [ ] **Step 2: Verify the changed-file set**
 
-Expected categories:
+Expected categories: four target runtimes plus old-runtime deletions; prototype HTML consumer updates; question dataset; source/state contracts; package/CI cleanup removing Playwright. Any additional file requires explicit justification.
 
-- four target runtime files + deletion of legacy runtimes;
-- prototype HTML consumer updates;
-- question dataset;
-- source/state contract scripts;
-- package/CI cleanup removing Playwright.
-
-Any extra file requires explicit explanation.
-
-- [ ] **Step 3: Run final validation again immediately before commit**
+- [ ] **Step 3: Re-run final validation immediately before commit**
 
 ```bash
 npm run check
@@ -1140,60 +993,52 @@ npm run check
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit only after COMMIT_READY**
+- [ ] **Step 4: Commit only coherent validated states**
 
-Use logical commits only if each commit is a coherent, validated repository state. Do not commit an intermediate state in which HTML points to deleted/missing runtimes.
+Do not commit a state where HTML references missing/deleted runtimes. Git/Release chooses logical commit boundaries only after the corresponding repository state is executable and validated.
 
-- [ ] **Step 5: Push and verify remote SHA**
+- [ ] **Step 5: Push and verify the remote SHA**
 
-Verify the remote implementation branch points at the intended commit SHA.
+Confirm the remote implementation branch points to the intended commit.
 
 - [ ] **Step 6: Use the current `create-pr` skill**
 
-PR title follows conventional format, for example:
+Use a conventional title such as:
 
 ```text
 feat(prototype): Consolidate runtime and revamp admin experience
 ```
 
-PR body lists:
+PR body must list the four-file runtime architecture, admin/product changes, answer-aware 500+ question-bank changes, removed Playwright infrastructure, `npm run check` evidence, independent review verdict, Dogfood evidence, and remaining limitations.
 
-- four-file runtime architecture;
-- admin/UI/product changes;
-- 500-question schema/data/scoring changes;
-- removed Playwright infrastructure;
-- `npm run check` evidence;
-- independent review verdict;
-- browser Dogfood evidence and any known limitations.
+- [ ] **Step 7: Verify PR base/head/diff and CI**
 
-- [ ] **Step 7: Verify PR base/head/diff and available CI**
-
-Do not claim COMPLETE until the remote source/state contract check is green and the PR diff matches the validated local implementation.
+Do not claim COMPLETE until the remote source/state contract is green and the PR diff matches the independently validated implementation.
 
 ---
 
 ## Final Acceptance Gate
 
-The implementation may be marked COMPLETE only when all of these are proven:
+The implementation is COMPLETE only when all are proven:
 
 - exactly four prototype runtime JS files remain;
-- `shared.js` contains shared domain logic and page runtimes do not duplicate it;
-- all current supported state/link compatibility passes;
-- student/exam workflows still work in real browser use;
+- shared domain logic is centralized in `shared.js` and page runtimes do not duplicate it;
+- supported stored/session-link compatibility passes;
+- student/exam workflows work in real browser use;
 - admin no-CSS/head/Flowbite requirements are satisfied;
-- Flowbite Icons and components are used rather than guessed/reimplemented primitives;
-- Students and Staff are separated;
-- one-class-per-student behavior and safe class deletion work;
+- Flowbite Icons/components are used rather than guessed/reimplemented primitives;
+- Students and Staff are separate;
+- one-class-per-student and safe class deletion work;
 - Entrance Exam placement/capacity behavior is coherent;
 - exam builder/edit/distribution/lifecycle/rewrite behavior works;
-- Question Bank is answer-aware, editable through overrides, heavily filterable, and meets the approved large-bank target;
+- Question Bank is answer-aware, editable through overrides, heavily filterable, and contains at least 500 validated seed questions;
 - class/pathway/level routing prevents inappropriate questions;
-- Student → Exam → Attempt → Score/Placement/Integrity/Rewrite deep relationships work;
-- reports/charts use real data and support drill-down;
+- Student → Exam → Attempt → Score/Placement/Integrity/Rewrite relationships work;
+- reports/charts use real data and support source-record drill-down;
 - Playwright infrastructure is gone;
 - Node source/state contracts pass;
 - independent review has no blocking findings;
-- manual browser Dogfood passes mobile/tablet/desktop core workflows;
+- manual browser Dogfood passes mobile/tablet/desktop workflows;
 - Git/Release verifies commit, push, PR diff, and available CI.
 
-This plan replaces the earlier two-file-admin-only/Playwright-based plan. Production execution must not begin until the product owner approves the revised specification and plan.
+This plan supersedes the earlier two-file-admin-only/Playwright-based plan. Production execution must not begin until the product owner approves this revised specification and plan.
