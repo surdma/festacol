@@ -1,4 +1,4 @@
-# Festacol Single-Shell Tailwind-Only Routing Contract
+# Festacol Entry-Shell Inheritance and Tailwind-Only Routing Contract
 
 **Date:** 2026-09-12  
 **Status:** Binding architecture correction — awaiting product-owner approval  
@@ -7,53 +7,39 @@
 
 ## 1. Authority and precedence
 
-This specification is a binding correction to the existing Festacol prototype planning set.
+This specification corrects the prototype planning set after the earlier single-shell wording became too aggressive.
 
-Where any earlier planning document conflicts with this file, this file controls for:
+Where an earlier planning document conflicts with this file, this file controls for:
 
-- HTML entry-point architecture;
-- Admin / Student / Exam surface routing;
-- Tailwind CSS ownership of authored styling;
-- CSS-file removal;
-- shared `<head>` dependencies and theme configuration;
-- Flowbite CSS versus Flowbite JavaScript usage;
-- route-aware runtime loading.
+- the relationship between `index.html`, `admin.html`, `student.html`, and `exam.html`;
+- canonical surface routing;
+- what “inherit from index” means for a static prototype;
+- Tailwind CSS ownership of application styling;
+- removal of repository CSS files;
+- shared head/theme/dependency ownership;
+- permanent source-contract expectations.
 
-In particular, any earlier statement that treats `admin.html`, `student.html`, or `exam.html` as target runtime pages is superseded. Any earlier statement that requires or permits a Festacol `.css` file, the Flowbite stylesheet CDN, or a second regular application `<style>` block is superseded.
+The following earlier claims are explicitly superseded and must not be implemented:
+
+- that `admin.html`, `student.html`, or `exam.html` must be deleted;
+- that `index.html` is the only HTML file allowed under `/prototype`;
+- that source contracts should fail merely because those three surface HTML files exist;
+- that the surface aliases are obsolete after routing moves to `index.html`.
 
 This remains a planning-only contract. It does not authorize production implementation by itself.
 
 ---
 
-## 2. Verified current-state gap
+## 2. Correct target HTML architecture
 
-The current prototype still has four HTML files:
-
-- `prototype/index.html`, which redirects to `student.html`;
-- `prototype/admin.html`;
-- `prototype/student.html`;
-- `prototype/exam.html`.
-
-The current prototype also contains repository CSS files under `prototype/assets/`, including:
-
-- `academic-v3.css`;
-- `festacol-admin.css`;
-- `festacol-foundation.css`;
-- `festacol.css`.
-
-Current Student HTML loads local CSS files, and the Admin / Student / Exam documents load the Flowbite CSS CDN.
-
-The target architecture removes this fragmentation instead of preserving it.
-
----
-
-## 3. Single HTML shell is mandatory
-
-The target prototype contains exactly one runtime HTML document:
+The target keeps four HTML files:
 
 ```text
 prototype/
 ├── index.html
+├── admin.html
+├── student.html
+├── exam.html
 ├── data/
 │   └── questions.json
 └── js/
@@ -63,25 +49,58 @@ prototype/
     └── exam.js
 ```
 
-Target rules:
+Their roles are different and must not be conflated.
 
-1. `prototype/index.html` is the only application shell and only runtime HTML entry point.
-2. `prototype/admin.html` is deleted after every internal consumer has been migrated.
-3. `prototype/student.html` is deleted after every internal consumer has been migrated.
-4. `prototype/exam.html` is deleted after every internal consumer has been migrated.
-5. No replacement per-surface HTML file, partial, include, iframe shell, or hidden duplicate page is introduced.
-6. Admin, Student, and Exam inherit the same `index.html` `<head>`, theme, global dependencies, accessibility baseline, and application root.
-7. Surface-specific markup is rendered by the corresponding page runtime into the shared application shell.
+### 2.1 `index.html` — canonical entry point and base shell
 
-The single-shell requirement is architectural, not cosmetic. A solution that leaves the old HTML pages in active use fails this contract.
+`prototype/index.html` is the canonical application entry point and owns the real application shell.
+
+It owns:
+
+- the shared `<head>` contract;
+- fonts;
+- Tailwind browser v4;
+- the Tailwind theme/configuration block;
+- global metadata/accessibility baseline;
+- Flowbite JavaScript where needed;
+- the shared application root;
+- route parsing/normalization;
+- loading `shared.js` first;
+- allowlisted loading of the selected surface runtime.
+
+### 2.2 `admin.html`, `student.html`, `exam.html` — inherited route aliases
+
+These files remain supported routes, but they must **inherit the real application shell from `index.html` rather than duplicate it**.
+
+Static HTML does not provide native document inheritance. Therefore, for this prototype, “inherit from index” means each surface HTML file is a deliberately thin route alias/compatibility entry document that forwards into the canonical `index.html` shell while preserving meaningful query state.
+
+They must not become independent copies of the application shell, theme, component system, or full page markup.
+
+Required behavior:
+
+```text
+admin.html?page=students
+→ index.html?route=admin&page=students
+
+student.html
+→ index.html?route=student
+
+exam.html?<session/candidate query state>
+→ index.html?route=exam&<same session/candidate query state>
+```
+
+The aliases may contain only the minimal metadata/redirect/bootstrap needed to preserve navigation plus a useful `<noscript>` fallback. They must not load separate local CSS, duplicate the full Tailwind theme, or mount a second independent UI runtime.
+
+This gives the project both:
+
+- one canonical entry/base shell (`index.html`), and
+- stable route-specific HTML addresses (`admin.html`, `student.html`, `exam.html`) that inherit through routing.
 
 ---
 
-## 4. Canonical surface routing
+## 3. Canonical route state
 
-The static prototype uses query-driven routing so it remains deep-linkable without requiring server rewrite rules.
-
-The canonical top-level selector is:
+The canonical top-level surface selector is:
 
 ```text
 route=student
@@ -89,83 +108,71 @@ route=admin
 route=exam
 ```
 
-Canonical examples:
+Canonical application URLs are:
 
 ```text
-prototype/index.html?route=student
-prototype/index.html?route=admin&page=overview
-prototype/index.html?route=admin&page=students&student=ST-2401&tab=exams
-prototype/index.html?route=admin&page=exams&exam=ABC123&tab=results
-prototype/index.html?route=admin&page=exams&exam=ABC123&tab=results&modal=attempt&attempt=ATTEMPT_HASH
-prototype/index.html?route=admin&page=exams&modal=create-exam&step=3
-prototype/index.html?route=exam&<existing-session-and-candidate-query-state>
+index.html?route=student
+index.html?route=admin&page=overview
+index.html?route=admin&page=students&student=ST-2401&tab=exams
+index.html?route=admin&page=exams&exam=ABC123&tab=results
+index.html?route=admin&page=exams&exam=ABC123&tab=results&modal=attempt&attempt=ATTEMPT_HASH
+index.html?route=admin&page=exams&modal=create-exam&step=3
+index.html?route=exam&<existing-session-and-candidate-query-state>
 ```
 
 Routing rules:
 
-- missing `route` defaults to `student`;
-- unsupported `route` values normalize to `student` with non-blocking feedback where appropriate;
-- Admin keeps its existing nested `page=`, record, `tab=`, `modal=`, `attempt=`, `view=`, and `step=` query-state model;
-- Exam keeps the existing session/candidate query contract unless repository investigation proves a migration is required;
-- QR links, Exam ID links, copied links, shared links, navigation links, and redirects must point to `index.html` with the correct `route` value;
-- meaningful route changes use the History API so Back/Forward restores the correct surface and nested state;
-- closing an Admin overlay removes only overlay-specific query state and preserves its parent route/page/filter/tab context;
-- no surface navigation may depend on browser popup windows or separate page shells.
+- missing `route` in `index.html` defaults safely to Student;
+- unsupported `route` values normalize safely to Student;
+- `admin.html` always resolves to `route=admin`;
+- `student.html` always resolves to `route=student`;
+- `exam.html` always resolves to `route=exam`;
+- aliases preserve unrelated required query parameters when forwarding;
+- Admin preserves the nested `page=`, record, `tab=`, `modal=`, `attempt=`, `view=`, and `step=` query-state model;
+- Exam preserves the validated session/candidate query contract unless repository evidence requires a separately approved migration;
+- meaningful navigation uses History API state so Back/Forward restores nested Admin pages and overlays predictably;
+- a centralized URL helper must generate canonical links rather than allowing each runtime to assemble incompatible URLs.
 
-A route helper must be centralized so Admin, Student, Exam, QR generation, clipboard/share logic, and redirects do not independently assemble competing URLs.
+Internally generated links should prefer canonical `index.html?route=...` URLs. The three surface HTML aliases remain supported for compatibility, bookmarks, and direct human navigation.
 
 ---
 
-## 5. Route-aware runtime loading
+## 4. Route-aware runtime loading
 
-The target still contains exactly four local runtime JavaScript files:
+The target remains exactly four local runtime JavaScript files:
 
 - `prototype/js/shared.js`;
 - `prototype/js/admin.js`;
 - `prototype/js/student.js`;
 - `prototype/js/exam.js`.
 
-No `router.js`, `app.js`, `bootstrap.js`, or fifth local runtime file is added merely to support the single HTML shell.
+No `router.js`, `app.js`, `bootstrap.js`, or fifth local runtime file is introduced merely to support routing.
 
-`index.html` owns a small allowlisted bootstrap that:
+`index.html` owns the allowlisted route bootstrap:
 
-1. parses `route`;
-2. normalizes it to `student`, `admin`, or `exam`;
-3. loads `shared.js` first;
-4. loads only the selected surface runtime;
-5. exposes the normalized route to the surface runtime without duplicating domain rules;
-6. updates document title/metadata where needed;
-7. provides a shared application root and accessible loading/failure state.
+1. parse and normalize `route`;
+2. load `shared.js` first;
+3. select only `student`, `admin`, or `exam` from an explicit allowlist;
+4. load the selected surface runtime;
+5. expose the normalized surface state without duplicating domain rules;
+6. update title/metadata when needed;
+7. provide the common application root and accessible loading/failure state.
 
-The bootstrap must use an explicit allowlist. It must never construct an arbitrary script path directly from untrusted query text.
+The route loader must never construct an arbitrary script URL directly from untrusted query text.
 
-Preferred shape:
-
-```html
-<script src="./js/shared.js"></script>
-<script>
-  // Pseudocode only. Implementation must be allowlisted and validated.
-  const allowedRoutes = new Set(["student", "admin", "exam"]);
-  const route = /* normalize URLSearchParams route */;
-  const script = document.createElement("script");
-  script.src = `./js/${route}.js`;
-  document.body.append(script);
-</script>
-```
-
-The actual implementation may use an equivalent inline loader, but it may not create an extra local runtime file.
+The alias HTML files do not load `admin.js`, `student.js`, or `exam.js` themselves; they forward into the index shell, which owns runtime selection.
 
 ---
 
-## 6. Tailwind-only authored styling contract
+## 5. Tailwind-only authored styling contract
 
-Festacol-authored styling must be expressed through Tailwind CSS v4 utilities and the Tailwind browser configuration in `index.html`.
+Festacol-authored styling must be expressed through Tailwind CSS v4 utilities plus the Tailwind browser theme/configuration in `index.html`.
 
-### 6.1 No repository CSS files
+### 5.1 Zero repository CSS files
 
-The final `/prototype` tree must contain **zero `.css` files**.
+The final `/prototype` tree must contain zero repository `.css` files.
 
-The implementation plan must remove the current CSS files after their behavior has been mapped to Tailwind utilities:
+The current files below are migration/removal targets after their visible behavior has been mapped to Tailwind utilities:
 
 ```text
 prototype/assets/academic-v3.css
@@ -174,27 +181,11 @@ prototype/assets/festacol-foundation.css
 prototype/assets/festacol.css
 ```
 
-No replacement `.css` file may be introduced under a different name or directory.
+No replacement application stylesheet may be introduced under a different name or directory.
 
-### 6.2 No application/component stylesheet links
+### 5.2 `index.html` owns the real theme/configuration
 
-`index.html` must not load:
-
-- a local Festacol stylesheet;
-- a generated prototype stylesheet;
-- a page-specific stylesheet;
-- `flowbite.min.css` or any other Flowbite CSS file;
-- a second component-library stylesheet.
-
-Flowbite remains the interaction/component reference and JavaScript behavior library, but its component visual styling must be represented by the Tailwind utility classes carried by the copied/adapted Flowbite markup.
-
-Flowbite JavaScript 4.0.1 may remain loaded once from CDN for modal, dropdown, popover, tooltip, and related interactive behavior.
-
-### 6.3 Head-owned Tailwind theme and style configuration
-
-The shared `index.html` `<head>` remains responsible for the product theme and Tailwind browser setup.
-
-The target keeps a head structure equivalent to:
+The canonical shell keeps head setup equivalent to:
 
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -220,114 +211,160 @@ The target keeps a head structure equivalent to:
 </style>
 ```
 
-The font stylesheet is permitted only as font delivery; it is not an application/component styling surface.
+The font stylesheet is permitted only for font delivery.
 
-There must not be a second regular `<style>` block containing a hidden component system such as `.surface`, `.metric-strip`, `.icon-button`, `.attention-row`, or page-specific selectors. Those patterns must become direct Tailwind utilities in markup/rendered templates.
+The application must not recreate its design system in:
 
-### 6.4 Tailwind authoring rules
+- local `.css` files;
+- generated CSS assets;
+- page-specific stylesheets;
+- a second regular `<style>` block;
+- app-authored `style="..."` attributes used as a styling escape hatch;
+- CSSOM-injected application layout/component rules.
 
-- Layout, spacing, typography, color, radius, border, shadow, elevation, blur, transitions, responsive behavior, focus, hover, active, disabled, and reduced-motion behavior use Tailwind utilities.
-- Use complete Tailwind class names. Do not generate utility names through unsafe string concatenation that the Tailwind browser cannot reliably detect.
-- Arbitrary values such as `max-w-[1600px]`, `z-[120]`, or tuned shadow utilities are allowed when the UI system requires them.
-- Prefer semantic composition in the rendering code over custom CSS selectors.
-- Do not use app-authored `style="..."` attributes or CSSOM-injected layout/component styling as a workaround for removing CSS files.
-- Third-party libraries may inject internal runtime styles required for their own rendering, but Festacol must not use that as a styling escape hatch.
-- ApexCharts configuration may control chart-specific visual properties where the library requires JavaScript options, but surrounding product UI remains Tailwind-authored.
+### 5.3 Tailwind authoring rules
+
+Use Tailwind utilities for:
+
+- layout and spacing;
+- typography and color;
+- borders/radius/rings;
+- depth/elevation/shadows;
+- modal backdrop blur;
+- focus/hover/active/disabled states;
+- responsive transformations;
+- transitions and reduced-motion behavior.
+
+Use complete utility class names. Arbitrary values are allowed where the approved UI system requires them.
+
+Flowbite remains the component/interaction reference. Flowbite JavaScript 4.0.1 may be used for interaction behavior, while the component markup carries its visual styling through Tailwind utilities. The target does not depend on a Flowbite CSS stylesheet.
+
+ApexCharts may use chart-specific JavaScript visual options required by the library; surrounding application UI remains Tailwind-authored.
 
 ---
 
-## 7. Shared `index.html` dependency contract
+## 6. Dependency inheritance
 
-The single shell loads shared dependencies once.
-
-Required shared head/body dependencies remain:
+`index.html` owns the dependency baseline that the routed surfaces inherit:
 
 - DM Sans 400/500/600/700;
 - Manrope 500/600/700/800;
 - Tailwind CSS browser v4;
-- Flowbite JavaScript 4.0.1 only, with no Flowbite CSS stylesheet;
-- ApexCharts exactly 3.46.0 when required by the active surface;
-- Simple-DataTables exactly 9.0.3 when required by the active surface.
+- the one shared `text/tailwindcss` theme/configuration block;
+- Flowbite JavaScript 4.0.1;
+- `shared.js` before the selected surface runtime.
 
-Heavy surface-specific libraries should not be initialized on routes that do not use them. The implementation may conditionally initialize or load these dependencies so the Student and Exam surfaces do not pay unnecessary Admin-only runtime cost, provided the one-HTML-shell rule is preserved.
+ApexCharts exactly 3.46.0 and Simple-DataTables exactly 9.0.3 are available only where required by the selected surface if conditional loading can be done without introducing another local runtime file.
 
-There must be only one ApexCharts version in the prototype.
-
----
-
-## 8. Surface inheritance contract
-
-All three product surfaces inherit the shell rather than duplicating it.
-
-### 8.1 Student
-
-`student.js` renders the Student dashboard into the shared root and owns Student presentation plus Exam ID UI. It must not assume `student.html` exists.
-
-### 8.2 Admin
-
-`admin.js` renders the complete Admin application into the shared root, including its responsive shell, nested pages, modals, popovers, alerts, toasts, Stepper, reports, and DataTables/Charts integration. It must not assume `admin.html` exists.
-
-### 8.3 Exam
-
-`exam.js` renders the candidate examination workspace into the shared root. It must not assume `exam.html` exists. Session, candidate, camera, timer, integrity, resume, review, and submit behavior must read the preserved query/state contract from the shared URL.
-
-The three runtimes may render different layouts, but they share one HTML document and theme/dependency baseline.
+The three alias HTML files must not maintain divergent dependency heads.
 
 ---
 
-## 9. Link and consumer migration requirements
+## 7. Surface inheritance behavior
 
-Before deleting the old HTML files, implementation must search the repository for every reference to:
+### Student
 
+Canonical runtime surface:
+
+```text
+index.html?route=student
+```
+
+Compatibility alias:
+
+```text
+student.html?<query>
+```
+
+The alias preserves relevant query state, adds `route=student`, and forwards to `index.html`. `student.js` owns Student rendering and Exam ID UI after the canonical shell loads.
+
+### Admin
+
+Canonical runtime surface:
+
+```text
+index.html?route=admin&page=overview
+```
+
+Compatibility alias:
+
+```text
+admin.html?page=overview
+```
+
+The alias preserves Admin nested query state, adds `route=admin`, and forwards to `index.html`. `admin.js` owns the complete Admin rendering after the canonical shell loads.
+
+### Exam
+
+Canonical runtime surface:
+
+```text
+index.html?route=exam&<session/candidate state>
+```
+
+Compatibility alias:
+
+```text
+exam.html?<session/candidate state>
+```
+
+The alias preserves the full meaningful Exam query state, adds `route=exam`, and forwards to `index.html`. `exam.js` owns the candidate workspace after the canonical shell loads.
+
+---
+
+## 8. Consumer migration requirements
+
+Before implementation changes URL generation, trace all current references to:
+
+- `index.html`;
 - `admin.html`;
 - `student.html`;
 - `exam.html`;
-- `/admin.html`;
-- `/student.html`;
-- `/exam.html`;
-- the four current prototype CSS filenames;
-- `flowbite.min.css`.
-
-Known consumer classes that must be traced include:
-
-- Admin navigation links;
-- Student navigation links;
-- QR/session-link generation;
+- session/QR URL builders;
 - Exam ID resolution;
 - copy/share examination links;
-- redirects;
-- tests/audit scripts;
-- documentation fixtures/examples;
-- any browser-local helper that derives a URL from `location.href`.
+- `location.assign`, `location.replace`, `location.href`, and `new URL(...)` call sites;
+- the four existing CSS filenames;
+- `flowbite.min.css`.
 
-Deletion is allowed only after these consumers point to canonical `index.html?route=...` URLs or are intentionally removed.
+The migration must distinguish:
 
----
+- canonical application links, which should resolve through `index.html?route=...`;
+- supported route aliases, which remain present and forward correctly;
+- obsolete independent page-shell logic, which must be removed from the aliases.
 
-## 10. Source-contract validation additions
-
-The permanent Node/source audit must fail if any of the following is true after implementation:
-
-1. `prototype/admin.html` exists.
-2. `prototype/student.html` exists.
-3. `prototype/exam.html` exists.
-4. any `.css` file exists under `prototype/`.
-5. `index.html` links a local application stylesheet.
-6. `index.html` loads `flowbite.min.css`.
-7. more than one runtime HTML entry point exists.
-8. a local runtime JavaScript file outside `shared.js`, `admin.js`, `student.js`, and `exam.js` is introduced.
-9. a canonical surface link points to a removed HTML file.
-10. Admin/Student/Exam cannot be opened directly from `index.html` route state.
-11. unsupported route values can inject an arbitrary script path.
-12. nested Admin Back/Forward behavior loses parent route/page/tab state.
-
-The audit should also verify the shared `index.html` contains the Tailwind browser script and the required `text/tailwindcss` theme block.
+No compatibility alias may silently lose a nested Admin query, Exam session identifier, candidate state, or other required parameter.
 
 ---
 
-## 11. Browser acceptance matrix
+## 9. Permanent source-contract rules
 
-Dogfood must open the same HTML file for all surfaces:
+After implementation, the Node/source audit must enforce all of the following:
+
+1. `prototype/index.html` exists and is the canonical application shell.
+2. `prototype/admin.html`, `prototype/student.html`, and `prototype/exam.html` also exist as supported thin aliases.
+3. the aliases do not contain full duplicated application UIs.
+4. the aliases forward to the correct `index.html?route=...` surface while preserving required query state.
+5. the aliases do not load local application CSS or independent page-specific runtime stacks.
+6. exactly four local runtime JavaScript files remain: `shared.js`, `admin.js`, `student.js`, and `exam.js`.
+7. no `.css` file exists under `prototype/`.
+8. no Flowbite CSS stylesheet is loaded.
+9. `index.html` contains the Tailwind browser v4 script.
+10. `index.html` contains the required `style[type="text/tailwindcss"]` theme/configuration block.
+11. route selection is allowlisted to Student/Admin/Exam.
+12. unsupported route values cannot inject an arbitrary script path.
+13. internal generated links resolve to canonical index routes unless a compatibility alias is intentionally being exercised.
+14. nested Admin history and Exam query-state preservation remain intact.
+
+The audit must **not** fail merely because `admin.html`, `student.html`, or `exam.html` exists; their continued presence is now required.
+
+---
+
+## 10. Browser acceptance matrix
+
+Dogfood must exercise both canonical and inherited alias paths.
+
+Canonical paths:
 
 ```text
 index.html?route=student
@@ -335,46 +372,53 @@ index.html?route=admin&page=overview
 index.html?route=exam&<valid-session-state>
 ```
 
+Alias paths:
+
+```text
+student.html
+admin.html?page=overview
+exam.html?<valid-session-state>
+```
+
+For each alias verify:
+
+- it forwards to `index.html`;
+- it selects the correct surface;
+- required query state survives;
+- no duplicate shell flashes or initializes;
+- no missing CSS request occurs;
+- no local `.css` request occurs;
+- the resulting UI uses the same head/theme/dependency contract as the canonical route.
+
 Minimum viewports remain:
 
 - 390×844 mobile;
 - 820×1000 tablet;
 - 1440×1000 desktop.
 
-For each surface, verify:
-
-- shell loads without a missing stylesheet;
-- no old HTML page request occurs;
-- no old CSS file request occurs;
-- expected route runtime loads and other surface runtime does not accidentally take ownership;
-- typography/theme is consistent because the `<head>` is shared;
-- meaningful Back/Forward behavior works;
-- Flowbite JavaScript interactions still work without the Flowbite CSS file;
-- rendered components remain fully styled through Tailwind utilities;
-- no horizontal overflow or lost focus states were introduced by CSS migration;
-- reduced-motion behavior still works.
+All prior UX, accessibility, modal, Stepper, nested navigation, responsive, and Back/Forward acceptance requirements remain binding.
 
 ---
 
-## 12. Acceptance criteria
+## 11. Acceptance criteria
 
-This architecture correction is satisfied only when the implementation plan and eventual production work enforce all of the following:
+The correction is satisfied only when the eventual implementation and source contracts enforce all of the following:
 
-1. `prototype/index.html` is the sole application HTML entry point.
-2. Admin, Student, and Exam are route-selected surfaces inheriting that shell.
-3. `route=student`, `route=admin`, and `route=exam` are canonical surface selectors.
-4. nested Admin query-state behavior remains compatible with the existing deep-navigation contract.
-5. Exam preserves its validated session/candidate query state while moving to the index shell.
-6. exactly four local runtime JavaScript files remain: `shared.js`, `admin.js`, `student.js`, and `exam.js`.
-7. no fifth router/bootstrap JavaScript file is introduced.
+1. `index.html` is the canonical application entry point and base shell.
+2. `admin.html`, `student.html`, and `exam.html` remain supported route aliases.
+3. those aliases inherit the index shell by forwarding into the appropriate canonical route rather than duplicating the shell.
+4. `route=student`, `route=admin`, and `route=exam` are canonical surface selectors.
+5. alias forwarding preserves meaningful query state.
+6. exactly four local runtime JavaScript files remain.
+7. no fifth router/bootstrap local JavaScript file is added.
 8. the final `/prototype` tree contains zero `.css` files.
-9. no Flowbite CSS stylesheet is loaded.
-10. Festacol-authored styling is Tailwind utility driven.
-11. shared Tailwind theme/reduced-motion configuration remains in the `index.html` head.
-12. no regular second application `<style>` block recreates a hidden CSS component framework.
-13. all current old-page and old-CSS consumers are traced before deletion.
-14. QR, Exam ID, copied, shared, redirected, and navigated links resolve through `index.html` routes.
-15. source-contract validation enforces the one-shell/no-CSS architecture permanently.
-16. UI/UX governance, Flowbite component semantics, accessibility, responsive behavior, and Dogfood gates from the earlier planning set remain binding.
+9. Festacol-authored styling is Tailwind utility driven.
+10. the shared Tailwind theme/configuration remains in the `index.html` head.
+11. no second CSS component system is recreated through regular style blocks, inline style attributes, or CSSOM injection.
+12. Admin nested navigation remains compatible with the approved deep-navigation contract.
+13. Exam preserves the validated session/candidate query contract.
+14. canonical and alias routes are both covered by source contracts and Dogfood.
+15. all earlier requirements to delete the three surface HTML files are treated as superseded.
+16. the existing UI/UX governance, Flowbite component semantics, accessibility, responsive behavior, and validation gates remain binding.
 
 **Status after this correction:** `PLANNED` only. Production implementation remains blocked until product-owner approval.
