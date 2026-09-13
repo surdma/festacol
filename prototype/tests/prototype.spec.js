@@ -26,6 +26,14 @@ async function setRange(page, selector, value) {
   }, value);
 }
 
+async function expectSafeExternalLink(locator, expectedPart) {
+  await expect(locator).toHaveAttribute('target', '_blank');
+  await expect(locator).toHaveAttribute('rel', /noopener/);
+  await expect(locator).toHaveAttribute('rel', /noreferrer/);
+  const href = await locator.getAttribute('href');
+  expect(href).toContain(expectedPart);
+}
+
 async function createExam(page, { camera = false, seconds = 180, count = 5 } = {}) {
   await page.goto('/admin.html?page=exams');
   await page.getByRole('button', { name: /Create exam/i }).first().click();
@@ -49,6 +57,7 @@ async function createExam(page, { camera = false, seconds = 180, count = 5 } = {
   await expect(page.getByRole('heading', { name: 'Distribution ready' })).toBeVisible();
   await expect(page.locator('#created-exam-qr svg')).toBeVisible();
   await expect(page.locator('[data-session-link]')).toHaveCount(0);
+  await expectSafeExternalLink(page.locator('#admin-dialog-content [data-open-qr-link]').first(), 'route=exam');
   return page.evaluate(() => {
     const { store, proctor } = window.Festacol;
     const session = store.listSessions()[0];
@@ -86,6 +95,9 @@ async function submitExam(page) {
 
 test('admin canonical shell exposes eight routes and legacy users normalizes to students', async ({ page }) => {
   await clearPrototypeStorage(page);
+  await expect(page.locator('[data-admin-dashboard]')).toBeVisible();
+  await expect(page.locator('[data-admin-metric]')).toHaveCount(6);
+  await expect(page.locator('[data-operations-queue]')).toBeVisible();
   await expect(page.locator('#desktop-nav [data-admin-route]')).toHaveCount(8);
   await expect(page.locator('#desktop-nav [data-admin-route="students"]')).toHaveCount(1);
   await expect(page.locator('#desktop-nav [data-admin-route="staff"]')).toHaveCount(1);
@@ -93,6 +105,8 @@ test('admin canonical shell exposes eight routes and legacy users normalizes to 
   await expect(page.locator('#admin-detail-drawer')).toHaveCount(0);
   await expect(page.locator('link[href*="festacol.css"]')).toHaveCount(0);
   await expect(page.locator('link[href*="academic-v3.css"]')).toHaveCount(0);
+  const sidebarWidth = await page.locator('aside.fixed.inset-y-0.left-0').first().evaluate((node) => getComputedStyle(node).width);
+  expect(sidebarWidth).toBe('256px');
 
   for (const route of ['overview','students','staff','exams','classes','questions','reports','settings']) {
     await page.locator(`#desktop-nav [data-admin-route="${route}"]`).click();
@@ -152,6 +166,9 @@ test('exam wizard exposes 5–150 question range, integrated proctoring and QR-o
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Distribution ready' })).toBeVisible();
   await expect(page.locator('#created-exam-qr svg')).toBeVisible();
+  await page.getByRole('button', { name: 'Manage exam' }).click();
+  await expect(page.locator('#exam-detail-qr svg')).toBeVisible();
+  await expectSafeExternalLink(page.locator('#admin-dialog-content [data-open-qr-link]').first(), 'route=exam');
 });
 
 test('student can enter Exam ID and reach the same candidate login session without scanning QR', async ({ page }) => {
@@ -310,6 +327,7 @@ test('WhatsApp group board associates one validated group with its intended clas
   await page.locator('#whatsapp-link').fill('https://chat.whatsapp.com/ABCDEFGHIJKLMNOPQRSTUV');
   await page.locator('#whatsapp-form button[type="submit"]').click();
   await expect(page.locator('#whatsapp-qr svg')).toBeVisible();
+  await expectSafeExternalLink(page.locator('#whatsapp-form [data-open-qr-link]'), 'chat.whatsapp.com');
   const group = await page.evaluate((id) => window.Festacol.store.whatsAppGroupForClass(id), classId);
   expect(group.name).toBe('SS1 Parents');
   expect(group.inviteUrl).toContain('chat.whatsapp.com');
