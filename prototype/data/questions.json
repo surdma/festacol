@@ -1,1 +1,673 @@
-{"schemaVersion":2,"questionSetId":"festacol-secondary-session-bank-2026-09-v2","title":"Festacol Dynamic Secondary Examination Prototype Bank","assessmentAlignment":{"qualifier":"Original JSS3/BECE-level items for incoming SS1 stream-placement prototypes.","senior":"Original senior-secondary and WAEC-style practice items for SS1-SS3 prototype sessions.","note":"No answer keys are shipped to the client. This bank exercises the interface and session-routing model; production assessment scoring requires a protected backend."},"subjectCatalog":[{"code":"eng","label":"English Language","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"mat","label":"Mathematics","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"bio","label":"Biology","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"chem","label":"Chemistry","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"phy","label":"Physics","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"eco","label":"Economics","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"gov","label":"Government","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"lit","label":"Literature in English","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"civ","label":"Civic Education","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"geo","label":"Geography","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"agric","label":"Agricultural Science","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"comp","label":"Computer Studies","levels":["SS1","SS2","SS3"],"modes":["single","mixed","waec"]},{"code":"q-eng","label":"English Studies","levels":["SS1"],"modes":["qualifier"]},{"code":"q-math","label":"Mathematics Aptitude","levels":["SS1"],"modes":["qualifier"]},{"code":"q-bst","label":"Basic Science & Technology","levels":["SS1"],"modes":["qualifier"]},{"code":"q-social","label":"Social & Citizenship Studies","levels":["SS1"],"modes":["qualifier"]},{"code":"q-business","label":"Business Studies","levels":["SS1"],"modes":["qualifier"]},{"code":"q-digital","label":"Digital Technologies","levels":["SS1"],"modes":["qualifier"]}],"questions":[{"id":1,"subject":"English Studies","subjectCode":"q-eng","domain":"Grammar","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"English Studies · Grammar","prompt":"Choose the option that best completes the sentence: Neither the teacher nor the pupils ___ late for assembly.","options":["was","were","is","has been"]},{"id":2,"subject":"English Studies","subjectCode":"q-eng","domain":"Comprehension","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"English Studies · Comprehension","prompt":"Amina checked the sky before leaving home because dark clouds had gathered. What was she most likely expecting?","options":["Rain","A market day","A power cut","A visitor"]},{"id":3,"subject":"Mathematics","subjectCode":"q-math","domain":"Number","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Mathematics · Number","prompt":"Evaluate 3/4 of 48.","options":["12","24","36","42"]},{"id":4,"subject":"Mathematics","subjectCode":"q-math","domain":"Geometry","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Mathematics · Geometry","prompt":"In the triangle shown, angle A = 50° and angle B = 65°. What is angle C?","diagram":"triangle","options":["55°","60°","65°","70°"]},{"id":5,"subject":"Basic Science & Technology","subjectCode":"q-bst","domain":"Matter","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Basic Science & Technology · Matter","prompt":"Which process changes liquid water to water vapour at the surface below boiling point?","options":["Condensation","Evaporation","Freezing","Melting"]},{"id":6,"subject":"Basic Science & Technology","subjectCode":"q-bst","domain":"Energy","levels":["SS1"],"examModes":["qualifier"],"type":"multi","label":"Basic Science & Technology · Energy","prompt":"Select exactly TWO renewable sources of energy.","instruction":"Select exactly TWO answers.","requiredSelections":2,"options":["Solar energy","Coal","Wind energy","Diesel"]},{"id":7,"subject":"Social & Citizenship Studies","subjectCode":"q-social","domain":"Citizenship","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Social & Citizenship · Citizenship","prompt":"Which action best demonstrates responsible citizenship?","options":["Protecting public property","Damaging community facilities","Ignoring lawful rules","Preventing lawful opinions"]},{"id":8,"subject":"Social & Citizenship Studies","subjectCode":"q-social","domain":"National values","levels":["SS1"],"examModes":["qualifier"],"type":"boolean","label":"Social & Citizenship · Values","prompt":"Returning a lost item to its owner demonstrates honesty and responsibility."},{"id":9,"subject":"Business Studies","subjectCode":"q-business","domain":"Commerce","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Business Studies · Commercial documents","prompt":"Which document is commonly sent by a seller to show goods supplied and the amount due?","options":["Invoice","Agenda","Cheque","Minute book"]},{"id":10,"subject":"Business Studies","subjectCode":"q-business","domain":"Office practice","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Business Studies · Office practice","prompt":"Which device is mainly used to produce a paper copy of a document?","options":["Printer","Scanner","Router","Keyboard"]},{"id":11,"subject":"Digital Technologies","subjectCode":"q-digital","domain":"Digital safety","levels":["SS1"],"examModes":["qualifier"],"type":"single","label":"Digital Technologies · Safety","prompt":"Which password is strongest for protecting an online school account?","options":["festacol","12345678","Maya2026","T7!qP2#zL9"]},{"id":12,"subject":"Digital Technologies","subjectCode":"q-digital","domain":"Data","levels":["SS1"],"examModes":["qualifier"],"type":"boolean","label":"Digital Technologies · Data","prompt":"A spreadsheet can be used to organize data in rows and columns."},{"id":13,"subject":"English Language","subjectCode":"eng","domain":"Lexis","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"English Language · Lexis","prompt":"Choose the word nearest in meaning to “diligent”.","options":["careless","hard-working","noisy","doubtful"]},{"id":14,"subject":"English Language","subjectCode":"eng","domain":"Grammar","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"English Language · Grammar","prompt":"Choose the correct option: If she ___ earlier, she would have met the principal.","options":["came","had come","comes","has come"]},{"id":15,"subject":"English Language","subjectCode":"eng","domain":"Usage","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"fill","label":"English Language · Usage","prompt":"Supply the correct plural form.","fillTemplate":[{"text":"The plural of “analysis” is "},{"blank":"answer","placeholder":"type your answer"},{"text":"."}]},{"id":16,"subject":"English Language","subjectCode":"eng","domain":"Comprehension","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"English Language · Comprehension","prompt":"Tunde revised every evening for two weeks. On the examination morning he felt calm because he had prepared consistently. Why did Tunde feel calm?","options":["He had prepared consistently","The examination was cancelled","He knew every question","His friend gave him answers"]},{"id":17,"subject":"Mathematics","subjectCode":"mat","domain":"Algebra","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Mathematics · Algebra","prompt":"If 3x + 4 = 19, find x.","options":["3","4","5","7"]},{"id":18,"subject":"Mathematics","subjectCode":"mat","domain":"Indices","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Mathematics · Indices","prompt":"Simplify 2³ × 2².","options":["2⁵","4⁵","2⁶","4⁶"]},{"id":19,"subject":"Mathematics","subjectCode":"mat","domain":"Statistics","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Mathematics · Statistics","prompt":"Find the mean of 4, 7, 8, 9 and 12.","options":["7","8","9","10"]},{"id":20,"subject":"Mathematics","subjectCode":"mat","domain":"Geometry","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Mathematics · Geometry","prompt":"A straight line is divided into angles 3x and 2x. Find x.","options":["18°","30°","36°","45°"]},{"id":21,"subject":"Biology","subjectCode":"bio","domain":"Cell biology","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Biology · Cell biology","prompt":"Which organelle contains chlorophyll in a plant cell?","options":["Nucleus","Chloroplast","Ribosome","Vacuole"]},{"id":22,"subject":"Biology","subjectCode":"bio","domain":"Ecology","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Biology · Ecology","prompt":"A group of organisms of the same species living in one area is a","options":["community","population","habitat","biome"]},{"id":23,"subject":"Biology","subjectCode":"bio","domain":"Nutrition","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"multi","label":"Biology · Nutrition","prompt":"Select exactly TWO products of photosynthesis.","instruction":"Select exactly TWO answers.","requiredSelections":2,"options":["Glucose","Oxygen","Nitrogen","Urea"]},{"id":24,"subject":"Chemistry","subjectCode":"chem","domain":"Atomic structure","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Chemistry · Atomic structure","prompt":"Which subatomic particle has a negative charge?","options":["Electron","Proton","Neutron","Nucleon"]},{"id":25,"subject":"Chemistry","subjectCode":"chem","domain":"Acids and bases","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"boolean","label":"Chemistry · Acids and bases","prompt":"An acid turns blue litmus paper red."},{"id":26,"subject":"Chemistry","subjectCode":"chem","domain":"Periodic table","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Chemistry · Periodic table","prompt":"Elements in the same group of the periodic table generally have the same number of","options":["valence electrons","neutrons","shells","nucleons"]},{"id":27,"subject":"Physics","subjectCode":"phy","domain":"Motion","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Physics · Motion","prompt":"A car travels 150 km in 3 hours at constant speed. What is its average speed?","options":["30 km/h","45 km/h","50 km/h","75 km/h"]},{"id":28,"subject":"Physics","subjectCode":"phy","domain":"Energy","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Physics · Energy","prompt":"Which form of energy is stored in a stretched elastic band?","options":["Elastic potential energy","Kinetic energy","Sound energy","Nuclear energy"]},{"id":29,"subject":"Physics","subjectCode":"phy","domain":"Electricity","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"boolean","label":"Physics · Electricity","prompt":"Electric current is measured in amperes."},{"id":30,"subject":"Economics","subjectCode":"eco","domain":"Price system","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Economics · Price system","prompt":"A sustained rise in the general price level is called","options":["inflation","deflation","specialization","subsidy"]},{"id":31,"subject":"Economics","subjectCode":"eco","domain":"Production","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Economics · Production","prompt":"Which factor of production receives wages as its reward?","options":["Labour","Land","Capital","Entrepreneur"]},{"id":32,"subject":"Government","subjectCode":"gov","domain":"Arms of government","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Government · Arms of government","prompt":"Which arm of government interprets laws?","options":["Judiciary","Executive","Legislature","Civil service"]},{"id":33,"subject":"Government","subjectCode":"gov","domain":"Democracy","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Government · Democracy","prompt":"A periodic election mainly enables citizens to","options":["choose representatives","suspend the constitution","abolish courts","remove all laws"]},{"id":34,"subject":"Literature in English","subjectCode":"lit","domain":"Literary devices","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Literature · Literary devices","prompt":"“The wind whispered through the trees” is an example of","options":["personification","irony","hyperbole","paradox"]},{"id":35,"subject":"Literature in English","subjectCode":"lit","domain":"Genres","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Literature · Genres","prompt":"A literary work written primarily for performance on stage is","options":["drama","prose","lyric","biography"]},{"id":36,"subject":"Civic Education","subjectCode":"civ","domain":"Citizenship","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Civic Education · Citizenship","prompt":"Which is a civic responsibility of a Nigerian citizen?","options":["Obeying lawful rules","Destroying public property","Buying votes","Ignoring elections"]},{"id":37,"subject":"Civic Education","subjectCode":"civ","domain":"Human rights","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"boolean","label":"Civic Education · Human rights","prompt":"Fundamental human rights are accompanied by responsibilities to other people and society."},{"id":38,"subject":"Geography","subjectCode":"geo","domain":"Map reading","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Geography · Map reading","prompt":"Lines joining places of equal height above sea level are called","options":["contours","latitudes","isobars","longitudes"]},{"id":39,"subject":"Geography","subjectCode":"geo","domain":"Weather","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Geography · Weather","prompt":"Which instrument measures atmospheric pressure?","options":["Barometer","Rain gauge","Thermometer","Wind vane"]},{"id":40,"subject":"Agricultural Science","subjectCode":"agric","domain":"Soil fertility","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"multi","label":"Agricultural Science · Soil","prompt":"Select exactly TWO practices that can improve soil fertility.","instruction":"Select exactly TWO answers.","requiredSelections":2,"options":["Crop rotation","Adding compost","Continuous bush burning","Overgrazing"]},{"id":41,"subject":"Agricultural Science","subjectCode":"agric","domain":"Farm tools","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Agricultural Science · Farm tools","prompt":"Which tool is most suitable for loosening soil around small crops?","options":["Hoe","Cutlass","Spanner","Sickle"]},{"id":42,"subject":"Computer Studies","subjectCode":"comp","domain":"Computer hardware","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"boolean","label":"Computer Studies · Hardware","prompt":"RAM is commonly used as temporary working memory by a computer."},{"id":43,"subject":"Computer Studies","subjectCode":"comp","domain":"Networks","levels":["SS1","SS2","SS3"],"examModes":["single","mixed","waec"],"type":"single","label":"Computer Studies · Networks","prompt":"Which device commonly forwards data between different computer networks?","options":["Router","Keyboard","Printer","Projector"]}]}
+{
+  "schemaVersion": 2,
+  "questionSetId": "festacol-secondary-session-bank-2026-09-v2",
+  "title": "Festacol Dynamic Secondary Examination Prototype Bank",
+  "assessmentAlignment": {
+    "qualifier": "Original JSS3/BECE-level items for incoming SS1 stream-placement prototypes.",
+    "senior": "Original senior-secondary and WAEC-style practice items for SS1-SS3 prototype sessions.",
+    "note": "No answer keys are shipped to the client. This bank exercises the interface and session-routing model; production assessment scoring requires a protected backend."
+  },
+  "subjectCatalog": [
+    {
+      "code": "eng",
+      "label": "English Language",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "mat",
+      "label": "Mathematics",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "bio",
+      "label": "Biology",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "chem",
+      "label": "Chemistry",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "phy",
+      "label": "Physics",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "eco",
+      "label": "Economics",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "gov",
+      "label": "Government",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "lit",
+      "label": "Literature in English",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "civ",
+      "label": "Civic Education",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "geo",
+      "label": "Geography",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "agric",
+      "label": "Agricultural Science",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "comp",
+      "label": "Computer Studies",
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"]
+    },
+    {
+      "code": "q-eng",
+      "label": "English Studies",
+      "levels": ["SS1"],
+      "modes": ["qualifier"]
+    },
+    {
+      "code": "q-math",
+      "label": "Mathematics Aptitude",
+      "levels": ["SS1"],
+      "modes": ["qualifier"]
+    },
+    {
+      "code": "q-bst",
+      "label": "Basic Science & Technology",
+      "levels": ["SS1"],
+      "modes": ["qualifier"]
+    },
+    {
+      "code": "q-social",
+      "label": "Social & Citizenship Studies",
+      "levels": ["SS1"],
+      "modes": ["qualifier"]
+    },
+    {
+      "code": "q-business",
+      "label": "Business Studies",
+      "levels": ["SS1"],
+      "modes": ["qualifier"]
+    },
+    {
+      "code": "q-digital",
+      "label": "Digital Technologies",
+      "levels": ["SS1"],
+      "modes": ["qualifier"]
+    }
+  ],
+  "questions": [
+    {
+      "id": 1,
+      "subject": "English Studies",
+      "subjectCode": "q-eng",
+      "domain": "Grammar",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "English Studies · Grammar",
+      "prompt": "Choose the option that best completes the sentence: Neither the teacher nor the pupils ___ late for assembly.",
+      "options": ["was", "were", "is", "has been"]
+    },
+    {
+      "id": 2,
+      "subject": "English Studies",
+      "subjectCode": "q-eng",
+      "domain": "Comprehension",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "English Studies · Comprehension",
+      "prompt": "Amina checked the sky before leaving home because dark clouds had gathered. What was she most likely expecting?",
+      "options": ["Rain", "A market day", "A power cut", "A visitor"]
+    },
+    {
+      "id": 3,
+      "subject": "Mathematics",
+      "subjectCode": "q-math",
+      "domain": "Number",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Mathematics · Number",
+      "prompt": "Evaluate 3/4 of 48.",
+      "options": ["12", "24", "36", "42"]
+    },
+    {
+      "id": 4,
+      "subject": "Mathematics",
+      "subjectCode": "q-math",
+      "domain": "Geometry",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Mathematics · Geometry",
+      "prompt": "In the triangle shown, angle A = 50° and angle B = 65°. What is angle C?",
+      "diagram": "triangle",
+      "options": ["55°", "60°", "65°", "70°"]
+    },
+    {
+      "id": 5,
+      "subject": "Basic Science & Technology",
+      "subjectCode": "q-bst",
+      "domain": "Matter",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Basic Science & Technology · Matter",
+      "prompt": "Which process changes liquid water to water vapour at the surface below boiling point?",
+      "options": ["Condensation", "Evaporation", "Freezing", "Melting"]
+    },
+    {
+      "id": 6,
+      "subject": "Basic Science & Technology",
+      "subjectCode": "q-bst",
+      "domain": "Energy",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "multi",
+      "label": "Basic Science & Technology · Energy",
+      "prompt": "Select exactly TWO renewable sources of energy.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": ["Solar energy", "Coal", "Wind energy", "Diesel"]
+    },
+    {
+      "id": 7,
+      "subject": "Social & Citizenship Studies",
+      "subjectCode": "q-social",
+      "domain": "Citizenship",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Social & Citizenship · Citizenship",
+      "prompt": "Which action best demonstrates responsible citizenship?",
+      "options": [
+        "Protecting public property",
+        "Damaging community facilities",
+        "Ignoring lawful rules",
+        "Preventing lawful opinions"
+      ]
+    },
+    {
+      "id": 8,
+      "subject": "Social & Citizenship Studies",
+      "subjectCode": "q-social",
+      "domain": "National values",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "boolean",
+      "label": "Social & Citizenship · Values",
+      "prompt": "Returning a lost item to its owner demonstrates honesty and responsibility."
+    },
+    {
+      "id": 9,
+      "subject": "Business Studies",
+      "subjectCode": "q-business",
+      "domain": "Commerce",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Business Studies · Commercial documents",
+      "prompt": "Which document is commonly sent by a seller to show goods supplied and the amount due?",
+      "options": ["Invoice", "Agenda", "Cheque", "Minute book"]
+    },
+    {
+      "id": 10,
+      "subject": "Business Studies",
+      "subjectCode": "q-business",
+      "domain": "Office practice",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Business Studies · Office practice",
+      "prompt": "Which device is mainly used to produce a paper copy of a document?",
+      "options": ["Printer", "Scanner", "Router", "Keyboard"]
+    },
+    {
+      "id": 11,
+      "subject": "Digital Technologies",
+      "subjectCode": "q-digital",
+      "domain": "Digital safety",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "single",
+      "label": "Digital Technologies · Safety",
+      "prompt": "Which password is strongest for protecting an online school account?",
+      "options": ["festacol", "12345678", "Maya2026", "T7!qP2#zL9"]
+    },
+    {
+      "id": 12,
+      "subject": "Digital Technologies",
+      "subjectCode": "q-digital",
+      "domain": "Data",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "type": "boolean",
+      "label": "Digital Technologies · Data",
+      "prompt": "A spreadsheet can be used to organize data in rows and columns."
+    },
+    {
+      "id": 13,
+      "subject": "English Language",
+      "subjectCode": "eng",
+      "domain": "Lexis",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "English Language · Lexis",
+      "prompt": "Choose the word nearest in meaning to “diligent”.",
+      "options": ["careless", "hard-working", "noisy", "doubtful"]
+    },
+    {
+      "id": 14,
+      "subject": "English Language",
+      "subjectCode": "eng",
+      "domain": "Grammar",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "English Language · Grammar",
+      "prompt": "Choose the correct option: If she ___ earlier, she would have met the principal.",
+      "options": ["came", "had come", "comes", "has come"]
+    },
+    {
+      "id": 15,
+      "subject": "English Language",
+      "subjectCode": "eng",
+      "domain": "Usage",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "fill",
+      "label": "English Language · Usage",
+      "prompt": "Supply the correct plural form.",
+      "fillTemplate": [
+        { "text": "The plural of “analysis” is " },
+        { "blank": "answer", "placeholder": "type your answer" },
+        { "text": "." }
+      ]
+    },
+    {
+      "id": 16,
+      "subject": "English Language",
+      "subjectCode": "eng",
+      "domain": "Comprehension",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "English Language · Comprehension",
+      "prompt": "Tunde revised every evening for two weeks. On the examination morning he felt calm because he had prepared consistently. Why did Tunde feel calm?",
+      "options": [
+        "He had prepared consistently",
+        "The examination was cancelled",
+        "He knew every question",
+        "His friend gave him answers"
+      ]
+    },
+    {
+      "id": 17,
+      "subject": "Mathematics",
+      "subjectCode": "mat",
+      "domain": "Algebra",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Mathematics · Algebra",
+      "prompt": "If 3x + 4 = 19, find x.",
+      "options": ["3", "4", "5", "7"]
+    },
+    {
+      "id": 18,
+      "subject": "Mathematics",
+      "subjectCode": "mat",
+      "domain": "Indices",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Mathematics · Indices",
+      "prompt": "Simplify 2³ × 2².",
+      "options": ["2⁵", "4⁵", "2⁶", "4⁶"]
+    },
+    {
+      "id": 19,
+      "subject": "Mathematics",
+      "subjectCode": "mat",
+      "domain": "Statistics",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Mathematics · Statistics",
+      "prompt": "Find the mean of 4, 7, 8, 9 and 12.",
+      "options": ["7", "8", "9", "10"]
+    },
+    {
+      "id": 20,
+      "subject": "Mathematics",
+      "subjectCode": "mat",
+      "domain": "Geometry",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Mathematics · Geometry",
+      "prompt": "A straight line is divided into angles 3x and 2x. Find x.",
+      "options": ["18°", "30°", "36°", "45°"]
+    },
+    {
+      "id": 21,
+      "subject": "Biology",
+      "subjectCode": "bio",
+      "domain": "Cell biology",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Biology · Cell biology",
+      "prompt": "Which organelle contains chlorophyll in a plant cell?",
+      "options": ["Nucleus", "Chloroplast", "Ribosome", "Vacuole"]
+    },
+    {
+      "id": 22,
+      "subject": "Biology",
+      "subjectCode": "bio",
+      "domain": "Ecology",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Biology · Ecology",
+      "prompt": "A group of organisms of the same species living in one area is a",
+      "options": ["community", "population", "habitat", "biome"]
+    },
+    {
+      "id": 23,
+      "subject": "Biology",
+      "subjectCode": "bio",
+      "domain": "Nutrition",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "multi",
+      "label": "Biology · Nutrition",
+      "prompt": "Select exactly TWO products of photosynthesis.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": ["Glucose", "Oxygen", "Nitrogen", "Urea"]
+    },
+    {
+      "id": 24,
+      "subject": "Chemistry",
+      "subjectCode": "chem",
+      "domain": "Atomic structure",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Chemistry · Atomic structure",
+      "prompt": "Which subatomic particle has a negative charge?",
+      "options": ["Electron", "Proton", "Neutron", "Nucleon"]
+    },
+    {
+      "id": 25,
+      "subject": "Chemistry",
+      "subjectCode": "chem",
+      "domain": "Acids and bases",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "boolean",
+      "label": "Chemistry · Acids and bases",
+      "prompt": "An acid turns blue litmus paper red."
+    },
+    {
+      "id": 26,
+      "subject": "Chemistry",
+      "subjectCode": "chem",
+      "domain": "Periodic table",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Chemistry · Periodic table",
+      "prompt": "Elements in the same group of the periodic table generally have the same number of",
+      "options": ["valence electrons", "neutrons", "shells", "nucleons"]
+    },
+    {
+      "id": 27,
+      "subject": "Physics",
+      "subjectCode": "phy",
+      "domain": "Motion",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Physics · Motion",
+      "prompt": "A car travels 150 km in 3 hours at constant speed. What is its average speed?",
+      "options": ["30 km/h", "45 km/h", "50 km/h", "75 km/h"]
+    },
+    {
+      "id": 28,
+      "subject": "Physics",
+      "subjectCode": "phy",
+      "domain": "Energy",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Physics · Energy",
+      "prompt": "Which form of energy is stored in a stretched elastic band?",
+      "options": [
+        "Elastic potential energy",
+        "Kinetic energy",
+        "Sound energy",
+        "Nuclear energy"
+      ]
+    },
+    {
+      "id": 29,
+      "subject": "Physics",
+      "subjectCode": "phy",
+      "domain": "Electricity",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "boolean",
+      "label": "Physics · Electricity",
+      "prompt": "Electric current is measured in amperes."
+    },
+    {
+      "id": 30,
+      "subject": "Economics",
+      "subjectCode": "eco",
+      "domain": "Price system",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Economics · Price system",
+      "prompt": "A sustained rise in the general price level is called",
+      "options": ["inflation", "deflation", "specialization", "subsidy"]
+    },
+    {
+      "id": 31,
+      "subject": "Economics",
+      "subjectCode": "eco",
+      "domain": "Production",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Economics · Production",
+      "prompt": "Which factor of production receives wages as its reward?",
+      "options": ["Labour", "Land", "Capital", "Entrepreneur"]
+    },
+    {
+      "id": 32,
+      "subject": "Government",
+      "subjectCode": "gov",
+      "domain": "Arms of government",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Government · Arms of government",
+      "prompt": "Which arm of government interprets laws?",
+      "options": ["Judiciary", "Executive", "Legislature", "Civil service"]
+    },
+    {
+      "id": 33,
+      "subject": "Government",
+      "subjectCode": "gov",
+      "domain": "Democracy",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Government · Democracy",
+      "prompt": "A periodic election mainly enables citizens to",
+      "options": [
+        "choose representatives",
+        "suspend the constitution",
+        "abolish courts",
+        "remove all laws"
+      ]
+    },
+    {
+      "id": 34,
+      "subject": "Literature in English",
+      "subjectCode": "lit",
+      "domain": "Literary devices",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Literature · Literary devices",
+      "prompt": "“The wind whispered through the trees” is an example of",
+      "options": ["personification", "irony", "hyperbole", "paradox"]
+    },
+    {
+      "id": 35,
+      "subject": "Literature in English",
+      "subjectCode": "lit",
+      "domain": "Genres",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Literature · Genres",
+      "prompt": "A literary work written primarily for performance on stage is",
+      "options": ["drama", "prose", "lyric", "biography"]
+    },
+    {
+      "id": 36,
+      "subject": "Civic Education",
+      "subjectCode": "civ",
+      "domain": "Citizenship",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Civic Education · Citizenship",
+      "prompt": "Which is a civic responsibility of a Nigerian citizen?",
+      "options": [
+        "Obeying lawful rules",
+        "Destroying public property",
+        "Buying votes",
+        "Ignoring elections"
+      ]
+    },
+    {
+      "id": 37,
+      "subject": "Civic Education",
+      "subjectCode": "civ",
+      "domain": "Human rights",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "boolean",
+      "label": "Civic Education · Human rights",
+      "prompt": "Fundamental human rights are accompanied by responsibilities to other people and society."
+    },
+    {
+      "id": 38,
+      "subject": "Geography",
+      "subjectCode": "geo",
+      "domain": "Map reading",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Geography · Map reading",
+      "prompt": "Lines joining places of equal height above sea level are called",
+      "options": ["contours", "latitudes", "isobars", "longitudes"]
+    },
+    {
+      "id": 39,
+      "subject": "Geography",
+      "subjectCode": "geo",
+      "domain": "Weather",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Geography · Weather",
+      "prompt": "Which instrument measures atmospheric pressure?",
+      "options": ["Barometer", "Rain gauge", "Thermometer", "Wind vane"]
+    },
+    {
+      "id": 40,
+      "subject": "Agricultural Science",
+      "subjectCode": "agric",
+      "domain": "Soil fertility",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "multi",
+      "label": "Agricultural Science · Soil",
+      "prompt": "Select exactly TWO practices that can improve soil fertility.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "Crop rotation",
+        "Adding compost",
+        "Continuous bush burning",
+        "Overgrazing"
+      ]
+    },
+    {
+      "id": 41,
+      "subject": "Agricultural Science",
+      "subjectCode": "agric",
+      "domain": "Farm tools",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Agricultural Science · Farm tools",
+      "prompt": "Which tool is most suitable for loosening soil around small crops?",
+      "options": ["Hoe", "Cutlass", "Spanner", "Sickle"]
+    },
+    {
+      "id": 42,
+      "subject": "Computer Studies",
+      "subjectCode": "comp",
+      "domain": "Computer hardware",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "boolean",
+      "label": "Computer Studies · Hardware",
+      "prompt": "RAM is commonly used as temporary working memory by a computer."
+    },
+    {
+      "id": 43,
+      "subject": "Computer Studies",
+      "subjectCode": "comp",
+      "domain": "Networks",
+      "levels": ["SS1", "SS2", "SS3"],
+      "examModes": ["single", "mixed", "waec"],
+      "type": "single",
+      "label": "Computer Studies · Networks",
+      "prompt": "Which device commonly forwards data between different computer networks?",
+      "options": ["Router", "Keyboard", "Printer", "Projector"]
+    }
+  ]
+}
