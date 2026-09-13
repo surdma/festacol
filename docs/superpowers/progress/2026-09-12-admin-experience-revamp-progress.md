@@ -9,6 +9,7 @@
 **Canonical Task 3 closure checklist:** [`2026-09-12-task-3-closure.md`](./2026-09-12-task-3-closure.md)  
 **Canonical Task 4 closure checklist:** [`2026-09-12-task-4-closure.md`](./2026-09-12-task-4-closure.md)  
 **Canonical Task 5 closure checklist:** [`2026-09-12-task-5-closure.md`](./2026-09-12-task-5-closure.md)  
+**Canonical Task 6 closure checklist:** [`2026-09-12-task-6-closure.md`](./2026-09-12-task-6-closure.md)  
 **Policy:** Every completed milestone must be validated, checked here, committed, pushed, and verified on the remote branch before the next milestone is represented as complete.
 
 ## Repository-layout checkpoint
@@ -80,7 +81,20 @@ The synchronized Task 1–2 contracts passed the current-layout CI gate in Proto
   - [x] Independent reviewer verdict: **APPROVE**.
   - [x] Prototype UI Quality run `34722000365` passed **Source & design-system contract** and **Chromium exam workflow** at implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`.
   - [x] Publish per-step Task 5 closure evidence in `2026-09-12-task-5-closure.md`.
-- [ ] **Task 6 — Rebuild canonical shell/Admin runtime**
+- [x] **Task 6 — Rebuild canonical shell/Admin runtime**
+  - [x] Make `index.html?route=admin` canonical and keep `admin.html` as a thin query-preserving compatibility alias.
+  - [x] Move Admin ownership to `prototype/js/admin.js` using `window.Festacol` rather than migrated legacy globals.
+  - [x] Render Overview, Students, Staff, Examinations, Classes, Question Bank, Reports and Settings from one route definition across desktop/mobile navigation.
+  - [x] Fix legacy `page=users` normalization so it resolves to `page=students` without falling through to Overview.
+  - [x] Preserve query-backed record/modal state, Back/Forward restoration, and reload restoration for the exam-created overlay.
+  - [x] Use Flowbite modal/dropdown semantics, bounded blurred modal layers, verified Flowbite Icons, Tailwind-only authored styling, and reduced-motion-aware page/modal/toast animation.
+  - [x] Upgrade the Overview to a denser real-data academic operations console with six metrics, active/recent exams, candidate activity, workspace readiness and an operational attention queue.
+  - [x] Keep the desktop sidebar at `w-64` / 256px and validate the matching `lg:pl-64` content offset.
+  - [x] Add safe **Open link** new-tab actions for exam-created QR, exam-detail QR and WhatsApp-group QR destinations without exposing raw candidate URLs.
+  - [x] Preserve existing exam, camera, timeout, rewrite, class/WhatsApp, integrity/report, responsive modal and mobile-navigation behavior.
+  - [x] Independent reviewer verdict: **APPROVE WITH NON-BLOCKING NOTES**.
+  - [x] Prototype UI Quality run `34755012162` passed **Source & design-system contract** and **Chromium exam workflow** with **14/14** browser tests at implementation commit `984a2bb45f9753e0483eb3a30bc105e12ff21be0`.
+  - [x] Publish per-step Task 6 closure evidence in `2026-09-12-task-6-closure.md`.
 - [ ] **Task 7 — Students, Staff, Classes, WhatsApp, Settings**
 - [ ] **Task 8 — Examination management and lifecycle**
 - [ ] **Task 9 — Five-stage exam builder**
@@ -118,6 +132,12 @@ Task 4 retained the legacy `exam-app.js` file only as a rollback/reference artif
 
 The Task 5 state/source contracts prove legacy IDs 1–43 retain scoring parity, all five supported response types score correctly, malformed schemas and ID collisions are rejected, every advertised eligibility slice supports the five-question minimum, and duplicate/filler-marker/answer-leak checks remain active. Prototype UI Quality run `34722000365` passed both source/design-system validation and the Chromium regression suite at implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`. Full evidence is in the canonical Task 5 closure checklist.
 
+## Task 6 evidence
+
+`prototype/index.html?route=admin&page=...` is now the canonical Administration surface and `prototype/admin.html` is a thin compatibility alias. `prototype/js/admin.js` owns the eight-route Admin shell, one URL-state model, query-backed overlays, responsive navigation, Flowbite modal/dropdown interactions and teacher-facing academic operations UI through `window.Festacol`.
+
+The Task 6 quality pass also replaces the generic Overview with a denser real-data operations console, keeps the desktop sidebar fixed at 256px, adds reduced-motion-aware Tailwind motion, expands actionable notification/attention states, and adds safe new-tab **Open link** actions for exam and WhatsApp QR destinations. The initially pushed Task 6 browser harness exposed a real legacy `page=users` normalization bug; the implementation was corrected rather than weakening the test. Prototype UI Quality run `34755012162` then passed both jobs, with the Chromium suite reporting **14 passed**. Full evidence is in the canonical Task 6 closure checklist.
+
 ## Question-bank boundary
 
 The verified seed inventory is now **720 questions**. Task 5 owns and has completed the answer-aware schema migration, metadata-driven scoring, validated seed expansion, local seed overrides, validated teacher custom-question merge behavior, and eligibility/inventory contracts. Advanced teacher-facing Question Bank administration remains a separate Task 10 surface milestone.
@@ -130,4 +150,5 @@ The verified seed inventory is now **720 questions**. Task 5 owns and has comple
 **Task 3: COMPLETE / CI_VERIFIED via run `34706597298`.**  
 **Task 4: COMPLETE / CI_VERIFIED via run `34708086401` at implementation commit `e7ccfffd13af96ea061833fa5c24ad890a037dcb`.**  
 **Task 5: COMPLETE / CI_VERIFIED via run `34722000365` at implementation commit `b36f2df077f694c5f825ad1654c55f1afb0296ec`; 720 validated seed questions are active.**  
-**Next milestone: Task 6 — rebuild the canonical shell/Admin runtime.**
+**Task 6: COMPLETE / CI_VERIFIED via run `34755012162` at implementation commit `984a2bb45f9753e0483eb3a30bc105e12ff21be0`; 14/14 Chromium journeys passed.**  
+**Next milestone: Task 7 — Students, Staff, Classes, WhatsApp, Settings.**
