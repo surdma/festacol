@@ -1,0 +1,431 @@
+(() => {
+  'use strict';
+
+  const global = globalThis;
+  const win = global.window || global;
+  const ls = global.localStorage;
+  const ss = global.sessionStorage;
+  if (!ls || !ss) throw new Error('Festacol shared runtime requires localStorage and sessionStorage.');
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const uniqueStrings = (value) => Array.isArray(value) ? [...new Set(value.map(String).filter(Boolean))] : [];
+  const sanitizeTitle = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 72);
+  const sanitizeName = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 80);
+  const normalizeText = (value) => String(value ?? '').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('en');
+  const makeId = () => global.crypto?.randomUUID ? global.crypto.randomUUID().split('-')[0].toUpperCase() : Math.random().toString(36).slice(2, 10).toUpperCase();
+  const readJson = (storage, key, fallback) => { try { const raw = storage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
+  const writeJson = (storage, key, value) => storage.setItem(key, JSON.stringify(value));
+  const utf8ToBase64Url = (value) => {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+  };
+  const base64UrlToUtf8 = (value) => {
+    const normalized = String(value || '').replaceAll('-', '+').replaceAll('_', '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
+    const binary = atob(padded);
+    return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
+  };
+  const durationLabel = (seconds) => {
+    const value = Math.max(0, Number(seconds) || 0);
+    if (value < 60) return `${value} sec`;
+    if (value % 3600 === 0) return `${value / 3600} hr${value === 3600 ? '' : 's'}`;
+    if (value >= 3600) return `${Math.floor(value / 3600)}h ${Math.round(value % 3600 / 60)}m`;
+    return `${Math.round(value / 60)} min`;
+  };
+  const routeUrl = (route, params = {}, baseHref = global.location?.href || 'http://localhost/prototype/index.html') => {
+    const url = new URL('./index.html', baseHref);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('route', route);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      url.searchParams.set(key, String(value));
+    });
+    return url.href;
+  };
+  const utils = Object.freeze({ clamp, uniqueStrings, sanitizeTitle, sanitizeName, normalizeText, durationLabel, routeUrl, utf8ToBase64Url, base64UrlToUtf8 });
+
+  const store = (() => {
+    const SESSION_STORE_KEY = 'festacol.exam.sessions.v3';
+    const LEGACY_SESSION_STORE_KEY = 'festacol.exam.sessions.v2';
+    const ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v3';
+    const LEGACY_ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v2';
+    const STUDENT_STATE_PREFIX = 'festacol.student.attempt.v3:';
+    const LEGACY_STUDENT_STATE_PREFIX = 'festacol.student.session.v2:';
+    const STUDENT_PROFILE_KEY = 'festacol.student.profile.v1';
+    const ACTIVE_CANDIDATE_PREFIX = 'festacol.student.active-candidate:';
+    const AUTH_STUDENT_KEY = 'festacol.student.auth.v1';
+    const RESET_MARKER_PREFIX = 'festacol.exam.reset.v1:';
+    const USER_STORE_KEY = 'festacol.admin.users.v2';
+    const LEGACY_USER_STORE_KEY = 'festacol.admin.users.v1';
+    const CLASS_STORE_KEY = 'festacol.admin.classes.v2';
+    const LEGACY_CLASS_STORE_KEY = 'festacol.admin.classes.v1';
+    const CUSTOM_QUESTION_STORE_KEY = 'festacol.admin.custom-questions.v1';
+    const QUESTION_OVERRIDE_STORE_KEY = 'festacol.admin.question-overrides.v1';
+    const WHATSAPP_GROUP_STORE_KEY = 'festacol.admin.whatsapp-groups.v1';
+    const PAYLOAD_VERSION = 3;
+    const SUPPORTED_PAYLOAD_VERSIONS = new Set([2, 3]);
+    const ACADEMIC_SESSION = '2026/2027';
+    const TRACKS = Object.freeze(['Science', 'Arts', 'Social Science']);
+    const MODE_LABELS = Object.freeze({ qualifier: 'SS1 stream qualifier', mixed: 'Mixed-subject examination', single: 'Single-subject examination', waec: 'WAEC subject practice' });
+    const MODE_CODES = Object.freeze({ qualifier: 'q', mixed: 'm', single: 's', waec: 'w' });
+    const CODE_MODES = Object.freeze({ q: 'qualifier', m: 'mixed', s: 'single', w: 'waec' });
+
+    const normalizeIntegrityPolicy = (value = {}) => ({ focusMonitoring: value.focusMonitoring !== false, fullscreenPrompt: value.fullscreenPrompt !== false, clipboardGuard: value.clipboardGuard !== false, warnAfter: clamp(Math.round(Number(value.warnAfter) || 2), 1, 10) });
+    const normalizeRandomization = (value = {}) => ({ questionOrder: value.questionOrder !== false, optionOrder: value.optionOrder !== false, minimizePaperCollisions: value.minimizePaperCollisions !== false });
+    const normalizeSession = (input = {}) => {
+      const mode = String(input.mode || '');
+      const classLevel = String(input.classLevel || '');
+      const subjects = uniqueStrings(input.subjects);
+      const requestedTracks = uniqueStrings(input.placementTracks).filter((track) => TRACKS.includes(track));
+      const placementTracks = mode === 'qualifier' && !requestedTracks.length ? [...TRACKS] : requestedTracks;
+      const durationSeconds = Math.round(Number(input.durationSeconds ?? Number(input.durationMinutes) * 60));
+      const questionCount = Math.round(Number(input.questionCount));
+      if (!Object.hasOwn(MODE_LABELS, mode)) throw new Error('Unsupported examination mode.');
+      if (!['SS1', 'SS2', 'SS3'].includes(classLevel)) throw new Error('Choose SS1, SS2, or SS3.');
+      if (mode === 'qualifier' && classLevel !== 'SS1') throw new Error('Qualifier sessions are reserved for incoming SS1 candidates.');
+      if (mode === 'waec' && classLevel !== 'SS3') throw new Error('WAEC subject practice sessions are configured for SS3.');
+      if (mode === 'mixed' && (subjects.length < 2 || subjects.length > 12)) throw new Error('Mixed examinations need between two and twelve subjects.');
+      if ((mode === 'single' || mode === 'waec') && subjects.length !== 1) throw new Error('This examination mode requires exactly one subject.');
+      if (mode === 'qualifier' && subjects.length && subjects.some((code) => !code.startsWith('q-'))) throw new Error('Qualifier sessions can only use placement-domain subjects.');
+      if (mode === 'qualifier' && placementTracks.length < 1) throw new Error('Choose at least one eligible placement track.');
+      if (!Number.isInteger(durationSeconds) || durationSeconds < 30 || durationSeconds > 10800) throw new Error('Duration must be between 30 seconds and 3 hours.');
+      if (!Number.isInteger(questionCount) || questionCount < 5 || questionCount > 150) throw new Error('Question count must be between 5 and 150.');
+      return { id: String(input.id || makeId()).trim().toUpperCase().slice(0, 20), version: PAYLOAD_VERSION, title: sanitizeTitle(input.title) || MODE_LABELS[mode], classLevel, classGroup: String(input.classGroup || (mode === 'qualifier' ? 'Qualifier' : 'General')).slice(0, 40), academicSession: String(input.academicSession || ACADEMIC_SESSION).slice(0, 20), term: String(input.term || 'First term').slice(0, 24), mode, subjects, placementTracks: mode === 'qualifier' ? placementTracks : [], durationSeconds, durationMinutes: durationSeconds / 60, questionCount, status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open', instructions: String(input.instructions || '').trim().slice(0, 140), startsAt: input.startsAt ? Number(input.startsAt) : null, endsAt: input.endsAt ? Number(input.endsAt) : null, attemptLimit: 1, integrityPolicy: normalizeIntegrityPolicy(input.integrityPolicy), randomization: normalizeRandomization(input.randomization), createdAt: Number(input.createdAt) || Date.now(), updatedAt: Number(input.updatedAt) || Date.now() };
+    };
+    const toPayload = (s) => ({ v: PAYLOAD_VERSION, i: s.id, n: s.title, c: s.classLevel, g: s.classGroup, y: s.academicSession, e: s.term, m: MODE_CODES[s.mode], s: s.subjects, t: s.placementTracks?.length ? s.placementTracks : undefined, d: s.durationSeconds, q: s.questionCount, x: s.status, r: s.instructions || undefined, a: s.startsAt || undefined, z: s.endsAt || undefined, k: [s.integrityPolicy.focusMonitoring ? 1 : 0, s.integrityPolicy.fullscreenPrompt ? 1 : 0, s.integrityPolicy.clipboardGuard ? 1 : 0, s.integrityPolicy.warnAfter], o: [s.randomization.questionOrder ? 1 : 0, s.randomization.optionOrder ? 1 : 0, s.randomization.minimizePaperCollisions ? 1 : 0] });
+    const fromPayloadV3 = (p) => normalizeSession({ id: p.i, title: p.n, classLevel: p.c, classGroup: p.g, academicSession: p.y, term: p.e, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: p.t || TRACKS, durationSeconds: p.d, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, integrityPolicy: { focusMonitoring: p.k?.[0] !== 0, fullscreenPrompt: p.k?.[1] !== 0, clipboardGuard: p.k?.[2] !== 0, warnAfter: p.k?.[3] || 2 }, randomization: { questionOrder: p.o?.[0] !== 0, optionOrder: p.o?.[1] !== 0, minimizePaperCollisions: p.o?.[2] !== 0 }, createdAt: Date.now() });
+    const fromPayloadV2 = (p) => normalizeSession({ id: p.i, title: p.n, classLevel: p.c, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: CODE_MODES[p.m] === 'qualifier' ? TRACKS : [], durationSeconds: Number(p.d) * 60, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, createdAt: Date.now() });
+    const encodeSession = (input) => utf8ToBase64Url(JSON.stringify(toPayload(normalizeSession(input))));
+    const decodeSession = (token) => { if (!token) throw new Error('No examination session was provided.'); let payload; try { payload = JSON.parse(base64UrlToUtf8(token)); } catch { throw new Error('This examination link is not valid.'); } if (!SUPPORTED_PAYLOAD_VERSIONS.has(payload?.v)) throw new Error('This examination link uses an unsupported format.'); return payload.v === 2 ? fromPayloadV2(payload) : fromPayloadV3(payload); };
+    const listSessions = () => { const current = readJson(ls, SESSION_STORE_KEY, null); if (Array.isArray(current)) return current.map((item) => { try { return normalizeSession({ ...item, questionCount: clamp(Number(item.questionCount) || 5, 5, 150) }); } catch { return null; } }).filter(Boolean); const legacy = readJson(ls, LEGACY_SESSION_STORE_KEY, []); return Array.isArray(legacy) ? legacy.map((item) => { try { return normalizeSession({ ...item, durationSeconds: Number(item.durationMinutes) * 60, questionCount: clamp(Number(item.questionCount) || 5, 5, 150), placementTracks: item.mode === 'qualifier' ? TRACKS : [] }); } catch { return null; } }).filter(Boolean) : []; };
+    const saveSession = (input) => { const prior = input?.id ? listSessions().find((item) => item.id === String(input.id).toUpperCase()) : null; const session = normalizeSession({ ...input, createdAt: input.createdAt || prior?.createdAt || Date.now(), updatedAt: Date.now() }); writeJson(ls, SESSION_STORE_KEY, [session, ...listSessions().filter((item) => item.id !== session.id)].slice(0, 80)); return session; };
+    const findSessionById = (sessionId) => listSessions().find((item) => item.id === String(sessionId || '').trim().toUpperCase()) || null;
+    const updateSessionStatus = (sessionId, status) => { if (!['open', 'draft', 'closed'].includes(status)) throw new Error('Unsupported session status.'); const found = findSessionById(sessionId); if (!found) return null; return saveSession({ ...found, status }); };
+    const deleteSession = (sessionId) => writeJson(ls, SESSION_STORE_KEY, listSessions().filter((item) => item.id !== String(sessionId).toUpperCase()));
+    const resolveSession = (session) => findSessionById(session?.id) || session;
+    const getSessionLink = (session, baseHref = global.location?.href || 'http://localhost/prototype/index.html') => routeUrl('exam', { session: encodeSession(session) }, baseHref);
+    const normalizeAttempt = (a = {}) => ({ id: String(a.id || makeId()), attemptHash: String(a.attemptHash || ''), candidateHash: String(a.candidateHash || ''), studentHash: String(a.studentHash || ''), paperFingerprint: String(a.paperFingerprint || ''), sessionId: String(a.sessionId || '').toUpperCase(), sessionTitle: sanitizeTitle(a.sessionTitle), firstName: sanitizeName(a.firstName || '').split(' ')[0] || '', lastName: sanitizeName(a.lastName || '').split(' ').slice(-1)[0] || '', studentName: sanitizeName(a.studentName || [a.firstName, a.lastName].filter(Boolean).join(' ')), classLevel: String(a.classLevel || ''), classGroup: String(a.classGroup || ''), academicSession: String(a.academicSession || ACADEMIC_SESSION), mode: String(a.mode || ''), sessionStatus: String(a.sessionStatus || ''), sessionEndsAt: Number(a.sessionEndsAt) || null, subjects: uniqueStrings(a.subjects), startedAt: Number(a.startedAt) || null, submittedAt: Number(a.submittedAt) || null, remainingSeconds: Number.isFinite(Number(a.remainingSeconds)) ? Number(a.remainingSeconds) : null, elapsedActiveSeconds: Number(a.elapsedActiveSeconds) || 0, answered: Number(a.answered) || 0, questionCount: Number(a.questionCount) || 0, score: Number.isFinite(Number(a.score)) ? Number(a.score) : null, correctCount: Number.isFinite(Number(a.correctCount)) ? Number(a.correctCount) : null, completion: Number.isFinite(Number(a.completion)) ? Number(a.completion) : null, paceIndex: Number.isFinite(Number(a.paceIndex)) ? Number(a.paceIndex) : null, reasoningIndex: Number.isFinite(Number(a.reasoningIndex)) ? Number(a.reasoningIndex) : null, integrityScore: Number.isFinite(Number(a.integrityScore)) ? Number(a.integrityScore) : null, integrityEvents: Array.isArray(a.integrityEvents) ? a.integrityEvents.slice(-100) : [], subjectStats: Array.isArray(a.subjectStats) ? a.subjectStats : [], placement: a.placement && typeof a.placement === 'object' ? a.placement : null, details: Array.isArray(a.details) ? a.details : [], questionIds: Array.isArray(a.questionIds) ? a.questionIds.map(Number) : [], submissionReason: String(a.submissionReason || ''), rewriteArchivedAt: Number(a.rewriteArchivedAt) || null, rewriteSourceAttemptHash: String(a.rewriteSourceAttemptHash || '') });
+    const getAttempts = () => { const current = readJson(ls, ATTEMPT_STORE_KEY, null); if (Array.isArray(current)) return current.map(normalizeAttempt); const legacy = readJson(ls, LEGACY_ATTEMPT_STORE_KEY, []); return Array.isArray(legacy) ? legacy.map(normalizeAttempt) : []; };
+    const resetMarkerKey = (sessionId, candidateHash) => `${RESET_MARKER_PREFIX}${String(sessionId).toUpperCase()}:${candidateHash}`;
+    const getAttemptResetAt = (sessionId, candidateHash) => Number(ls.getItem(resetMarkerKey(sessionId, candidateHash))) || 0;
+    const isAttemptInvalidated = (sessionId, candidateHash, startedAt = 0) => { const resetAt = getAttemptResetAt(sessionId, candidateHash); return Boolean(resetAt && resetAt >= Number(startedAt || 0)); };
+    const recordAttempt = (attempt) => { const normalized = normalizeAttempt(attempt); if (normalized.candidateHash && normalized.startedAt && isAttemptInvalidated(normalized.sessionId, normalized.candidateHash, normalized.startedAt)) throw new Error('This unfinished attempt was reset by an administrator.'); const attempts = getAttempts(); const match = (item) => normalized.attemptHash ? item.attemptHash === normalized.attemptHash : item.id === normalized.id; writeJson(ls, ATTEMPT_STORE_KEY, [normalized, ...attempts.filter((item) => !match(item))].slice(0, 500)); return normalized; };
+    const findAttempt = (sessionId, candidateHash) => getAttempts().find((a) => a.sessionId === String(sessionId).toUpperCase() && a.candidateHash === candidateHash && !a.rewriteArchivedAt) || null;
+    const attemptsForCandidate = (candidateHash) => getAttempts().filter((a) => a.candidateHash === candidateHash || a.rewriteSourceAttemptHash === candidateHash);
+    const attemptsForStudent = (studentHash) => getAttempts().filter((a) => a.studentHash === studentHash || (!a.studentHash && a.candidateHash === studentHash));
+    const attemptsForSession = (sessionId) => getAttempts().filter((a) => a.sessionId === String(sessionId || '').toUpperCase());
+    const hasSubmittedAttempt = (sessionId, candidateHash) => Boolean(findAttempt(sessionId, candidateHash)?.submittedAt);
+    const stateKey = (sessionId, candidateHash) => `${STUDENT_STATE_PREFIX}${String(sessionId).toUpperCase()}:${candidateHash || 'anonymous'}`;
+    const legacyStateKey = (sessionId) => `${LEGACY_STUDENT_STATE_PREFIX}${String(sessionId).toUpperCase()}`;
+    const activeCandidateKey = (sessionId) => `${ACTIVE_CANDIDATE_PREFIX}${String(sessionId).toUpperCase()}`;
+    const setActiveCandidate = (sessionId, candidateHash) => { if (candidateHash) ss.setItem(activeCandidateKey(sessionId), String(candidateHash)); else ss.removeItem(activeCandidateKey(sessionId)); };
+    const getActiveCandidate = (sessionId) => ss.getItem(activeCandidateKey(sessionId)) || '';
+    const clearActiveCandidate = (sessionId) => ss.removeItem(activeCandidateKey(sessionId));
+    const setStudentAuth = (studentHash) => { const value = String(studentHash || ''); if (!value) throw new Error('Student identity is required.'); ss.setItem(AUTH_STUDENT_KEY, value); return value; };
+    const getStudentAuth = () => ss.getItem(AUTH_STUDENT_KEY) || '';
+    const clearStudentAuth = () => ss.removeItem(AUTH_STUDENT_KEY);
+    const getStudentState = (sessionId, candidateHash = getActiveCandidate(sessionId)) => { const current = readJson(ls, stateKey(sessionId, candidateHash), null); if (current) return current; if (!candidateHash) return readJson(ls, legacyStateKey(sessionId), null); return null; };
+    const saveStudentState = (sessionId, candidateHashOrValue, maybeValue) => { const legacy = maybeValue === undefined; const candidateHash = legacy ? getActiveCandidate(sessionId) : candidateHashOrValue; const value = legacy ? candidateHashOrValue : maybeValue; if (candidateHash && value?.startedAt && isAttemptInvalidated(sessionId, candidateHash, value.startedAt)) return false; writeJson(ls, stateKey(sessionId, candidateHash), value); if (candidateHash) setActiveCandidate(sessionId, candidateHash); return true; };
+    const clearStudentState = (sessionId, candidateHash = getActiveCandidate(sessionId)) => ls.removeItem(stateKey(sessionId, candidateHash));
+    const resetUnfinishedAttempt = (sessionId, candidateHash) => { const attempt = findAttempt(sessionId, candidateHash), state = getStudentState(sessionId, candidateHash); if (attempt?.submittedAt || state?.submittedAt) throw new Error('Submitted attempts require the rewrite action so their audit history is preserved.'); if (!attempt && !state?.startedAt) throw new Error('No unfinished attempt was found for this candidate.'); const resetAt = Date.now(); ls.setItem(resetMarkerKey(sessionId, candidateHash), String(resetAt)); writeJson(ls, ATTEMPT_STORE_KEY, getAttempts().filter((item) => !(item.sessionId === String(sessionId).toUpperCase() && item.candidateHash === candidateHash && !item.rewriteArchivedAt))); clearStudentState(sessionId, candidateHash); if (getActiveCandidate(sessionId) === candidateHash) { clearActiveCandidate(sessionId); clearStudentAuth(); } return { ...(attempt || { sessionId, candidateHash, studentName: state?.studentName || '' }), resetAt }; };
+    const authorizeRewrite = (sessionId, candidateHash) => { const attempt = findAttempt(sessionId, candidateHash); if (!attempt?.submittedAt) throw new Error('Only a submitted attempt can be opened for a rewrite.'); const resetAt = Date.now(); const archiveSuffix = `rewrite-${resetAt.toString(36)}`; const archived = normalizeAttempt({ ...attempt, id: `${attempt.id}-${archiveSuffix}`, attemptHash: `${attempt.attemptHash}:${archiveSuffix}`, candidateHash: `${attempt.candidateHash}:${archiveSuffix}`, rewriteSourceAttemptHash: attempt.candidateHash, rewriteArchivedAt: resetAt }); const remaining = getAttempts().filter((item) => item.attemptHash !== attempt.attemptHash); writeJson(ls, ATTEMPT_STORE_KEY, [archived, ...remaining].slice(0, 500)); ls.setItem(resetMarkerKey(sessionId, candidateHash), String(resetAt)); clearStudentState(sessionId, candidateHash); if (getActiveCandidate(sessionId) === candidateHash) { clearActiveCandidate(sessionId); clearStudentAuth(); } return archived; };
+    const getStudentProfile = () => readJson(ls, STUDENT_PROFILE_KEY, null);
+    const saveStudentProfile = (input = {}) => { const profile = { firstName: sanitizeName(input.firstName).split(' ')[0] || '', lastName: sanitizeName(input.lastName).split(' ').slice(-1)[0] || '', fullName: sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), candidateHash: String(input.candidateHash || ''), studentHash: String(input.studentHash || input.candidateHash || ''), phone: String(input.phone || '').trim().slice(0, 24), guardian: sanitizeName(input.guardian || ''), currentClassId: String(input.currentClassId || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), updatedAt: Date.now() }; if (!profile.firstName || !profile.lastName || !profile.candidateHash || !profile.studentHash) throw new Error('First name, last name and candidate identity are required.'); writeJson(ls, STUDENT_PROFILE_KEY, profile); return profile; };
+    const clearStudentProfile = () => ls.removeItem(STUDENT_PROFILE_KEY);
+    const DEFAULT_CLASSES = Object.freeze([{ id:'ss1-qualifier',classLevel:'SS1',name:'SS1 Qualifier Pool',stream:'Qualifier',group:'Qualifier',capacity:240,room:'Admissions',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-science',classLevel:'SS1',name:'SS1 Science',stream:'Science',group:'Science',capacity:72,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-arts',classLevel:'SS1',name:'SS1 Arts',stream:'Arts',group:'Arts',capacity:64,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-social',classLevel:'SS1',name:'SS1 Social Science',stream:'Social Science',group:'Social Science',capacity:68,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-general',classLevel:'SS1',name:'SS1 General',stream:'General',group:'General',capacity:80,room:'Senior Block A',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-science',classLevel:'SS2',name:'SS2 Science',stream:'Science',group:'Science',capacity:64,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-arts',classLevel:'SS2',name:'SS2 Arts',stream:'Arts',group:'Arts',capacity:58,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-social',classLevel:'SS2',name:'SS2 Social Science',stream:'Social Science',group:'Social Science',capacity:62,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-general',classLevel:'SS2',name:'SS2 General',stream:'General',group:'General',capacity:60,room:'Senior Block B',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-science',classLevel:'SS3',name:'SS3 Science',stream:'Science',group:'Science',capacity:60,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-arts',classLevel:'SS3',name:'SS3 Arts',stream:'Arts',group:'Arts',capacity:54,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-social',classLevel:'SS3',name:'SS3 Social Science',stream:'Social Science',group:'Social Science',capacity:56,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-general',classLevel:'SS3',name:'SS3 General',stream:'General',group:'General',capacity:50,room:'Senior Block C',academicSession:ACADEMIC_SESSION,status:'active' }]);
+    const DEFAULT_USERS = Object.freeze([{id:'ST-2401',fullName:'Amina Yusuf Bello',firstName:'Amina',lastName:'Bello',classId:'ss2-science',role:'student',status:'active',guardian:'Yusuf Bello',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*90},{id:'ST-2402',fullName:'David Chukwu Okafor',firstName:'David',lastName:'Okafor',classId:'ss2-arts',role:'student',status:'active',guardian:'Chukwu Okafor',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*84},{id:'ST-2403',fullName:'Zainab Musa Ibrahim',firstName:'Zainab',lastName:'Ibrahim',classId:'ss3-social',role:'student',status:'active',guardian:'Musa Ibrahim',academicSession:ACADEMIC_SESSION,promotionStatus:'graduating',joinedAt:Date.now()-86400000*77},{id:'ST-2404',fullName:'Tolu Adeyemi James',firstName:'Tolu',lastName:'James',classId:'ss1-general',role:'student',status:'active',guardian:'Adeyemi James',academicSession:ACADEMIC_SESSION,promotionStatus:'review',joinedAt:Date.now()-86400000*46},{id:'AD-001',fullName:'Examination Administrator',firstName:'Examination',lastName:'Administrator',classId:'',role:'administrator',status:'active',guardian:'',academicSession:ACADEMIC_SESSION,promotionStatus:'',joinedAt:Date.now()-86400000*200}]);
+    const mergeDefaults = (stored, defaults) => { const byId = new Map((Array.isArray(stored) ? stored : []).map((item) => [item.id, item])); defaults.forEach((item) => { if (!byId.has(item.id)) byId.set(item.id, { ...item }); }); return [...byId.values()]; };
+    const listClasses = () => mergeDefaults(readJson(ls, CLASS_STORE_KEY, null) ?? readJson(ls, LEGACY_CLASS_STORE_KEY, null), DEFAULT_CLASSES);
+    const saveClass = (input = {}) => { const classLevel = String(input.classLevel || ''), stream = String(input.stream || input.group || 'General').trim().slice(0, 40), name = String(input.name || `${classLevel} ${stream}`).trim().slice(0, 60); if (!name || !['SS1','SS2','SS3'].includes(classLevel)) throw new Error('Class name and level are required.'); const item = { id:String(input.id||makeId()).slice(0,24),classLevel,name,stream,group:String(input.group||stream).slice(0,40),capacity:clamp(Math.round(Number(input.capacity)||40),1,500),room:String(input.room||'').trim().slice(0,50),academicSession:String(input.academicSession||ACADEMIC_SESSION),status:input.status==='archived'?'archived':'active' }; const classes = listClasses(); writeJson(ls, CLASS_STORE_KEY, [item, ...classes.filter((entry) => entry.id !== item.id)]); return item; };
+    const listUsers = () => mergeDefaults(readJson(ls, USER_STORE_KEY, null) ?? readJson(ls, LEGACY_USER_STORE_KEY, null), DEFAULT_USERS);
+    const listWhatsAppGroups = () => { const value = readJson(ls, WHATSAPP_GROUP_STORE_KEY, []); return Array.isArray(value) ? value : []; };
+    const deleteClass = (classId) => { writeJson(ls, CLASS_STORE_KEY, listClasses().filter((item) => item.id !== classId)); writeJson(ls, WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.classId !== classId)); };
+    const saveUser = (input = {}) => { const fullName = sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), parts = fullName.split(/\s+/u).filter(Boolean); if (parts.length < 2) throw new Error('Enter at least first and last name for the user.'); const item = { id:String(input.id||`ST-${Math.floor(1000+Math.random()*9000)}`).slice(0,24),fullName,firstName:sanitizeName(input.firstName||parts[0]).split(' ')[0],lastName:sanitizeName(input.lastName||parts.at(-1)).split(' ').at(-1),classId:String(input.classId||''),role:['student','teacher','administrator'].includes(input.role)?input.role:'student',status:input.status==='inactive'?'inactive':'active',guardian:sanitizeName(input.guardian||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),promotionStatus:String(input.promotionStatus||'on-track'),joinedAt:Number(input.joinedAt)||Date.now() }; const current = listUsers(); writeJson(ls, USER_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id)]); return item; };
+    const updateUserStatus = (userId, status) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, status: status === 'inactive' ? 'inactive' : 'active' } : entry); writeJson(ls, USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
+    const updatePromotion = (userId, promotionStatus, classId = null) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, promotionStatus, classId: classId || entry.classId } : entry); writeJson(ls, USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
+    const deleteUser = (userId) => writeJson(ls, USER_STORE_KEY, listUsers().filter((entry) => entry.id !== userId));
+
+    const listCustomQuestions = () => { const value = readJson(ls, CUSTOM_QUESTION_STORE_KEY, []); return Array.isArray(value) ? value : []; };
+    const nextCustomQuestionId = () => { const ids = new Set(listCustomQuestions().map((item) => Number(item.id))); let id = Math.max(1000000, ...ids, 999999) + 1; while (ids.has(id)) id += 1; return id; };
+    const saveCustomQuestion = (input = {}) => {
+      const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
+      const id = supplied === null ? nextCustomQuestionId() : supplied;
+      if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
+      const existing = listCustomQuestions();
+      const duplicate = existing.find((entry) => Number(entry.id) === id);
+      if (duplicate && Number(input.id) === id && !input.custom) throw new Error(`Teacher-authored question id ${id} already exists.`);
+      const q = { ...input, id, custom: true, source: 'teacher' };
+      writeJson(ls, CUSTOM_QUESTION_STORE_KEY, [q, ...existing.filter((entry) => Number(entry.id) !== id)].slice(0,250));
+      return q;
+    };
+    const deleteCustomQuestion = (questionId) => writeJson(ls, CUSTOM_QUESTION_STORE_KEY, listCustomQuestions().filter((item) => Number(item.id) !== Number(questionId)));
+    const listQuestionOverrides = () => { const value = readJson(ls, QUESTION_OVERRIDE_STORE_KEY, []); return Array.isArray(value) ? value : []; };
+    const saveQuestionOverride = (questionId, patch = {}) => {
+      const id = Number(questionId);
+      if (!Number.isInteger(id) || id < 1) throw new Error('Question override requires a positive integer seed id.');
+      if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Question override patch must be an object.');
+      if (Object.hasOwn(patch, 'id') && Number(patch.id) !== id) throw new Error('A seed override cannot change the question id.');
+      const safePatch = JSON.parse(JSON.stringify({ ...patch, id: undefined }));
+      delete safePatch.id;
+      const item = { questionId: id, patch: safePatch, updatedAt: Date.now() };
+      writeJson(ls, QUESTION_OVERRIDE_STORE_KEY, [item, ...listQuestionOverrides().filter((entry) => Number(entry.questionId) !== id)].slice(0,720));
+      return item;
+    };
+    const resetQuestionOverride = (questionId) => writeJson(ls, QUESTION_OVERRIDE_STORE_KEY, listQuestionOverrides().filter((entry) => Number(entry.questionId) !== Number(questionId)));
+
+    const normalizeWhatsAppUrl = (value) => { let url; try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid WhatsApp group invite link.'); } const host = url.hostname.toLowerCase(); if (url.protocol !== 'https:' || !['chat.whatsapp.com', 'www.whatsapp.com', 'whatsapp.com'].includes(host)) throw new Error('Use a secure WhatsApp group invite link from chat.whatsapp.com.'); if (host === 'chat.whatsapp.com' && url.pathname.replaceAll('/', '').length < 6) throw new Error('The WhatsApp invite code is incomplete.'); return url.href; };
+    const saveWhatsAppGroup = (input = {}) => { const classId = String(input.classId || ''); const cls = listClasses().find((item) => item.id === classId); if (!cls) throw new Error('Choose an existing class for this WhatsApp group.'); const item = { id:String(input.id||makeId()).slice(0,24),classId,name:sanitizeTitle(input.name||`${cls.name} Parents`),inviteUrl:normalizeWhatsAppUrl(input.inviteUrl),createdAt:Number(input.createdAt)||Date.now(),updatedAt:Date.now() }; const current = listWhatsAppGroups(); writeJson(ls, WHATSAPP_GROUP_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id && entry.classId !== classId)].slice(0,80)); return item; };
+    const deleteWhatsAppGroup = (groupId) => writeJson(ls, WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.id !== groupId));
+    const whatsAppGroupForClass = (classId) => listWhatsAppGroups().find((item) => item.classId === classId) || null;
+    const clearSessions = () => { ls.removeItem(SESSION_STORE_KEY); ls.removeItem(LEGACY_SESSION_STORE_KEY); };
+    const clearAttempts = () => { ls.removeItem(ATTEMPT_STORE_KEY); ls.removeItem(LEGACY_ATTEMPT_STORE_KEY); };
+    const clearAllStudentStates = () => { const keys=[]; for(let i=0;i<ls.length;i+=1){const key=ls.key(i);if(key?.startsWith(STUDENT_STATE_PREFIX)||key?.startsWith(LEGACY_STUDENT_STATE_PREFIX)||key?.startsWith(RESET_MARKER_PREFIX))keys.push(key);} keys.forEach((key)=>ls.removeItem(key)); const sessionKeys=[]; for(let i=0;i<ss.length;i+=1){const key=ss.key(i);if(key?.startsWith(ACTIVE_CANDIDATE_PREFIX)||key===AUTH_STUDENT_KEY)sessionKeys.push(key);} sessionKeys.forEach((key)=>ss.removeItem(key)); return keys.length+sessionKeys.length; };
+    const clearPrototypeData = () => { const count=clearAllStudentStates(); clearSessions(); clearAttempts(); clearStudentProfile(); [USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY,QUESTION_OVERRIDE_STORE_KEY,WHATSAPP_GROUP_STORE_KEY].forEach((key)=>ls.removeItem(key)); return count; };
+    return Object.freeze({ PAYLOAD_VERSION, MODE_LABELS, TRACKS, ACADEMIC_SESSION, normalizeSession, encodeSession, decodeSession, getSessionLink, resolveSession, findSessionById, listSessions, saveSession, updateSessionStatus, deleteSession, getAttempts, recordAttempt, findAttempt, attemptsForCandidate, attemptsForStudent, attemptsForSession, hasSubmittedAttempt, resetUnfinishedAttempt, authorizeRewrite, getStudentState, saveStudentState, clearStudentState, setActiveCandidate, getActiveCandidate, clearActiveCandidate, setStudentAuth, getStudentAuth, clearStudentAuth, getAttemptResetAt, isAttemptInvalidated, getStudentProfile, saveStudentProfile, clearStudentProfile, clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData, sanitizeName, sanitizeTitle, getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session', durationLabel, listClasses, saveClass, deleteClass, listUsers, saveUser, updateUserStatus, updatePromotion, deleteUser, listQuestionOverrides, saveQuestionOverride, resetQuestionOverride, listCustomQuestions, saveCustomQuestion, deleteCustomQuestion, listWhatsAppGroups, saveWhatsAppGroup, deleteWhatsAppGroup, whatsAppGroupForClass });
+  })();
+
+  const proctor = (() => {
+    const ADMIN_POLICY_PREFIX = 'festacol.exam.proctor.v1:';
+    const SESSION_POLICY_PREFIX = 'festacol.student.proctor.v1:';
+    const bool = (value) => value === true || value === 1 || value === '1' || value === 'true';
+    const adminKey = (sessionId) => `${ADMIN_POLICY_PREFIX}${sessionId}`;
+    const sessionKey = (sessionId) => `${SESSION_POLICY_PREFIX}${sessionId}`;
+    const readPayload = (token) => { try { return JSON.parse(base64UrlToUtf8(token)); } catch { return null; } };
+    const writePayload = (payload) => utf8ToBase64Url(JSON.stringify(payload));
+    const getAdminPolicy = (sessionId) => { if (!sessionId) return { cameraRequired: false }; const value = readJson(ls, adminKey(sessionId), {}); return { cameraRequired: bool(value?.cameraRequired) }; };
+    const setAdminPolicy = (sessionId, policy = {}) => { if (!sessionId) throw new Error('Session id is required for proctoring policy.'); const normalized = { cameraRequired: bool(policy.cameraRequired), updatedAt: Date.now() }; ls.setItem(adminKey(sessionId), JSON.stringify(normalized)); return normalized; };
+    const policyFromUrl = (href = global.location?.href || 'http://localhost/prototype/index.html') => { const url = new URL(href, global.location?.href || 'http://localhost/prototype/index.html'); const payload = readPayload(url.searchParams.get('session')); if (payload && Object.hasOwn(payload, 'p')) return { cameraRequired: payload.p === 1 || payload.p === true }; const legacyValue = url.searchParams.get('camera'); if (legacyValue !== null) return { cameraRequired: legacyValue === '1' || legacyValue === 'true' }; return null; };
+    const rememberFromUrl = (sessionId, href = global.location?.href || 'http://localhost/prototype/index.html') => { if (!sessionId) return { cameraRequired: false }; const fromUrl = policyFromUrl(href); if (fromUrl) { if (fromUrl.cameraRequired) ss.setItem(sessionKey(sessionId), '1'); else ss.removeItem(sessionKey(sessionId)); return fromUrl; } return { cameraRequired: ss.getItem(sessionKey(sessionId)) === '1' || getAdminPolicy(sessionId).cameraRequired }; };
+    const isCameraRequired = (sessionId, href = global.location?.href || 'http://localhost/prototype/index.html') => rememberFromUrl(sessionId, href).cameraRequired;
+    const decorateStudentLink = (href, cameraRequired) => { const url = new URL(href, global.location?.href || 'http://localhost/prototype/index.html'); const token = url.searchParams.get('session'); const payload = readPayload(token); if (payload) { if (cameraRequired) payload.p = 1; else delete payload.p; url.searchParams.set('session', writePayload(payload)); } url.searchParams.delete('camera'); return url.href; };
+    const sessionIdFromLink = (href) => { try { const token = new URL(href, global.location?.href || 'http://localhost/prototype/index.html').searchParams.get('session'); if (!token) return ''; return store.decodeSession(token).id || ''; } catch { return ''; } };
+    return Object.freeze({ getAdminPolicy, setAdminPolicy, policyFromUrl, rememberFromUrl, isCameraRequired, decorateStudentLink, sessionIdFromLink });
+  })();
+
+  const questions = (() => {
+    const SUPPORTED_TYPES = new Set(['single', 'multi', 'boolean', 'fill', 'fill-multi']);
+    const SUPPORTED_LEVELS = new Set(['SS1', 'SS2', 'SS3']);
+    const SUPPORTED_PATHWAYS = new Set(store.TRACKS);
+    const SUPPORTED_MODES = new Set(['qualifier', 'mixed', 'single', 'waec']);
+    const SUPPORTED_DIFFICULTY = new Set(['easy', 'medium', 'hard']);
+    let baseCache = null;
+
+    const fillBlanks = (question) => (Array.isArray(question.fillTemplate) ? question.fillTemplate : []).filter((part) => part?.blank).map((part) => String(part.blank));
+    const validateAnswerShape = (q) => {
+      if (q.type === 'single' && (!Array.isArray(q.options) || !q.options.includes(q.answer))) throw new Error(`Question ${q.id} has an invalid single-choice answer.`);
+      if (q.type === 'boolean' && typeof q.answer !== 'boolean') throw new Error(`Question ${q.id} has an invalid true/false answer.`);
+      if (q.type === 'multi' && (!Array.isArray(q.answers) || q.answers.length !== q.requiredSelections || q.answers.some((answer) => !q.options.includes(answer)) || new Set(q.answers.map(normalizeText)).size !== q.answers.length)) throw new Error(`Question ${q.id} has invalid multiple-choice answers.`);
+      if (q.type === 'fill' && (!Array.isArray(q.acceptedAnswers) || !q.acceptedAnswers.length || q.acceptedAnswers.some((answer) => Array.isArray(answer) || !normalizeText(answer)))) throw new Error(`Question ${q.id} needs accepted fill answers.`);
+      if (q.type === 'fill-multi') {
+        const blanks = fillBlanks(q);
+        if (!blanks.length || !Array.isArray(q.acceptedAnswers) || q.acceptedAnswers.length !== blanks.length || q.acceptedAnswers.some((entry) => !Array.isArray(entry) || !entry.length || entry.some((answer) => !normalizeText(answer)))) throw new Error(`Question ${q.id} needs accepted fill answers for every blank.`);
+      }
+    };
+    const validateQuestion = (question, ids, subjectCodes) => {
+      if (!question || !Number.isInteger(question.id) || ids.has(question.id)) throw new Error('Every question must have a unique integer id.');
+      if (!question.subject || !question.subjectCode || !subjectCodes.has(question.subjectCode) || !question.domain || !question.label || !question.prompt || !String(question.explanation || '').trim()) throw new Error(`Question ${question.id} is missing required metadata.`);
+      if (!SUPPORTED_TYPES.has(question.type)) throw new Error(`Question ${question.id} has an unsupported response type.`);
+      if (!Array.isArray(question.levels) || !question.levels.length || question.levels.some((level) => !SUPPORTED_LEVELS.has(level))) throw new Error(`Question ${question.id} needs valid class levels.`);
+      if (!Array.isArray(question.pathways) || !question.pathways.length || question.pathways.some((pathway) => !SUPPORTED_PATHWAYS.has(pathway))) throw new Error(`Question ${question.id} needs valid pathways.`);
+      if (!Array.isArray(question.examModes) || !question.examModes.length || question.examModes.some((mode) => !SUPPORTED_MODES.has(mode))) throw new Error(`Question ${question.id} needs valid exam modes.`);
+      if (!SUPPORTED_DIFFICULTY.has(question.difficulty)) throw new Error(`Question ${question.id} needs a valid difficulty.`);
+      if ((question.type === 'single' || question.type === 'multi') && (!Array.isArray(question.options) || question.options.length < 2 || new Set(question.options.map(normalizeText)).size !== question.options.length)) throw new Error(`Question ${question.id} must provide unique options.`);
+      if (question.type === 'multi' && (!Number.isInteger(question.requiredSelections) || question.requiredSelections < 1 || question.requiredSelections > question.options.length)) throw new Error(`Question ${question.id} has an invalid selection count.`);
+      if ((question.type === 'fill' || question.type === 'fill-multi') && !fillBlanks(question).length) throw new Error(`Question ${question.id} needs a response blank.`);
+      validateAnswerShape(question);
+      ids.add(question.id);
+    };
+    const validatePayload = (payload, { minimumQuestions = 1 } = {}) => {
+      if (!payload || !payload.questionSetId || !Array.isArray(payload.questions) || payload.questions.length < minimumQuestions) throw new Error(`Question data must include at least ${minimumQuestions} question${minimumQuestions === 1 ? '' : 's'}.`);
+      if (!Array.isArray(payload.subjectCatalog) || !payload.subjectCatalog.length) throw new Error('Question subject catalogue is unavailable.');
+      const subjectCodes = new Set();
+      for (const subject of payload.subjectCatalog) {
+        if (!subject?.code || subjectCodes.has(subject.code) || !subject.label || !Array.isArray(subject.levels) || !subject.levels.length || !Array.isArray(subject.modes) || !subject.modes.length || !Array.isArray(subject.pathways) || !subject.pathways.length) throw new Error('Question subject catalogue contains invalid or duplicate records.');
+        subjectCodes.add(subject.code);
+      }
+      const ids = new Set();
+      payload.questions.forEach((question) => validateQuestion(question, ids, subjectCodes));
+      return { ...payload, assessmentAlignment: { ...(payload.assessmentAlignment || {}), note: 'Prototype scoring keys are evaluated client-side only to exercise analytics and placement. They are inspectable and are not a security boundary; production answer keys, authentication, scoring and attempt allocation must live on a protected server.' } };
+    };
+    const routePathway = (session = {}) => {
+      const explicit = String(session.pathway || session.stream || '').trim();
+      if (SUPPORTED_PATHWAYS.has(explicit)) return explicit;
+      const classGroup = String(session.classGroup || '').trim();
+      return SUPPORTED_PATHWAYS.has(classGroup) ? classGroup : '';
+    };
+    const isEligible = (question, session) => {
+      if (!question.levels.includes(session.classLevel) || !question.examModes.includes(session.mode)) return false;
+      if (session.mode === 'qualifier') {
+        if (session.subjects?.length && !session.subjects.includes(question.subjectCode)) return false;
+        const requested = uniqueStrings(session.placementTracks).filter((track) => SUPPORTED_PATHWAYS.has(track));
+        return !requested.length || requested.some((track) => question.pathways.includes(track));
+      }
+      if (!session.subjects?.includes(question.subjectCode)) return false;
+      const pathway = routePathway(session);
+      return !pathway || question.pathways.includes(pathway);
+    };
+    const validateRoutingCoverage = (payload) => {
+      for (const subject of payload.subjectCatalog) {
+        for (const level of subject.levels) {
+          const modes = subject.modes.filter((mode) => mode !== 'waec' || level === 'SS3');
+          for (const mode of modes) {
+            const pathways = subject.pathways.length ? subject.pathways : [...store.TRACKS];
+            for (const pathway of pathways) {
+              const session = { classLevel: level, mode, subjects: [subject.code], classGroup: pathway, placementTracks: [pathway] };
+              if (!payload.questions.some((question) => isEligible(question, session))) throw new Error(`Question bank has no eligible inventory for ${subject.code}/${level}/${mode}/${pathway}.`);
+            }
+          }
+        }
+      }
+      return true;
+    };
+    const resolveUrl = () => { const script = global.document?.currentScript; if (script?.src) return new URL('../data/questions.json', script.src).href; const base = global.document?.baseURI || global.location?.href || 'http://localhost/prototype/index.html'; return new URL('./data/questions.json', base).href; };
+    const applyOverrides = (payload) => {
+      const seedIds = new Set(payload.questions.map((question) => question.id));
+      const overrideRecords = store.listQuestionOverrides();
+      for (const record of overrideRecords) {
+        if (!seedIds.has(Number(record?.questionId))) throw new Error(`Question override ${record?.questionId} does not match a seed question.`);
+      }
+      const overrides = new Map(overrideRecords.map((entry) => [Number(entry.questionId), entry]));
+      const mergedSeeds = payload.questions.map((question) => {
+        const record = overrides.get(question.id);
+        if (!record) return { ...question, source: question.source || 'seed' };
+        return { ...question, ...(record.patch || {}), id: question.id, source: 'edited-seed' };
+      });
+      const validCustom = [];
+      const quarantinedCustomQuestions = [];
+      for (const raw of store.listCustomQuestions()) {
+        if (seedIds.has(Number(raw?.id)) || validCustom.some((item) => item.id === Number(raw?.id))) throw new Error(`Teacher-authored question id ${raw?.id} duplicates an existing question id.`);
+        const candidate = { ...raw, custom: true, source: 'teacher' };
+        try {
+          const ids = new Set(mergedSeeds.map((item) => item.id));
+          validateQuestion(candidate, ids, new Set(payload.subjectCatalog.map((item) => item.code)));
+          validCustom.push(candidate);
+        } catch (error) {
+          quarantinedCustomQuestions.push({ ...candidate, validationError: error.message });
+        }
+      }
+      const combined = validatePayload({ ...payload, questions: [...mergedSeeds, ...validCustom] });
+      return { ...combined, quarantinedCustomQuestions };
+    };
+    const load = async () => {
+      if (!baseCache) {
+        if (typeof global.fetch !== 'function') throw new Error('Question data cannot be loaded in this environment.');
+        const response = await global.fetch(resolveUrl(), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        if (!response.ok) throw new Error(`Question data request failed (${response.status}).`);
+        baseCache = validatePayload(await response.json(), { minimumQuestions: 720 });
+        validateRoutingCoverage(baseCache);
+      }
+      const merged = applyOverrides(baseCache);
+      validateRoutingCoverage({ ...merged, questions: merged.questions.filter((question) => !question.custom) });
+      return merged;
+    };
+    const availableSubjects = (payload, classLevel, mode, pathway = '') => payload.subjectCatalog.filter((subject) => {
+      if (!subject.levels.includes(classLevel)) return false;
+      return payload.questions.some((question) => isEligible(question, { classLevel, mode, subjects: [subject.code], classGroup: pathway, placementTracks: pathway ? [pathway] : [] }));
+    });
+    const eligibleQuestions = (payload, session) => payload.questions.filter((question) => isEligible(question, session));
+    const interleaveBySubject = (items, subjectOrder, limit) => { const buckets = new Map(subjectOrder.map((code) => [code, []])); items.forEach((question) => { if (!buckets.has(question.subjectCode)) buckets.set(question.subjectCode, []); buckets.get(question.subjectCode).push(question); }); const orderedCodes = [...buckets.keys()]; const result = []; let cursor = 0; while (result.length < limit && orderedCodes.some((code) => buckets.get(code).length > 0)) { const code = orderedCodes[cursor % orderedCodes.length]; const bucket = buckets.get(code); if (bucket.length > 0) result.push(bucket.shift()); cursor += 1; } return result; };
+    const questionsForSession = (payload, session) => { const candidates = eligibleQuestions(payload, session); const limit = Math.min(session.questionCount, candidates.length); if (session.mode === 'single' || session.mode === 'waec') return candidates.slice(0, limit); const subjectOrder = session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]; return interleaveBySubject(candidates, subjectOrder, limit); };
+    const subjectByCode = (payload, code) => payload.subjectCatalog.find((subject) => subject.code === code) || null;
+    const questionById = (payload, id) => payload.questions.find((question) => question.id === Number(id)) || null;
+    return Object.freeze({ load, validatePayload, validateAnswerShape, validateRoutingCoverage, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
+  })();
+
+  const assessment = (() => {
+    const TRACKS = Object.freeze(['Science', 'Arts', 'Social Science']);
+    const TRACK_WEIGHTS = Object.freeze({ Science: Object.freeze({ 'q-math': 1.5, 'q-bst': 1.55, 'q-digital': 1.05, 'q-eng': .75, 'q-social': .55, 'q-business': .45 }), Arts: Object.freeze({ 'q-eng': 1.55, 'q-social': 1.25, 'q-business': .7, 'q-digital': .55, 'q-math': .55, 'q-bst': .45 }), 'Social Science': Object.freeze({ 'q-social': 1.45, 'q-business': 1.45, 'q-eng': 1.0, 'q-math': .85, 'q-digital': .75, 'q-bst': .55 }) });
+    const normalizeNamePart = (value) => String(value ?? '').trim().replace(/[^\p{L}\p{M}' -]/gu, '').replace(/\s+/gu, ' ').slice(0, 40);
+    const candidateCredentials = (firstName, lastName) => { const first = normalizeNamePart(firstName); const last = normalizeNamePart(lastName); if (first.length < 2) throw new Error('Enter the student first name.'); if (last.length < 2) throw new Error('Enter the student last name.'); return { firstName: first, lastName: last, fullName: `${first} ${last}` }; };
+    const fallbackHash = (value) => { let hashA = 0x811c9dc5; let hashB = 0x9e3779b9; for (let index = 0; index < value.length; index += 1) { const code = value.charCodeAt(index); hashA = Math.imul(hashA ^ code, 0x01000193) >>> 0; hashB = Math.imul(hashB ^ code, 0x85ebca6b) >>> 0; } return `${hashA.toString(16).padStart(8, '0')}${hashB.toString(16).padStart(8, '0')}`; };
+    const hashText = async (value) => { const text = String(value); if (global.crypto?.subtle && global.TextEncoder) { const buffer = await global.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)); return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join(''); } return fallbackHash(text).repeat(4).slice(0, 64); };
+    const studentHash = async (firstName, lastName) => { const identity = candidateCredentials(firstName, lastName); return hashText(`festacol-student|${normalizeText(identity.firstName)}|${normalizeText(identity.lastName)}`); };
+    const candidateHash = async (sessionId, firstName, lastName) => { const identityHash = await studentHash(firstName, lastName); return hashText(`festacol-attempt|${String(sessionId).toUpperCase()}|${identityHash}`); };
+    const seedFrom = (value) => { let seed = 2166136261; for (const char of String(value)) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619) >>> 0; return seed || 0x9e3779b9; };
+    const rngFor = (seedInput) => { let state = seedFrom(seedInput); return () => { state += 0x6D2B79F5; let value = state; value = Math.imul(value ^ value >>> 15, value | 1); value ^= value + Math.imul(value ^ value >>> 7, value | 61); return ((value ^ value >>> 14) >>> 0) / 4294967296; }; };
+    const shuffled = (items, seed) => { const output = [...items]; const random = rngFor(seed); for (let index = output.length - 1; index > 0; index -= 1) { const swap = Math.floor(random() * (index + 1)); [output[index], output[swap]] = [output[swap], output[index]]; } return output; };
+    const paperForStudent = (payload, session, studentHashValue) => { const candidates = questions.eligibleQuestions(payload, session); const target = Math.min(Number(session.questionCount) || 0, candidates.length); if (!target) return []; const subjectOrder = session.mode === 'single' || session.mode === 'waec' ? [...new Set(candidates.map((question) => question.subjectCode))] : (session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]); const randomizeQuestions = session.randomization?.questionOrder !== false; const collisionSalt = session.randomization?.minimizePaperCollisions !== false ? `${studentHashValue}|${session.id}` : String(session.id); const orderedSubjects = randomizeQuestions ? shuffled(subjectOrder, `${collisionSalt}|subjects`) : [...subjectOrder]; const buckets = new Map(orderedSubjects.map((code) => [code, randomizeQuestions ? shuffled(candidates.filter((question) => question.subjectCode === code), `${collisionSalt}|${code}`) : candidates.filter((question) => question.subjectCode === code)])); const selected = []; let cursor = 0; while (selected.length < target && [...buckets.values()].some((bucket) => bucket.length)) { const code = orderedSubjects[cursor % orderedSubjects.length]; const bucket = buckets.get(code); if (bucket?.length) selected.push(bucket.shift()); cursor += 1; } return selected.map((question, index) => { const clone = { ...question }; if (Array.isArray(question.options) && session.randomization?.optionOrder !== false) clone.options = shuffled(question.options, `${studentHashValue}|${session.id}|${question.id}|${index}`); if (Array.isArray(question.fillTemplate)) clone.fillTemplate = question.fillTemplate.map((part) => ({ ...part })); return clone; }); };
+    const normalizeBoolean = (value) => { if (value === true || value === false) return value; const text = normalizeText(value); if (text === 'true') return true; if (text === 'false') return false; return null; };
+    const matchesAccepted = (value, accepted) => accepted.some((answer) => normalizeText(value) === normalizeText(answer));
+    const scoreQuestion = (question, response) => {
+      try {
+        if (!question || !question.type) return false;
+        if (question.type === 'single') return normalizeText(response) !== '' && normalizeText(response) === normalizeText(question.answer);
+        if (question.type === 'boolean') { const received = normalizeBoolean(response); return received !== null && received === question.answer; }
+        if (question.type === 'multi') {
+          if (!Array.isArray(response) || !Array.isArray(question.answers)) return false;
+          const received = [...new Set(response.map(normalizeText).filter(Boolean))].sort();
+          const expected = [...new Set(question.answers.map(normalizeText).filter(Boolean))].sort();
+          return received.length === expected.length && received.every((value, index) => value === expected[index]);
+        }
+        if (question.type === 'fill') {
+          const value = response && typeof response === 'object' && !Array.isArray(response) ? Object.values(response)[0] : response;
+          return normalizeText(value) !== '' && Array.isArray(question.acceptedAnswers) && matchesAccepted(value, question.acceptedAnswers);
+        }
+        if (question.type === 'fill-multi') {
+          if (!Array.isArray(question.acceptedAnswers)) return false;
+          const blanks = (question.fillTemplate || []).filter((part) => part?.blank).map((part) => String(part.blank));
+          const values = Array.isArray(response) ? response : (response && typeof response === 'object' ? blanks.map((key) => response[key]) : []);
+          return values.length === question.acceptedAnswers.length && values.every((value, index) => normalizeText(value) !== '' && matchesAccepted(value, question.acceptedAnswers[index] || []));
+        }
+        return false;
+      } catch { return false; }
+    };
+    const valueIsCorrect = scoreQuestion;
+    const answerDisplay = (question) => {
+      if (!question) return 'Scoring key unavailable';
+      if (question.type === 'multi') return Array.isArray(question.answers) ? question.answers.join(' + ') : 'Scoring key unavailable';
+      if (question.type === 'fill') return Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers.join(' / ') : 'Scoring key unavailable';
+      if (question.type === 'fill-multi') return Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers.map((answers) => Array.isArray(answers) ? answers.join(' / ') : '').join(' + ') : 'Scoring key unavailable';
+      if (question.answer === true) return 'True';
+      if (question.answer === false) return 'False';
+      return String(question.answer ?? 'Scoring key unavailable');
+    };
+    function placementFor(result, session) { const enabled = (session.placementTracks || TRACKS).filter((track) => TRACKS.includes(track)); const tracks = enabled.length ? enabled : [...TRACKS]; const stats = new Map(result.subjectStats.map((item) => [item.subjectCode, item.percent])); const scoredTracks = tracks.map((track) => { const weights = TRACK_WEIGHTS[track]; let totalWeight = 0, weighted = 0; Object.entries(weights).forEach(([subjectCode, weight]) => { if (!stats.has(subjectCode)) return; totalWeight += weight; weighted += stats.get(subjectCode) * weight; }); const academic = totalWeight ? weighted / totalWeight : result.accuracy; const score = academic * .82 + result.paceIndex * .08 + result.completion * .08 + result.integrityScore * .02; return { track, score: Math.round(score), academic: Math.round(academic) }; }).sort((a, b) => b.score - a.score); const best = scoredTracks[0], second = scoredTracks[1], gap = second ? best.score - second.score : 15; const confidence = clamp(55 + gap * 3 + Math.round((best.score - 50) * .25), 55, 96); return { assignedTrack: best.track, confidence, trackScores: scoredTracks, basis: 'Assessment accuracy, subject profile, completion, pace and recorded integrity signals', note: 'This is an exam-derived placement recommendation, not a permanent measure of intelligence.' }; }
+    const scoreAttempt = (paper, state, session) => { const details = paper.map((question) => { const response = state.responses?.[String(question.id)]; const correct = scoreQuestion(question, response); return { questionId: question.id, subjectCode: question.subjectCode, subject: question.subject, domain: question.domain, correct, response: response ?? null, correctAnswer: answerDisplay(question), seconds: Math.max(0, Number(state.questionTimings?.[String(question.id)]) || 0) }; }); const correctCount = details.filter((item) => item.correct).length; const accuracy = details.length ? Math.round(correctCount / details.length * 100) : 0; const answered = paper.filter((question) => { const value = state.responses?.[String(question.id)]; return Array.isArray(value) ? value.length > 0 : value && typeof value === 'object' ? Object.values(value).some((v) => String(v ?? '').trim()) : value === true || value === false || String(value ?? '').trim().length > 0; }).length; const completion = paper.length ? Math.round(answered / paper.length * 100) : 0; const activeElapsed = Number(state.elapsedActiveSeconds); const elapsedSeconds = Math.max(1, Math.round(Number.isFinite(activeElapsed) && activeElapsed > 0 ? activeElapsed : ((state.submittedAt || Date.now()) - (state.startedAt || Date.now())) / 1000)); const durationSeconds = Math.max(30, Number(session.durationSeconds) || Number(session.durationMinutes) * 60 || 3600); const avgSeconds = paper.length ? Math.round(elapsedSeconds / paper.length) : 0; const expectedPerQuestion = Math.max(10, durationSeconds / Math.max(1, paper.length)); const paceIndex = Math.round(clamp(100 - Math.max(0, avgSeconds - expectedPerQuestion * .55) / expectedPerQuestion * 65, 25, 100)); const integrityEvents = Array.isArray(state.integrityEvents) ? state.integrityEvents : []; const integrityScore = Math.max(0, 100 - integrityEvents.filter((event) => !['focus-return', 'fullscreen-enter'].includes(event.type)).length * 8); const bySubject = {}; for (const item of details) { const bucket = bySubject[item.subjectCode] ||= { subjectCode: item.subjectCode, subject: item.subject, total: 0, correct: 0, seconds: 0 }; bucket.total += 1; if (item.correct) bucket.correct += 1; bucket.seconds += item.seconds; } const subjectStats = Object.values(bySubject).map((bucket) => ({ ...bucket, percent: bucket.total ? Math.round(bucket.correct / bucket.total * 100) : 0 })); const reasoningIndex = Math.round(accuracy * .78 + completion * .14 + paceIndex * .08); const result = { correctCount, scoredCount: details.length, accuracy, completion, elapsedSeconds, avgSeconds, paceIndex, reasoningIndex, integrityScore, integrityEventCount: integrityEvents.length, subjectStats, details }; if (session.mode === 'qualifier') result.placement = placementFor(result, session); return result; };
+    const paperFingerprint = async (sessionId, studentHashValue, paper) => hashText(`${sessionId}|${studentHashValue}|${paper.map((question) => `${question.id}:${(question.options || []).join('~')}`).join('|')}`);
+    const attemptHash = async (sessionId, studentHashValue, fingerprint) => hashText(`attempt|${sessionId}|${studentHashValue}|${fingerprint}`);
+    const answersMayBeRevealed = (session, effectiveStatus = session?.status) => { if (!session) return false; if (effectiveStatus === 'closed') return true; return Boolean(session.endsAt && Date.now() > Number(session.endsAt)); };
+    return Object.freeze({ TRACKS, candidateCredentials, studentHash, candidateHash, hashText, paperForStudent, paperFingerprint, attemptHash, scoreQuestion, scoreAttempt, valueIsCorrect, answerDisplay, answersMayBeRevealed });
+  })();
+
+  const qr = (() => {
+    const TYPE_NUMBER = 15, ERROR_LEVEL = 1, MODULE_COUNT = TYPE_NUMBER * 4 + 17, ALIGNMENT = [6, 26, 48, 70];
+    const RS_BLOCKS = [{ total: 109, data: 87 }, { total: 109, data: 87 }, { total: 109, data: 87 }, { total: 109, data: 87 }, { total: 109, data: 87 }, { total: 110, data: 88 }];
+    const PAD0 = 0xec, PAD1 = 0x11, G15 = 0x0537, G18 = 0x1f25, G15_MASK = 0x5412;
+    const EXP = new Array(512), LOG = new Array(256); for (let i = 0; i < 8; i += 1) EXP[i] = 1 << i; for (let i = 8; i < 256; i += 1) EXP[i] = EXP[i - 4] ^ EXP[i - 5] ^ EXP[i - 6] ^ EXP[i - 8]; for (let i = 0; i < 255; i += 1) LOG[EXP[i]] = i; for (let i = 255; i < 512; i += 1) EXP[i] = EXP[i - 255];
+    const gfMul = (a,b) => (!a || !b) ? 0 : EXP[LOG[a] + LOG[b]];
+    const polyMultiply = (a,b) => { const out = new Array(a.length+b.length-1).fill(0); for(let i=0;i<a.length;i+=1)for(let j=0;j<b.length;j+=1)out[i+j]^=gfMul(a[i],b[j]); return out; };
+    const generatorPolynomial = (degree) => { let poly=[1]; for(let i=0;i<degree;i+=1)poly=polyMultiply(poly,[1,EXP[i]]); return poly; };
+    const rsRemainder = (data, degree) => { const generator=generatorPolynomial(degree); const result=[...data,...new Array(degree).fill(0)]; for(let i=0;i<data.length;i+=1){const factor=result[i];if(!factor)continue;for(let j=0;j<generator.length;j+=1)result[i+j]^=gfMul(generator[j],factor);} return result.slice(data.length); };
+    class BitBuffer { constructor(){this.bits=[];} put(value,length){for(let i=length-1;i>=0;i-=1)this.bits.push(((value>>>i)&1)===1);} putBytes(bytes){bytes.forEach((byte)=>this.put(byte,8));} toBytes(){const bytes=[];for(let i=0;i<this.bits.length;i+=8){let value=0;for(let j=0;j<8;j+=1)if(this.bits[i+j])value|=0x80>>>j;bytes.push(value);}return bytes;} }
+    const dataCodewords = (text) => { const bytes=[...new TextEncoder().encode(text)]; const capacity=RS_BLOCKS.reduce((sum,block)=>sum+block.data,0); if(bytes.length>capacity-4)throw new Error('The generated examination link is too long for the local QR encoder.'); const buffer=new BitBuffer();buffer.put(0b0100,4);buffer.put(bytes.length,16);buffer.putBytes(bytes);const maxBits=capacity*8;const terminator=Math.min(4,maxBits-buffer.bits.length);for(let i=0;i<terminator;i+=1)buffer.bits.push(false);while(buffer.bits.length%8)buffer.bits.push(false);let output=buffer.toBytes();let pad=true;while(output.length<capacity){output.push(pad?PAD0:PAD1);pad=!pad;}return output; };
+    const interleave=(data)=>{const dataBlocks=[],ecBlocks=[];let offset=0;RS_BLOCKS.forEach((block)=>{const chunk=data.slice(offset,offset+block.data);offset+=block.data;dataBlocks.push(chunk);ecBlocks.push(rsRemainder(chunk,block.total-block.data));});const out=[];const maxData=Math.max(...dataBlocks.map((block)=>block.length));const maxEc=Math.max(...ecBlocks.map((block)=>block.length));for(let i=0;i<maxData;i+=1)dataBlocks.forEach((block)=>{if(i<block.length)out.push(block[i]);});for(let i=0;i<maxEc;i+=1)ecBlocks.forEach((block)=>{if(i<block.length)out.push(block[i]);});return out;};
+    const bchDigit=(value)=>{let digit=0;while(value){digit+=1;value>>>=1;}return digit;}; const bchTypeInfo=(data)=>{let value=data<<10;while(bchDigit(value)-bchDigit(G15)>=0)value^=G15<<(bchDigit(value)-bchDigit(G15));return((data<<10)|value)^G15_MASK;}; const bchTypeNumber=(data)=>{let value=data<<12;while(bchDigit(value)-bchDigit(G18)>=0)value^=G18<<(bchDigit(value)-bchDigit(G18));return(data<<12)|value;};
+    const maskValue=(pattern,row,col)=>{switch(pattern){case 0:return(row+col)%2===0;case 1:return row%2===0;case 2:return col%3===0;case 3:return(row+col)%3===0;case 4:return(Math.floor(row/2)+Math.floor(col/3))%2===0;case 5:return((row*col)%2)+((row*col)%3)===0;case 6:return((((row*col)%2)+((row*col)%3))%2)===0;case 7:return((((row*col)%3)+((row+col)%2))%2)===0;default:return false;}};
+    const createMatrix=()=>Array.from({length:MODULE_COUNT},()=>new Array(MODULE_COUNT).fill(null));
+    const finder=(matrix,row,col)=>{for(let r=-1;r<=7;r+=1){if(row+r<0||row+r>=MODULE_COUNT)continue;for(let c=-1;c<=7;c+=1){if(col+c<0||col+c>=MODULE_COUNT)continue;const dark=(r>=0&&r<=6&&(c===0||c===6))||(c>=0&&c<=6&&(r===0||r===6))||(r>=2&&r<=4&&c>=2&&c<=4);matrix[row+r][col+c]=dark;}}};
+    const alignment=(matrix)=>{ALIGNMENT.forEach((row)=>ALIGNMENT.forEach((col)=>{if(matrix[row][col]!==null)return;for(let r=-2;r<=2;r+=1)for(let c=-2;c<=2;c+=1)matrix[row+r][col+c]=Math.abs(r)===2||Math.abs(c)===2||(r===0&&c===0);}));};
+    const timing=(matrix)=>{for(let i=8;i<MODULE_COUNT-8;i+=1){if(matrix[i][6]===null)matrix[i][6]=i%2===0;if(matrix[6][i]===null)matrix[6][i]=i%2===0;}};
+    const typeInfo=(matrix,test,pattern)=>{const bits=bchTypeInfo((ERROR_LEVEL<<3)|pattern);for(let i=0;i<15;i+=1){const dark=!test&&((bits>>i)&1)===1;if(i<6)matrix[i][8]=dark;else if(i<8)matrix[i+1][8]=dark;else matrix[MODULE_COUNT-15+i][8]=dark;}for(let i=0;i<15;i+=1){const dark=!test&&((bits>>i)&1)===1;if(i<8)matrix[8][MODULE_COUNT-i-1]=dark;else if(i<9)matrix[8][15-i]=dark;else matrix[8][15-i-1]=dark;}matrix[MODULE_COUNT-8][8]=!test;};
+    const typeNumber=(matrix,test)=>{const bits=bchTypeNumber(TYPE_NUMBER);for(let i=0;i<18;i+=1){const dark=!test&&((bits>>i)&1)===1;matrix[Math.floor(i/3)][(i%3)+MODULE_COUNT-11]=dark;matrix[(i%3)+MODULE_COUNT-11][Math.floor(i/3)]=dark;}};
+    const mapData=(matrix,bytes,pattern)=>{let row=MODULE_COUNT-1,direction=-1,byteIndex=0,bitIndex=7;for(let col=MODULE_COUNT-1;col>0;col-=2){if(col===6)col-=1;while(true){for(let c=0;c<2;c+=1){const targetCol=col-c;if(matrix[row][targetCol]!==null)continue;let dark=false;if(byteIndex<bytes.length)dark=((bytes[byteIndex]>>>bitIndex)&1)===1;if(maskValue(pattern,row,targetCol))dark=!dark;matrix[row][targetCol]=dark;bitIndex-=1;if(bitIndex===-1){byteIndex+=1;bitIndex=7;}}row+=direction;if(row<0||row>=MODULE_COUNT){row-=direction;direction=-direction;break;}}}};
+    const buildMatrix=(bytes,pattern,test=false)=>{const matrix=createMatrix();finder(matrix,0,0);finder(matrix,MODULE_COUNT-7,0);finder(matrix,0,MODULE_COUNT-7);alignment(matrix);timing(matrix);typeInfo(matrix,test,pattern);typeNumber(matrix,test);mapData(matrix,bytes,pattern);return matrix;};
+    const lostPoint=(matrix)=>{const size=matrix.length;let score=0;for(let row=0;row<size;row+=1){for(let col=0;col<size;col+=1){let same=0;const dark=matrix[row][col];for(let r=-1;r<=1;r+=1)for(let c=-1;c<=1;c+=1){if(!r&&!c)continue;const rr=row+r,cc=col+c;if(rr>=0&&rr<size&&cc>=0&&cc<size&&matrix[rr][cc]===dark)same+=1;}if(same>5)score+=3+same-5;}}for(let row=0;row<size-1;row+=1)for(let col=0;col<size-1;col+=1){const count=Number(matrix[row][col])+Number(matrix[row+1][col])+Number(matrix[row][col+1])+Number(matrix[row+1][col+1]);if(count===0||count===4)score+=3;}for(let row=0;row<size;row+=1)for(let col=0;col<size-6;col+=1)if(matrix[row][col]&&!matrix[row][col+1]&&matrix[row][col+2]&&matrix[row][col+3]&&matrix[row][col+4]&&!matrix[row][col+5]&&matrix[row][col+6])score+=40;for(let col=0;col<size;col+=1)for(let row=0;row<size-6;row+=1)if(matrix[row][col]&&!matrix[row+1][col]&&matrix[row+2][col]&&matrix[row+3][col]&&matrix[row+4][col]&&!matrix[row+5][col]&&matrix[row+6][col])score+=40;let darkCount=0;matrix.forEach((line)=>line.forEach((cell)=>{if(cell)darkCount+=1;}));score+=Math.abs((100*darkCount/size/size)-50)/5*10;return score;};
+    const matrixFor=(text)=>{const codewords=interleave(dataCodewords(text));let bestPattern=0,bestScore=Infinity;for(let pattern=0;pattern<8;pattern+=1){const score=lostPoint(buildMatrix(codewords,pattern,true));if(score<bestScore){bestScore=score;bestPattern=pattern;}}return buildMatrix(codewords,bestPattern,false);};
+    const svgFor=(text)=>{const matrix=matrixFor(String(text));const margin=4;const size=matrix.length+margin*2;let path='';for(let row=0;row<matrix.length;row+=1)for(let col=0;col<matrix.length;col+=1)if(matrix[row][col])path+=`M${col+margin} ${row+margin}h1v1h-1z`;return `<svg viewBox="0 0 ${size} ${size}" role="img" aria-label="QR code for the dynamic examination link" xmlns="http://www.w3.org/2000/svg"><rect width="${size}" height="${size}" fill="white"/><path d="${path}" fill="black"/></svg>`;};
+    const render=(element,text)=>{if(!element)throw new Error('QR target element is missing.');element.innerHTML=svgFor(String(text));const svg=element.querySelector('svg');if(svg)svg.classList.add('h-auto','w-full');};
+    return Object.freeze({ render, svgFor });
+  })();
+
+  const Festacol = Object.freeze({ store, questions, assessment, proctor, qr, utils });
+  win.Festacol = Festacol;
+  win.FestacolSessionStore = store;
+  win.FestacolQuestionData = questions;
+  win.FestacolAssessmentEngine = assessment;
+  win.FestacolProctorPolicy = proctor;
+  win.FestacolQR = qr;
+})();

@@ -1,1 +1,97 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Festacol</title></head><body><script>const target=new URL('./student.html',location.href);target.search=location.search;location.replace(target.href);</script><noscript><a href="./student.html">Open Festacol student dashboard</a></noscript></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Festacol student and examination workspace">
+  <title>Festacol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: "DM Sans", sans-serif;
+      --font-display: "Manrope", sans-serif;
+      --animate-admin-enter: admin-enter 220ms cubic-bezier(.22,.61,.36,1) both;
+      --animate-admin-pop: admin-pop 180ms cubic-bezier(.22,.61,.36,1) both;
+      --animate-toast-in: toast-in 220ms cubic-bezier(.22,.61,.36,1) both;
+    }
+    @keyframes admin-enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes admin-pop {
+      from { opacity: 0; transform: scale(.985) translateY(4px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(10px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-dvh bg-neutral-50 font-sans text-neutral-950 antialiased">
+  <a href="#app" class="fixed left-4 top-4 z-[200] -translate-y-24 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white transition focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-neutral-300 motion-reduce:transition-none">Skip to application</a>
+  <div id="app" tabindex="-1" class="min-h-dvh outline-none">
+    <main class="grid min-h-dvh place-items-center p-6">
+      <div class="rounded-2xl border border-neutral-200 bg-white p-7 text-center shadow-sm" role="status" aria-live="polite">
+        <span class="mx-auto grid size-11 place-items-center rounded-xl bg-neutral-950 text-sm font-black text-white">F</span>
+        <h1 class="mt-5 font-display text-2xl font-extrabold">Opening Festacol…</h1>
+      </div>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
+  <script src="./js/shared.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const app = document.getElementById('app');
+      const current = new URL(location.href);
+      const requested = current.searchParams.get('route') || 'student';
+      const knownRoutes = new Set(['student', 'admin', 'exam']);
+      const route = knownRoutes.has(requested) ? requested : 'student';
+      const runtimeByRoute = Object.freeze({
+        student: './js/student.js',
+        admin: './js/admin.js',
+        exam: './js/exam.js'
+      });
+
+      if (!window.Festacol) {
+        app.innerHTML = '<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">Festacol could not start.</h1><p class="mt-2 text-sm">The shared application runtime is unavailable.</p></div></main>';
+        return;
+      }
+
+      if (route !== requested || !current.searchParams.has('route')) {
+        current.searchParams.set('route', route);
+        history.replaceState({}, '', current.href);
+      }
+
+      const metadata = Object.freeze({
+        student: ['Festacol · Student Dashboard', 'Festacol student academic intelligence dashboard'],
+        admin: ['Festacol · Administration', 'Festacol academic administration, examination and reporting workspace'],
+        exam: ['Festacol · Examination', 'Festacol secure student computer-based examination workspace']
+      })[route];
+      document.title = metadata[0];
+      document.querySelector('meta[name="description"]')?.setAttribute('content', metadata[1]);
+
+      const script = document.createElement('script');
+      script.src = runtimeByRoute[route];
+      script.addEventListener('error', () => {
+        const label = route === 'exam' ? 'Examination' : route === 'admin' ? 'Administration' : 'Student workspace';
+        app.innerHTML = `<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">${label} unavailable.</h1><p class="mt-2 text-sm">The selected Festacol runtime could not be loaded.</p></div></main>`;
+      });
+      document.body.append(script);
+    })();
+  </script>
+</body>
+</html>
