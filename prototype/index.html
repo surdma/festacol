@@ -47,6 +47,7 @@
       const route = knownRoutes.has(requested) ? requested : 'student';
       const runtimeByRoute = Object.freeze({
         student: './js/student.js',
+        admin: './js/admin.js',
         exam: './js/exam.js'
       });
 
@@ -60,25 +61,19 @@
         history.replaceState({}, '', current.href);
       }
 
-      if (route === 'admin') {
-        const target = new URL('./admin.html', location.href);
-        const forwarded = new URLSearchParams(location.search);
-        forwarded.delete('route');
-        target.search = forwarded.toString();
-        location.replace(target.href);
-        return;
-      }
-
-      const metadata = route === 'exam'
-        ? ['Festacol · Examination', 'Festacol secure student computer-based examination workspace']
-        : ['Festacol · Student Dashboard', 'Festacol student academic intelligence dashboard'];
+      const metadata = Object.freeze({
+        student: ['Festacol · Student Dashboard', 'Festacol student academic intelligence dashboard'],
+        admin: ['Festacol · Administration', 'Festacol academic administration, examination and reporting workspace'],
+        exam: ['Festacol · Examination', 'Festacol secure student computer-based examination workspace']
+      })[route];
       document.title = metadata[0];
       document.querySelector('meta[name="description"]')?.setAttribute('content', metadata[1]);
 
       const script = document.createElement('script');
       script.src = runtimeByRoute[route];
       script.addEventListener('error', () => {
-        app.innerHTML = `<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">${route === 'exam' ? 'Examination' : 'Student workspace'} unavailable.</h1><p class="mt-2 text-sm">The selected Festacol runtime could not be loaded.</p></div></main>`;
+        const label = route === 'exam' ? 'Examination' : route === 'admin' ? 'Administration' : 'Student workspace';
+        app.innerHTML = `<main class="grid min-h-dvh place-items-center p-6"><div class="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900"><h1 class="font-display text-xl font-extrabold">${label} unavailable.</h1><p class="mt-2 text-sm">The selected Festacol runtime could not be loaded.</p></div></main>`;
       });
       document.body.append(script);
     })();
