@@ -1,0 +1,86 @@
+name: Next.js Quality
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - 'work/**'
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'supabase/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'prisma.config.ts'
+      - 'tsconfig.json'
+      - 'next.config.*'
+      - '.github/workflows/nextjs-quality.yml'
+  pull_request:
+    branches:
+      - master
+      - main
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'supabase/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'prisma.config.ts'
+      - 'tsconfig.json'
+      - 'next.config.*'
+      - '.github/workflows/nextjs-quality.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextjs-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Prisma, types, lint & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      SUPABASE_WEBHOOK_SECRET: ci-placeholder-webhook-secret
+      SETUP_SECRET: ci-placeholder-setup-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: pnpm exec prisma validate
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Biome
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
