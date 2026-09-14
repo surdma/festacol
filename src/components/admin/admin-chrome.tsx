@@ -121,7 +121,7 @@ export function AdminSidebarFooter({
         </span>
         <span className="sr-only">Connected</span>
 
-        <div className="flex flex-col gap-1.5" aria-label="Account actions">
+        <div className="flex flex-col gap-1.5" role="group" aria-label="Account actions">
           <Tooltip>
             <TooltipTrigger
               render={
