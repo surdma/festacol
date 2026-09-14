@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, LogOut, Menu, MessageCircle, Plus, Search, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Clock3, LogOut, Menu, Plus, QrCode, Search, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AdminLiveBadge } from "@/app/admin/live-badge";
@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import type { AdminTopbarNotification } from "@/types/admin";
 
 export function AdminSidebarBrand() {
   return (
@@ -74,31 +75,21 @@ function MobileNavigation() {
   );
 }
 
-const prototypeTopbarShortcuts = [
-  {
-    href: "/admin/exams?status=draft",
-    title: "Review draft examinations",
-    detail: "Open examinations to publish or refine them.",
-    icon: BookOpenCheck,
-    tone: "bg-amber-50 text-amber-700",
-  },
-  {
-    href: "/admin/reports?view=integrity",
-    title: "Review integrity events",
-    detail: "Review exact candidate attempt logs.",
-    icon: ShieldAlert,
-    tone: "bg-red-50 text-red-700",
-  },
-  {
-    href: "/admin/classes",
-    title: "Review class communication",
-    detail: "Complete WhatsApp group and QR access setup.",
-    icon: MessageCircle,
-    tone: "bg-neutral-100 text-neutral-700",
-  },
-] as const;
+const notificationIcons = {
+  book: BookOpenCheck,
+  clock: Clock3,
+  shield: ShieldAlert,
+  qr: QrCode,
+} as const;
 
-export function AdminTopbar() {
+const notificationTones = {
+  amber: "bg-amber-50 text-amber-700",
+  blue: "bg-blue-50 text-blue-700",
+  red: "bg-red-50 text-red-700",
+  neutral: "bg-neutral-100 text-neutral-700",
+} as const;
+
+export function AdminTopbar({ notifications }: { notifications: AdminTopbarNotification[] }) {
   const item = useAdminNavItem();
 
   return (
@@ -131,25 +122,33 @@ export function AdminTopbar() {
               <span className="block text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Activity centre</span>
               <span className="mt-1 flex items-center justify-between gap-3">
                 <span className="font-display text-base font-extrabold text-neutral-950">Needs attention</span>
-                <span className="text-xs font-semibold text-neutral-400">{prototypeTopbarShortcuts.length}</span>
+                <span className="text-xs font-semibold text-neutral-400">{notifications.length}</span>
               </span>
             </DropdownMenuLabel>
             <DropdownMenuGroup className="grid gap-1 p-1">
-              {prototypeTopbarShortcuts.map((shortcut) => {
-                const Icon = shortcut.icon;
+              {notifications.length ? notifications.map((notification) => {
+                const Icon = notificationIcons[notification.icon];
                 return (
-                  <DropdownMenuItem key={shortcut.href} render={<Link href={shortcut.href} />} className="group flex items-start gap-3 rounded-xl p-3 text-left focus:bg-neutral-50">
-                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${shortcut.tone}`}>
+                  <DropdownMenuItem key={`${notification.href}-${notification.title}`} render={<Link href={notification.href} />} className="group flex items-start gap-3 rounded-xl p-3 text-left focus:bg-neutral-50">
+                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${notificationTones[notification.tone]}`}>
                       <Icon className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <strong className="block text-xs text-neutral-900">{shortcut.title}</strong>
-                      <span className="mt-1 block text-[11px] leading-4 text-neutral-500">{shortcut.detail}</span>
+                      <strong className="block text-xs text-neutral-900">{notification.title}</strong>
+                      <span className="mt-1 block text-[11px] leading-4 text-neutral-500">{notification.detail}</span>
                     </span>
                     <ArrowUpRight className="size-3.5 shrink-0 text-neutral-300 transition group-hover:text-neutral-600" />
                   </DropdownMenuItem>
                 );
-              })}
+              }) : (
+                <div className="flex gap-3 rounded-xl p-3" role="status">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><CheckCircle2 className="size-4" /></span>
+                  <span>
+                    <strong className="block text-xs text-neutral-900">No immediate exceptions</strong>
+                    <span className="mt-1 block text-[11px] leading-4 text-neutral-500">Draft, active-attempt, integrity and communication queues are clear.</span>
+                  </span>
+                </div>
+              )}
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>

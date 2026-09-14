@@ -3,16 +3,14 @@ import { Suspense } from "react";
 import { AdminDialogs } from "@/components/admin/admin-dialogs";
 import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
 import { AdminNav } from "@/components/admin/admin-nav";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAdminTopbarNotifications } from "@/lib/admin-notifications";
+import { currentStaff } from "@/lib/auth/staff";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase, scope } = await currentStaff();
   const { data } = await supabase.auth.getUser();
   const user = data.user;
-  const role =
-    (user?.app_metadata?.role as string | undefined) ??
-    (user?.user_metadata?.role as string | undefined) ??
-    "";
+  const role = scope.role;
 
   if (!user) return <main className="min-h-dvh bg-neutral-50">{children}</main>;
   if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
@@ -23,6 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     user.email?.split("@")[0] ||
     (role === "administrator" ? "Administrator" : "Teacher");
   const email = user.email ?? "";
+  const notifications = await getAdminTopbarNotifications(supabase, scope);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-950">
@@ -34,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </aside>
 
       <div className="min-h-screen lg:pl-64">
-        <AdminTopbar />
+        <AdminTopbar notifications={notifications} />
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">{children}</main>
       </div>
 
