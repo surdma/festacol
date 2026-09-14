@@ -185,7 +185,7 @@ export default async function AdminOverviewPage() {
             ["Class communication", `${communicationCoverage}% coverage`, "qr" as const],
             ["Student records", `${activeStudents.length} active`, "users" as const],
             ["Exam definitions", `${sessions.length} configured`, "book" as const],
-          ].map(([name, value, icon]) => <div key={name} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3"><span className="grid size-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600"><PrototypeAdminIcon name={icon} className="size-4 shrink-0" /></span><span className="min-w-0 flex-1 text-xs font-semibold text-neutral-600">{name}</span><strong className="text-xs text-neutral-950">{value}</strong></div>)}</div>
+          ].map(([name, value, icon]) => <div key={name} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3"><span className="grid size-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600"><PrototypeAdminIcon name={icon as PrototypeAdminIconName} className="size-4 shrink-0" /></span><span className="min-w-0 flex-1 text-xs font-semibold text-neutral-600">{name}</span><strong className="text-xs text-neutral-950">{value}</strong></div>)}</div>
         </aside>
       </div>
     </div>
