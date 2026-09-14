@@ -1,0 +1,69 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { recordIntegrityAction } from "@/app/actions/exams";
+
+export function useExamTimer(initialRemaining: number, onExpire: () => void, active = true) {
+  const [remaining, setRemaining] = useState(initialRemaining);
+  const cbRef = useRef(onExpire);
+  cbRef.current = onExpire;
+
+  useEffect(() => {
+    if (!active) return;
+    if (remaining <= 0) {
+      cbRef.current();
+      return;
+    }
+    const t = setInterval(() => {
+      setRemaining((r) => {
+        if (r <= 1) {
+          clearInterval(t);
+          queueMicrotask(() => cbRef.current());
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [remaining <= 0, active]);
+
+  const format = useCallback(() => {
+    const s = Math.max(0, remaining);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+  }, [remaining]);
+
+  return { remaining, format, isCritical: remaining <= 60, isWarning: remaining <= 300 };
+}
+
+// Integrity events go through a Server Action: the browser never sees
+// candidate hashes, endpoints, or keys — only (sessionId, type, detail).
+export function useIntegrityRecorder(sessionId: string) {
+  const record = useCallback(
+    (type: string, detail?: string) => {
+      void recordIntegrityAction(sessionId, type, detail).catch(() => undefined);
+    },
+    [sessionId],
+  );
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) record("tab-hidden");
+      else record("focus-return");
+    };
+    const onBlur = () => record("window-blur");
+    const onCopy = () => record("clipboard-copy");
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("copy", onCopy);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("copy", onCopy);
+    };
+  }, [record]);
+
+  return { record };
+}
