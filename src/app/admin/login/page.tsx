@@ -5,7 +5,7 @@ import { AdminLoginForm } from "./login-form";
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const next = (await searchParams).next;
   return (
-    <main className="min-h-dvh bg-muted p-4 sm:p-7">
+    <main className="min-h-dvh bg-background p-4 sm:p-7">
       <div className="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-border bg-card shadow-xl sm:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[0.85fr_1.15fr]">
         <section className="flex flex-col justify-between bg-primary p-7 text-primary-foreground sm:p-10">
           <div className="flex items-center gap-3">
