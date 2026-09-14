@@ -8,10 +8,12 @@ import { StatusBadge } from "@/components/status-badge";
 
 interface Attempt {
   attempt_hash: string; session_id: string | null; session_title: string; student_name: string;
-  score: number | null; integrity_score: number | null; submitted_at: number | null; integrity_events: { type: string }[];
+  score: number | null; integrity_score: number | null; submitted_at: number | null;
 }
 
-export function ReportsTabs({ attempts, titles }: { attempts: Attempt[]; titles: Record<string, string> }) {
+interface FeedItem { student: string; type: string; hash: string }
+
+export function ReportsTabs({ attempts, titles, feed }: { attempts: Attempt[]; titles: Record<string, string>; feed: FeedItem[] }) {
   const byExam = new Map<string, { total: number; sum: number; submitted: number }>();
   for (const a of attempts) {
     const key = a.session_id ?? a.session_title;
@@ -26,10 +28,7 @@ export function ReportsTabs({ attempts, titles }: { attempts: Attempt[]; titles:
     b.total += 1; b.sum += a.score ?? 0; b.integrity += a.integrity_score ?? 100;
     byStudent.set(a.student_name, b);
   }
-  const integrityFeed = attempts.flatMap((a) =>
-    (a.integrity_events ?? []).filter((e) => !["focus-return", "fullscreen-enter", "camera-restored", "background-resume-reconciled"].includes(e.type))
-      .map((e) => ({ student: a.student_name, type: e.type, hash: a.attempt_hash })),
-  ).slice(0, 50);
+  const integrityFeed = feed;
 
   return (
     <Tabs defaultValue="exams">

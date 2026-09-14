@@ -47,10 +47,11 @@ model User {
   authUserId      String? @unique @map("auth_user_id")
   email           String  @default("")
   // Teacher scoping: subject codes taught + qualifier privilege.
-  subjects        Json    @default("[]")
+  subjects        String[] @default([])
   qualifierAccess Boolean @default(false) @map("qualifier_access")
 
   class Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  createdQuestions Question[] @relation("CreatedQuestions")
 
   @@map("users")
 }
@@ -78,8 +79,8 @@ model ExamSession {
   academicSession  String  @default("2026/2027") @map("academic_session")
   term             String  @default("First term")
   mode             String
-  subjects         Json    @default("[]")
-  placementTracks  Json    @default("[]") @map("placement_tracks")
+  subjects         String[] @default([])
+  placementTracks  String[] @default([]) @map("placement_tracks")
   durationSeconds  Int     @map("duration_seconds")
   questionCount    Int     @map("question_count")
   status           String  @default("open")
@@ -87,10 +88,15 @@ model ExamSession {
   startsAt         BigInt? @map("starts_at")
   endsAt           BigInt? @map("ends_at")
   attemptLimit     Int     @default(1) @map("attempt_limit")
-  integrityPolicy  Json    @map("integrity_policy")
-  randomization    Json    @default("{\"questionOrder\":true,\"optionOrder\":true,\"minimizePaperCollisions\":true}")
+  focusMonitoring  Boolean @default(true) @map("focus_monitoring")
+  fullscreenPrompt Boolean @default(true) @map("fullscreen_prompt")
+  clipboardGuard   Boolean @default(true) @map("clipboard_guard")
+  warnAfter        Int     @default(2) @map("warn_after")
+  questionOrder    Boolean @default(true) @map("question_order")
+  optionOrder      Boolean @default(true) @map("option_order")
+  minimizeCollisions Boolean @default(true) @map("minimize_collisions")
   // Cohost staff (public.users ids) — see exams outside their subjects.
-  cohosts          Json    @default("[]")
+  cohosts          String[] @default([])
   createdAt        BigInt  @map("created_at")
   updatedAt        BigInt  @map("updated_at")
 
@@ -120,7 +126,6 @@ model ExamAttempt {
   mode                    String  @default("")
   sessionStatus           String  @default("") @map("session_status")
   sessionEndsAt           BigInt? @map("session_ends_at")
-  subjects                Json    @default("[]")
   startedAt               BigInt? @map("started_at")
   submittedAt             BigInt? @map("submitted_at")
   remainingSeconds        Float?  @map("remaining_seconds")
@@ -133,17 +138,16 @@ model ExamAttempt {
   paceIndex               Float?  @map("pace_index")
   reasoningIndex          Float?  @map("reasoning_index")
   integrityScore          Float?  @map("integrity_score")
-  integrityEvents         Json    @default("[]") @map("integrity_events")
-  subjectStats            Json    @default("[]") @map("subject_stats")
-  placement               Json?
-  details                 Json    @default("[]")
-  questionIds             Json    @default("[]") @map("question_ids")
+  assignedTrack           String? @map("assigned_track")
+  placementConfidence     Int?    @map("placement_confidence")
   submissionReason        String  @default("") @map("submission_reason")
   rewriteArchivedAt       BigInt? @map("rewrite_archived_at")
   rewriteSourceAttemptHash String @default("") @map("rewrite_source_attempt_hash")
   createdAt               BigInt  @map("created_at")
 
   session ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  answers ExamAttemptAnswer[]
+  subjectStats ExamAttemptSubjectStat[]
 
   @@index([sessionId])
   @@index([sessionId, candidateHash])
@@ -151,16 +155,89 @@ model ExamAttempt {
   @@map("exam_attempts")
 }
 
+model ExamAttemptAnswer {
+  id             BigInt  @id @default(autoincrement())
+  attemptHash    String  @map("attempt_hash")
+  sessionId      String? @map("session_id")
+  candidateHash  String  @default("") @map("candidate_hash")
+  questionId     BigInt? @map("question_id")
+  subjectCode    String  @default("") @map("subject_code")
+  subjectName    String  @default("") @map("subject_name")
+  correct        Boolean?
+  responseText   String? @map("response_text")
+  responseValues String[] @default([]) @map("response_values")
+  correctAnswer  String  @default("") @map("correct_answer")
+  seconds        Float   @default(0)
+
+  attempt ExamAttempt @relation(fields: [attemptHash], references: [attemptHash], onDelete: Cascade)
+  question Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@index([attemptHash])
+  @@map("exam_attempt_answers")
+}
+
+model ExamAttemptSubjectStat {
+  attemptHash String @map("attempt_hash")
+  subjectCode String @default("") @map("subject_code")
+  subjectName String @default("") @map("subject_name")
+  total       Int    @default(0)
+  correct     Int    @default(0)
+  seconds     Float  @default(0)
+  percent     Int    @default(0)
+
+  attempt ExamAttempt @relation(fields: [attemptHash], references: [attemptHash], onDelete: Cascade)
+
+  @@id([attemptHash, subjectCode])
+  @@map("exam_attempt_subject_stats")
+}
+
+model ExamIntegrityEvent {
+  id            BigInt  @id @default(autoincrement())
+  sessionId     String  @default("") @map("session_id")
+  candidateHash String  @default("") @map("candidate_hash")
+  attemptHash   String? @map("attempt_hash")
+  type          String  @default("")
+  detail        String  @default("")
+  at            BigInt  @default(0)
+
+  @@index([sessionId, candidateHash])
+  @@map("exam_integrity_events")
+}
+
 model ExamState {
   sessionId     String @map("session_id")
   candidateHash String @map("candidate_hash")
-  state         Json
+  startedAt     BigInt? @map("started_at")
+  submittedAt   BigInt? @map("submitted_at")
+  currentIndex  Int    @default(0) @map("current_index")
+  remainingSeconds Float @default(0) @map("remaining_seconds")
+  elapsedActiveSeconds Float @default(0) @map("elapsed_active_seconds")
+  lastActiveAt  BigInt? @map("last_active_at")
+  attemptHash   String @default("") @map("attempt_hash")
+  paperFingerprint String @default("") @map("paper_fingerprint")
+  questionIds   BigInt[] @default([]) @map("question_ids")
   updatedAt     BigInt @map("updated_at")
 
   session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  responses ExamResponse[]
 
   @@id([sessionId, candidateHash])
   @@map("exam_states")
+}
+
+model ExamResponse {
+  sessionId     String @map("session_id")
+  candidateHash String @map("candidate_hash")
+  questionId    BigInt @map("question_id")
+  responseText  String? @map("response_text")
+  responseValues String[] @default([]) @map("response_values")
+  seconds       Float  @default(0)
+  flagged       Boolean @default(false)
+
+  state ExamState @relation(fields: [sessionId, candidateHash], references: [sessionId, candidateHash], onDelete: Cascade)
+
+  @@id([sessionId, candidateHash, questionId])
+  @@map("exam_responses")
 }
 
 model ExamResetMarker {
@@ -177,7 +254,8 @@ model ExamResetMarker {
 model ExamBackgroundMarker {
   sessionId     String @map("session_id")
   candidateHash String @map("candidate_hash")
-  marker        Json
+  hiddenAt      BigInt? @map("hidden_at")
+  startedAt     BigInt? @map("started_at")
   updatedAt     BigInt @map("updated_at")
 
   session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -210,50 +288,58 @@ model WhatsappGroup {
 }
 
 model Question {
-  id          BigInt @id
-  origin      String @default("seed")
-  data        Json
-  subjectCode String @default("") @map("subject_code")
-  updatedAt   BigInt @map("updated_at")
+  id             BigInt   @id
+  subjectCode    String   @map("subject_code")
+  subjectName    String   @default("") @map("subject_name")
+  label          String   @default("")
+  qtype          String
+  prompt         String
+  options        String[] @default([])
+  correctAnswers String[] @default([]) @map("correct_answers")
+  fillTemplate   String?  @map("fill_template")
+  instruction    String   @default("")
+  levels         String[] @default([])
+  examModes      String[] @default([]) @map("exam_modes")
+  difficulty     String   @default("medium")
+  domain         String   @default("")
+  explanation    String   @default("")
+  createdBy      String?  @map("created_by")
+  updatedAt      BigInt   @map("updated_at")
 
-  override QuestionOverride?
+  subject Subject @relation(fields: [subjectCode], references: [code])
+  creator User?   @relation("CreatedQuestions", fields: [createdBy], references: [id], onDelete: SetNull)
+  blanks  QuestionBlank[]
+  answers ExamAttemptAnswer[]
 
-  @@index([origin])
   @@index([subjectCode])
   @@map("questions")
 }
 
-model QuestionOverride {
-  questionId BigInt @id @map("question_id")
-  patch      Json
-  updatedAt  BigInt @map("updated_at")
+model QuestionBlank {
+  questionId  BigInt @map("question_id")
+  position    Int
+  blankKey    String   @default("") @map("blank_key")
+  placeholder String   @default("")
+  accepted    String[] @default([])
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
-  @@map("question_overrides")
-}
-
-model QuestionBank {
-  id                 Int    @id
-  questionSetId      String @map("question_set_id")
-  subjectCatalog     Json   @map("subject_catalog")
-  assessmentAlignment Json? @map("assessment_alignment")
-  questionCount      Int    @default(0) @map("question_count")
-  updatedAt          BigInt @map("updated_at")
-
-  @@map("question_bank")
+  @@id([questionId, position])
+  @@map("question_blanks")
 }
 
 // WAEC-grounded subject catalog (admin-extensible). Codes match the
 // question bank's subject_code values so exams, questions and teacher
 // scopes join without translation tables.
 model Subject {
-  code      String  @id
+  code      String   @id
   name      String
-  category  String  @default("elective") // core | science | art | commercial | legacy
-  streams   Json    @default("[]") // streams taking it, e.g. ["Science","Art"]
-  active    Boolean @default(true)
-  updatedAt BigInt  @map("updated_at")
+  category  String   @default("elective") // core | science | art | commercial | legacy
+  streams   String[] @default([]) // streams taking it, e.g. ["Science","Art"]
+  active    Boolean  @default(true)
+  updatedAt BigInt   @map("updated_at")
+
+  questions Question[]
 
   @@map("subjects")
 }

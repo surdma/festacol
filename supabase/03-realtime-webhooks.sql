@@ -61,14 +61,9 @@ create trigger festacol_webhook_questions
   after insert or update or delete on public.questions
   for each row execute function private.notify_festacol_webhook();
 
-drop trigger if exists festacol_webhook_question_overrides on public.question_overrides;
-create trigger festacol_webhook_question_overrides
-  after insert or update or delete on public.question_overrides
-  for each row execute function private.notify_festacol_webhook();
-
-drop trigger if exists festacol_webhook_question_bank on public.question_bank;
-create trigger festacol_webhook_question_bank
-  after insert or update or delete on public.question_bank
+drop trigger if exists festacol_webhook_question_blanks on public.question_blanks;
+create trigger festacol_webhook_question_blanks
+  after insert or update or delete on public.question_blanks
   for each row execute function private.notify_festacol_webhook();
 
 drop trigger if exists festacol_webhook_whatsapp_groups on public.whatsapp_groups;
@@ -84,6 +79,26 @@ create trigger festacol_webhook_student_profiles
 drop trigger if exists festacol_webhook_exam_states on public.exam_states;
 create trigger festacol_webhook_exam_states
   after insert or update or delete on public.exam_states
+  for each row execute function private.notify_festacol_webhook();
+
+drop trigger if exists festacol_webhook_exam_responses on public.exam_responses;
+create trigger festacol_webhook_exam_responses
+  after insert or update or delete on public.exam_responses
+  for each row execute function private.notify_festacol_webhook();
+
+drop trigger if exists festacol_webhook_exam_attempt_answers on public.exam_attempt_answers;
+create trigger festacol_webhook_exam_attempt_answers
+  after insert or update or delete on public.exam_attempt_answers
+  for each row execute function private.notify_festacol_webhook();
+
+drop trigger if exists festacol_webhook_exam_attempt_subject_stats on public.exam_attempt_subject_stats;
+create trigger festacol_webhook_exam_attempt_subject_stats
+  after insert or update or delete on public.exam_attempt_subject_stats
+  for each row execute function private.notify_festacol_webhook();
+
+drop trigger if exists festacol_webhook_exam_integrity_events on public.exam_integrity_events;
+create trigger festacol_webhook_exam_integrity_events
+  after insert or update or delete on public.exam_integrity_events
   for each row execute function private.notify_festacol_webhook();
 
 drop trigger if exists festacol_webhook_subjects on public.subjects;

@@ -236,6 +236,7 @@
         const credentials = assessment.candidateCredentials(first, last);
         const studentHash = await assessment.studentHash(first, last);
         store.setStudentAuth(studentHash);
+        await globalThis.FestacolSupabase?.signInStudent?.(credentials.firstName, credentials.lastName, studentHash);
         const existing = await profile();
         await store.saveStudentProfile({ ...existing, firstName: credentials.firstName, lastName: credentials.lastName, fullName: credentials.fullName, candidateHash: existing?.candidateHash || studentHash, studentHash, academicSession: session?.academicSession || existing?.academicSession || store.ACADEMIC_SESSION });
         if (session) {

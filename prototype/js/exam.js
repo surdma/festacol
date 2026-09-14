@@ -298,6 +298,7 @@
       academicSession: session.academicSession
     });
     store.setStudentAuth(studentHash);
+    await globalThis.FestacolSupabase?.signInStudent?.(credentials.firstName, credentials.lastName, studentHash);
     store.setActiveCandidate(session.id, candidateHash);
     return profile;
   };

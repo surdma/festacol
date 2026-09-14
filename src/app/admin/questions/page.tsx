@@ -27,11 +27,12 @@ export default async function AdminQuestionsPage() {
       </div>
       {questions.length === 0 ? <EmptyState title="Bank empty" description="Sync public/seed/questions.json via the sync action." /> : (
         <Card><CardContent className="p-0"><Table>
-          <TableHeader><TableRow><TableHead>Question</TableHead><TableHead>Subject</TableHead><TableHead>Origin</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Question</TableHead><TableHead>Subject</TableHead><TableHead>Type</TableHead><TableHead>Source</TableHead></TableRow></TableHeader>
           <TableBody>{questions.map((q) => (
             <TableRow key={String(q.id)}>
-              <TableCell className="max-w-md truncate"><Link href={`/admin/questions?modal=question&question=${q.id}`} className="hover:underline">{String(q.data?.prompt ?? q.id)}</Link></TableCell>
-              <TableCell>{q.subject_code}</TableCell><TableCell>{q.origin}</TableCell></TableRow>))}
+              <TableCell className="max-w-md truncate"><Link href={`/admin/questions?modal=question&question=${q.id}`} className="hover:underline">{q.prompt || `#${String(q.id)}`}</Link></TableCell>
+              <TableCell>{q.subject_code}</TableCell><TableCell>{q.qtype}</TableCell>
+              <TableCell>{q.created_by ? "Teacher" : "Bank"}</TableCell></TableRow>))}
           </TableBody>
         </Table></CardContent></Card>)}
     </FadeUp>

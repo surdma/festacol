@@ -37,5 +37,39 @@
     url: getUrl() || null
   });
 
-  win.FestacolSupabase = Object.freeze({ getClient, isConfigured, status });
+  // Authenticated access (required: RLS denies anon). Students use the same
+  // derived credentials as the Next.js app: synthetic email + fst:hash.
+  const studentEmailFor = (first, last) => {
+    const clean = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9]+/gu, '.').replace(/^\.+|\.+$/gu, '').slice(0, 40) || 'student';
+    return `${clean(first)}.${clean(last)}.student@festacol.local`;
+  };
+  const signInStudent = async (first, last, studentHash) => {
+    const client = getClient();
+    if (!client) throw new Error('Supabase is not configured.');
+    const { error } = await client.auth.signInWithPassword({
+      email: studentEmailFor(first, last), password: `fst:${studentHash}`,
+    });
+    if (error) throw new Error('No provisioned login for these names yet — sign in through the main app once to activate this device.');
+  };
+  const signInAdmin = async (email, password) => {
+    const client = getClient();
+    if (!client) throw new Error('Supabase is not configured.');
+    const { error } = await client.auth.signInWithPassword({ email: String(email || '').trim(), password: String(password || '') });
+    if (error) throw error;
+    const role = await currentRole();
+    if (role !== 'administrator' && role !== 'teacher') {
+      await client.auth.signOut();
+      throw new Error('This account has no staff access.');
+    }
+    return role;
+  };
+  const currentRole = async () => {
+    const client = getClient();
+    if (!client) return '';
+    const { data } = await client.auth.getUser();
+    return data.user?.app_metadata?.role || data.user?.user_metadata?.role || '';
+  };
+  const signOut = async () => { await getClient()?.auth.signOut(); };
+
+  win.FestacolSupabase = Object.freeze({ getClient, isConfigured, status, signInStudent, signInAdmin, currentRole, signOut });
 })();

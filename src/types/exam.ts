@@ -42,7 +42,7 @@ export interface QuestionDTO {
   options?: string[];
   levels: ClassLevel[];
   examModes: ExamMode[];
-  fillTemplate?: { text?: string; blank?: boolean; placeholder?: string }[];
+  fillTemplate?: { text?: string; blank?: boolean; placeholder?: string; key?: string }[];
   answer?: unknown;
 }
 

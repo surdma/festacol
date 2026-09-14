@@ -84,15 +84,16 @@ export function QuestionCard({ q, index, total, response, flagged, onChange, onT
         )}
         {(q.type === "fill" || q.type === "fill-multi") && (
           <div className="leading-8">
-            {(q.fillTemplate ?? [{ blank: true }]).map((part, i) =>
-              part.blank ? (
-                <Input key={i} className="mx-1 inline-flex w-40" placeholder={part.placeholder ?? "Answer"}
-                  value={String((response as Record<string, string> ?? {})[`b${i}`] ?? "")}
-                  onChange={(e) => onChange({ ...((response as Record<string, string>) ?? {}), [`b${i}`]: e.target.value })} />
+            {(q.fillTemplate ?? []).map((part, i) => {
+              const key = part.key ?? `b${i}`;
+              return part.blank ? (
+                <Input key={key} className="mx-1 inline-flex w-40" placeholder={part.placeholder ?? "Answer"}
+                  value={String((response as Record<string, string> ?? {})[key] ?? "")}
+                  onChange={(e) => onChange({ ...((response as Record<string, string>) ?? {}), [key]: e.target.value })} />
               ) : (
-                <span key={i}>{part.text} </span>
-              ),
-            )}
+                <span key={key}>{part.text} </span>
+              );
+            })}
           </div>
         )}
       </CardContent>

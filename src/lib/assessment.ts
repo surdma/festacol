@@ -151,10 +151,26 @@ export function scoreAttempt(
 ) {
   const details = paper.map((q) => {
     const response = state.responses?.[String(q.id)] ?? null;
-    // Metadata-driven scoring: seed questions carry `answer` in DB JSON.
+    // Column-driven scoring: loader sets `answer` from correct_answers /
+    // blanks; `blanks` carries the full accepted sets for fill types.
     let correct: boolean | null = null;
     const key = (q as { answer?: unknown }).answer;
-    if (key !== undefined) {
+    const blanks = (q as { blanks?: { key: string; accepted: string[] }[] }).blanks;
+    if ((q.type === "fill" || q.type === "fill-multi") && blanks) {
+      const r = (response && typeof response === "object" ? response : {}) as Record<string, unknown>;
+      const keys = blanks.map((b) => b.key);
+      const answeredBlanks = keys.filter((k) => String(r[k] ?? "").trim());
+      if (!keys.length) correct = null;
+      else if (!answeredBlanks.length) correct = false;
+      else {
+        correct = keys.every((k) => {
+          const val = String(r[k] ?? "").trim();
+          if (!val) return false;
+          const acc = blanks.find((b) => b.key === k)?.accepted ?? [];
+          return acc.map(normalizeText).includes(normalizeText(val));
+        });
+      }
+    } else if (key !== undefined) {
       if (Array.isArray(key)) {
         const rx = Array.isArray(response) ? response.map(normalizeText).sort() : [];
         const ex = (key as unknown[]).map(normalizeText).sort();

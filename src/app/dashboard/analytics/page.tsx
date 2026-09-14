@@ -24,8 +24,14 @@ export default async function AnalyticsPage() {
       </FadeUp>
     );
   }
-  const subjectStats = (latest as unknown as { subject_stats: { subject: string; percent: number }[] }).subject_stats ?? [];
-  const details = (latest as unknown as { details: { questionId: number; correct: boolean | null; correctAnswer: string }[] }).details ?? [];
+  const [{ data: stats }, { data: answers }] = await Promise.all([
+    ctx.supabase.from("exam_attempt_subject_stats").select("*").eq("attempt_hash", latest.attempt_hash),
+    ctx.supabase.from("exam_attempt_answers").select("question_id,correct,correct_answer").eq("attempt_hash", latest.attempt_hash).order("id"),
+  ]);
+  const subjectStats = ((stats ?? []) as { subject_name: string; percent: number }[]).map((s) => ({ subject: s.subject_name, percent: s.percent }));
+  const details = ((answers ?? []) as { question_id: number; correct: boolean | null; correct_answer: string }[]).map((d) => ({
+    questionId: d.question_id, correct: d.correct, correctAnswer: d.correct_answer,
+  }));
   let revealed = false;
   if (latest.session_id) {
     const { data } = await ctx.supabase.from("exam_sessions").select("status,ends_at").eq("id", latest.session_id).maybeSingle();

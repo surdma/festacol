@@ -1,7 +1,7 @@
 "use server";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { findSessionById, getExamState, getStudentProfile, saveExamState } from "@/lib/supabase/queries";
+import { findSessionById, getStudentProfile, recordIntegrityEvent } from "@/lib/supabase/queries";
 import { getExamLink, normalizeExamId } from "@/lib/exam-links";
 import { candidateHashFor } from "@/lib/assessment";
 import type { ExamSessionDTO } from "@/types/exam";
@@ -48,11 +48,8 @@ export async function recordIntegrityAction(sessionId: string, type: string, det
   const supabase = await createSupabaseServerClient();
   const profile = await getStudentProfile(supabase, studentHash);
   if (!profile) return;
-  const candidateHash = await candidateHashFor(sessionId, profile.first_name, profile.last_name);
-  const row = await getExamState(supabase, sessionId, candidateHash);
-  const state = row?.state ?? { integrityEvents: [] };
-  const events = [...(state.integrityEvents ?? []), { type, detail, at: Date.now() }].slice(-100);
-  await saveExamState(supabase, sessionId, candidateHash, { ...state, integrityEvents: events });
+  const candidateHash = await candidateHashFor(sessionId.toUpperCase(), profile.first_name, profile.last_name);
+  await recordIntegrityEvent(supabase, sessionId.toUpperCase(), candidateHash, type, detail);
 }
 
 // Phase 2: full submit lives in exam-state.ts (scoreAttempt + recordAttempt).

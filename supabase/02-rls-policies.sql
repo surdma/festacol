@@ -39,7 +39,7 @@ $$;
 
 -- Teacher access to one exam row: cohost, qualifier privilege, or subject overlap.
 create or replace function private.teacher_may_access_session(
-  s_subjects jsonb, s_mode text, s_cohosts jsonb
+  s_subjects text[], s_mode text, s_cohosts text[]
 ) returns boolean language sql stable as $$
   select exists (
     select 1 from public.users u
@@ -47,11 +47,10 @@ create or replace function private.teacher_may_access_session(
       and u.role = 'teacher'
       and u.status = 'active'
       and (
-        coalesce(s_cohosts, '[]'::jsonb) ? u.id
+        coalesce(s_cohosts, '{}') @> array[u.id]
         or (s_mode = 'qualifier' and u.qualifier_access)
-        or (s_mode <> 'qualifier' and coalesce(jsonb_array_length(s_subjects), 0) = 0)
-        or (coalesce(s_subjects, '[]'::jsonb) ?| array(
-              select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))))
+        or (s_mode <> 'qualifier' and coalesce(array_length(s_subjects, 1), 0) = 0)
+        or (coalesce(s_subjects, '{}') && coalesce(u.subjects, '{}'))
       )
   );
 $$;
@@ -77,7 +76,8 @@ begin
     'classes','users','student_profiles','exam_sessions','exam_attempts',
     'exam_states','exam_reset_markers','exam_background_markers',
     'exam_proctor_policies','whatsapp_groups','questions',
-    'question_overrides','question_bank','subjects']
+    'exam_attempt_answers','exam_attempt_subject_stats',
+    'exam_integrity_events','exam_responses','question_blanks','subjects']
   loop
     execute format('drop policy if exists %I on public.%I', 'prototype anon all ' || t, t);
   end loop;
@@ -124,10 +124,21 @@ drop policy if exists q_read on public.questions;
 drop policy if exists q_teacher_insert on public.questions;
 drop policy if exists q_teacher_write on public.questions;
 drop policy if exists q_teacher_delete on public.questions;
-drop policy if exists qo_admin_all on public.question_overrides;
-drop policy if exists qo_read on public.question_overrides;
-drop policy if exists qb_admin_all on public.question_bank;
-drop policy if exists qb_read on public.question_bank;
+drop policy if exists eab_admin_all on public.exam_attempt_answers;
+drop policy if exists eab_student_rw on public.exam_attempt_answers;
+drop policy if exists eab_teacher_read on public.exam_attempt_answers;
+drop policy if exists eas_admin_all on public.exam_attempt_subject_stats;
+drop policy if exists eas_student_read on public.exam_attempt_subject_stats;
+drop policy if exists eas_teacher_read on public.exam_attempt_subject_stats;
+drop policy if exists eie_admin_all on public.exam_integrity_events;
+drop policy if exists eie_student_rw on public.exam_integrity_events;
+drop policy if exists eie_teacher_rw on public.exam_integrity_events;
+drop policy if exists erp_admin_all on public.exam_responses;
+drop policy if exists erp_student_all on public.exam_responses;
+drop policy if exists erp_teacher_all on public.exam_responses;
+drop policy if exists qbl_admin_all on public.question_blanks;
+drop policy if exists qbl_read on public.question_blanks;
+drop policy if exists qbl_teacher_write on public.question_blanks;
 drop policy if exists sub_admin_all on public.subjects;
 drop policy if exists sub_read on public.subjects;
 
@@ -297,46 +308,111 @@ create policy q_teacher_insert on public.questions
   for insert to authenticated
   with check (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
-    and subject_code in (
-      select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
-      from public.users u
+    and subject_code = any (
+      select coalesce(u.subjects, '{}') from public.users u
       where u.auth_user_id = (select auth.uid())::text));
 create policy q_teacher_write on public.questions
   for update to authenticated
   using (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
-    and subject_code in (
-      select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
-      from public.users u
+    and subject_code = any (
+      select coalesce(u.subjects, '{}') from public.users u
       where u.auth_user_id = (select auth.uid())::text))
   with check (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
-    and subject_code in (
-      select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
-      from public.users u
+    and subject_code = any (
+      select coalesce(u.subjects, '{}') from public.users u
       where u.auth_user_id = (select auth.uid())::text));
--- NOTE: seed-row protection stays in the app (origin check); policy only
+-- NOTE: seed-row protection stays in the app (created_by check); policy only
 -- scopes by subject.
 create policy q_teacher_delete on public.questions
   for delete to authenticated
   using (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
-    and subject_code in (
-      select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
-      from public.users u
+    and subject_code = any (
+      select coalesce(u.subjects, '{}') from public.users u
       where u.auth_user_id = (select auth.uid())::text));
 
-create policy qo_admin_all on public.question_overrides
-  for all to authenticated
-  using (private.is_admin()) with check (private.is_admin());
-create policy qo_read on public.question_overrides
-  for select to authenticated using (true);
+-- ------------------------------------------------- normalized detail rows
+alter table public.exam_attempt_answers enable row level security;
+alter table public.exam_attempt_subject_stats enable row level security;
+alter table public.exam_integrity_events enable row level security;
+alter table public.exam_responses enable row level security;
+alter table public.question_blanks enable row level security;
 
-create policy qb_admin_all on public.question_bank
+create policy eab_admin_all on public.exam_attempt_answers
   for all to authenticated
   using (private.is_admin()) with check (private.is_admin());
-create policy qb_read on public.question_bank
+create policy eab_student_rw on public.exam_attempt_answers
+  for all to authenticated
+  using (exists (select 1 from public.exam_attempts a
+    where a.attempt_hash = attempt_hash
+      and a.student_hash = private.my_student_hash()))
+  with check (exists (select 1 from public.exam_attempts a
+    where a.attempt_hash = attempt_hash
+      and a.student_hash = private.my_student_hash()));
+create policy eab_teacher_read on public.exam_attempt_answers
+  for select to authenticated
+  using (session_id is not null and private.teacher_may_access_attempt(session_id));
+
+create policy eas_admin_all on public.exam_attempt_subject_stats
+  for all to authenticated
+  using (private.is_admin()) with check (private.is_admin());
+create policy eas_student_read on public.exam_attempt_subject_stats
+  for select to authenticated
+  using (exists (select 1 from public.exam_attempts a
+    where a.attempt_hash = attempt_hash
+      and a.student_hash = private.my_student_hash()));
+create policy eas_teacher_read on public.exam_attempt_subject_stats
+  for select to authenticated
+  using (exists (select 1 from public.exam_attempts a
+    where a.attempt_hash = attempt_hash
+      and a.session_id is not null
+      and private.teacher_may_access_attempt(a.session_id)));
+
+create policy eie_admin_all on public.exam_integrity_events
+  for all to authenticated
+  using (private.is_admin()) with check (private.is_admin());
+create policy eie_student_rw on public.exam_integrity_events
+  for all to authenticated
+  using (candidate_hash = private.expected_candidate(session_id))
+  with check (candidate_hash = private.expected_candidate(session_id));
+create policy eie_teacher_rw on public.exam_integrity_events
+  for all to authenticated
+  using (private.teacher_may_access_attempt(session_id))
+  with check (private.teacher_may_access_attempt(session_id));
+
+create policy erp_admin_all on public.exam_responses
+  for all to authenticated
+  using (private.is_admin()) with check (private.is_admin());
+create policy erp_student_all on public.exam_responses
+  for all to authenticated
+  using (candidate_hash = private.expected_candidate(session_id))
+  with check (candidate_hash = private.expected_candidate(session_id));
+create policy erp_teacher_all on public.exam_responses
+  for all to authenticated
+  using (private.teacher_may_access_attempt(session_id))
+  with check (private.teacher_may_access_attempt(session_id));
+
+create policy qbl_admin_all on public.question_blanks
+  for all to authenticated
+  using (private.is_admin()) with check (private.is_admin());
+create policy qbl_read on public.question_blanks
   for select to authenticated using (true);
+create policy qbl_teacher_write on public.question_blanks
+  for all to authenticated
+  using (exists (select 1 from public.questions q
+    where q.id = question_id
+      and (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
+      and q.subject_code = any (
+        select coalesce(u.subjects, '{}') from public.users u
+        where u.auth_user_id = (select auth.uid())::text)))
+  with check (exists (select 1 from public.questions q
+    where q.id = question_id
+      and (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
+      and q.subject_code = any (
+        select coalesce(u.subjects, '{}') from public.users u
+        where u.auth_user_id = (select auth.uid())::text)));
 
 alter table public.subjects enable row level security;
 create policy sub_admin_all on public.subjects
@@ -353,5 +429,9 @@ alter table public.classes replica identity full;
 alter table public.questions replica identity full;
 alter table public.exam_states replica identity full;
 alter table public.whatsapp_groups replica identity full;
-alter table public.question_bank replica identity full;
 alter table public.subjects replica identity full;
+alter table public.exam_attempt_answers replica identity full;
+alter table public.exam_attempt_subject_stats replica identity full;
+alter table public.exam_integrity_events replica identity full;
+alter table public.exam_responses replica identity full;
+alter table public.question_blanks replica identity full;

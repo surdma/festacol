@@ -134,10 +134,16 @@ export function UserDetailDialog({ userId, onClose }: { userId: string; onClose:
 
 export function AttemptDetailDialog({ attemptHash, onClose }: { attemptHash: string; onClose: () => void }) {
   const [attempt, setAttempt] = useState<Record<string, unknown> | null>(null);
+  const [events, setEvents] = useState<{ type: string; detail?: string; at: number }[]>([]);
+  const [answerCount, setAnswerCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [pending, startTransition] = useTransition();
   useEffect(() => {
-    void getAttemptDetailAction(attemptHash).then((d) => setAttempt(d.attempt as Record<string, unknown> | null));
+    void getAttemptDetailAction(attemptHash).then((d) => {
+      setAttempt(d.attempt as Record<string, unknown> | null);
+      setEvents((d.events ?? []) as { type: string; detail?: string; at: number }[]);
+      setAnswerCount(((d.answers ?? []) as unknown[]).length);
+    });
     void isAdminAction().then(setIsAdmin);
   }, [attemptHash]);
   return (
@@ -149,11 +155,12 @@ export function AttemptDetailDialog({ attemptHash, onClose }: { attemptHash: str
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <MetricCard label="Score" value={`${attempt.score ?? "—"}%`} />
               <MetricCard label="Integrity" value={`${attempt.integrity_score ?? "—"}%`} />
-              <MetricCard label="Status" value={attempt.submitted_at ? "submitted" : "in progress"} />
+              <MetricCard label="Answers" value={String(answerCount)} />
               <MetricCard label="Reason" value={String(attempt.submission_reason || "—")} />
             </div>
             <div className="max-h-72 overflow-auto rounded-lg border p-3 text-xs">
-              {((attempt.integrity_events as { type: string; detail?: string; at: number }[]) ?? []).map((e, i) => (
+              {events.length === 0 ? <p className="text-muted-foreground">No integrity events recorded.</p> : null}
+              {events.map((e, i) => (
                 <p key={i} className="border-b py-1 font-mono">{new Date(e.at).toLocaleTimeString()} · {e.type}{e.detail ? ` · ${e.detail}` : ""}</p>
               ))}
             </div>
@@ -182,22 +189,28 @@ export function AttemptDetailDialog({ attemptHash, onClose }: { attemptHash: str
 
 export function QuestionDetailDialog({ questionId, onClose }: { questionId: number; onClose: () => void }) {
   const [question, setQuestion] = useState<Record<string, unknown> | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [blanks, setBlanks] = useState<{ blank_key: string; accepted: string[] }[]>([]);
   const [pending, startTransition] = useTransition();
   useEffect(() => {
-    void getQuestionDetailAction(questionId).then((d) => setQuestion(d.question as Record<string, unknown> | null));
-    void isAdminAction().then(setIsAdmin);
+    void getQuestionDetailAction(questionId).then((d) => {
+      setQuestion(d.question as Record<string, unknown> | null);
+      setBlanks(((d.blanks ?? []) as { blank_key: string; accepted: string[] }[]));
+    });
   }, [questionId]);
-  const data = question?.data as { prompt?: string; options?: string[] } | undefined;
+  const options = (question?.options ?? []) as string[];
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>Question #{questionId}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Question #{questionId}</DialogTitle>
+          <DialogDescription className="font-mono">{String(question?.qtype ?? "")} · {String(question?.subject_code ?? "")}</DialogDescription></DialogHeader>
         {!question ? <p className="text-sm text-muted-foreground">Loading…</p> : (
           <div className="flex flex-col gap-3 text-sm">
-            <p>{data?.prompt}</p>
-            {(data?.options ?? []).map((o, i) => <p key={o} className="rounded border px-3 py-2">{String.fromCharCode(65 + i)}. {o}</p>)}
-            {question.origin === "teacher" && isAdmin ? (
+            <p>{String(question.prompt ?? "")}</p>
+            {options.map((o, i) => <p key={o} className="rounded border px-3 py-2">{String.fromCharCode(65 + i)}. {o}</p>)}
+            {blanks.length ? blanks.map((b) => (
+              <p key={b.blank_key} className="rounded border px-3 py-2 font-mono text-xs">{b.blank_key}: {(b.accepted ?? []).join(" / ")}</p>
+            )) : null}
+            {question.created_by ? (
               <AlertDialog>
                 <AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete</AlertDialogTrigger>
                 <AlertDialogContent>
@@ -209,7 +222,7 @@ export function QuestionDetailDialog({ questionId, onClose }: { questionId: numb
                     })} disabled={pending}>Delete</AlertDialogAction></AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            ) : <p className="text-xs text-muted-foreground">Seed questions are edited via overrides, not deleted.</p>}
+            ) : <p className="text-xs text-muted-foreground">Bank-seeded question.</p>}
           </div>
         )}
       </DialogContent>

@@ -20,14 +20,17 @@ import { revalidatePath } from "next/cache";
 const TABLE_PATHS: Record<string, string[]> = {
   exam_sessions: ["/admin", "/admin/exams", "/admin/reports", "/dashboard"],
   exam_attempts: ["/admin", "/admin/reports", "/dashboard"],
+  exam_attempt_answers: ["/admin", "/admin/reports", "/dashboard"],
+  exam_attempt_subject_stats: ["/admin", "/admin/reports", "/dashboard"],
+  exam_integrity_events: ["/admin", "/admin/reports"],
+  exam_states: ["/admin", "/admin/reports"],
+  exam_responses: ["/admin", "/admin/reports"],
   users: ["/admin", "/admin/students", "/admin/staff"],
   classes: ["/admin", "/admin/classes"],
   questions: ["/admin", "/admin/questions"],
-  question_overrides: ["/admin", "/admin/questions"],
-  question_bank: ["/admin", "/admin/questions"],
+  question_blanks: ["/admin", "/admin/questions"],
   whatsapp_groups: ["/admin", "/admin/classes"],
   student_profiles: ["/dashboard", "/admin/students"],
-  exam_states: ["/admin", "/admin/reports"],
   subjects: ["/admin", "/admin/settings", "/admin/questions", "/admin/exams"],
 };
 

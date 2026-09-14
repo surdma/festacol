@@ -11,10 +11,11 @@
 import type {
   Class as PrismaClass,
   ExamAttempt as PrismaAttempt,
+  ExamResponse as PrismaResponse,
   ExamSession as PrismaSession,
   ExamState as PrismaState,
   Question as PrismaQuestion,
-  QuestionBank as PrismaBank,
+  QuestionBlank as PrismaBlank,
   StudentProfile as PrismaProfile,
   Subject as PrismaSubject,
   User as PrismaUser,
@@ -80,14 +81,13 @@ export type ExamAttemptRow = Override<
   }
 >;
 
-export type ExamStateRow = Override<
-  DbRow<PrismaState>,
-  { state: Record<string, unknown> & { integrityEvents?: IntegrityEvent[] } }
->;
+export type ExamStateRow = DbRow<PrismaState>;
+
+export type ExamResponseRow = DbRow<PrismaResponse>;
 
 export type QuestionRow = Override<
-  DbRow<Omit<PrismaQuestion, "override">>,
-  { data: { prompt?: string } & Record<string, unknown> }
+  DbRow<Omit<PrismaQuestion, "subject" | "creator" | "blanks" | "answers">>,
+  { options: string[]; correct_answers: string[]; levels: string[]; exam_modes: string[] }
 >;
 
-export type QuestionBankRow = DbRow<PrismaBank>;
+export type QuestionBlankRow = DbRow<Omit<PrismaBlank, "question">>;

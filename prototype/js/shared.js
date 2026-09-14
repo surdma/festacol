@@ -116,10 +116,32 @@
   const cameraSessionFlags = new Map();
 
   // --- row mappers (Supabase snake_case <-> app camelCase) ---
-  const sessionToRow = (s) => ({ id: s.id, title: s.title, class_level: s.classLevel, class_group: s.classGroup, academic_session: s.academicSession, term: s.term, mode: s.mode, subjects: s.subjects, placement_tracks: s.placementTracks, duration_seconds: s.durationSeconds, question_count: s.questionCount, status: s.status, instructions: s.instructions, starts_at: s.startsAt, ends_at: s.endsAt, attempt_limit: 1, integrity_policy: s.integrityPolicy, randomization: s.randomization, created_at: s.createdAt, updated_at: s.updatedAt });
-  const sessionFromRow = (r) => normalizeSession({ id: r.id, title: r.title, classLevel: r.class_level, classGroup: r.class_group, academicSession: r.academic_session, term: r.term, mode: r.mode, subjects: r.subjects, placementTracks: r.placement_tracks, durationSeconds: r.duration_seconds, questionCount: clamp(Number(r.question_count) || 5, 5, 150), status: r.status, instructions: r.instructions, startsAt: r.starts_at, endsAt: r.ends_at, integrityPolicy: r.integrity_policy, randomization: r.randomization, createdAt: r.created_at, updatedAt: r.updated_at });
-  const attemptToRow = (a) => ({ id: a.id, attempt_hash: a.attemptHash, candidate_hash: a.candidateHash, student_hash: a.studentHash, paper_fingerprint: a.paperFingerprint, session_id: a.sessionId, session_title: a.sessionTitle, first_name: a.firstName, last_name: a.lastName, student_name: a.studentName, class_level: a.classLevel, class_group: a.classGroup, academic_session: a.academicSession, mode: a.mode, session_status: a.sessionStatus, session_ends_at: a.sessionEndsAt, subjects: a.subjects, started_at: a.startedAt, submitted_at: a.submittedAt, remaining_seconds: a.remainingSeconds, elapsed_active_seconds: a.elapsedActiveSeconds, answered: a.answered, question_count: a.questionCount, score: a.score, correct_count: a.correctCount, completion: a.completion, pace_index: a.paceIndex, reasoning_index: a.reasoningIndex, integrity_score: a.integrityScore, integrity_events: a.integrityEvents, subject_stats: a.subjectStats, placement: a.placement, details: a.details, question_ids: a.questionIds, submission_reason: a.submissionReason, rewrite_archived_at: a.rewriteArchivedAt, rewrite_source_attempt_hash: a.rewriteSourceAttemptHash });
-  const attemptFromRow = (r) => normalizeAttempt({ id: r.id, attemptHash: r.attempt_hash, candidateHash: r.candidate_hash, studentHash: r.student_hash, paperFingerprint: r.paper_fingerprint, sessionId: r.session_id, sessionTitle: r.session_title, firstName: r.first_name, lastName: r.last_name, studentName: r.student_name, classLevel: r.class_level, classGroup: r.class_group, academicSession: r.academic_session, mode: r.mode, sessionStatus: r.session_status, sessionEndsAt: r.session_ends_at, subjects: r.subjects, startedAt: r.started_at, submittedAt: r.submitted_at, remainingSeconds: r.remaining_seconds, elapsedActiveSeconds: r.elapsed_active_seconds, answered: r.answered, questionCount: r.question_count, score: r.score, correctCount: r.correct_count, completion: r.completion, paceIndex: r.pace_index, reasoningIndex: r.reasoning_index, integrityScore: r.integrity_score, integrityEvents: r.integrity_events, subjectStats: r.subject_stats, placement: r.placement, details: r.details, questionIds: r.question_ids, submissionReason: r.submission_reason, rewriteArchivedAt: r.rewrite_archived_at, rewriteSourceAttemptHash: r.rewrite_source_attempt_hash });
+  const sessionToRow = (s) => ({ id: s.id, title: s.title, class_level: s.classLevel, class_group: s.classGroup, academic_session: s.academicSession, term: s.term, mode: s.mode, subjects: s.subjects || [], placement_tracks: s.placementTracks || [], cohosts: s.cohosts || [], duration_seconds: s.durationSeconds, question_count: s.questionCount, status: s.status, instructions: s.instructions, starts_at: s.startsAt, ends_at: s.endsAt, attempt_limit: 1, focus_monitoring: s.integrityPolicy?.focusMonitoring !== false, fullscreen_prompt: s.integrityPolicy?.fullscreenPrompt !== false, clipboard_guard: s.integrityPolicy?.clipboardGuard !== false, warn_after: s.integrityPolicy?.warnAfter ?? 2, question_order: s.randomization?.questionOrder !== false, option_order: s.randomization?.optionOrder !== false, minimize_collisions: s.randomization?.minimizePaperCollisions !== false, created_at: s.createdAt, updated_at: s.updatedAt });
+  const sessionFromRow = (r) => normalizeSession({ id: r.id, title: r.title, classLevel: r.class_level, classGroup: r.class_group, academicSession: r.academic_session, term: r.term, mode: r.mode, subjects: r.subjects || [], placementTracks: r.placement_tracks || [], cohosts: r.cohosts || [], durationSeconds: r.duration_seconds, questionCount: clamp(Number(r.question_count) || 5, 5, 150), status: r.status, instructions: r.instructions, startsAt: r.starts_at, endsAt: r.ends_at, integrityPolicy: { focusMonitoring: r.focus_monitoring !== false, fullscreenPrompt: r.fullscreen_prompt !== false, clipboardGuard: r.clipboard_guard !== false, warnAfter: r.warn_after ?? 2 }, randomization: { questionOrder: r.question_order !== false, optionOrder: r.option_order !== false, minimizePaperCollisions: r.minimize_collisions !== false }, createdAt: r.created_at, updatedAt: r.updated_at });
+  const attemptToRow = (a) => ({ id: a.id, attempt_hash: a.attemptHash, candidate_hash: a.candidateHash, student_hash: a.studentHash, paper_fingerprint: a.paperFingerprint, session_id: a.sessionId, session_title: a.sessionTitle, first_name: a.firstName, last_name: a.lastName, student_name: a.studentName, class_level: a.classLevel, class_group: a.classGroup, academic_session: a.academicSession, mode: a.mode, session_status: a.sessionStatus, session_ends_at: a.sessionEndsAt, started_at: a.startedAt, submitted_at: a.submittedAt, remaining_seconds: a.remainingSeconds, elapsed_active_seconds: a.elapsedActiveSeconds, answered: a.answered, question_count: a.questionCount, score: a.score, correct_count: a.correctCount, completion: a.completion, pace_index: a.paceIndex, reasoning_index: a.reasoningIndex, integrity_score: a.integrityScore, assigned_track: a.placement?.assignedTrack ?? null, placement_confidence: a.placement?.confidence ?? null, submission_reason: a.submissionReason, rewrite_archived_at: a.rewriteArchivedAt, rewrite_source_attempt_hash: a.rewriteSourceAttemptHash });
+  const attemptFromRow = (r, extra) => normalizeAttempt({ id: r.id, attemptHash: r.attempt_hash, candidateHash: r.candidate_hash, studentHash: r.student_hash, paperFingerprint: r.paper_fingerprint, sessionId: r.session_id, sessionTitle: r.session_title, firstName: r.first_name, lastName: r.last_name, studentName: r.student_name, classLevel: r.class_level, classGroup: r.class_group, academicSession: r.academic_session, mode: r.mode, sessionStatus: r.session_status, sessionEndsAt: r.session_ends_at, subjects: (extra && extra.subjects) || [], startedAt: r.started_at, submittedAt: r.submitted_at, remainingSeconds: r.remaining_seconds, elapsedActiveSeconds: r.elapsed_active_seconds, answered: r.answered, questionCount: r.question_count, score: r.score, correctCount: r.correct_count, completion: r.completion, paceIndex: r.pace_index, reasoningIndex: r.reasoning_index, integrityScore: r.integrity_score, integrityEvents: (extra && extra.integrityEvents) || [], subjectStats: (extra && extra.subjectStats) || [], placement: (extra && extra.placement) || null, details: (extra && extra.details) || [], questionIds: (extra && extra.questionIds) || [], submissionReason: r.submission_reason, rewriteArchivedAt: r.rewrite_archived_at, rewriteSourceAttemptHash: r.rewrite_source_attempt_hash });
+  // Split a prototype response value the same way the app does.
+  const splitProtoResponse = (value) => {
+    if (typeof value === 'string') return { text: value, values: [] };
+    if (typeof value === 'boolean') return { text: String(value), values: [] };
+    if (Array.isArray(value)) return { text: null, values: value.map(String) };
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1));
+      if (entries.length === 1) {
+        const v = entries[0][1];
+        return Array.isArray(v) ? { text: null, values: v.map(String) } : { text: String(v ?? ''), values: [] };
+      }
+      return { text: null, values: entries.map(([, v]) => String(v ?? '')) };
+    }
+    return { text: null, values: [] };
+  };
+  const joinProtoResponse = (text, values) => {
+    const list = Array.isArray(values) ? values.map(String) : [];
+    if (list.length) return list;
+    if (typeof text !== 'string') return null;
+    if (text === 'true' || text === 'false') return text === 'true';
+    return text;
+  };
 
   const throwSupabase = (error, fallbackMessage) => {
     if (!error) return;
@@ -202,7 +224,42 @@
     }
     const { data, error } = await client.from('exam_attempts').select('*').order('started_at', { ascending: false }).limit(500);
     throwSupabase(error, 'Unable to list attempts.');
-    return (data || []).map(attemptFromRow);
+    const hashes = (data || []).map((r) => r.attempt_hash);
+    let answersByHash = new Map(), statsByHash = new Map(), eventsByHash = new Map();
+    if (hashes.length) {
+      const [{ data: ans }, { data: sts }, { data: evs }] = await Promise.all([
+        client.from('exam_attempt_answers').select('*').in('attempt_hash', hashes),
+        client.from('exam_attempt_subject_stats').select('*').in('attempt_hash', hashes),
+        client.from('exam_integrity_events').select('*').in('attempt_hash', hashes),
+      ]);
+      for (const row of ans || []) {
+        const list = answersByHash.get(row.attempt_hash) || [];
+        list.push({ questionId: row.question_id, subjectCode: row.subject_code, subject: row.subject_name, correct: row.correct, response: joinProtoResponse(row.response_text, row.response_values), correctAnswer: row.correct_answer, seconds: Number(row.seconds) || 0 });
+        answersByHash.set(row.attempt_hash, list);
+      }
+      for (const row of sts || []) {
+        const list = statsByHash.get(row.attempt_hash) || [];
+        list.push({ subjectCode: row.subject_code, subject: row.subject_name, total: row.total, correct: row.correct, seconds: Number(row.seconds) || 0, percent: row.percent });
+        statsByHash.set(row.attempt_hash, list);
+      }
+      for (const row of evs || []) {
+        const list = eventsByHash.get(row.attempt_hash) || [];
+        list.push({ type: row.type, detail: row.detail, at: Number(row.at) || 0 });
+        eventsByHash.set(row.attempt_hash, list);
+      }
+    }
+    return (data || []).map((row) => {
+      try {
+        return attemptFromRow(row, {
+          subjects: [],
+          details: answersByHash.get(row.attempt_hash) || [],
+          subjectStats: statsByHash.get(row.attempt_hash) || [],
+          integrityEvents: eventsByHash.get(row.attempt_hash) || [],
+          placement: row.assigned_track ? { assignedTrack: row.assigned_track, confidence: row.placement_confidence ?? 0 } : null,
+          questionIds: (answersByHash.get(row.attempt_hash) || []).map((d) => d.questionId),
+        });
+      } catch { return null; }
+    }).filter(Boolean);
   };
   const getAttemptResetAt = async (sessionId, candidateHash) => {
     const sid = String(sessionId).toUpperCase();
@@ -230,6 +287,24 @@
     }
     const { error } = await client.from('exam_attempts').upsert(attemptToRow(normalized), { onConflict: 'attempt_hash' });
     throwSupabase(error, 'Unable to record attempt.');
+    await client.from('exam_attempt_answers').delete().eq('attempt_hash', normalized.attemptHash);
+    await client.from('exam_attempt_subject_stats').delete().eq('attempt_hash', normalized.attemptHash);
+    if ((normalized.details || []).length) {
+      const { error: ansError } = await client.from('exam_attempt_answers').insert(normalized.details.map((d) => {
+        const split = splitProtoResponse(d.response);
+        return { attempt_hash: normalized.attemptHash, session_id: normalized.sessionId, candidate_hash: normalized.candidateHash, question_id: d.questionId, subject_code: d.subjectCode, subject_name: d.subject, correct: d.correct, response_text: split.text, response_values: split.values, correct_answer: String(d.correctAnswer ?? ''), seconds: d.seconds || 0 };
+      }));
+      throwSupabase(ansError, 'Unable to record attempt answers.');
+    }
+    if ((normalized.subjectStats || []).length) {
+      const { error: statError } = await client.from('exam_attempt_subject_stats').insert(normalized.subjectStats.map((s) => ({ attempt_hash: normalized.attemptHash, subject_code: s.subjectCode, subject_name: s.subject, total: s.total, correct: s.correct, seconds: s.seconds || 0, percent: s.percent })));
+      throwSupabase(statError, 'Unable to record subject stats.');
+    }
+    if ((normalized.integrityEvents || []).length) {
+      await client.from('exam_integrity_events').delete().eq('attempt_hash', normalized.attemptHash);
+      const { error: evError } = await client.from('exam_integrity_events').insert(normalized.integrityEvents.map((e) => ({ session_id: normalized.sessionId, candidate_hash: normalized.candidateHash, attempt_hash: normalized.attemptHash, type: e.type, detail: e.detail || '', at: e.at })));
+      throwSupabase(evError, 'Unable to record integrity events.');
+    }
     return normalized;
   };
   const findAttempt = async (sessionId, candidateHash) => {
@@ -241,22 +316,67 @@
     }
     const { data, error } = await client.from('exam_attempts').select('*').eq('session_id', sid).eq('candidate_hash', candidateHash).is('rewrite_archived_at', null).limit(1).maybeSingle();
     if (error) throwSupabase(error, 'Unable to load attempt.');
-    return data ? attemptFromRow(data) : null;
+    if (!data) return null;
+    const [{ data: ans }, { data: sts }, { data: evs }] = await Promise.all([
+      client.from('exam_attempt_answers').select('*').eq('attempt_hash', data.attempt_hash).order('id'),
+      client.from('exam_attempt_subject_stats').select('*').eq('attempt_hash', data.attempt_hash),
+      client.from('exam_integrity_events').select('*').eq('attempt_hash', data.attempt_hash).order('at'),
+    ]);
+    return attemptFromRow(data, {
+      subjects: [],
+      details: (ans || []).map((row) => ({ questionId: row.question_id, subjectCode: row.subject_code, subject: row.subject_name, correct: row.correct, response: joinProtoResponse(row.response_text, row.response_values), correctAnswer: row.correct_answer, seconds: Number(row.seconds) || 0 })),
+      subjectStats: (sts || []).map((row) => ({ subjectCode: row.subject_code, subject: row.subject_name, total: row.total, correct: row.correct, seconds: Number(row.seconds) || 0, percent: row.percent })),
+      integrityEvents: (evs || []).map((row) => ({ type: row.type, detail: row.detail, at: Number(row.at) || 0 })),
+      placement: data.assigned_track ? { assignedTrack: data.assigned_track, confidence: data.placement_confidence ?? 0 } : null,
+      questionIds: (ans || []).map((row) => row.question_id),
+    });
   };
   const attemptsForCandidate = async (candidateHash) => (await getAttempts()).filter((a) => a.candidateHash === candidateHash || a.rewriteSourceAttemptHash === candidateHash);
   const attemptsForStudent = async (studentHash) => (await getAttempts()).filter((a) => a.studentHash === studentHash || (!a.studentHash && a.candidateHash === studentHash));
   const attemptsForSession = async (sessionId) => (await getAttempts()).filter((a) => a.sessionId === String(sessionId || '').toUpperCase());
   const hasSubmittedAttempt = async (sessionId, candidateHash) => Boolean((await findAttempt(sessionId, candidateHash))?.submittedAt);
 
-  // --- student state (in-progress papers) ---
+  // --- student state (in-progress papers: header columns + response rows) ---
+  const stateToHeader = (sid, key, value) => ({
+    session_id: sid, candidate_hash: key,
+    started_at: value.startedAt ?? null, submitted_at: value.submittedAt ?? null,
+    current_index: value.currentIndex ?? 0,
+    remaining_seconds: value.remainingSeconds ?? 0,
+    elapsed_active_seconds: value.elapsedActiveSeconds ?? 0,
+    last_active_at: value.lastActiveAt ?? Date.now(),
+    attempt_hash: value.attemptHash ?? '', paper_fingerprint: value.paperFingerprint ?? '',
+    question_ids: value.questionIds ?? [],
+    updated_at: Date.now(),
+  });
   const getStudentState = async (sessionId, candidateHash) => {
     const sid = String(sessionId).toUpperCase();
     const ch = candidateHash ?? activeCandidateBySession.get(sid) ?? '';
     const client = supabase();
     if (!client) { ensureMemSeeded(); return mem.examStates.get(`${sid}:${ch || 'anonymous'}`) || null; }
-    const { data, error } = await client.from('exam_states').select('state').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle();
+    const [{ data: header, error }, { data: rows }, { data: liveEvents }] = await Promise.all([
+      client.from('exam_states').select('*').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle(),
+      client.from('exam_responses').select('*').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous'),
+      client.from('exam_integrity_events').select('type,detail,at').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').is('attempt_hash', null).order('at'),
+    ]);
     if (error) throwSupabase(error, 'Unable to load student state.');
-    return data?.state || null;
+    if (!header) return null;
+    const responses = {};
+    const questionTimings = {};
+    const flagged = [];
+    for (const r of rows || []) {
+      responses[String(r.question_id)] = joinProtoResponse(r.response_text, r.response_values);
+      questionTimings[String(r.question_id)] = Number(r.seconds) || 0;
+      if (r.flagged) flagged.push(String(r.question_id));
+    }
+    return {
+      startedAt: header.started_at, submittedAt: header.submitted_at,
+      currentIndex: header.current_index, remainingSeconds: Number(header.remaining_seconds),
+      elapsedActiveSeconds: Number(header.elapsed_active_seconds),
+      lastActiveAt: header.last_active_at, attemptHash: header.attempt_hash,
+      paperFingerprint: header.paper_fingerprint, questionIds: header.question_ids || [],
+      responses, questionTimings, flagged,
+      integrityEvents: (liveEvents || []).map((e) => ({ type: e.type, detail: e.detail, at: e.at })),
+    };
   };
   const saveStudentState = async (sessionId, candidateHashOrValue, maybeValue) => {
     const sid = String(sessionId).toUpperCase();
@@ -268,8 +388,23 @@
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.examStates.set(`${sid}:${key}`, value); }
     else {
-      const { error } = await client.from('exam_states').upsert({ session_id: sid, candidate_hash: key, state: value, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+      const { error } = await client.from('exam_states').upsert(stateToHeader(sid, key, value), { onConflict: 'session_id,candidate_hash' });
       throwSupabase(error, 'Unable to save student state.');
+      const rows = Object.entries(value.responses || {}).map(([qid, v]) => {
+        const split = splitProtoResponse(v);
+        return { session_id: sid, candidate_hash: key, question_id: Number(qid), response_text: split.text, response_values: split.values, seconds: Number(value.questionTimings?.[qid]) || 0, flagged: (value.flagged || []).includes(qid) };
+      });
+      if (rows.length) {
+        const { error: respError } = await client.from('exam_responses').upsert(rows, { onConflict: 'session_id,candidate_hash,question_id' });
+        throwSupabase(respError, 'Unable to save responses.');
+      }
+      if (Array.isArray(value.integrityEvents)) {
+        await client.from('exam_integrity_events').delete().eq('session_id', sid).eq('candidate_hash', key).is('attempt_hash', null);
+        if (value.integrityEvents.length) {
+          const { error: evError } = await client.from('exam_integrity_events').insert(value.integrityEvents.map((e) => ({ session_id: sid, candidate_hash: key, type: e.type, detail: e.detail || '', at: e.at })));
+          throwSupabase(evError, 'Unable to save integrity events.');
+        }
+      }
     }
     if (candidateHash) activeCandidateBySession.set(sid, String(candidateHash));
     return true;
@@ -351,9 +486,9 @@
     const ch = String(candidateHash || '');
     const client = supabase();
     if (!client) { ensureMemSeeded(); return mem.backgroundMarkers.get(`${sid}:${ch}`) || null; }
-    const { data, error } = await client.from('exam_background_markers').select('marker').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
+    const { data, error } = await client.from('exam_background_markers').select('hidden_at,started_at').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
     if (error) throwSupabase(error, 'Unable to load background marker.');
-    return data?.marker || null;
+    return data ? { hiddenAt: data.hidden_at, startedAt: data.started_at } : null;
   };
   const setBackgroundMarker = async (sessionId, candidateHash, marker) => {
     const sid = String(sessionId).toUpperCase();
@@ -361,7 +496,7 @@
     if (!ch || !sid) return;
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.backgroundMarkers.set(`${sid}:${ch}`, marker); return; }
-    const { error } = await client.from('exam_background_markers').upsert({ session_id: sid, candidate_hash: ch, marker, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+    const { error } = await client.from('exam_background_markers').upsert({ session_id: sid, candidate_hash: ch, hidden_at: marker.hiddenAt ?? null, started_at: marker.startedAt ?? null, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
     throwSupabase(error, 'Unable to save background marker.');
   };
   const clearBackgroundMarker = async (sessionId, candidateHash) => {
@@ -415,7 +550,7 @@
     const item = { id: String(input.id || makeId()).slice(0, 24), classLevel, name, stream, group: String(input.group || stream).slice(0, 40), capacity: clamp(Math.round(Number(input.capacity) || 40), 1, 500), room: String(input.room || '').trim().slice(0, 50), academicSession: String(input.academicSession || ACADEMIC_SESSION), status: input.status === 'archived' ? 'archived' : 'active' };
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.classes.set(item.id, item); return item; }
-    const { error } = await client.from('classes').upsert({ id: item.id, class_level: item.classLevel, name: item.name, stream: item.stream, grp: item.group, capacity: item.capacity, room: item.room, academic_session: item.academicSession, status: item.status }, { onConflict: 'id' });
+    const { error } = await client.from('classes').upsert({ id: item.id, class_level: item.classLevel, name: item.name, stream: item.stream, grp: item.group, arm: item.arm || '', capacity: item.capacity, room: item.room, academic_session: item.academicSession, status: item.status }, { onConflict: 'id' });
     throwSupabase(error, 'Unable to save class.');
     return item;
   };
@@ -474,7 +609,7 @@
     const item = { id: String(input.id || `ST-${Math.floor(1000 + Math.random() * 9000)}`).slice(0, 24), fullName, firstName: sanitizeName(input.firstName || parts[0]).split(' ')[0], lastName: sanitizeName(input.lastName || parts.at(-1)).split(' ').at(-1), classId: String(input.classId || ''), role: ['student', 'teacher', 'administrator'].includes(input.role) ? input.role : 'student', status: input.status === 'inactive' ? 'inactive' : 'active', guardian: sanitizeName(input.guardian || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), promotionStatus: String(input.promotionStatus || 'on-track'), joinedAt: Number(input.joinedAt) || Date.now() };
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.users.set(item.id, item); return item; }
-    const { error } = await client.from('users').upsert({ id: item.id, full_name: item.fullName, first_name: item.firstName, last_name: item.lastName, class_id: item.classId || null, role: item.role, status: item.status, guardian: item.guardian, academic_session: item.academicSession, promotion_status: item.promotionStatus, joined_at: item.joinedAt }, { onConflict: 'id' });
+    const { error } = await client.from('users').upsert({ id: item.id, full_name: item.fullName, first_name: item.firstName, last_name: item.lastName, class_id: item.classId || null, role: item.role, status: item.status, guardian: item.guardian, academic_session: item.academicSession, promotion_status: item.promotionStatus, joined_at: item.joinedAt, email: item.email || '', subjects: item.subjects || [], qualifier_access: Boolean(item.qualifierAccess) }, { onConflict: 'id' });
     throwSupabase(error, 'Unable to save user.');
     return item;
   };
@@ -501,18 +636,18 @@
   const listCustomQuestions = async () => {
     const client = supabase();
     if (!client) { ensureMemSeeded(); return [...mem.questions.values()].filter((q) => q.origin === 'teacher').map((q) => q.data); }
-    const { data, error } = await client.from('questions').select('data').eq('origin', 'teacher').limit(250);
+    const { data, error } = await client.from('questions').select('*,question_blanks(*)').not('created_by', 'is', null).limit(250);
     throwSupabase(error, 'Unable to list custom questions.');
-    return (data || []).map((r) => r.data);
+    return (data || []).map((r) => rowToQuestionDto(r, r.question_blanks || []));
   };
   const saveCustomQuestion = async (input = {}) => {
     const client = supabase();
     const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
-    const seedOwnsId = async (id) => {
-      if (!client) { ensureMemSeeded(); const row = mem.questions.get(id); return Boolean(row && row.origin === 'seed'); }
-      const { data, error } = await client.from('questions').select('origin').eq('id', id).maybeSingle();
+    const bankOwnsId = async (id) => {
+      if (!client) { ensureMemSeeded(); const row = mem.questions.get(id); return Boolean(row && !row.created_by); }
+      const { data, error } = await client.from('questions').select('created_by').eq('id', id).maybeSingle();
       if (error) throwSupabase(error, 'Unable to save custom question.');
-      return data?.origin === 'seed';
+      return Boolean(data) && !data.created_by;
     };
     let id = supplied;
     if (id === null) {
@@ -521,90 +656,127 @@
       while (teacherIds.has(id)) id += 1;
     }
     if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
-    if (await seedOwnsId(id)) throw new Error(`Teacher-authored question id ${id} duplicates an existing question id.`);
+    if (await bankOwnsId(id)) throw new Error(`Teacher-authored question id ${id} duplicates an existing question id.`);
     const q = { ...input, id, custom: true, source: 'teacher' };
-    if (!client) { ensureMemSeeded(); mem.questions.set(id, { data: q, origin: 'teacher' }); return q; }
-    const { error } = await client.from('questions').upsert({ id, origin: 'teacher', data: q, subject_code: String(q.subjectCode || ''), updated_at: Date.now() }, { onConflict: 'id' });
+    if (!client) { ensureMemSeeded(); mem.questions.set(id, { ...q, created_by: 'teacher' }); return q; }
+    const { error } = await client.from('questions').upsert({ id, subject_code: String(q.subjectCode || ''), subject_name: String(q.subject || ''), label: String(q.label || ''), qtype: String(q.type || 'single'), prompt: String(q.prompt || ''), options: q.options || [], correct_answers: Array.isArray(q.answers) ? q.answers.map(String) : (q.answer === undefined ? [] : [String(typeof q.answer === 'boolean' ? q.answer : q.answer)]), levels: q.levels || ['SS1', 'SS2', 'SS3'], exam_modes: q.examModes || ['single', 'mixed', 'waec'], difficulty: q.difficulty || 'medium', domain: q.domain || '', explanation: q.explanation || '', created_by: 'teacher', updated_at: Date.now() }, { onConflict: 'id' });
     throwSupabase(error, 'Unable to save custom question.');
     return q;
   };
   const deleteCustomQuestion = async (questionId) => {
     const client = supabase();
-    if (!client) { ensureMemSeeded(); const row = mem.questions.get(Number(questionId)); if (row?.origin === 'teacher') mem.questions.delete(Number(questionId)); return; }
-    const { error } = await client.from('questions').delete().eq('id', Number(questionId)).eq('origin', 'teacher');
+    if (!client) { ensureMemSeeded(); const row = mem.questions.get(Number(questionId)); if (row?.created_by) mem.questions.delete(Number(questionId)); return; }
+    const { error } = await client.from('questions').delete().eq('id', Number(questionId)).not('created_by', 'is', null);
     throwSupabase(error, 'Unable to delete custom question.');
   };
-  const listQuestionOverrides = async () => {
-    const client = supabase();
-    if (!client) { ensureMemSeeded(); return [...mem.overrides.values()]; }
-    const { data, error } = await client.from('question_overrides').select('*').limit(720);
-    throwSupabase(error, 'Unable to list question overrides.');
-    return (data || []).map((r) => ({ questionId: Number(r.question_id), patch: r.patch, updatedAt: r.updated_at }));
-  };
+  // Seed edits are direct column updates now (no override patches, no origin
+  // flag): bank rows are identified by created_by being null.
+  const listQuestionOverrides = async () => [];
   const saveQuestionOverride = async (questionId, patch = {}) => {
     const id = Number(questionId);
-    if (!Number.isInteger(id) || id < 1) throw new Error('Question override requires a positive integer seed id.');
-    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Question override patch must be an object.');
-    if (Object.hasOwn(patch, 'id') && Number(patch.id) !== id) throw new Error('A seed override cannot change the question id.');
-    const safePatch = JSON.parse(JSON.stringify({ ...patch, id: undefined }));
-    delete safePatch.id;
-    const item = { questionId: id, patch: safePatch, updatedAt: Date.now() };
+    if (!Number.isInteger(id) || id < 1) throw new Error('Seed edit requires a positive integer question id.');
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Seed edit patch must be an object.');
+    const columnMap = { prompt: 'prompt', options: 'options', levels: 'levels', examModes: 'exam_modes', difficulty: 'difficulty', domain: 'domain', explanation: 'explanation', subjectCode: 'subject_code', subject: 'subject_name', label: 'label', instruction: 'instruction' };
+    const update = { updated_at: Date.now() };
+    for (const [key, column] of Object.entries(columnMap)) {
+      if (patch[key] !== undefined) update[column] = patch[key];
+    }
+    if (patch.answer !== undefined) {
+      update.correct_answers = Array.isArray(patch.answer) ? patch.answer.map(String) : [String(typeof patch.answer === 'boolean' ? patch.answer : patch.answer)];
+    }
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.overrides.set(id, item); return item; }
-    const { error } = await client.from('question_overrides').upsert({ question_id: id, patch: safePatch, updated_at: item.updatedAt }, { onConflict: 'question_id' });
-    throwSupabase(error, 'Unable to save question override.');
-    return item;
+    if (!client) { ensureMemSeeded(); return { questionId: id, patch, updatedAt: update.updated_at }; }
+    const { error } = await client.from('questions').update(update).eq('id', id).is('created_by', null);
+    throwSupabase(error, 'Unable to save seed edit.');
+    return { questionId: id, patch, updatedAt: update.updated_at };
   };
-  const resetQuestionOverride = async (questionId) => {
-    const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.overrides.delete(Number(questionId)); return; }
-    const { error } = await client.from('question_overrides').delete().eq('question_id', Number(questionId));
-    throwSupabase(error, 'Unable to reset question override.');
-  };
+  const resetQuestionOverride = async () => true;
 
-  // --- question bank (seed-origin rows + catalogue live in Supabase) ---
-  // Runtime source of truth. Admin "Load question bank" populates
-  // these rows; questions.load() reads from here, never from the seed file.
+  // --- custom (teacher-created: created_by is set) questions as DTOs ---
+  const rowToQuestionDto = (row, blanks) => {
+    const type = row.qtype || 'single';
+    const q = {
+      id: Number(row.id), type,
+      subjectCode: row.subject_code, subject: row.subject_name || '',
+      label: row.label || '', prompt: row.prompt || '',
+      options: row.options || [], levels: row.levels || [],
+      examModes: row.exam_modes || [], difficulty: row.difficulty || 'medium',
+      domain: row.domain || '', explanation: row.explanation || '',
+      instruction: row.instruction || '',
+    };
+    if (type === 'boolean') q.answer = (row.correct_answers || [])[0] === 'true';
+    else if (type === 'multi') q.answers = row.correct_answers || [];
+    else if (type === 'fill') {
+      q.fillTemplate = templateToParts(row.fill_template, blanks);
+      q.acceptedAnswers = blanks.map((b) => (b.accepted || [])[0] ?? '');
+      const firsts = {};
+      for (const b of blanks) firsts[b.blank_key || `b${b.position}`] = (b.accepted || [])[0] ?? '';
+      q.answer = firsts;
+    } else if (type === 'fill-multi') {
+      q.fillTemplate = templateToParts(row.fill_template, blanks);
+      q.acceptedAnswers = blanks.map((b) => b.accepted || []);
+      const firsts = {};
+      for (const b of blanks) firsts[b.blank_key || `b${b.position}`] = (b.accepted || [])[0] ?? '';
+      q.answer = firsts;
+    } else q.answer = (row.correct_answers || [])[0] ?? '';
+    return q;
+  };
+  const templateToParts = (template, blanks) => {
+    const parts = [];
+    const byPos = new Map((blanks || []).map((b) => [Number(b.position), b]));
+    const byKey = new Map((blanks || []).map((b) => [String(b.blank_key), b]));
+    const re = /\{\{([^}]+)\}\}/g;
+    let last = 0, m;
+    while ((m = re.exec(String(template || ''))) !== null) {
+      if (m.index > last) parts.push({ text: String(template).slice(last, m.index) });
+      const token = m[1];
+      const b = /^\d+$/.test(token) ? byPos.get(Number(token)) : byKey.get(token);
+      parts.push({ blank: b?.blank_key || token, placeholder: b?.placeholder || 'Answer' });
+      last = m.index + m[0].length;
+    }
+    if (last < String(template || '').length) parts.push({ text: String(template).slice(last) });
+    return parts;
+  };
   const getQuestionBankStatus = async () => {
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      return { backend: 'memory', configured: false, meta: mem.bankMeta, questionCount: [...mem.questions.values()].filter((q) => q.origin === 'seed').length, syncedAt: mem.bankMeta?.updatedAt || null };
+      return { backend: 'memory', configured: false, meta: mem.bankMeta, questionCount: [...mem.questions.values()].filter((q) => !q.created_by).length, syncedAt: mem.bankMeta?.updatedAt || null };
     }
-    const { data: meta, error: metaError } = await client.from('question_bank').select('*').eq('id', 1).maybeSingle();
-    if (metaError && metaError.code !== 'PGRST205') throwSupabase(metaError, 'Unable to load question bank status.');
-    let questionCount = 0;
-    if (!metaError) {
-      const { count, error: countError } = await client.from('questions').select('id', { count: 'exact', head: true }).eq('origin', 'seed');
-      if (countError && countError.code !== 'PGRST205') throwSupabase(countError, 'Unable to count question bank.');
-      questionCount = count || 0;
-    }
-    return { backend: 'supabase', configured: true, meta: meta || null, questionCount, syncedAt: meta?.updated_at || null, missingTables: Boolean(metaError) };
+    const { count, error: countError } = await client.from('questions').select('id', { count: 'exact', head: true });
+    if (countError) throwSupabase(countError, 'Unable to count question bank.');
+    return { backend: 'supabase', configured: true, meta: null, questionCount: count || 0, syncedAt: null, missingTables: false };
   };
   const loadQuestionBankFromDb = async () => {
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
       if (!mem.bankMeta) return null;
-      return { questionSetId: mem.bankMeta.questionSetId, subjectCatalog: mem.bankMeta.subjectCatalog, assessmentAlignment: mem.bankMeta.assessmentAlignment, questions: [...mem.questions.values()].filter((r) => r.origin === 'seed').map((r) => r.data) };
+      return { questionSetId: mem.bankMeta.questionSetId, subjectCatalog: mem.bankMeta.subjectCatalog, assessmentAlignment: mem.bankMeta.assessmentAlignment, questions: [...mem.questions.values()].filter((r) => !r.created_by).map((r) => r.data || r) };
     }
-    const { data: meta, error: metaError } = await client.from('question_bank').select('*').eq('id', 1).maybeSingle();
-    if (metaError) {
-      if (metaError.code === 'PGRST205') return null; // migration not run yet
-      throwSupabase(metaError, 'Unable to load question bank.');
+    // Catalogue now lives in the subjects table; questions carry typed columns.
+    const [{ data: subjects }, { data: blanks }] = await Promise.all([
+      client.from('subjects').select('code,name').eq('active', true),
+      client.from('question_blanks').select('*').order('position'),
+    ]);
+    const blanksByQ = new Map();
+    for (const b of blanks || []) {
+      const list = blanksByQ.get(b.question_id) || [];
+      list.push(b);
+      blanksByQ.set(b.question_id, list);
     }
-    if (!meta) return null;
     const questions = [];
     const pageSize = 1000;
     let from = 0;
     for (;;) {
-      const { data: rows, error } = await client.from('questions').select('data').eq('origin', 'seed').order('id', { ascending: true }).range(from, from + pageSize - 1);
+      const { data: rows, error } = await client.from('questions').select('*').order('id', { ascending: true }).range(from, from + pageSize - 1);
       if (error) throwSupabase(error, 'Unable to load question bank items.');
-      (rows || []).forEach((r) => questions.push(r.data));
+      for (const r of rows || []) questions.push(rowToQuestionDto(r, blanksByQ.get(Number(r.id)) || []));
       if (!rows || rows.length < pageSize) break;
       from += pageSize;
     }
-    return { questionSetId: meta.question_set_id, subjectCatalog: meta.subject_catalog, assessmentAlignment: meta.assessment_alignment, questions };
+    if (!questions.length) return null;
+    return { questionSetId: 'supabase-normalized', subjectCatalog: subjects || [], assessmentAlignment: null, questions };
   };
   const syncQuestionBank = async (payload) => {
     if (!payload || !payload.questionSetId || !Array.isArray(payload.questions) || !payload.questions.length) throw new Error('Question payload is empty.');
@@ -614,8 +786,8 @@
     const seedIds = new Set(payload.questions.map((q) => Number(q.id)));
     const client = supabase();
     const teacherClash = async () => {
-      if (!client) { ensureMemSeeded(); for (const [id, row] of mem.questions) { if (row.origin === 'teacher' && seedIds.has(id)) return id; } return null; }
-      const { data, error } = await client.from('questions').select('id').eq('origin', 'teacher');
+      if (!client) { ensureMemSeeded(); for (const [id, row] of mem.questions) { if (row.created_by && seedIds.has(id)) return id; } return null; }
+      const { data, error } = await client.from('questions').select('id').not('created_by', 'is', null);
       if (error) throwSupabase(error, 'Unable to sync question bank.');
       return (data || []).map((r) => Number(r.id)).find((id) => seedIds.has(id)) ?? null;
     };
@@ -624,15 +796,41 @@
     if (!client) {
       ensureMemSeeded();
       mem.bankMeta = meta;
-      for (const [id, row] of mem.questions) { if (row.origin === 'seed') mem.questions.delete(id); }
-      payload.questions.forEach((q) => mem.questions.set(Number(q.id), { data: q, origin: 'seed' }));
+      for (const [id, row] of mem.questions) { if (!row.created_by) mem.questions.delete(id); }
+      payload.questions.forEach((q) => mem.questions.set(Number(q.id), { data: q }));
       return { ...meta, backend: 'memory' };
     }
-    const { error: metaError } = await client.from('question_bank').upsert({ id: 1, question_set_id: meta.questionSetId, subject_catalog: meta.subjectCatalog, assessment_alignment: meta.assessmentAlignment, question_count: meta.questionCount, updated_at: now }, { onConflict: 'id' });
-    throwSupabase(metaError, 'Unable to sync question catalogue.');
-    const rows = payload.questions.map((q) => ({ id: Number(q.id), origin: 'seed', data: q, subject_code: String(q.subjectCode || ''), updated_at: now }));
+    // Insert-only: new seed rows are added, edited rows are never overwritten.
+    const { data: existing } = await client.from('questions').select('id');
+    const have = new Set((existing || []).map((r) => Number(r.id)));
+    const fresh = payload.questions.filter((q) => !have.has(Number(q.id)));
+    const toColumns = (q) => {
+      const type = String(q.type || 'single');
+      const answer = q.answer;
+      const answers = q.answers;
+      return {
+        id: Number(q.id),
+        subject_code: String(q.subjectCode || ''),
+        subject_name: String(q.subject || ''),
+        label: String(q.label || ''),
+        qtype: type,
+        prompt: String(q.prompt || ''),
+        options: q.options || [],
+        correct_answers: type === 'boolean' ? [String(answer)] : Array.isArray(answers) ? answers.map(String) : (answer === undefined ? [] : [String(typeof answer === 'boolean' ? answer : answer)]),
+        fill_template: Array.isArray(q.fillTemplate) ? q.fillTemplate.map((p) => (p.blank !== undefined ? `{{${p.blank}}}` : (p.text || ''))).join('') : null,
+        instruction: String(q.instruction || ''),
+        levels: q.levels || ['SS1', 'SS2', 'SS3'],
+        exam_modes: q.examModes || ['single', 'mixed', 'waec'],
+        difficulty: String(q.difficulty || 'medium'),
+        domain: String(q.domain || ''),
+        explanation: String(q.explanation || ''),
+        created_by: null,
+        updated_at: now,
+      };
+    };
+    const rows = fresh.map(toColumns);
     for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await client.from('questions').upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+      const { error } = await client.from('questions').insert(rows.slice(i, i + 500));
       throwSupabase(error, 'Unable to sync question items.');
     }
     return { ...meta, backend: 'supabase' };
@@ -724,8 +922,12 @@
     }
     await client.from('users').delete().neq('id', '__none__');
     await client.from('classes').delete().neq('id', '__none__');
-    await client.from('questions').delete().eq('origin', 'teacher');
-    await client.from('question_overrides').delete().neq('question_id', -1);
+    await client.from('questions').delete().not('created_by', 'is', null);
+    await client.from('question_blanks').delete().neq('question_id', -1);
+    await client.from('exam_attempt_answers').delete().neq('attempt_hash', '__none__');
+    await client.from('exam_attempt_subject_stats').delete().neq('attempt_hash', '__none__');
+    await client.from('exam_integrity_events').delete().neq('id', -1);
+    await client.from('exam_responses').delete().neq('session_id', '__none__');
     await client.from('whatsapp_groups').delete().neq('id', '__none__');
     await client.from('student_profiles').delete().neq('student_hash', '__none__');
     await client.from('exam_proctor_policies').delete().neq('session_id', '__none__');

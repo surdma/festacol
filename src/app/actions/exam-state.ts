@@ -2,7 +2,12 @@
 
 import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getExamState, getStudentProfile, saveExamState } from "@/lib/supabase/queries";
+import {
+  getExamProgress,
+  getIntegrityEvents,
+  getStudentProfile,
+  saveExamProgress,
+} from "@/lib/supabase/queries";
 import { loadQuestionPayload, sanitizePaper } from "@/lib/questions";
 import {
   candidateHashFor,
@@ -25,19 +30,28 @@ async function sessionDTO(id: string) {
   const { data } = await supabase.from("exam_sessions").select("*").eq("id", id.toUpperCase()).maybeSingle();
   const s = data as Record<string, unknown> | null;
   if (!s) return null;
-  return {
-    dto: {
-      id: s.id, title: s.title, classLevel: s.class_level, classGroup: s.class_group,
-      academicSession: s.academic_session, term: s.term, mode: s.mode,
-      subjects: s.subjects, placementTracks: s.placement_tracks,
-      durationSeconds: s.duration_seconds, questionCount: s.question_count,
-      status: s.status, instructions: s.instructions,
-      startsAt: s.starts_at ? Number(s.starts_at) : null,
-      endsAt: s.ends_at ? Number(s.ends_at) : null,
-      integrityPolicy: s.integrity_policy, randomization: s.randomization,
-    } as ExamSessionDTO,
-    raw: s,
-  };
+  const dto = {
+    id: s.id, title: s.title, classLevel: s.class_level, classGroup: s.class_group,
+    academicSession: s.academic_session, term: s.term, mode: s.mode,
+    subjects: (s.subjects ?? []) as string[],
+    placementTracks: (s.placement_tracks ?? []) as string[],
+    durationSeconds: s.duration_seconds, questionCount: s.question_count,
+    status: s.status, instructions: s.instructions,
+    startsAt: s.starts_at ? Number(s.starts_at) : null,
+    endsAt: s.ends_at ? Number(s.ends_at) : null,
+    integrityPolicy: {
+      focusMonitoring: s.focus_monitoring ?? true,
+      fullscreenPrompt: s.fullscreen_prompt ?? true,
+      clipboardGuard: s.clipboard_guard ?? true,
+      warnAfter: Number(s.warn_after ?? 2),
+    },
+    randomization: {
+      questionOrder: s.question_order ?? true,
+      optionOrder: s.option_order ?? true,
+      minimizePaperCollisions: s.minimize_collisions ?? true,
+    },
+  } as ExamSessionDTO;
+  return { dto };
 }
 
 async function authIdentity() {
@@ -51,6 +65,29 @@ async function authIdentity() {
   const profile = await getStudentProfile(supabase, studentHash);
   if (!profile) return null;
   return { studentHash, profile };
+}
+
+function splitResponse(value: unknown): { text: string | null; values: string[] } {
+  if (typeof value === "string") return { text: value, values: [] };
+  if (typeof value === "boolean") return { text: String(value), values: [] };
+  if (Array.isArray(value)) return { text: null, values: value.map(String) };
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1));
+    if (entries.length === 1) {
+      const v = entries[0][1];
+      return Array.isArray(v) ? { text: null, values: v.map(String) } : { text: String(v ?? ""), values: [] };
+    }
+    return { text: null, values: entries.map(([, v]) => String(v ?? "")) };
+  }
+  return { text: null, values: [] };
+}
+
+function joinResponse(text: unknown, values: unknown): unknown {
+  const list = Array.isArray(values) ? values.map(String) : [];
+  if (list.length) return list;
+  if (typeof text !== "string") return null;
+  if (text === "true" || text === "false") return text === "true";
+  return text;
 }
 
 // Start or resume an exam: validates window, handles reset markers,
@@ -71,39 +108,45 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   if (submitted) return { status: "locked", score: Number((submitted as { score: number }).score) };
 
   const { data: marker } = await supabase.from("exam_reset_markers").select("reset_at").eq("session_id", found.dto.id).eq("candidate_hash", candidateHash).maybeSingle();
-  const row = await getExamState(supabase, found.dto.id, candidateHash);
+  const progress = await getExamProgress(supabase, found.dto.id, candidateHash);
   const now = Date.now();
 
-  if (row) {
-    const st = row.state as Record<string, unknown>;
-    if (marker && Number((marker as { reset_at: number }).reset_at) >= Number(st.startedAt ?? 0)) {
+  if (progress) {
+    if (marker && Number((marker as { reset_at: number }).reset_at) >= Number(progress.started_at ?? 0)) {
       await supabase.from("exam_states").delete().eq("session_id", found.dto.id).eq("candidate_hash", candidateHash);
       return { status: "reset" };
     }
-    if (st.submittedAt) return { status: "locked", score: null };
+    if (progress.submitted_at) return { status: "locked", score: null };
     // Background reconcile: deduct away time from remaining.
-    const away = Math.max(0, Math.floor((now - Number(st.lastActiveAt ?? now)) / 1000));
-    let remaining = Math.max(0, Number(st.remainingSeconds ?? found.dto.durationSeconds) - away);
+    const away = Math.max(0, Math.floor((now - Number(progress.last_active_at ?? now)) / 1000));
+    const remaining = Math.max(0, Number(progress.remaining_seconds ?? found.dto.durationSeconds) - away);
     if (remaining <= 0) {
       const result = await submitExamAction(found.dto.id, "time-expired");
       return result.ok
         ? { status: "locked", score: result.summary?.accuracy ?? null }
         : { status: "unavailable", error: "Time expired." };
     }
-    st.remainingSeconds = remaining;
-    st.lastActiveAt = now;
-    await saveExamState(supabase, found.dto.id, candidateHash, st);
+    await saveExamProgress(supabase, found.dto.id, candidateHash,
+      { remaining_seconds: remaining, last_active_at: now }, []);
     const payload = await loadQuestionPayload();
     const sHash = await studentHashFor(identity.profile.first_name, identity.profile.last_name);
     const paper = paperForStudent({ questions: payload.questions }, found.dto, sHash);
     const { data: policy } = await supabase.from("exam_proctor_policies").select("camera_required").eq("session_id", found.dto.id).maybeSingle();
+    const responses: Record<string, unknown> = {};
+    const timings: Record<string, number> = {};
+    const flagged: string[] = [];
+    for (const r of progress.responses) {
+      responses[String(r.question_id)] = joinResponse(r.response_text, r.response_values ?? []);
+      timings[String(r.question_id)] = Number(r.seconds ?? 0);
+      if (r.flagged) flagged.push(String(r.question_id));
+    }
+    void timings;
     return {
       status: "ready",
       paper: sanitizePaper(paper),
-      remainingSeconds: Number(st.remainingSeconds),
-      currentIndex: Number(st.currentIndex ?? 0),
-      responses: (st.responses ?? {}) as Record<string, unknown>,
-      flagged: (st.flagged ?? []) as string[],
+      remainingSeconds: remaining,
+      currentIndex: progress.current_index,
+      responses, flagged,
       cameraRequired: Boolean((policy as { camera_required: boolean } | null)?.camera_required),
     };
   }
@@ -114,15 +157,12 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const paper = paperForStudent({ questions: payload.questions }, found.dto, sHash);
   if (!paper.length) return { status: "unavailable", error: "No questions match this exam." };
   const fingerprint = await hashText(`${found.dto.id}|${sHash}|${paper.map((q) => `${q.id}:${(q.options || []).join("~")}`).join("|")}`);
-  const state = {
-    candidateHash, studentHash: identity.studentHash,
-    studentName: identity.profile.full_name,
-    startedAt: now, submittedAt: null, attemptHash: "", paperFingerprint: fingerprint,
-    questionIds: paper.map((q) => q.id), responses: {}, flagged: [], questionTimings: {},
-    currentIndex: 0, remainingSeconds: found.dto.durationSeconds, elapsedActiveSeconds: 0,
-    integrityEvents: [], lastActiveAt: now,
-  };
-  await saveExamState(supabase, found.dto.id, candidateHash, state);
+  await saveExamProgress(supabase, found.dto.id, candidateHash, {
+    started_at: now, submitted_at: null, current_index: 0,
+    remaining_seconds: found.dto.durationSeconds, elapsed_active_seconds: 0,
+    last_active_at: now, attempt_hash: "", paper_fingerprint: fingerprint,
+    question_ids: paper.map((q) => q.id),
+  }, []);
   const { data: policy } = await supabase.from("exam_proctor_policies").select("camera_required").eq("session_id", found.dto.id).maybeSingle();
   return {
     status: "ready", paper: sanitizePaper(paper), remainingSeconds: found.dto.durationSeconds,
@@ -138,10 +178,27 @@ export async function saveProgressAction(
   const identity = await authIdentity();
   if (!identity) return;
   const supabase = await createSupabaseServerClient();
-  const candidateHash = await candidateHashFor(sessionId.toUpperCase(), identity.profile.first_name, identity.profile.last_name);
-  const row = await getExamState(supabase, sessionId.toUpperCase(), candidateHash);
-  if (!row || (row.state as Record<string, unknown>).submittedAt) return;
-  await saveExamState(supabase, sessionId.toUpperCase(), candidateHash, { ...row.state, ...patch, lastActiveAt: Date.now() });
+  const sid = sessionId.toUpperCase();
+  const candidateHash = await candidateHashFor(sid, identity.profile.first_name, identity.profile.last_name);
+  const progress = await getExamProgress(supabase, sid, candidateHash);
+  if (!progress || progress.submitted_at) return;
+  const flaggedSet = new Set(patch.flagged);
+  const rows = Object.entries(patch.responses).map(([qid, value]) => {
+    const { text, values } = splitResponse(value);
+    return {
+      question_id: Number(qid),
+      response_text: text,
+      response_values: values,
+      seconds: Number(patch.questionTimings[qid] ?? 0),
+      flagged: flaggedSet.has(qid),
+    };
+  });
+  await saveExamProgress(supabase, sid, candidateHash, {
+    current_index: patch.currentIndex,
+    remaining_seconds: Math.max(0, Math.round(patch.remainingSeconds)),
+    elapsed_active_seconds: patch.elapsedActiveSeconds,
+    last_active_at: Date.now(),
+  }, rows);
 }
 
 export interface SubmitSummary {
@@ -157,22 +214,33 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
   const supabase = await createSupabaseServerClient();
   const sid = found.dto.id;
   const candidateHash = await candidateHashFor(sid, identity.profile.first_name, identity.profile.last_name);
-  const row = await getExamState(supabase, sid, candidateHash);
-  if (!row) return { ok: false, error: "No active attempt." };
-  const st = row.state as Record<string, unknown> & {
-    responses: Record<string, unknown>; questionTimings: Record<string, number>;
-    elapsedActiveSeconds: number; startedAt: number; integrityEvents: { type: string; detail?: string; at: number }[];
-  };
-  if (st.submittedAt) return { ok: false, error: "Already submitted." };
+  const progress = await getExamProgress(supabase, sid, candidateHash);
+  if (!progress) return { ok: false, error: "No active attempt." };
+  if (progress.submitted_at) return { ok: false, error: "Already submitted." };
 
+  const responses: Record<string, unknown> = {};
+  const timings: Record<string, number> = {};
+  for (const r of progress.responses) {
+    responses[String(r.question_id)] = joinResponse(r.response_text, r.response_values ?? []);
+    timings[String(r.question_id)] = Number(r.seconds ?? 0);
+  }
+  const events = await getIntegrityEvents(supabase, sid, candidateHash);
   const payload = await loadQuestionPayload();
   const sHash = await studentHashFor(identity.profile.first_name, identity.profile.last_name);
   const paper = paperForStudent({ questions: payload.questions }, found.dto, sHash);
-  const result = scoreAttempt(paper, st as never, found.dto) as unknown as {
+  const result = scoreAttempt(paper, {
+    responses, questionTimings: timings,
+    elapsedActiveSeconds: progress.elapsed_active_seconds,
+    startedAt: progress.started_at ?? Date.now(), submittedAt: null, integrityEvents: events,
+  }, found.dto) as unknown as {
     accuracy: number; completion: number; paceIndex: number; reasoningIndex: number;
-    integrityScore: number; correctCount: number; subjectStats: unknown[]; details: unknown[]; placement?: { assignedTrack: string; confidence: number };
+    integrityScore: number; correctCount: number;
+    subjectStats: { subjectCode: string; subject: string; total: number; correct: number; seconds: number; percent: number }[];
+    details: { questionId: number; subjectCode: string; subject: string; correct: boolean | null; response: unknown; correctAnswer: string; seconds: number }[];
+    placement?: { assignedTrack: string; confidence: number };
   };
-  const fingerprint = await hashText(`${sid}|${sHash}|${paper.map((q) => `${q.id}:${(q.options || []).join("~")}`).join("|")}`);
+  const fingerprint = progress.paper_fingerprint ||
+    await hashText(`${sid}|${sHash}|${paper.map((q) => `${q.id}:${(q.options || []).join("~")}`).join("|")}`);
   const attemptHash = await hashText(`attempt|${sid}|${sHash}|${fingerprint}`);
   const now = Date.now();
   const answered = Math.round((result.completion / 100) * paper.length);
@@ -182,20 +250,37 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
     first_name: identity.profile.first_name, last_name: identity.profile.last_name, student_name: identity.profile.full_name,
     class_level: found.dto.classLevel, class_group: found.dto.classGroup, academic_session: found.dto.academicSession,
     mode: found.dto.mode, session_status: found.dto.status, session_ends_at: found.dto.endsAt,
-    subjects: found.dto.subjects, started_at: st.startedAt, submitted_at: now,
-    remaining_seconds: 0, elapsed_active_seconds: Number(st.elapsedActiveSeconds ?? 0),
+    started_at: progress.started_at, submitted_at: now,
+    remaining_seconds: 0, elapsed_active_seconds: Number(progress.elapsed_active_seconds ?? 0),
     answered, question_count: paper.length, score: result.accuracy, correct_count: result.correctCount,
     completion: result.completion, pace_index: result.paceIndex, reasoning_index: result.reasoningIndex,
-    integrity_score: result.integrityScore, integrity_events: st.integrityEvents ?? [],
-    subject_stats: result.subjectStats, placement: result.placement ?? null, details: result.details,
-    question_ids: paper.map((q) => q.id), submission_reason: reason, created_at: now,
+    integrity_score: result.integrityScore,
+    assigned_track: result.placement?.assignedTrack ?? null,
+    placement_confidence: result.placement?.confidence ?? null,
+    submission_reason: reason, created_at: now,
   };
   const { data: existing } = await supabase.from("exam_attempts").select("attempt_hash").eq("session_id", sid).eq("candidate_hash", candidateHash).is("submitted_at", null).limit(1).maybeSingle();
-  const saveError = existing
-    ? (await supabase.from("exam_attempts").update(attemptRow).eq("attempt_hash", (existing as { attempt_hash: string }).attempt_hash)).error
+  const targetHash = (existing as { attempt_hash: string } | null)?.attempt_hash;
+  const saveError = targetHash
+    ? (await supabase.from("exam_attempts").update(attemptRow).eq("attempt_hash", targetHash)).error
     : (await supabase.from("exam_attempts").insert(attemptRow)).error;
   if (saveError) return { ok: false, error: saveError.message };
-  await saveExamState(supabase, sid, candidateHash, { ...st, submittedAt: now });
+  const finalHash = targetHash ?? attemptHash;
+  await supabase.from("exam_attempt_answers").insert(result.details.map((d) => {
+    const { text, values } = splitResponse(d.response);
+    return {
+      attempt_hash: finalHash, session_id: sid, candidate_hash: candidateHash,
+      question_id: d.questionId, subject_code: d.subjectCode, subject_name: d.subject,
+      correct: d.correct, response_text: text, response_values: values,
+      correct_answer: String(d.correctAnswer ?? ""), seconds: d.seconds,
+    };
+  }));
+  await supabase.from("exam_attempt_subject_stats").insert(result.subjectStats.map((s) => ({
+    attempt_hash: finalHash, subject_code: s.subjectCode, subject_name: s.subject,
+    total: s.total, correct: s.correct, seconds: s.seconds, percent: s.percent,
+  })));
+  await supabase.from("exam_integrity_events").update({ attempt_hash: finalHash }).eq("session_id", sid).eq("candidate_hash", candidateHash).is("attempt_hash", null);
+  await saveExamProgress(supabase, sid, candidateHash, { submitted_at: now }, []);
   return {
     ok: true,
     summary: {

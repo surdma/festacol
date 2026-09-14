@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ClassRow, ExamAttemptRow, ExamSessionRow, ExamStateRow, QuestionRow, StudentProfileRow, SubjectRow, UserRow } from "@/types/db";
+import type { ClassRow, ExamAttemptRow, ExamResponseRow, ExamSessionRow, IntegrityEvent, QuestionRow, StudentProfileRow, SubjectRow, UserRow } from "@/types/db";
 
 async function count(client: SupabaseClient, table: string): Promise<number> {
   const { count } = await client.from(table).select("*", { count: "exact", head: true });
@@ -61,24 +61,94 @@ export async function getStudentProfile(client: SupabaseClient, studentHash: str
   return (data ?? null) as StudentProfileRow | null;
 }
 
-export async function getExamState(client: SupabaseClient, sessionId: string, candidateHash: string): Promise<ExamStateRow | null> {
-  const { data } = await client
-    .from("exam_states")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("candidate_hash", candidateHash)
-    .maybeSingle();
-  return (data ?? null) as ExamStateRow | null;
+export interface ExamProgress {
+  started_at: number | null;
+  submitted_at: number | null;
+  current_index: number;
+  remaining_seconds: number;
+  elapsed_active_seconds: number;
+  last_active_at: number | null;
+  attempt_hash: string;
+  paper_fingerprint: string;
+  question_ids: number[];
+  responses: ExamResponseRow[];
 }
 
-export async function saveExamState(
+export async function getExamProgress(
   client: SupabaseClient,
   sessionId: string,
   candidateHash: string,
-  state: Record<string, unknown>,
+): Promise<ExamProgress | null> {
+  const [{ data: header }, { data: responses }] = await Promise.all([
+    client.from("exam_states").select("*").eq("session_id", sessionId).eq("candidate_hash", candidateHash).maybeSingle(),
+    client.from("exam_responses").select("*").eq("session_id", sessionId).eq("candidate_hash", candidateHash),
+  ]);
+  if (!header) return null;
+  const h = header as Record<string, number | string | null>;
+  return {
+    started_at: h.started_at as number | null,
+    submitted_at: h.submitted_at as number | null,
+    current_index: Number(h.current_index ?? 0),
+    remaining_seconds: Number(h.remaining_seconds ?? 0),
+    elapsed_active_seconds: Number(h.elapsed_active_seconds ?? 0),
+    last_active_at: h.last_active_at as number | null,
+    attempt_hash: String(h.attempt_hash ?? ""),
+    paper_fingerprint: String(h.paper_fingerprint ?? ""),
+    question_ids: (h.question_ids ?? []) as number[],
+    responses: (responses ?? []) as ExamResponseRow[],
+  };
+}
+
+export async function saveExamProgress(
+  client: SupabaseClient,
+  sessionId: string,
+  candidateHash: string,
+  header: Record<string, number | string | number[] | null>,
+  responses: { question_id: number; response_text: string | null; response_values: string[]; seconds: number; flagged: boolean }[],
 ): Promise<void> {
   await client.from("exam_states").upsert(
-    { session_id: sessionId, candidate_hash: candidateHash, state, updated_at: Date.now() },
+    { session_id: sessionId, candidate_hash: candidateHash, ...header, updated_at: Date.now() },
     { onConflict: "session_id,candidate_hash" },
   );
+  if (responses.length) {
+    await client.from("exam_responses").upsert(
+      responses.map((r) => ({ session_id: sessionId, candidate_hash: candidateHash, ...r })),
+      { onConflict: "session_id,candidate_hash,question_id" },
+    );
+  }
+}
+
+export async function getIntegrityEvents(client: SupabaseClient, sessionId: string, candidateHash: string): Promise<IntegrityEvent[]> {
+  const { data } = await client
+    .from("exam_integrity_events")
+    .select("type,detail,at")
+    .eq("session_id", sessionId)
+    .eq("candidate_hash", candidateHash)
+    .order("at", { ascending: false })
+    .limit(100);
+  return ((data ?? []) as IntegrityEvent[]).reverse();
+}
+
+export async function recordIntegrityEvent(
+  client: SupabaseClient,
+  sessionId: string,
+  candidateHash: string,
+  type: string,
+  detail?: string,
+): Promise<void> {
+  await client.from("exam_integrity_events").insert({
+    session_id: sessionId, candidate_hash: candidateHash, type, detail: detail ?? "", at: Date.now(),
+  });
+  // Cap at 100 per candidate (keeps scoring math stable).
+  const { data } = await client
+    .from("exam_integrity_events")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("candidate_hash", candidateHash)
+    .order("id", { ascending: false })
+    .range(100, 500);
+  const overflow = (data ?? []) as { id: number }[];
+  if (overflow.length) {
+    await client.from("exam_integrity_events").delete().in("id", overflow.map((r) => r.id));
+  }
 }

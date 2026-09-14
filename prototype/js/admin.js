@@ -371,7 +371,33 @@
   window.addEventListener('popstate',()=>{void render();});
   document.addEventListener('keydown',async(event)=>{if(event.target.id==='admin-global-search'&&event.key==='Enter')await navigate('students',{q:event.target.value});});
 
-  normalizeLocation();shell();
-  dialog()?.addEventListener('click',async(event)=>{if(event.target===dialog())await closeDialog();});
-  Questions.load().then(async(payload)=>{data=payload;await render();}).catch(async()=>{data={questionSetId:'',subjectCatalog:[],assessmentAlignment:null,questions:[],quarantinedCustomQuestions:[]};await render();announce('No questions are loaded yet. Open Question Bank to load them.','warning');});
+  normalizeLocation();
+  void (async () => {
+    const gate = window.FestacolSupabase;
+    const role = await gate?.currentRole?.().catch(() => '') || '';
+    if (role !== 'administrator' && role !== 'teacher') {
+      const host = document.getElementById('admin-root') || document.getElementById('app');
+      if (host) host.innerHTML = `<main class="mx-auto max-w-md p-8"><div class="rounded-2xl border bg-white p-6 shadow-sm"><h1 class="text-lg font-extrabold">Admin sign in</h1><p class="mt-1 text-sm text-neutral-500">Staff workspace requires a provisioned login.</p><form id="admin-login-form" class="mt-4 grid gap-3"><label class="text-sm font-semibold">Email<input id="admin-email" type="email" class="mt-1 w-full rounded-lg border px-3 py-2" required></label><label class="text-sm font-semibold">Password<input id="admin-password" type="password" class="mt-1 w-full rounded-lg border px-3 py-2" required></label><p id="admin-login-error" class="hidden text-sm text-red-600"></p><button class="rounded-lg bg-neutral-950 px-4 py-2 text-sm font-semibold text-white" type="submit">Sign in</button></form></div></main>`;
+      document.getElementById('admin-login-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const err = document.getElementById('admin-login-error');
+        try {
+          await gate.signInAdmin(document.getElementById('admin-email')?.value, document.getElementById('admin-password')?.value);
+          location.reload();
+        } catch (failure) { if (err) { err.textContent = failure.message; err.classList.remove('hidden'); } }
+      });
+      return;
+    }
+    shell();
+    dialog()?.addEventListener('click',async(event)=>{if(event.target===dialog())await closeDialog();});
+    try {
+      const payload = await Questions.load();
+      data = payload;
+      await render();
+    } catch {
+      data = { questionSetId:'',subjectCatalog:[],assessmentAlignment:null,questions:[],quarantinedCustomQuestions:[] };
+      await render();
+      announce('No questions are loaded yet. Open Question Bank to load them.','warning');
+    }
+  })();
 })();

@@ -111,6 +111,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       mode: input.mode,
       subjects: input.subjects,
       placement_tracks: [],
+      cohosts: [],
       duration_seconds: Math.min(10800, Math.max(30, input.durationSeconds)),
       question_count: Math.min(150, Math.max(5, input.questionCount)),
       status: input.status,
@@ -118,8 +119,13 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       starts_at: null,
       ends_at: null,
       attempt_limit: 1,
-      integrity_policy: { focusMonitoring: true, fullscreenPrompt: true, clipboardGuard: true, warnAfter: input.warnAfter },
-      randomization: { questionOrder: true, optionOrder: true, minimizePaperCollisions: true },
+      focus_monitoring: true,
+      fullscreen_prompt: true,
+      clipboard_guard: true,
+      warn_after: input.warnAfter,
+      question_order: true,
+      option_order: true,
+      minimize_collisions: true,
       created_at: now,
       updated_at: now,
     });
@@ -148,7 +154,7 @@ export async function updateExamAction(
         question_count: patch.questionCount,
         instructions: patch.instructions.slice(0, 140),
         status: patch.status,
-        integrity_policy: { focusMonitoring: true, fullscreenPrompt: true, clipboardGuard: true, warnAfter: patch.warnAfter },
+        warn_after: patch.warnAfter,
         updated_at: Date.now(),
       })
       .eq("id", id);
@@ -341,11 +347,20 @@ export async function upsertQuestionAction(input: { subject: string; subjectCode
     if (!input.prompt.trim()) return { ok: false, error: "Enter the question prompt." };
     const { data: maxRow } = await supabase.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle();
     const nextId = Number((maxRow as { id: number } | null)?.id ?? 0) + 1;
+    const { data: subject } = await supabase.from("subjects").select("name").eq("code", input.subjectCode).maybeSingle();
     const { error } = await supabase.from("questions").insert({
       id: nextId,
-      origin: "teacher",
-      data: { subject: input.subject, type: input.kind, prompt: input.prompt, options: input.options, answer: input.correct, levels: input.levels, examModes: ["single", "mixed", "qualifier", "waec"] },
       subject_code: input.subjectCode,
+      subject_name: (subject as { name: string } | null)?.name ?? input.subject,
+      label: input.subject || input.subjectCode,
+      qtype: "single",
+      prompt: input.prompt,
+      options: input.options.filter(Boolean),
+      correct_answers: [input.correct],
+      levels: input.levels.length ? input.levels : ["SS1", "SS2", "SS3"],
+      exam_modes: ["single", "mixed", "waec", "qualifier", "bece", "neco", "jamb"],
+      difficulty: "medium",
+      created_by: ctx.isAdmin ? null : ctx.staffId,
       updated_at: Date.now(),
     });
     if (error) return { ok: false, error: error.message };
@@ -360,9 +375,12 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
     const supabase = ctx.supabase;
-    const { data } = await supabase.from("questions").select("origin,subject_code").eq("id", id).maybeSingle();
-    const q = data as { origin: string; subject_code: string } | null;
-    if (q?.origin !== "teacher") return { ok: false, error: "Only teacher-created questions can be deleted." };
+    const { data } = await supabase.from("questions").select("subject_code,created_by").eq("id", id).maybeSingle();
+    const q = data as { subject_code: string; created_by: string | null } | null;
+    if (!q) return { ok: false, error: "Question not found." };
+    // Bank-seeded rows (created_by null) are admin-managed; teachers remove
+    // only rows they created — replaces the old origin flag.
+    if (!ctx.isAdmin && q.created_by !== ctx.staffId) return { ok: false, error: "Only your own questions can be deleted." };
     if (!ctx.isAdmin && !ctx.subjects.includes(q.subject_code)) return { ok: false, error: "Outside your subject scope." };
     const { error } = await supabase.from("questions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
@@ -374,30 +392,84 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
 }
 
 export async function syncQuestionBankAction(): Promise<ActionResult & { count?: number }> {
+  // Insert-only sync: new seed rows are added, locally edited rows are never
+  // overwritten (replaces the old override-patch system).
   try {
     const supabase = await requireAdmin();
     const file = await readFile(path.join(process.cwd(), "public", "seed", "questions.json"), "utf8");
     const parsed = JSON.parse(file) as { questions?: unknown[] } | unknown[];
     const list = (Array.isArray(parsed) ? parsed : parsed.questions ?? []) as Record<string, unknown>[];
     if (!list.length) return { ok: false, error: "Seed file has no questions." };
-    const rows = list.map((q, i) => ({
-      id: Number(q.id ?? i + 1),
-      origin: "seed",
-      data: q,
-      subject_code: String(q.subjectCode ?? ""),
-      updated_at: Date.now(),
-    }));
+    const { data: existing } = await supabase.from("questions").select("id");
+    const have = new Set(((existing ?? []) as { id: number }[]).map((r) => Number(r.id)));
+    const fresh = list.filter((q) => !have.has(Number(q.id)));
+    const toRow = (q: Record<string, unknown>) => {
+      const type = String(q.type ?? "single");
+      const answer = q.answer as unknown;
+      const answers = q.answers as unknown;
+      const correct = type === "boolean"
+        ? [String(answer)]
+        : Array.isArray(answers) ? answers.map(String)
+        : Array.isArray(answer) ? answer.map(String)
+        : answer !== undefined ? [String(answer)] : [];
+      const levels = Array.isArray(q.levels) ? (q.levels as unknown[]).map(String) : ["SS1", "SS2", "SS3"];
+      const modes = Array.isArray(q.examModes) ? (q.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
+      const template = q.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
+      let bi = 0;
+      const templateParts = (template ?? []).map((p) => {
+        if (p.blank === undefined) return { text: p.text ?? "" };
+        const out = { blank: p.blank, placeholder: p.placeholder ?? "", pos: bi };
+        bi += 1;
+        return out;
+      });
+      return {
+        id: Number(q.id),
+        subject_code: String(q.subjectCode ?? ""),
+        subject_name: String(q.subject ?? ""),
+        label: String(q.label ?? ""),
+        qtype: type,
+        prompt: String(q.prompt ?? ""),
+        options: Array.isArray(q.options) ? (q.options as unknown[]).map(String) : [],
+        correct_answers: type === "fill" || type === "fill-multi" ? [] : correct,
+        fill_template: template ? templateParts.map((p) => ("pos" in p ? `{{${p.pos}}}` : (p.text ?? ""))).join("") : null,
+        instruction: String(q.instruction ?? ""),
+        levels, exam_modes: modes,
+        difficulty: String(q.difficulty ?? "medium"),
+        domain: String(q.domain ?? ""),
+        explanation: String(q.explanation ?? ""),
+        created_by: null,
+        updated_at: Date.now(),
+        _template: templateParts.filter((p) => "pos" in p) as { blank: string; placeholder: string; pos: number }[],
+      };
+    };
+    const rows = fresh.map(toRow);
+    const rowById = new Map(rows.map((r) => [r.id, r]));
     for (let i = 0; i < rows.length; i += 200) {
-      const { error } = await supabase.from("questions").upsert(rows.slice(i, i + 200));
+      const chunk = rows.slice(i, i + 200).map(({ _template, ...r }) => r);
+      const { error } = await supabase.from("questions").insert(chunk);
       if (error) return { ok: false, error: error.message };
     }
-    await supabase.from("question_bank").upsert({
-      id: 1,
-      question_set_id: "seed-v1",
-      subject_catalog: [...new Set(rows.map((r) => r.subject_code).filter(Boolean))],
-      question_count: rows.length,
-      updated_at: Date.now(),
-    });
+    // Blanks for new fill questions: acceptedAnswers indexed by blank order
+    // (flat strings for fill, arrays per blank for fill-multi).
+    const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
+    for (const q of fresh) {
+      const row = rowById.get(Number(q.id));
+      const t = row?._template;
+      if (!row || !t) continue;
+      const source = q.acceptedAnswers as unknown;
+      const perBlank = Array.isArray(source) ? (source as unknown[]) : [];
+      let pos = 0;
+      for (const part of t) {
+        const raw = perBlank[pos];
+        const list = Array.isArray(raw) ? raw.map(String) : raw !== undefined ? [String(raw)] : [];
+        blanks.push({ question_id: row.id, position: pos, blank_key: String(part.blank), placeholder: String(part.placeholder ?? ""), accepted: list });
+        pos += 1;
+      }
+    }
+    for (let i = 0; i < blanks.length; i += 200) {
+      const { error } = await supabase.from("question_blanks").insert(blanks.slice(i, i + 200));
+      if (error) return { ok: false, error: error.message };
+    }
     revalidatePath("/admin/questions");
     return { ok: true, count: rows.length };
   } catch (err) {
@@ -478,16 +550,27 @@ export async function getUserDetailAction(userId: string) {
 
 export async function getAttemptDetailAction(attemptHash: string) {
   const ctx = await requireStaff();
-  if (!(await scopedAttempt(ctx, attemptHash))) return { attempt: null };
+  if (!(await scopedAttempt(ctx, attemptHash))) return { attempt: null, answers: [], stats: [], events: [] };
   const supabase = ctx.supabase;
-  const { data } = await supabase.from("exam_attempts").select("*").eq("attempt_hash", attemptHash).maybeSingle();
-  return { attempt: data };
+  const [{ data: attempt }, { data: answers }, { data: stats }, { data: events }] = await Promise.all([
+    supabase.from("exam_attempts").select("*").eq("attempt_hash", attemptHash).maybeSingle(),
+    supabase.from("exam_attempt_answers").select("*").eq("attempt_hash", attemptHash).order("id"),
+    supabase.from("exam_attempt_subject_stats").select("*").eq("attempt_hash", attemptHash),
+    supabase.from("exam_integrity_events").select("type,detail,at").eq("attempt_hash", attemptHash).order("at"),
+  ]);
+  return { attempt, answers: answers ?? [], stats: stats ?? [], events: events ?? [] };
 }
 
 export async function getQuestionDetailAction(id: number) {
-  const supabase = await requireAdmin();
-  const { data } = await supabase.from("questions").select("*").eq("id", id).maybeSingle();
-  return { question: data };
+  const ctx = await requireStaff();
+  const supabase = ctx.supabase;
+  const [{ data: question }, { data: blanks }] = await Promise.all([
+    supabase.from("questions").select("*").eq("id", id).maybeSingle(),
+    supabase.from("question_blanks").select("*").eq("question_id", id).order("position"),
+  ]);
+  const q = question as { subject_code: string } | null;
+  if (!ctx.isAdmin && q && !ctx.subjects.includes(q.subject_code)) return { question: null, blanks: [] };
+  return { question, blanks: blanks ?? [] };
 }
 
 export async function isAdminAction(): Promise<boolean> {
@@ -518,15 +601,9 @@ export async function updateCohostsAction(examId: string, cohosts: string[]): Pr
 }
 
 export async function getSubjectsAction(): Promise<string[]> {
-  const ctx = await requireStaff();
-  const supabase = ctx.supabase;
-  const [{ data: bank }, { data: questions }] = await Promise.all([
-    supabase.from("question_bank").select("subject_catalog").eq("id", 1).maybeSingle(),
-    supabase.from("questions").select("subject_code").limit(1000),
-  ]);
-  const catalog = (bank as { subject_catalog: string[] } | null)?.subject_catalog;
-  if (Array.isArray(catalog) && catalog.length) return catalog;
-  return [...new Set(((questions ?? []) as { subject_code: string }[]).map((q) => q.subject_code).filter(Boolean))];
+  // Legacy name kept for compatibility; catalog now lives in subjects.
+  const rows = await getActiveSubjectsAction();
+  return rows.map((r) => r.code);
 }
 
 export async function getSessionOptionsAction() {
