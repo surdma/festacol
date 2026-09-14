@@ -88,3 +88,18 @@ Date: 2026-09-14. Status: approved for implementation (user: "brainstorm, plan a
   new columns must be added once via SQL editor (see chat); afterwards
   `prisma migrate dev` owns schema evolution.
 
+## 9. Addendum (2026-09-14): Nigerian school model (web-research grounded)
+
+Research (WASSCE syllabus index + WAEC Nigeria approved-subject list, 2026):
+core for all = English/Mathematics/Civic Education (+ trade); departments
+Science / Art / Commercial; FG 2025: cross-track subject choice allowed,
+ICT renamed Digital Technology. Live bank reality (720 rows): 12 short codes
+(eng/mat/civ/phy/chem/bio/agric/geo/comp/eco/gov/lit ×50) + 6 q-* legacy (×20).
+- Levels stay SS1–SS3; streams Science/Art/Commercial (+Qualifier pool);
+  `classes.arm` added (Science A/B, Art C, Commercial D …), 12 seeded arms.
+- `subjects` table (code PK = bank subject_code, name, category, streams,
+  active): seeded from `lib/subjects-catalog.ts` via Settings → Seed WAEC
+  catalog; admin-extensible; drives wizard, major picker, teacher scopes.
+- Exam modes widened: qualifier | bece | waec | neco | jamb | mixed | single
+  (paper engine groups bece/neco/jamb like waec; live mode CHECK widened in 01).
+
