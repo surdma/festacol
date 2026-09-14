@@ -23,9 +23,9 @@ export default async function RootPage() {
           </div>
 
           <div className="py-12">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground/45">Private student workspace</p>
-            <h1 className="mt-4 max-w-xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">Your exams, results and progress stay behind sign in.</h1>
-            <p className="mt-5 max-w-sm text-base leading-7 text-primary-foreground/65">Candidates must authenticate before the academic dashboard becomes available.</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground/45">Student access</p>
+            <h1 className="mt-4 max-w-xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">Private student workspace</h1>
+            <p className="mt-5 max-w-sm text-base leading-7 text-primary-foreground/65">Sign in with your first and last name to open your dashboard, analytics and secure exams.</p>
           </div>
 
           <span className="text-xs text-primary-foreground/45">Secure exam delivery · integrity monitoring · placement guidance</span>
@@ -35,8 +35,8 @@ export default async function RootPage() {
           <Card className="mx-auto w-full max-w-xl border-0 bg-transparent py-0 shadow-none">
             <CardHeader className="px-0">
               <Badge className="mb-2">Student authentication</Badge>
-              <CardTitle className="font-display text-3xl font-extrabold">Sign in with your candidate credentials.</CardTitle>
-              <CardDescription className="mt-2 text-base leading-7">Use the first name and last name given by your school to open your academic workspace.</CardDescription>
+              <CardTitle className="font-display text-3xl font-extrabold">Student sign in</CardTitle>
+              <CardDescription className="mt-2 text-base leading-7">Use the firstname and lastname given by your school.</CardDescription>
             </CardHeader>
             <CardContent className="px-0 pt-3">
               <StudentLoginForm />
