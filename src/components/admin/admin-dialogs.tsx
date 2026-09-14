@@ -5,8 +5,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StaffScopeDialog } from "@/components/admin/staff-provision-dialog";
 import { WhatsappGlobalDialog } from "@/components/admin/prototype-parity-dialogs";
 import { ExamWizard } from "./exam-wizard";
-import { AttemptDetailDialog, ClassDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDialog, UserDetailDialog } from "./detail-dialogs";
+import { AttemptDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDialog, UserDetailDialog } from "./detail-dialogs";
 import { ClassFormDialog, QuestionFormDialog, UserFormDialog, WhatsappFormDialog } from "./entity-forms";
+import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./task7-record-dialogs";
 
 const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step"] as const;
 
@@ -39,12 +40,12 @@ function Host() {
       <ExamWizard open={modal === "create-exam"} onClose={close} />
       {modal === "exam" && examId ? <ExamDetailDialog examId={examId} onClose={close} /> : null}
       {modal === "exam-edit" && examId ? <ExamEditDialog examId={examId} onClose={close} /> : null}
-      {modal === "student" && studentId ? <UserDetailDialog userId={studentId} onClose={close} /> : null}
+      {modal === "student" && studentId ? <StudentAcademicRecordDialog userId={studentId} onClose={close} /> : null}
       {modal === "staff" && staffId ? <UserDetailDialog userId={staffId} onClose={close} /> : null}
       {modal === "staff-edit" && staffId ? <StaffScopeDialog staffId={staffId} onClose={close} /> : null}
       {modal === "attempt" && attemptHash ? <AttemptDetailDialog attemptHash={attemptHash} onClose={close} /> : null}
       {modal === "question" && questionId ? <QuestionDetailDialog questionId={Number(questionId)} onClose={close} /> : null}
-      {modal === "class" && classId ? <ClassDetailDialog classId={classId} onClose={close} /> : null}
+      {modal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
       {modal === "user-new" ? <UserFormDialog open presetRole={params.get("role") ?? "student"} onClose={close} /> : null}
       {modal === "user-edit" && studentId ? <UserFormDialog open presetRole="student" userId={studentId} onClose={close} /> : null}
       {modal === "class-new" ? <ClassFormDialog open onClose={close} /> : null}
