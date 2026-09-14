@@ -1,15 +1,16 @@
-import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { BookOpenCheck, Search } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export const adminSurfaceClass = "rounded-2xl border border-neutral-200/90 bg-white shadow-sm";
+export const adminSurfaceClass = "rounded-2xl border border-neutral-200 bg-white shadow-sm";
 export const adminIconButtonClass = "inline-flex size-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 transition motion-safe:duration-200 hover:-translate-y-px hover:border-neutral-400 hover:bg-neutral-100 hover:text-black hover:shadow-sm active:translate-y-0 active:scale-[.96] focus:outline-none focus:ring-4 focus:ring-neutral-200";
-export const adminPrimaryButtonClass = "min-h-10 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:bg-neutral-800 hover:shadow-sm active:translate-y-0 active:scale-[.98] focus-visible:ring-4 focus-visible:ring-neutral-300";
-export const adminSecondaryButtonClass = "min-h-10 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:border-neutral-400 hover:bg-neutral-100 hover:shadow-sm active:translate-y-0 active:scale-[.98] focus-visible:ring-4 focus-visible:ring-neutral-200";
+export const adminPrimaryButtonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:bg-neutral-800 hover:shadow-sm active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 focus:ring-neutral-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0";
+export const adminSecondaryButtonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:border-neutral-400 hover:bg-neutral-100 hover:shadow-sm active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 focus:ring-neutral-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0";
+export const adminDangerButtonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:bg-red-800 active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-40";
 
 export function AdminPageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description: string; actions?: ReactNode }) {
   return (
@@ -31,7 +32,7 @@ export function AdminSearchForm({ query, placeholder, hidden = {}, className }: 
       <label className="relative block min-w-0">
         <span className="sr-only">{placeholder}</span>
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
-        <Input name="q" defaultValue={query} placeholder={placeholder} className="min-h-11 rounded-lg border-neutral-300 bg-white pl-9 text-sm text-neutral-950 placeholder:text-neutral-400 focus-visible:border-black focus-visible:ring-black/20" />
+        <Input name="q" defaultValue={query} placeholder={placeholder} className="block min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 pl-9 text-sm text-neutral-950 placeholder:text-neutral-400 transition focus:border-black focus:ring-black" />
       </label>
     </form>
   );
@@ -72,7 +73,7 @@ export function AdminSectionHeader({ eyebrow, title, action }: { eyebrow?: strin
 
 export function AdminMetricCard({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon?: LucideIcon }) {
   return (
-    <article className="group rounded-2xl border border-neutral-200/90 bg-white p-4 shadow-sm transition motion-safe:duration-200 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md">
+    <article className="group rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition motion-safe:duration-200 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">{label}</p><strong className="mt-2 block font-display text-2xl font-extrabold tracking-tight text-neutral-950 tabular-nums sm:text-3xl">{value}</strong></div>
         {Icon ? <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white transition motion-safe:duration-200 group-hover:scale-105"><Icon className="size-4" /></span> : null}
