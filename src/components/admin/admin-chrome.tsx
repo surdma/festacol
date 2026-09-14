@@ -1,10 +1,9 @@
 "use client";
 
-import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Clock3, LogOut, Menu, Plus, QrCode, Search, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, Clock3, Menu, Plus, QrCode, Search, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AdminLiveBadge } from "@/app/admin/live-badge";
-import { signOutAdminAction } from "@/app/actions/admin-auth";
 import { AdminNav, useAdminNavItem } from "@/components/admin/admin-nav";
 import { adminIconButtonClass, adminPrimaryButtonClass } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
@@ -31,26 +30,15 @@ export function AdminSidebarBrand() {
   );
 }
 
-export function AdminSidebarFooter({ displayName, email, role }: { displayName: string; email: string; role: string }) {
+export function AdminSidebarFooter() {
   return (
     <div className="border-t border-neutral-800 p-4">
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3">
-        <div className="flex items-start gap-3">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-400" />
-          <div className="min-w-0 flex-1">
-            <strong className="block text-xs text-neutral-100">School workspace</strong>
-            <span className="mt-1 block text-[11px] leading-4 text-neutral-500">Records are saved and shared across every device.</span>
-            <div className="mt-2"><AdminLiveBadge /></div>
-          </div>
-        </div>
-        <div className="mt-3 border-t border-neutral-800 pt-3">
-          <p className="truncate text-[11px] font-semibold text-neutral-300">{displayName}</p>
-          <p className="mt-0.5 truncate text-[10px] capitalize text-neutral-500">{email || role}</p>
-          <form action={signOutAdminAction} className="mt-2">
-            <button type="submit" className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-xs font-semibold text-neutral-300 transition hover:bg-neutral-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-neutral-700">
-              <LogOut className="size-3.5" /> Sign out
-            </button>
-          </form>
+      <div className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-400" />
+        <div className="min-w-0 flex-1">
+          <strong className="block text-xs text-neutral-100">School workspace</strong>
+          <span className="mt-1 block text-[11px] leading-4 text-neutral-500">Records are saved and shared across every device.</span>
+          <div className="mt-2"><AdminLiveBadge /></div>
         </div>
       </div>
     </div>

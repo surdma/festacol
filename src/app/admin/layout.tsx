@@ -15,12 +15,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) return <main className="min-h-dvh bg-neutral-50">{children}</main>;
   if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
 
-  const displayName =
-    (user.user_metadata?.full_name as string | undefined)?.trim() ||
-    (user.user_metadata?.name as string | undefined)?.trim() ||
-    user.email?.split("@")[0] ||
-    (role === "administrator" ? "Administrator" : "Teacher");
-  const email = user.email ?? "";
   const notifications = await getAdminTopbarNotifications(supabase, scope);
 
   return (
@@ -29,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="border-b border-neutral-800 px-5 py-5"><AdminSidebarBrand /></div>
         <div className="px-4 pb-2 pt-4"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-500">Workspace</p></div>
         <AdminNav />
-        <AdminSidebarFooter displayName={displayName} email={email} role={role} />
+        <AdminSidebarFooter />
       </aside>
 
       <div className="min-h-screen lg:pl-64">
