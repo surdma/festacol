@@ -88,6 +88,31 @@ Date: 2026-09-14. Status: approved for implementation (user: "brainstorm, plan a
   new columns must be added once via SQL editor (see chat); afterwards
   `prisma migrate dev` owns schema evolution.
 
+## 10. Addendum (2026-09-14): total DB normalization (jsonb → rows/columns)
+
+Live-sample grounded (720 questions: single/boolean answer, multi answers[],
+fill fillTemplate+acceptedAnswers flat, fill-multi nested; states carry full
+paper JSON). `origin` removed as requested — provenance is now `created_by`
+(NULL = bank-seeded, set = teacher). Seed edits are direct column updates;
+bank sync is insert-only (local edits survive); `question_overrides` and
+`question_bank` tables dropped (catalog = subjects table).
+- questions: subject_code FK→subjects + subject_name/label/qtype/prompt/
+  options text[]/correct_answers text[]/fill_template/instruction/levels
+  text[]/exam_modes text[]/difficulty/domain/explanation/created_by FK.
+- question_blanks(question_id, position, blank_key, placeholder, accepted text[]).
+- exam_attempt_answers / exam_attempt_subject_stats / exam_integrity_events
+  (attempt-linked) replace details/subject_stats/integrity_events/question_ids/
+  placement/subjects jsonb (placement → assigned_track + confidence cols).
+- exam_states → header columns + exam_responses rows (response_text +
+  response_values + seconds + flagged); background markers → hidden_at/started_at.
+- sessions: subjects/placement_tracks/cohosts text[], policy + randomization
+  as boolean/int columns. users.subjects + subjects.streams → text[].
+- App DTOs (QuestionDTO/ExamSessionDTO) kept stable — only the mapping layer
+  changed; fill blank-keys aligned across paper/client/scorer.
+- Prototype adapted at the store layer (same DTOs → UI untouched) + JWT
+  sign-in wiring (student synthetic credentials, admin gate) since RLS
+  denies anon. Run order: 01 → 04-normalize.sql → 02 → 03.
+
 ## 9. Addendum (2026-09-14): Nigerian school model (web-research grounded)
 
 Research (WASSCE syllabus index + WAEC Nigeria approved-subject list, 2026):
