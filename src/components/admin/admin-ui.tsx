@@ -19,8 +19,8 @@ export function AdminPageHeader({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-3xl">
-        {eyebrow ? <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{eyebrow}</p> : null}
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        {eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{eyebrow}</p> : null}
+        <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight sm:text-3xl">{title}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -71,7 +71,7 @@ export function AdminFilterLinks({
   preserve?: Record<string, string | undefined>;
 }) {
   return (
-    <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1" aria-label={`${param} filter`}>
+    <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border bg-card p-1 shadow-sm" aria-label={`${param} filter`}>
       {options.map((option) => {
         const search = new URLSearchParams();
         for (const [key, value] of Object.entries(preserve)) if (value) search.set(key, value);
@@ -98,8 +98,8 @@ export function AdminSectionHeader({ eyebrow, title, action }: { eyebrow?: strin
   return (
     <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
       <div>
-        {eyebrow ? <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{eyebrow}</p> : null}
-        <h2 className="mt-1 text-base font-semibold sm:text-lg">{title}</h2>
+        {eyebrow ? <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{eyebrow}</p> : null}
+        <h2 className="mt-1 font-display text-base font-extrabold sm:text-lg">{title}</h2>
       </div>
       {action}
     </div>
