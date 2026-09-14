@@ -24,24 +24,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const student = await currentStudent();
   return (
     <StudentProvider initial={student}>
-      <SidebarProvider>
-        <Sidebar>
-          <SidebarHeader>
-            <Link href="/dashboard" className="flex items-center gap-2 px-2 py-1">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">F</span>
-              <span className="flex flex-col">
-                <span className="text-sm font-semibold">Festacol</span>
-                <span className="text-xs text-muted-foreground">Student portal</span>
+      <SidebarProvider className="bg-background">
+        <Sidebar className="border-r border-border bg-card">
+          <SidebarHeader className="p-4">
+            <Link href="/dashboard" className="flex min-h-11 items-center gap-3 rounded-xl px-1 outline-none focus-visible:ring-4 focus-visible:ring-ring/30">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-primary text-sm font-black text-primary-foreground shadow-sm">F</span>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-display text-base font-extrabold">Festacol</span>
+                <span className="truncate text-xs text-muted-foreground">Student intelligence portal</span>
               </span>
             </Link>
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Learn</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.14em]">Learn</SidebarGroupLabel>
               <SidebarMenu>
                 {studentNav.map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton render={<Link href={item.href} />}>
+                    <SidebarMenuButton render={<Link href={item.href} />} className="min-h-11 rounded-xl font-semibold">
                       <item.icon />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -50,14 +50,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter>
-            <p className="truncate px-2 text-xs text-muted-foreground">{student ? student.fullName : "Not signed in"}</p>
+          <SidebarFooter className="border-t border-border p-4">
+            <p className="truncate text-xs text-muted-foreground">{student ? student.fullName : "Not signed in"}</p>
           </SidebarFooter>
         </Sidebar>
-        <main className="flex min-h-svh flex-1 flex-col">
-          <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background px-4 py-2">
-            <SidebarTrigger />
-            <p className="text-sm text-muted-foreground">Student portal</p>
+        <main className="flex min-h-dvh flex-1 flex-col bg-background">
+          <header className="sticky top-0 z-10 border-b border-border bg-card/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+            <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
+              <SidebarTrigger className="size-11 rounded-xl border border-border bg-card shadow-sm" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Student portal</p>
+                <p className="font-display text-sm font-extrabold">Academic workspace</p>
+              </div>
+            </div>
           </header>
           <div className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-7">{children}</div>
         </main>
