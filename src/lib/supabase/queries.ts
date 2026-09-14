@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ClassRow, ExamAttemptRow, ExamSessionRow, ExamStateRow, QuestionRow, StudentProfileRow, UserRow } from "@/types/db";
+import type { ClassRow, ExamAttemptRow, ExamSessionRow, ExamStateRow, QuestionRow, StudentProfileRow, SubjectRow, UserRow } from "@/types/db";
 
 async function count(client: SupabaseClient, table: string): Promise<number> {
   const { count } = await client.from(table).select("*", { count: "exact", head: true });
@@ -44,6 +44,11 @@ export async function listClasses(client: SupabaseClient): Promise<ClassRow[]> {
 export async function listQuestions(client: SupabaseClient): Promise<QuestionRow[]> {
   const { data } = await client.from("questions").select("*").order("id").limit(120);
   return (data ?? []) as QuestionRow[];
+}
+
+export async function listActiveSubjects(client: SupabaseClient): Promise<SubjectRow[]> {
+  const { data } = await client.from("subjects").select("*").eq("active", true).order("name");
+  return (data ?? []) as SubjectRow[];
 }
 
 export async function attemptsForStudent(client: SupabaseClient, studentHash: string): Promise<ExamAttemptRow[]> {

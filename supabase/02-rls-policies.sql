@@ -43,7 +43,7 @@ create or replace function private.teacher_may_access_session(
 ) returns boolean language sql stable as $$
   select exists (
     select 1 from public.users u
-    where u.auth_user_id = (select auth.uid())
+    where u.auth_user_id = (select auth.uid())::text
       and u.role = 'teacher'
       and u.status = 'active'
       and (
@@ -77,7 +77,7 @@ begin
     'classes','users','student_profiles','exam_sessions','exam_attempts',
     'exam_states','exam_reset_markers','exam_background_markers',
     'exam_proctor_policies','whatsapp_groups','questions',
-    'question_overrides','question_bank']
+    'question_overrides','question_bank','subjects']
   loop
     execute format('drop policy if exists %I on public.%I', 'prototype anon all ' || t, t);
   end loop;
@@ -128,6 +128,8 @@ drop policy if exists qo_admin_all on public.question_overrides;
 drop policy if exists qo_read on public.question_overrides;
 drop policy if exists qb_admin_all on public.question_bank;
 drop policy if exists qb_read on public.question_bank;
+drop policy if exists sub_admin_all on public.subjects;
+drop policy if exists sub_read on public.subjects;
 
 -- ---------------------------------------------------------- exam_sessions
 create policy es_admin_all on public.exam_sessions
@@ -239,7 +241,7 @@ create policy u_admin_all on public.users
 
 create policy u_self_select on public.users
   for select to authenticated
-  using (auth_user_id = (select auth.uid()));
+  using (auth_user_id = (select auth.uid())::text);
 
 create policy u_student_select on public.users
   for select to authenticated
@@ -298,7 +300,7 @@ create policy q_teacher_insert on public.questions
     and subject_code in (
       select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
       from public.users u
-      where u.auth_user_id = (select auth.uid())));
+      where u.auth_user_id = (select auth.uid())::text));
 create policy q_teacher_write on public.questions
   for update to authenticated
   using (
@@ -306,13 +308,13 @@ create policy q_teacher_write on public.questions
     and subject_code in (
       select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
       from public.users u
-      where u.auth_user_id = (select auth.uid())))
+      where u.auth_user_id = (select auth.uid())::text))
   with check (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
     and subject_code in (
       select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
       from public.users u
-      where u.auth_user_id = (select auth.uid())));
+      where u.auth_user_id = (select auth.uid())::text));
 -- NOTE: seed-row protection stays in the app (origin check); policy only
 -- scopes by subject.
 create policy q_teacher_delete on public.questions
@@ -322,7 +324,7 @@ create policy q_teacher_delete on public.questions
     and subject_code in (
       select jsonb_array_elements_text(coalesce(u.subjects, '[]'::jsonb))
       from public.users u
-      where u.auth_user_id = (select auth.uid())));
+      where u.auth_user_id = (select auth.uid())::text));
 
 create policy qo_admin_all on public.question_overrides
   for all to authenticated
@@ -336,6 +338,13 @@ create policy qb_admin_all on public.question_bank
 create policy qb_read on public.question_bank
   for select to authenticated using (true);
 
+alter table public.subjects enable row level security;
+create policy sub_admin_all on public.subjects
+  for all to authenticated
+  using (private.is_admin()) with check (private.is_admin());
+create policy sub_read on public.subjects
+  for select to authenticated using (active = true or private.is_admin());
+
 -- --------------------------------- realtime payloads (updates + deletes)
 alter table public.exam_sessions replica identity full;
 alter table public.exam_attempts replica identity full;
@@ -345,3 +354,4 @@ alter table public.questions replica identity full;
 alter table public.exam_states replica identity full;
 alter table public.whatsapp_groups replica identity full;
 alter table public.question_bank replica identity full;
+alter table public.subjects replica identity full;

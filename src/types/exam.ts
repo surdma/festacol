@@ -1,5 +1,5 @@
 export type ClassLevel = "SS1" | "SS2" | "SS3";
-export type ExamMode = "qualifier" | "mixed" | "single" | "waec";
+export type ExamMode = "qualifier" | "bece" | "waec" | "neco" | "jamb" | "mixed" | "single";
 export type ExamStatus = "open" | "draft" | "closed" | "scheduled";
 export type UserRole = "student" | "teacher" | "administrator";
 export type QuestionType = "single" | "multi" | "boolean" | "fill" | "fill-multi";

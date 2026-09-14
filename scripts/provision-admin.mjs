@@ -54,6 +54,7 @@ const { error: rosterError } = await admin.from("users").insert({
   first_name: parts[0] ?? fullName,
   last_name: (parts.slice(1).join(" ") || parts[0]) ?? fullName,
   role: "administrator", status: "active",
+  class_id: null,
   academic_session: "2026/2027", promotion_status: "on-track",
   joined_at: Date.now(), auth_user_id: userId, email,
   subjects: [], qualifier_access: true,

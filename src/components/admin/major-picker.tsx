@@ -4,19 +4,19 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSubjectsAction, updateMySubjectsAction } from "@/app/actions/admin";
+import { getActiveSubjectsAction, updateMySubjectsAction } from "@/app/actions/admin";
 
 // Onboarding: a teacher with no subjects picks their major after the admin
 // creates their account. Each chosen subject scopes their workspace.
 export function MajorPicker() {
   const router = useRouter();
-  const [catalog, setCatalog] = useState<string[]>([]);
+  const [catalog, setCatalog] = useState<{ code: string; name: string }[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    void getSubjectsAction().then((s) => setCatalog(s.length ? s : ["q-eng", "q-math", "q-bst", "q-social", "q-business", "q-digital"])).catch(() => undefined);
+    void getActiveSubjectsAction().then(setCatalog).catch(() => undefined);
   }, []);
 
   return (
@@ -28,10 +28,10 @@ export function MajorPicker() {
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
           {catalog.map((s) => {
-            const on = selected.includes(s);
+            const on = selected.includes(s.code);
             return (
-              <Button key={s} type="button" size="sm" variant={on ? "default" : "outline"}
-                onClick={() => setSelected(on ? selected.filter((x) => x !== s) : [...selected, s])}>{s}</Button>
+              <Button key={s.code} type="button" size="sm" variant={on ? "default" : "outline"}
+                onClick={() => setSelected(on ? selected.filter((x) => x !== s.code) : [...selected, s.code])}>{s.name}</Button>
             );
           })}
         </div>

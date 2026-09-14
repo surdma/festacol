@@ -13,7 +13,7 @@ export const examCreateSchema = z.object({
   title: z.string().trim().min(3).max(72),
   classLevel: z.enum(["SS1", "SS2", "SS3"]),
   classGroup: z.string().max(40).default("General"),
-  mode: z.enum(["qualifier", "mixed", "single", "waec"]),
+  mode: z.enum(["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"]),
   subjects: z.array(z.string()).default([]),
   durationSeconds: z.number().int().min(30).max(10800),
   questionCount: z.number().int().min(5).max(150),

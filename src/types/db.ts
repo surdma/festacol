@@ -1,109 +1,93 @@
-// Supabase row types (snake_case, mirrors prototype/supabase/schema.sql).
-// Runtime reads/writes go through Supabase PostgREST + Realtime.
-// Prisma (prisma/schema.prisma) is migration-only — never imported in src/.
+// Supabase row types — derived from the Prisma schema (single source of truth).
+// Prisma owns table SHAPE (schema.prisma → migrations). These types translate
+// camelCase → snake_case to match PostgREST payloads:
+//   - scalar fields flow through automatically (new columns appear here too;
+//     removed columns break stale accesses at typecheck instead of drifting);
+//   - relations are omitted (server payloads are flat rows);
+//   - bigint → number (PostgREST serializes int8 as JSON numbers);
+//   - Json columns get per-table refinements where the app needs shapes.
+// If Prisma models change, run `prisma generate` and fix any tsc errors here.
 
-export interface ClassRow {
-  id: string;
-  class_level: string;
-  name: string;
-  stream: string;
-  grp: string;
-  capacity: number;
-  room: string;
-  academic_session: string;
-  status: string;
+import type {
+  Class as PrismaClass,
+  ExamAttempt as PrismaAttempt,
+  ExamSession as PrismaSession,
+  ExamState as PrismaState,
+  Question as PrismaQuestion,
+  QuestionBank as PrismaBank,
+  StudentProfile as PrismaProfile,
+  Subject as PrismaSubject,
+  User as PrismaUser,
+} from "@/generated/prisma/client";
+
+type Snake<S extends string> = S extends `${infer H}${infer T}`
+  ? H extends Lowercase<H>
+    ? `${H}${Snake<T>}`
+    : `_${Lowercase<H>}${Snake<T>}`
+  : S;
+
+type DbValue<V> =
+  V extends bigint | null ? number | null
+  : V extends bigint ? number
+  : V;
+
+type DbRow<M> = {
+  [K in keyof M as K extends string ? Snake<K> : never]: DbValue<M[K]>;
+};
+
+type Override<T, U extends Record<string, unknown>> = Omit<T, keyof U> & U;
+
+export type ClassRow = DbRow<Omit<PrismaClass, "users" | "whatsappGroups">>;
+
+export type SubjectRow = Override<
+  DbRow<PrismaSubject>,
+  { streams: string[] }
+>;
+
+export type UserRow = Override<
+  DbRow<Omit<PrismaUser, "class">>,
+  { subjects: string[] }
+>;
+
+export type StudentProfileRow = DbRow<PrismaProfile>;
+
+export type ExamSessionRow = Override<
+  DbRow<Omit<PrismaSession, "attempts" | "states" | "resetMarkers" | "backgroundMarks" | "proctorPolicy">>,
+  {
+    subjects: string[];
+    placement_tracks: string[];
+    integrity_policy: Record<string, unknown>;
+    randomization: Record<string, unknown>;
+    cohosts: string[];
+  }
+>;
+
+export interface IntegrityEvent {
+  type: string;
+  detail?: string;
+  at: number;
 }
 
-export interface UserRow {
-  id: string;
-  full_name: string;
-  first_name: string;
-  last_name: string;
-  class_id: string | null;
-  role: string;
-  status: string;
-  guardian: string;
-  academic_session: string;
-  promotion_status: string;
-  joined_at: number;
-  auth_user_id: string | null;
-  email: string;
-  subjects: string[];
-  qualifier_access: boolean;
-}
+export type ExamAttemptRow = Override<
+  DbRow<Omit<PrismaAttempt, "session">>,
+  {
+    subjects: string[];
+    integrity_events: IntegrityEvent[];
+    subject_stats: { subject: string; percent: number }[];
+    placement: { assignedTrack: string; confidence: number } | null;
+    details: { questionId: number; correct: boolean | null; correctAnswer: string }[];
+    question_ids: number[];
+  }
+>;
 
-export interface StudentProfileRow {
-  student_hash: string;
-  candidate_hash: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  phone: string;
-  guardian: string;
-  current_class_id: string;
-  academic_session: string;
-  updated_at: number;
-}
+export type ExamStateRow = Override<
+  DbRow<PrismaState>,
+  { state: Record<string, unknown> & { integrityEvents?: IntegrityEvent[] } }
+>;
 
-export interface ExamSessionRow {
-  id: string;
-  title: string;
-  class_level: string;
-  class_group: string;
-  academic_session: string;
-  term: string;
-  mode: string;
-  subjects: string[];
-  placement_tracks: string[];
-  duration_seconds: number;
-  question_count: number;
-  status: string;
-  instructions: string;
-  starts_at: number | null;
-  ends_at: number | null;
-  attempt_limit: number;
-  integrity_policy: Record<string, unknown>;
-  randomization: Record<string, unknown>;
-  cohosts: string[];
-  created_at: number;
-  updated_at: number;
-}
+export type QuestionRow = Override<
+  DbRow<Omit<PrismaQuestion, "override">>,
+  { data: { prompt?: string } & Record<string, unknown> }
+>;
 
-export interface ExamAttemptRow {
-  id: string;
-  attempt_hash: string;
-  candidate_hash: string;
-  student_hash: string;
-  paper_fingerprint: string;
-  session_id: string | null;
-  session_title: string;
-  first_name: string;
-  last_name: string;
-  student_name: string;
-  class_level: string;
-  class_group: string;
-  academic_session: string;
-  mode: string;
-  subjects: string[];
-  started_at: number | null;
-  submitted_at: number | null;
-  score: number | null;
-  integrity_score: number | null;
-  integrity_events: { type: string; detail?: string; at: number }[];
-  created_at: number;
-}
-
-export interface ExamStateRow {
-  session_id: string;
-  candidate_hash: string;
-  state: { integrityEvents?: { type: string; detail?: string; at: number }[] } & Record<string, unknown>;
-  updated_at: number;
-}
-
-export interface QuestionRow {
-  id: number;
-  origin: string;
-  data: { prompt?: string } & Record<string, unknown>;
-  subject_code: string;
-  updated_at: number;
-}
+export type QuestionBankRow = DbRow<PrismaBank>;

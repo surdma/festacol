@@ -82,7 +82,7 @@ export interface ExamWizardInput {
   title: string;
   classLevel: "SS1" | "SS2" | "SS3";
   classGroup: string;
-  mode: "qualifier" | "mixed" | "single" | "waec";
+  mode: "qualifier" | "bece" | "waec" | "neco" | "jamb" | "mixed" | "single";
   subjects: string[];
   durationSeconds: number;
   questionCount: number;
@@ -263,16 +263,18 @@ export async function toggleUserAction(id: string, active: boolean): Promise<Act
 }
 
 // ---------------------------------------------------------------- classes + whatsapp
-export async function upsertClassAction(input: { id?: string; classLevel: string; stream: string; capacity: number; room: string }): Promise<ActionResult> {
+export async function upsertClassAction(input: { id?: string; classLevel: string; stream: string; arm: string; capacity: number; room: string }): Promise<ActionResult> {
   try {
     const supabase = await requireAdmin();
-    const id = input.id ?? `${input.classLevel.toLowerCase()}-${input.stream.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
+    const arm = input.arm.trim().toUpperCase().slice(0, 4) || "A";
+    const id = input.id ?? `${input.classLevel.toLowerCase()}-${input.stream.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${arm.toLowerCase()}-${Date.now().toString(36)}`;
     const { error } = await supabase.from("classes").upsert({
       id,
       class_level: input.classLevel,
-      name: `${input.classLevel} ${input.stream}`,
+      name: `${input.classLevel} ${input.stream} ${arm}`,
       stream: input.stream,
       grp: input.stream,
+      arm,
       capacity: input.capacity,
       room: input.room,
       academic_session: "2026/2027",
@@ -554,4 +556,58 @@ export async function updateMySubjectsAction(subjects: string[]): Promise<Action
 export async function getMyScopeAction(): Promise<{ isAdmin: boolean; subjects: string[]; qualifierAccess: boolean }> {
   const ctx = await requireStaff();
   return { isAdmin: ctx.isAdmin, subjects: ctx.subjects, qualifierAccess: ctx.qualifierAccess };
+}
+
+// ------------------------------------------------------------ subjects
+export async function getActiveSubjectsAction(): Promise<{ code: string; name: string; streams: string[] }[]> {
+  const ctx = await requireStaff();
+  const { data } = await ctx.supabase.from("subjects").select("code,name,streams").eq("active", true).order("name");
+  const rows = (data ?? []) as { code: string; name: string; streams: string[] }[];
+  if (rows.length) return rows;
+  // Fallback until the catalog is seeded: bank catalog + distinct codes.
+  const catalog = await getSubjectsAction();
+  return catalog.map((c) => ({ code: c, name: c, streams: [] }));
+}
+
+export async function seedSubjectsAction(): Promise<ActionResult & { count?: number }> {
+  try {
+    const supabase = await requireAdmin();
+    const { WAEC_SUBJECTS } = await import("@/lib/subjects-catalog");
+    const now = Date.now();
+    const rows = WAEC_SUBJECTS.map((s) => ({ code: s.code, name: s.name, category: s.category, streams: s.streams, active: true, updated_at: now }));
+    const { error } = await supabase.from("subjects").upsert(rows);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, count: rows.length };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Seed failed." };
+  }
+}
+
+export async function upsertSubjectAction(input: { code: string; name: string; category: string; streams: string[] }): Promise<ActionResult> {
+  try {
+    const supabase = await requireAdmin();
+    const code = input.code.trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20);
+    if (!code || !input.name.trim()) return { ok: false, error: "Code and name are required." };
+    const { error } = await supabase.from("subjects").upsert({
+      code, name: input.name.trim(), category: input.category,
+      streams: [...new Set(input.streams)].slice(0, 8), active: true, updated_at: Date.now(),
+    });
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/admin/settings");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+  }
+}
+
+export async function toggleSubjectAction(code: string, active: boolean): Promise<ActionResult> {
+  try {
+    const supabase = await requireAdmin();
+    const { error } = await supabase.from("subjects").update({ active, updated_at: Date.now() }).eq("code", code);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/admin/settings");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
+  }
 }

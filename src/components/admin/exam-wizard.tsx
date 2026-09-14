@@ -9,15 +9,15 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { createExamAction, getMyScopeAction, getSubjectsAction, type ExamWizardInput } from "@/app/actions/admin";
+import { createExamAction, getActiveSubjectsAction, getMyScopeAction, type ExamWizardInput } from "@/app/actions/admin";
 
 const STEPS = ["Scope", "Coverage", "Paper", "Integrity", "Review"] as const;
-const MODES = ["qualifier", "mixed", "single", "waec"] as const;
+const MODES = ["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"] as const;
 
 export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<{ code: string; name: string }[]>([]);
   const [scope, setScope] = useState<{ isAdmin: boolean; subjects: string[]; qualifierAccess: boolean } | null>(null);
   const [form, setForm] = useState<ExamWizardInput>({
     title: "", classLevel: "SS1", classGroup: "General", mode: "single", subjects: [],
@@ -29,12 +29,14 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
 
   useEffect(() => {
     if (open) {
-      void getSubjectsAction().then(setSubjects).catch(() => undefined);
+      void getActiveSubjectsAction().then(setSubjects).catch(() => undefined);
       void getMyScopeAction().then(setScope).catch(() => undefined);
     }
   }, [open ]);
 
-  const availableSubjects = scope && !scope.isAdmin ? scope.subjects : subjects.length ? subjects : ["q-eng", "q-math", "q-bst", "q-social", "q-business", "q-digital"];
+  const availableSubjects = scope && !scope.isAdmin
+    ? subjects.filter((s) => scope.subjects.includes(s.code))
+    : subjects.length ? subjects : [{ code: "q-eng", name: "English" }, { code: "q-math", name: "Mathematics" }];
   const availableModes = scope && !scope.isAdmin && !scope.qualifierAccess ? MODES.filter((m) => m !== "qualifier") : [...MODES];
 
   function set<K extends keyof ExamWizardInput>(key: K, value: ExamWizardInput[K]) {
@@ -83,10 +85,10 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <FieldLabel>Subjects ({form.subjects.length} selected)</FieldLabel>
               <div className="flex max-h-56 flex-wrap gap-2 overflow-auto">
                 {availableSubjects.map((s) => {
-                  const on = form.subjects.includes(s);
+                  const on = form.subjects.includes(s.code);
                   return (
-                    <Button key={s} type="button" size="sm" variant={on ? "default" : "outline"}
-                      onClick={() => set("subjects", on ? form.subjects.filter((x) => x !== s) : [...form.subjects, s])}>{s}</Button>
+                    <Button key={s.code} type="button" size="sm" variant={on ? "default" : "outline"}
+                      onClick={() => set("subjects", on ? form.subjects.filter((x) => x !== s.code) : [...form.subjects, s.code])}>{s.name}</Button>
                   );
                 })}
               </div>

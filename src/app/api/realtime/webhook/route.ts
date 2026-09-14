@@ -28,6 +28,7 @@ const TABLE_PATHS: Record<string, string[]> = {
   whatsapp_groups: ["/admin", "/admin/classes"],
   student_profiles: ["/dashboard", "/admin/students"],
   exam_states: ["/admin", "/admin/reports"],
+  subjects: ["/admin", "/admin/settings", "/admin/questions", "/admin/exams"],
 };
 
 export async function POST(req: Request) {

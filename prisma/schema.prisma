@@ -18,6 +18,8 @@ model Class {
   name            String
   stream          String   @default("General")
   grp             String   @default("General") @map("grp")
+  // Arm within the stream, e.g. Science A / Science B / Art C / Commercial D.
+  arm             String   @default("")
   capacity        Int      @default(40)
   room            String   @default("")
   academicSession String   @default("2026/2027") @map("academic_session")
@@ -240,4 +242,18 @@ model QuestionBank {
   updatedAt          BigInt @map("updated_at")
 
   @@map("question_bank")
+}
+
+// WAEC-grounded subject catalog (admin-extensible). Codes match the
+// question bank's subject_code values so exams, questions and teacher
+// scopes join without translation tables.
+model Subject {
+  code      String  @id
+  name      String
+  category  String  @default("elective") // core | science | art | commercial | legacy
+  streams   Json    @default("[]") // streams taking it, e.g. ["Science","Art"]
+  active    Boolean @default(true)
+  updatedAt BigInt  @map("updated_at")
+
+  @@map("subjects")
 }

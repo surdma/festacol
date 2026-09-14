@@ -58,6 +58,7 @@ export function ClassFormDialog({ open, onClose }: { open: boolean; onClose: () 
   const router = useRouter();
   const [classLevel, setClassLevel] = useState("SS1");
   const [stream, setStream] = useState("Science");
+  const [arm, setArm] = useState("A");
   const [capacity, setCapacity] = useState(40);
   const [room, setRoom] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function ClassFormDialog({ open, onClose }: { open: boolean; onClose: () 
     <Shell title="Add class" open={open} pending={pending} error={error}
       onClose={onClose}
       submit={() => startTransition(async () => {
-        const r = await upsertClassAction({ classLevel, stream, capacity, room });
+        const r = await upsertClassAction({ classLevel, stream, arm, capacity, room });
         if (!r.ok) { setError(r.error ?? "Save failed."); return; }
         onClose(); router.refresh();
       })}>
@@ -76,6 +77,7 @@ export function ClassFormDialog({ open, onClose }: { open: boolean; onClose: () 
             {["SS1", "SS2", "SS3"].map((l) => <NativeSelectOption key={l} value={l}>{l}</NativeSelectOption>)}
           </NativeSelect></Field>
         <Field><FieldLabel htmlFor="c-stream">Stream</FieldLabel><Input id="c-stream" value={stream} onChange={(e) => setStream(e.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="c-arm">Arm (A, B, C…)</FieldLabel><Input id="c-arm" value={arm} onChange={(e) => setArm(e.target.value)} maxLength={4} /></Field>
         <Field><FieldLabel htmlFor="c-cap">Capacity</FieldLabel><Input id="c-cap" type="number" min={1} max={500} value={capacity} onChange={(e) => setCapacity(Number(e.target.value))} /></Field>
         <Field><FieldLabel htmlFor="c-room">Room</FieldLabel><Input id="c-room" value={room} onChange={(e) => setRoom(e.target.value)} /></Field>
       </div>

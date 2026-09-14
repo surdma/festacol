@@ -98,8 +98,10 @@ export function paperForStudent(
   const candidates = eligibleQuestions(payload, session);
   const target = Math.min(Number(session.questionCount) || 0, candidates.length);
   if (!target) return [];
-  const subjectOrder =
-    session.mode === "single" || session.mode === "waec"
+  // Multi-paper exams group questions by subject (WAEC/NECO/JAMB/BECE style);
+  // qualifier/mixed follow the session's subject list order.
+  const groupedModes = ["single", "waec", "neco", "jamb", "bece"];
+  const subjectOrder = groupedModes.includes(session.mode)
       ? [...new Set(candidates.map((q) => q.subjectCode))]
       : session.subjects?.length
         ? session.subjects

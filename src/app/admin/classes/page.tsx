@@ -25,7 +25,7 @@ export default async function AdminClassesPage() {
           <Card key={c.id}>
             <CardHeader><CardTitle>{c.name}</CardTitle></CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-              <p>{c.class_level} · {c.stream} · cap {c.capacity}{c.room ? ` · ${c.room}` : ""}</p>
+              <p>{c.class_level} · {c.stream}{c.arm ? ` ${c.arm}` : ""} · cap {c.capacity}{c.room ? ` · ${c.room}` : ""}</p>
               {(byClass.get(c.id) ?? []).map((g) => (
                 <p key={g.id} className="flex items-center justify-between gap-2">
                   <span>{g.name}</span>{scope.isAdmin ? <DeleteButtons kind="whatsapp" id={g.id} /> : null}
