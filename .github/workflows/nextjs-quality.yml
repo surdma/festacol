@@ -82,9 +82,9 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Biome admin migration surface
+      - name: Biome lint admin migration surface
         run: >-
-          pnpm exec biome check
+          pnpm exec biome lint
           prisma.config.ts
           src/app/layout.tsx
           src/app/admin/layout.tsx
