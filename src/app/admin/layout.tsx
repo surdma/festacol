@@ -44,17 +44,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {
           "--sidebar-width": "18rem",
           "--sidebar-width-icon": "4.75rem",
-          "--sidebar": "oklch(0.155 0 0)",
+          "--sidebar": "oklch(0.145 0 0)",
           "--sidebar-foreground": "oklch(0.985 0 0)",
-          "--sidebar-primary": "oklch(0.985 0 0)",
-          "--sidebar-primary-foreground": "oklch(0.155 0 0)",
+          "--sidebar-primary": "oklch(1 0 0)",
+          "--sidebar-primary-foreground": "oklch(0.145 0 0)",
           "--sidebar-accent": "oklch(1 0 0 / 0.075)",
           "--sidebar-accent-foreground": "oklch(0.985 0 0)",
           "--sidebar-border": "oklch(1 0 0 / 0.09)",
-          "--sidebar-ring": "oklch(0.74 0 0)",
+          "--sidebar-ring": "oklch(0.708 0 0)",
         } as CSSProperties
       }
-      className="bg-muted/55"
+      className="bg-background"
     >
       <Sidebar
         variant="inset"
@@ -73,7 +73,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <SidebarRail className="after:bg-transparent hover:after:bg-sidebar-border" />
       </Sidebar>
 
-      <SidebarInset className="min-w-0 overflow-hidden bg-[#f7f8fa] md:rounded-[28px] md:shadow-[0_12px_40px_rgba(15,23,42,0.06)] md:ring-1 md:ring-black/[0.045]">
+      <SidebarInset className="min-w-0 overflow-hidden bg-background md:rounded-[28px] md:shadow-[0_12px_40px_rgba(15,23,42,0.06)] md:ring-1 md:ring-black/[0.045]">
         <AdminTopbar displayName={displayName} role={role} />
         <main className="w-full flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
