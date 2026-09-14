@@ -65,7 +65,11 @@ export function AdminSidebarFooter({
           <strong className="block truncate text-xs font-semibold text-neutral-100">{displayName}</strong>
           <span className="mt-0.5 block truncate text-[10px] capitalize text-neutral-500">{role}</span>
         </span>
-        <span className="size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.08)] group-data-[collapsible=icon]:hidden" aria-label="Connected" />
+        <span
+          className="size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.08)] group-data-[collapsible=icon]:hidden"
+          aria-hidden="true"
+        />
+        <span className="sr-only">Connected</span>
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-1.5 group-data-[collapsible=icon]:hidden">
