@@ -826,7 +826,14 @@
         return;
       }
       await enterAuthenticatedFlow();
-    }).catch((error) => fatal('Exam unavailable', 'The examination could not be prepared.', error?.message || 'Question data could not be loaded.'));
+    }).catch(async (error) => {
+      let detail = error?.message || 'Question data could not be loaded.';
+      try {
+        const status = await store.getQuestionBankStatus();
+        if (!status?.questionCount) detail = 'No questions are loaded yet. Ask your school to open Administration, go to Question Bank, and load the questions first.';
+      } catch { /* keep original detail */ }
+      fatal('Exam unavailable', 'The examination could not be prepared.', detail);
+    });
   };
   boot();
 

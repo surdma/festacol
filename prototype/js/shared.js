@@ -419,6 +419,34 @@
     throwSupabase(error, 'Unable to save class.');
     return item;
   };
+  // Canonical initial school structure (SS1–SS3 + Qualifier pool).
+  // Never auto-seeded: restored only when the school chooses it, or from
+  // supabase/seed_classes.sql. Mirrors that file exactly.
+  const INITIAL_CLASSES = Object.freeze([
+    { id: 'ss1-qualifier', classLevel: 'SS1', name: 'SS1 Qualifier Pool', stream: 'Qualifier', group: 'Qualifier', capacity: 240, room: 'Admissions', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss1-science', classLevel: 'SS1', name: 'SS1 Science', stream: 'Science', group: 'Science', capacity: 72, room: 'Science Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss1-arts', classLevel: 'SS1', name: 'SS1 Arts', stream: 'Arts', group: 'Arts', capacity: 64, room: 'Humanities Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss1-social', classLevel: 'SS1', name: 'SS1 Social Science', stream: 'Social Science', group: 'Social Science', capacity: 68, room: 'Commerce Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss1-general', classLevel: 'SS1', name: 'SS1 General', stream: 'General', group: 'General', capacity: 80, room: 'Senior Block A', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss2-science', classLevel: 'SS2', name: 'SS2 Science', stream: 'Science', group: 'Science', capacity: 64, room: 'Science Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss2-arts', classLevel: 'SS2', name: 'SS2 Arts', stream: 'Arts', group: 'Arts', capacity: 58, room: 'Humanities Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss2-social', classLevel: 'SS2', name: 'SS2 Social Science', stream: 'Social Science', group: 'Social Science', capacity: 62, room: 'Commerce Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss2-general', classLevel: 'SS2', name: 'SS2 General', stream: 'General', group: 'General', capacity: 60, room: 'Senior Block B', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss3-science', classLevel: 'SS3', name: 'SS3 Science', stream: 'Science', group: 'Science', capacity: 60, room: 'Science Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss3-arts', classLevel: 'SS3', name: 'SS3 Arts', stream: 'Arts', group: 'Arts', capacity: 54, room: 'Humanities Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss3-social', classLevel: 'SS3', name: 'SS3 Social Science', stream: 'Social Science', group: 'Social Science', capacity: 56, room: 'Commerce Wing', academicSession: ACADEMIC_SESSION, status: 'active' },
+    { id: 'ss3-general', classLevel: 'SS3', name: 'SS3 General', stream: 'General', group: 'General', capacity: 50, room: 'Senior Block C', academicSession: ACADEMIC_SESSION, status: 'active' }
+  ]);
+  const restoreInitialClasses = async () => {
+    const existing = new Set((await listClasses()).map((c) => c.id));
+    let restored = 0;
+    for (const item of INITIAL_CLASSES) {
+      if (existing.has(item.id)) continue;
+      await saveClass(item);
+      restored += 1;
+    }
+    return { restored, total: (await listClasses()).length };
+  };
   const deleteClass = async (classId) => {
     const client = supabase();
     if (!client) {
@@ -725,7 +753,7 @@
     getStudentProfile, saveStudentProfile, clearStudentProfile,
     clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData,
     sanitizeName, sanitizeTitle, getModeLabel, durationLabel,
-    listClasses, saveClass, deleteClass, listUsers, saveUser,
+    listClasses, saveClass, deleteClass, restoreInitialClasses, INITIAL_CLASSES, listUsers, saveUser,
     updateUserStatus, updatePromotion, deleteUser,
     listCustomQuestions, saveCustomQuestion, deleteCustomQuestion,
     listQuestionOverrides, saveQuestionOverride, resetQuestionOverride,
@@ -955,6 +983,14 @@
       return store.syncQuestionBank(validated);
     };
     const resetCache = () => { baseCache = null; };
+    const syncJsonText = async (text) => {
+      let parsed;
+      try { parsed = JSON.parse(String(text)); }
+      catch { throw new Error('That file is not valid question data. Choose the questions file and try again.'); }
+      const validated = validatePayload(parsed, { minimumQuestions: 720 });
+      validateRoutingCoverage(validated);
+      return store.syncQuestionBank(validated);
+    };
     const availableSubjects = (payload, classLevel, mode, pathway = '') => payload.subjectCatalog.filter((subject) => {
       if (!subject.levels.includes(classLevel)) return false;
       return payload.questions.some((question) => isEligible(question, { classLevel, mode, subjects: [subject.code], classGroup: pathway, placementTracks: pathway ? [pathway] : [] }));
@@ -964,7 +1000,7 @@
     const questionsForSession = (payload, session) => { const candidates = eligibleQuestions(payload, session); const limit = Math.min(session.questionCount, candidates.length); if (session.mode === 'single' || session.mode === 'waec') return candidates.slice(0, limit); const subjectOrder = session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]; return interleaveBySubject(candidates, subjectOrder, limit); };
     const subjectByCode = (payload, code) => payload.subjectCatalog.find((subject) => subject.code === code) || null;
     const questionById = (payload, id) => payload.questions.find((question) => question.id === Number(id)) || null;
-    return Object.freeze({ load, syncSeedFileToDatabase, resetCache, validatePayload, validateAnswerShape, validateRoutingCoverage, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
+    return Object.freeze({ load, syncSeedFileToDatabase, syncJsonText, resetCache, validatePayload, validateAnswerShape, validateRoutingCoverage, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
   })();
 
   const assessment = (() => {

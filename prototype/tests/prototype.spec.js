@@ -2,6 +2,10 @@ const { test, expect } = require('@playwright/test');
 
 async function clearPrototypeStorage(page) {
   await page.goto('/prototype/admin.html?page=overview');
+  const origin = new URL(page.url()).origin;
+  if (!/^(http:\/\/(localhost|127\.0\.0\.1)(:\d+)?|about:|null)$/u.test(origin) && !origin.startsWith('file:')) {
+    throw new Error(`Refusing to clear data on non-local origin ${origin}. Point baseURL at localhost to run this suite.`);
+  }
   await page.evaluate(() => window.Festacol.store.clearPrototypeData());
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Administration overview' })).toBeVisible();
