@@ -1,0 +1,98 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ExternalLink, MessageCircle } from "lucide-react";
+import { getAdminFormOptionsAction, getWhatsappDetailAction } from "@/app/actions/admin-parity";
+import { upsertSingleClassWhatsappAction } from "@/app/actions/task7";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+
+export function Task7WhatsappFormDialog({
+  open,
+  onClose,
+  classId: initialClassId,
+  groupId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  classId?: string;
+  groupId?: string;
+}) {
+  const router = useRouter();
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
+  const [classId, setClassId] = useState(initialClassId ?? "");
+  const [name, setName] = useState("");
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    void getAdminFormOptionsAction().then((options) => setClasses(options.classes)).catch(() => setError("Class options could not be loaded."));
+    if (!groupId) {
+      setClassId(initialClassId ?? "");
+      setName("");
+      setInviteUrl("");
+      return;
+    }
+    void getWhatsappDetailAction(groupId).then((group) => {
+      const item = group as { class_id?: string; name?: string; invite_url?: string } | null;
+      if (!item) { setError("WhatsApp group is unavailable."); return; }
+      setClassId(item.class_id ?? initialClassId ?? "");
+      setName(item.name ?? "");
+      setInviteUrl(item.invite_url ?? "");
+    }).catch(() => setError("WhatsApp group could not be loaded."));
+  }, [groupId, initialClassId, open]);
+
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      const result = await upsertSingleClassWhatsappAction({ id: groupId, classId, name, inviteUrl });
+      if (!result.ok) { setError(result.error ?? "WhatsApp group save failed."); return; }
+      onClose();
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <div className="mb-2 grid size-10 place-items-center rounded-xl bg-foreground text-background"><MessageCircle /></div>
+          <DialogTitle>{groupId ? "Edit class WhatsApp group" : "Connect class WhatsApp"}</DialogTitle>
+          <DialogDescription>Each class owns at most one parent/student WhatsApp mapping. Festacol stores the validated invite and uses it for class communication and QR access.</DialogDescription>
+        </DialogHeader>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="task7-whatsapp-class">Class</FieldLabel>
+            <NativeSelect id="task7-whatsapp-class" value={classId} onChange={(event) => setClassId(event.target.value)} disabled={Boolean(groupId)}>
+              <NativeSelectOption value="">Choose class</NativeSelectOption>
+              {classes.map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.name}</NativeSelectOption>)}
+            </NativeSelect>
+            <FieldDescription>{groupId ? "The mapping remains owned by its current class. Delete it before moving communication to another class." : "If a class already has a group, edit that mapping instead of creating another."}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="task7-whatsapp-name">Group name</FieldLabel>
+            <Input id="task7-whatsapp-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="SS2 Science Parents" />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="task7-whatsapp-url">Official invite link</FieldLabel>
+            <Input id="task7-whatsapp-url" type="url" inputMode="url" value={inviteUrl} onChange={(event) => setInviteUrl(event.target.value)} placeholder="https://chat.whatsapp.com/..." />
+            <FieldDescription>Only secure WhatsApp invite hosts are accepted.</FieldDescription>
+          </Field>
+          {inviteUrl.startsWith("https://") ? <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3"><span className="min-w-0 truncate text-xs text-muted-foreground">{inviteUrl}</span><Button size="sm" variant="outline" render={<a href={inviteUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink data-icon="inline-start" />Open</Button></div> : null}
+        </FieldGroup>
+        {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={pending || !classId || !name.trim() || !inviteUrl.trim()} onClick={save}>{pending ? "Saving…" : groupId ? "Update mapping" : "Connect group"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
