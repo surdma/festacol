@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { MajorPicker } from "@/components/admin/major-picker";
 import { PrototypeAdminIcon, type PrototypeAdminIconName } from "@/components/admin/prototype-admin-icon";
 import { currentStaff, examVisibleTo, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import type { ClassRow, ExamAttemptRow, ExamSessionRow, QuestionRow, UserRow } from "@/types/db";
@@ -143,7 +142,6 @@ export default async function AdminOverviewPage() {
   return (
     <div data-admin-dashboard>
       <PageHead eyebrow="Academic operations" title="Administration overview" detail="A dense operating view of examination delivery, enrolment, class capacity, communication and integrity." actions={<Link href="/admin/exams?modal=create-exam" className={btnPrimary}><PrototypeAdminIcon name="plus" className="size-4 shrink-0" />Create exam</Link>} />
-      {scope.isTeacher && scope.subjects.length === 0 ? <div className="mb-5"><MajorPicker /></div> : null}
 
       {setupEmpty ? <section className="mb-5 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 text-white shadow-lg"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Workspace setup</p><h3 className="mt-1 font-display text-xl font-extrabold">Start with your academic structure</h3><p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">Create classes and student records before publishing the first examination. Festacol will connect those records to attempts, reports and QR distribution.</p></div>{scope.isAdmin ? <Link href="/admin/classes" className={btnSecondary}><PrototypeAdminIcon name="school" className="size-4 shrink-0" />Set up classes</Link> : null}</div></section> : null}
 
