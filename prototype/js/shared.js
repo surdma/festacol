@@ -3,9 +3,6 @@
 
   const global = globalThis;
   const win = global.window || global;
-  const ls = global.localStorage;
-  const ss = global.sessionStorage;
-  if (!ls || !ss) throw new Error('Festacol shared runtime requires localStorage and sessionStorage.');
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const uniqueStrings = (value) => Array.isArray(value) ? [...new Set(value.map(String).filter(Boolean))] : [];
@@ -13,8 +10,6 @@
   const sanitizeName = (value) => String(value || '').trim().replace(/\s+/gu, ' ').slice(0, 80);
   const normalizeText = (value) => String(value ?? '').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('en');
   const makeId = () => global.crypto?.randomUUID ? global.crypto.randomUUID().split('-')[0].toUpperCase() : Math.random().toString(36).slice(2, 10).toUpperCase();
-  const readJson = (storage, key, fallback) => { try { const raw = storage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
-  const writeJson = (storage, key, value) => storage.setItem(key, JSON.stringify(value));
   const utf8ToBase64Url = (value) => {
     const bytes = new TextEncoder().encode(value);
     let binary = '';
@@ -47,163 +42,733 @@
   };
   const utils = Object.freeze({ clamp, uniqueStrings, sanitizeTitle, sanitizeName, normalizeText, durationLabel, routeUrl, utf8ToBase64Url, base64UrlToUtf8 });
 
-  const store = (() => {
-    const SESSION_STORE_KEY = 'festacol.exam.sessions.v3';
-    const LEGACY_SESSION_STORE_KEY = 'festacol.exam.sessions.v2';
-    const ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v3';
-    const LEGACY_ATTEMPT_STORE_KEY = 'festacol.exam.attempts.v2';
-    const STUDENT_STATE_PREFIX = 'festacol.student.attempt.v3:';
-    const LEGACY_STUDENT_STATE_PREFIX = 'festacol.student.session.v2:';
-    const STUDENT_PROFILE_KEY = 'festacol.student.profile.v1';
-    const ACTIVE_CANDIDATE_PREFIX = 'festacol.student.active-candidate:';
-    const AUTH_STUDENT_KEY = 'festacol.student.auth.v1';
-    const RESET_MARKER_PREFIX = 'festacol.exam.reset.v1:';
-    const USER_STORE_KEY = 'festacol.admin.users.v2';
-    const LEGACY_USER_STORE_KEY = 'festacol.admin.users.v1';
-    const CLASS_STORE_KEY = 'festacol.admin.classes.v2';
-    const LEGACY_CLASS_STORE_KEY = 'festacol.admin.classes.v1';
-    const CUSTOM_QUESTION_STORE_KEY = 'festacol.admin.custom-questions.v1';
-    const QUESTION_OVERRIDE_STORE_KEY = 'festacol.admin.question-overrides.v1';
-    const WHATSAPP_GROUP_STORE_KEY = 'festacol.admin.whatsapp-groups.v1';
-    const PAYLOAD_VERSION = 3;
-    const SUPPORTED_PAYLOAD_VERSIONS = new Set([2, 3]);
-    const ACADEMIC_SESSION = '2026/2027';
-    const TRACKS = Object.freeze(['Science', 'Arts', 'Social Science']);
-    const MODE_LABELS = Object.freeze({ qualifier: 'SS1 stream qualifier', mixed: 'Mixed-subject examination', single: 'Single-subject examination', waec: 'WAEC subject practice' });
-    const MODE_CODES = Object.freeze({ qualifier: 'q', mixed: 'm', single: 's', waec: 'w' });
-    const CODE_MODES = Object.freeze({ q: 'qualifier', m: 'mixed', s: 'single', w: 'waec' });
+  const PAYLOAD_VERSION = 3;
+  const SUPPORTED_PAYLOAD_VERSIONS = new Set([2, 3]);
+  const ACADEMIC_SESSION = '2026/2027';
+  const TRACKS = Object.freeze(['Science', 'Arts', 'Social Science']);
+  const MODE_LABELS = Object.freeze({ qualifier: 'SS1 stream qualifier', mixed: 'Mixed-subject examination', single: 'Single-subject examination', waec: 'WAEC subject practice' });
+  const MODE_CODES = Object.freeze({ qualifier: 'q', mixed: 'm', single: 's', waec: 'w' });
+  const CODE_MODES = Object.freeze({ q: 'qualifier', m: 'mixed', s: 'single', w: 'waec' });
 
-    const normalizeIntegrityPolicy = (value = {}) => ({ focusMonitoring: value.focusMonitoring !== false, fullscreenPrompt: value.fullscreenPrompt !== false, clipboardGuard: value.clipboardGuard !== false, warnAfter: clamp(Math.round(Number(value.warnAfter) || 2), 1, 10) });
-    const normalizeRandomization = (value = {}) => ({ questionOrder: value.questionOrder !== false, optionOrder: value.optionOrder !== false, minimizePaperCollisions: value.minimizePaperCollisions !== false });
-    const normalizeSession = (input = {}) => {
-      const mode = String(input.mode || '');
-      const classLevel = String(input.classLevel || '');
-      const subjects = uniqueStrings(input.subjects);
-      const requestedTracks = uniqueStrings(input.placementTracks).filter((track) => TRACKS.includes(track));
-      const placementTracks = mode === 'qualifier' && !requestedTracks.length ? [...TRACKS] : requestedTracks;
-      const durationSeconds = Math.round(Number(input.durationSeconds ?? Number(input.durationMinutes) * 60));
-      const questionCount = Math.round(Number(input.questionCount));
-      if (!Object.hasOwn(MODE_LABELS, mode)) throw new Error('Unsupported examination mode.');
-      if (!['SS1', 'SS2', 'SS3'].includes(classLevel)) throw new Error('Choose SS1, SS2, or SS3.');
-      if (mode === 'qualifier' && classLevel !== 'SS1') throw new Error('Qualifier sessions are reserved for incoming SS1 candidates.');
-      if (mode === 'waec' && classLevel !== 'SS3') throw new Error('WAEC subject practice sessions are configured for SS3.');
-      if (mode === 'mixed' && (subjects.length < 2 || subjects.length > 12)) throw new Error('Mixed examinations need between two and twelve subjects.');
-      if ((mode === 'single' || mode === 'waec') && subjects.length !== 1) throw new Error('This examination mode requires exactly one subject.');
-      if (mode === 'qualifier' && subjects.length && subjects.some((code) => !code.startsWith('q-'))) throw new Error('Qualifier sessions can only use placement-domain subjects.');
-      if (mode === 'qualifier' && placementTracks.length < 1) throw new Error('Choose at least one eligible placement track.');
-      if (!Number.isInteger(durationSeconds) || durationSeconds < 30 || durationSeconds > 10800) throw new Error('Duration must be between 30 seconds and 3 hours.');
-      if (!Number.isInteger(questionCount) || questionCount < 5 || questionCount > 150) throw new Error('Question count must be between 5 and 150.');
-      return { id: String(input.id || makeId()).trim().toUpperCase().slice(0, 20), version: PAYLOAD_VERSION, title: sanitizeTitle(input.title) || MODE_LABELS[mode], classLevel, classGroup: String(input.classGroup || (mode === 'qualifier' ? 'Qualifier' : 'General')).slice(0, 40), academicSession: String(input.academicSession || ACADEMIC_SESSION).slice(0, 20), term: String(input.term || 'First term').slice(0, 24), mode, subjects, placementTracks: mode === 'qualifier' ? placementTracks : [], durationSeconds, durationMinutes: durationSeconds / 60, questionCount, status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open', instructions: String(input.instructions || '').trim().slice(0, 140), startsAt: input.startsAt ? Number(input.startsAt) : null, endsAt: input.endsAt ? Number(input.endsAt) : null, attemptLimit: 1, integrityPolicy: normalizeIntegrityPolicy(input.integrityPolicy), randomization: normalizeRandomization(input.randomization), createdAt: Number(input.createdAt) || Date.now(), updatedAt: Number(input.updatedAt) || Date.now() };
-    };
-    const toPayload = (s) => ({ v: PAYLOAD_VERSION, i: s.id, n: s.title, c: s.classLevel, g: s.classGroup, y: s.academicSession, e: s.term, m: MODE_CODES[s.mode], s: s.subjects, t: s.placementTracks?.length ? s.placementTracks : undefined, d: s.durationSeconds, q: s.questionCount, x: s.status, r: s.instructions || undefined, a: s.startsAt || undefined, z: s.endsAt || undefined, k: [s.integrityPolicy.focusMonitoring ? 1 : 0, s.integrityPolicy.fullscreenPrompt ? 1 : 0, s.integrityPolicy.clipboardGuard ? 1 : 0, s.integrityPolicy.warnAfter], o: [s.randomization.questionOrder ? 1 : 0, s.randomization.optionOrder ? 1 : 0, s.randomization.minimizePaperCollisions ? 1 : 0] });
-    const fromPayloadV3 = (p) => normalizeSession({ id: p.i, title: p.n, classLevel: p.c, classGroup: p.g, academicSession: p.y, term: p.e, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: p.t || TRACKS, durationSeconds: p.d, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, integrityPolicy: { focusMonitoring: p.k?.[0] !== 0, fullscreenPrompt: p.k?.[1] !== 0, clipboardGuard: p.k?.[2] !== 0, warnAfter: p.k?.[3] || 2 }, randomization: { questionOrder: p.o?.[0] !== 0, optionOrder: p.o?.[1] !== 0, minimizePaperCollisions: p.o?.[2] !== 0 }, createdAt: Date.now() });
-    const fromPayloadV2 = (p) => normalizeSession({ id: p.i, title: p.n, classLevel: p.c, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: CODE_MODES[p.m] === 'qualifier' ? TRACKS : [], durationSeconds: Number(p.d) * 60, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, createdAt: Date.now() });
-    const encodeSession = (input) => utf8ToBase64Url(JSON.stringify(toPayload(normalizeSession(input))));
-    const decodeSession = (token) => { if (!token) throw new Error('No examination session was provided.'); let payload; try { payload = JSON.parse(base64UrlToUtf8(token)); } catch { throw new Error('This examination link is not valid.'); } if (!SUPPORTED_PAYLOAD_VERSIONS.has(payload?.v)) throw new Error('This examination link uses an unsupported format.'); return payload.v === 2 ? fromPayloadV2(payload) : fromPayloadV3(payload); };
-    const listSessions = () => { const current = readJson(ls, SESSION_STORE_KEY, null); if (Array.isArray(current)) return current.map((item) => { try { return normalizeSession({ ...item, questionCount: clamp(Number(item.questionCount) || 5, 5, 150) }); } catch { return null; } }).filter(Boolean); const legacy = readJson(ls, LEGACY_SESSION_STORE_KEY, []); return Array.isArray(legacy) ? legacy.map((item) => { try { return normalizeSession({ ...item, durationSeconds: Number(item.durationMinutes) * 60, questionCount: clamp(Number(item.questionCount) || 5, 5, 150), placementTracks: item.mode === 'qualifier' ? TRACKS : [] }); } catch { return null; } }).filter(Boolean) : []; };
-    const saveSession = (input) => { const prior = input?.id ? listSessions().find((item) => item.id === String(input.id).toUpperCase()) : null; const session = normalizeSession({ ...input, createdAt: input.createdAt || prior?.createdAt || Date.now(), updatedAt: Date.now() }); writeJson(ls, SESSION_STORE_KEY, [session, ...listSessions().filter((item) => item.id !== session.id)].slice(0, 80)); return session; };
-    const findSessionById = (sessionId) => listSessions().find((item) => item.id === String(sessionId || '').trim().toUpperCase()) || null;
-    const updateSessionStatus = (sessionId, status) => { if (!['open', 'draft', 'closed'].includes(status)) throw new Error('Unsupported session status.'); const found = findSessionById(sessionId); if (!found) return null; return saveSession({ ...found, status }); };
-    const deleteSession = (sessionId) => writeJson(ls, SESSION_STORE_KEY, listSessions().filter((item) => item.id !== String(sessionId).toUpperCase()));
-    const resolveSession = (session) => findSessionById(session?.id) || session;
-    const getSessionLink = (session, baseHref = global.location?.href || 'http://localhost/prototype/index.html') => routeUrl('exam', { session: encodeSession(session) }, baseHref);
-    const normalizeAttempt = (a = {}) => ({ id: String(a.id || makeId()), attemptHash: String(a.attemptHash || ''), candidateHash: String(a.candidateHash || ''), studentHash: String(a.studentHash || ''), paperFingerprint: String(a.paperFingerprint || ''), sessionId: String(a.sessionId || '').toUpperCase(), sessionTitle: sanitizeTitle(a.sessionTitle), firstName: sanitizeName(a.firstName || '').split(' ')[0] || '', lastName: sanitizeName(a.lastName || '').split(' ').slice(-1)[0] || '', studentName: sanitizeName(a.studentName || [a.firstName, a.lastName].filter(Boolean).join(' ')), classLevel: String(a.classLevel || ''), classGroup: String(a.classGroup || ''), academicSession: String(a.academicSession || ACADEMIC_SESSION), mode: String(a.mode || ''), sessionStatus: String(a.sessionStatus || ''), sessionEndsAt: Number(a.sessionEndsAt) || null, subjects: uniqueStrings(a.subjects), startedAt: Number(a.startedAt) || null, submittedAt: Number(a.submittedAt) || null, remainingSeconds: Number.isFinite(Number(a.remainingSeconds)) ? Number(a.remainingSeconds) : null, elapsedActiveSeconds: Number(a.elapsedActiveSeconds) || 0, answered: Number(a.answered) || 0, questionCount: Number(a.questionCount) || 0, score: Number.isFinite(Number(a.score)) ? Number(a.score) : null, correctCount: Number.isFinite(Number(a.correctCount)) ? Number(a.correctCount) : null, completion: Number.isFinite(Number(a.completion)) ? Number(a.completion) : null, paceIndex: Number.isFinite(Number(a.paceIndex)) ? Number(a.paceIndex) : null, reasoningIndex: Number.isFinite(Number(a.reasoningIndex)) ? Number(a.reasoningIndex) : null, integrityScore: Number.isFinite(Number(a.integrityScore)) ? Number(a.integrityScore) : null, integrityEvents: Array.isArray(a.integrityEvents) ? a.integrityEvents.slice(-100) : [], subjectStats: Array.isArray(a.subjectStats) ? a.subjectStats : [], placement: a.placement && typeof a.placement === 'object' ? a.placement : null, details: Array.isArray(a.details) ? a.details : [], questionIds: Array.isArray(a.questionIds) ? a.questionIds.map(Number) : [], submissionReason: String(a.submissionReason || ''), rewriteArchivedAt: Number(a.rewriteArchivedAt) || null, rewriteSourceAttemptHash: String(a.rewriteSourceAttemptHash || '') });
-    const getAttempts = () => { const current = readJson(ls, ATTEMPT_STORE_KEY, null); if (Array.isArray(current)) return current.map(normalizeAttempt); const legacy = readJson(ls, LEGACY_ATTEMPT_STORE_KEY, []); return Array.isArray(legacy) ? legacy.map(normalizeAttempt) : []; };
-    const resetMarkerKey = (sessionId, candidateHash) => `${RESET_MARKER_PREFIX}${String(sessionId).toUpperCase()}:${candidateHash}`;
-    const getAttemptResetAt = (sessionId, candidateHash) => Number(ls.getItem(resetMarkerKey(sessionId, candidateHash))) || 0;
-    const isAttemptInvalidated = (sessionId, candidateHash, startedAt = 0) => { const resetAt = getAttemptResetAt(sessionId, candidateHash); return Boolean(resetAt && resetAt >= Number(startedAt || 0)); };
-    const recordAttempt = (attempt) => { const normalized = normalizeAttempt(attempt); if (normalized.candidateHash && normalized.startedAt && isAttemptInvalidated(normalized.sessionId, normalized.candidateHash, normalized.startedAt)) throw new Error('This unfinished attempt was reset by an administrator.'); const attempts = getAttempts(); const match = (item) => normalized.attemptHash ? item.attemptHash === normalized.attemptHash : item.id === normalized.id; writeJson(ls, ATTEMPT_STORE_KEY, [normalized, ...attempts.filter((item) => !match(item))].slice(0, 500)); return normalized; };
-    const findAttempt = (sessionId, candidateHash) => getAttempts().find((a) => a.sessionId === String(sessionId).toUpperCase() && a.candidateHash === candidateHash && !a.rewriteArchivedAt) || null;
-    const attemptsForCandidate = (candidateHash) => getAttempts().filter((a) => a.candidateHash === candidateHash || a.rewriteSourceAttemptHash === candidateHash);
-    const attemptsForStudent = (studentHash) => getAttempts().filter((a) => a.studentHash === studentHash || (!a.studentHash && a.candidateHash === studentHash));
-    const attemptsForSession = (sessionId) => getAttempts().filter((a) => a.sessionId === String(sessionId || '').toUpperCase());
-    const hasSubmittedAttempt = (sessionId, candidateHash) => Boolean(findAttempt(sessionId, candidateHash)?.submittedAt);
-    const stateKey = (sessionId, candidateHash) => `${STUDENT_STATE_PREFIX}${String(sessionId).toUpperCase()}:${candidateHash || 'anonymous'}`;
-    const legacyStateKey = (sessionId) => `${LEGACY_STUDENT_STATE_PREFIX}${String(sessionId).toUpperCase()}`;
-    const activeCandidateKey = (sessionId) => `${ACTIVE_CANDIDATE_PREFIX}${String(sessionId).toUpperCase()}`;
-    const setActiveCandidate = (sessionId, candidateHash) => { if (candidateHash) ss.setItem(activeCandidateKey(sessionId), String(candidateHash)); else ss.removeItem(activeCandidateKey(sessionId)); };
-    const getActiveCandidate = (sessionId) => ss.getItem(activeCandidateKey(sessionId)) || '';
-    const clearActiveCandidate = (sessionId) => ss.removeItem(activeCandidateKey(sessionId));
-    const setStudentAuth = (studentHash) => { const value = String(studentHash || ''); if (!value) throw new Error('Student identity is required.'); ss.setItem(AUTH_STUDENT_KEY, value); return value; };
-    const getStudentAuth = () => ss.getItem(AUTH_STUDENT_KEY) || '';
-    const clearStudentAuth = () => ss.removeItem(AUTH_STUDENT_KEY);
-    const getStudentState = (sessionId, candidateHash = getActiveCandidate(sessionId)) => { const current = readJson(ls, stateKey(sessionId, candidateHash), null); if (current) return current; if (!candidateHash) return readJson(ls, legacyStateKey(sessionId), null); return null; };
-    const saveStudentState = (sessionId, candidateHashOrValue, maybeValue) => { const legacy = maybeValue === undefined; const candidateHash = legacy ? getActiveCandidate(sessionId) : candidateHashOrValue; const value = legacy ? candidateHashOrValue : maybeValue; if (candidateHash && value?.startedAt && isAttemptInvalidated(sessionId, candidateHash, value.startedAt)) return false; writeJson(ls, stateKey(sessionId, candidateHash), value); if (candidateHash) setActiveCandidate(sessionId, candidateHash); return true; };
-    const clearStudentState = (sessionId, candidateHash = getActiveCandidate(sessionId)) => ls.removeItem(stateKey(sessionId, candidateHash));
-    const resetUnfinishedAttempt = (sessionId, candidateHash) => { const attempt = findAttempt(sessionId, candidateHash), state = getStudentState(sessionId, candidateHash); if (attempt?.submittedAt || state?.submittedAt) throw new Error('Submitted attempts require the rewrite action so their audit history is preserved.'); if (!attempt && !state?.startedAt) throw new Error('No unfinished attempt was found for this candidate.'); const resetAt = Date.now(); ls.setItem(resetMarkerKey(sessionId, candidateHash), String(resetAt)); writeJson(ls, ATTEMPT_STORE_KEY, getAttempts().filter((item) => !(item.sessionId === String(sessionId).toUpperCase() && item.candidateHash === candidateHash && !item.rewriteArchivedAt))); clearStudentState(sessionId, candidateHash); if (getActiveCandidate(sessionId) === candidateHash) { clearActiveCandidate(sessionId); clearStudentAuth(); } return { ...(attempt || { sessionId, candidateHash, studentName: state?.studentName || '' }), resetAt }; };
-    const authorizeRewrite = (sessionId, candidateHash) => { const attempt = findAttempt(sessionId, candidateHash); if (!attempt?.submittedAt) throw new Error('Only a submitted attempt can be opened for a rewrite.'); const resetAt = Date.now(); const archiveSuffix = `rewrite-${resetAt.toString(36)}`; const archived = normalizeAttempt({ ...attempt, id: `${attempt.id}-${archiveSuffix}`, attemptHash: `${attempt.attemptHash}:${archiveSuffix}`, candidateHash: `${attempt.candidateHash}:${archiveSuffix}`, rewriteSourceAttemptHash: attempt.candidateHash, rewriteArchivedAt: resetAt }); const remaining = getAttempts().filter((item) => item.attemptHash !== attempt.attemptHash); writeJson(ls, ATTEMPT_STORE_KEY, [archived, ...remaining].slice(0, 500)); ls.setItem(resetMarkerKey(sessionId, candidateHash), String(resetAt)); clearStudentState(sessionId, candidateHash); if (getActiveCandidate(sessionId) === candidateHash) { clearActiveCandidate(sessionId); clearStudentAuth(); } return archived; };
-    const getStudentProfile = () => readJson(ls, STUDENT_PROFILE_KEY, null);
-    const saveStudentProfile = (input = {}) => { const profile = { firstName: sanitizeName(input.firstName).split(' ')[0] || '', lastName: sanitizeName(input.lastName).split(' ').slice(-1)[0] || '', fullName: sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), candidateHash: String(input.candidateHash || ''), studentHash: String(input.studentHash || input.candidateHash || ''), phone: String(input.phone || '').trim().slice(0, 24), guardian: sanitizeName(input.guardian || ''), currentClassId: String(input.currentClassId || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), updatedAt: Date.now() }; if (!profile.firstName || !profile.lastName || !profile.candidateHash || !profile.studentHash) throw new Error('First name, last name and candidate identity are required.'); writeJson(ls, STUDENT_PROFILE_KEY, profile); return profile; };
-    const clearStudentProfile = () => ls.removeItem(STUDENT_PROFILE_KEY);
-    const DEFAULT_CLASSES = Object.freeze([{ id:'ss1-qualifier',classLevel:'SS1',name:'SS1 Qualifier Pool',stream:'Qualifier',group:'Qualifier',capacity:240,room:'Admissions',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-science',classLevel:'SS1',name:'SS1 Science',stream:'Science',group:'Science',capacity:72,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-arts',classLevel:'SS1',name:'SS1 Arts',stream:'Arts',group:'Arts',capacity:64,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-social',classLevel:'SS1',name:'SS1 Social Science',stream:'Social Science',group:'Social Science',capacity:68,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss1-general',classLevel:'SS1',name:'SS1 General',stream:'General',group:'General',capacity:80,room:'Senior Block A',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-science',classLevel:'SS2',name:'SS2 Science',stream:'Science',group:'Science',capacity:64,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-arts',classLevel:'SS2',name:'SS2 Arts',stream:'Arts',group:'Arts',capacity:58,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-social',classLevel:'SS2',name:'SS2 Social Science',stream:'Social Science',group:'Social Science',capacity:62,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss2-general',classLevel:'SS2',name:'SS2 General',stream:'General',group:'General',capacity:60,room:'Senior Block B',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-science',classLevel:'SS3',name:'SS3 Science',stream:'Science',group:'Science',capacity:60,room:'Science Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-arts',classLevel:'SS3',name:'SS3 Arts',stream:'Arts',group:'Arts',capacity:54,room:'Humanities Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-social',classLevel:'SS3',name:'SS3 Social Science',stream:'Social Science',group:'Social Science',capacity:56,room:'Commerce Wing',academicSession:ACADEMIC_SESSION,status:'active' },{ id:'ss3-general',classLevel:'SS3',name:'SS3 General',stream:'General',group:'General',capacity:50,room:'Senior Block C',academicSession:ACADEMIC_SESSION,status:'active' }]);
-    const DEFAULT_USERS = Object.freeze([{id:'ST-2401',fullName:'Amina Yusuf Bello',firstName:'Amina',lastName:'Bello',classId:'ss2-science',role:'student',status:'active',guardian:'Yusuf Bello',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*90},{id:'ST-2402',fullName:'David Chukwu Okafor',firstName:'David',lastName:'Okafor',classId:'ss2-arts',role:'student',status:'active',guardian:'Chukwu Okafor',academicSession:ACADEMIC_SESSION,promotionStatus:'on-track',joinedAt:Date.now()-86400000*84},{id:'ST-2403',fullName:'Zainab Musa Ibrahim',firstName:'Zainab',lastName:'Ibrahim',classId:'ss3-social',role:'student',status:'active',guardian:'Musa Ibrahim',academicSession:ACADEMIC_SESSION,promotionStatus:'graduating',joinedAt:Date.now()-86400000*77},{id:'ST-2404',fullName:'Tolu Adeyemi James',firstName:'Tolu',lastName:'James',classId:'ss1-general',role:'student',status:'active',guardian:'Adeyemi James',academicSession:ACADEMIC_SESSION,promotionStatus:'review',joinedAt:Date.now()-86400000*46},{id:'AD-001',fullName:'Examination Administrator',firstName:'Examination',lastName:'Administrator',classId:'',role:'administrator',status:'active',guardian:'',academicSession:ACADEMIC_SESSION,promotionStatus:'',joinedAt:Date.now()-86400000*200}]);
-    const mergeDefaults = (stored, defaults) => { const byId = new Map((Array.isArray(stored) ? stored : []).map((item) => [item.id, item])); defaults.forEach((item) => { if (!byId.has(item.id)) byId.set(item.id, { ...item }); }); return [...byId.values()]; };
-    const listClasses = () => mergeDefaults(readJson(ls, CLASS_STORE_KEY, null) ?? readJson(ls, LEGACY_CLASS_STORE_KEY, null), DEFAULT_CLASSES);
-    const saveClass = (input = {}) => { const classLevel = String(input.classLevel || ''), stream = String(input.stream || input.group || 'General').trim().slice(0, 40), name = String(input.name || `${classLevel} ${stream}`).trim().slice(0, 60); if (!name || !['SS1','SS2','SS3'].includes(classLevel)) throw new Error('Class name and level are required.'); const item = { id:String(input.id||makeId()).slice(0,24),classLevel,name,stream,group:String(input.group||stream).slice(0,40),capacity:clamp(Math.round(Number(input.capacity)||40),1,500),room:String(input.room||'').trim().slice(0,50),academicSession:String(input.academicSession||ACADEMIC_SESSION),status:input.status==='archived'?'archived':'active' }; const classes = listClasses(); writeJson(ls, CLASS_STORE_KEY, [item, ...classes.filter((entry) => entry.id !== item.id)]); return item; };
-    const listUsers = () => mergeDefaults(readJson(ls, USER_STORE_KEY, null) ?? readJson(ls, LEGACY_USER_STORE_KEY, null), DEFAULT_USERS);
-    const listWhatsAppGroups = () => { const value = readJson(ls, WHATSAPP_GROUP_STORE_KEY, []); return Array.isArray(value) ? value : []; };
-    const deleteClass = (classId) => { writeJson(ls, CLASS_STORE_KEY, listClasses().filter((item) => item.id !== classId)); writeJson(ls, WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.classId !== classId)); };
-    const saveUser = (input = {}) => { const fullName = sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), parts = fullName.split(/\s+/u).filter(Boolean); if (parts.length < 2) throw new Error('Enter at least first and last name for the user.'); const item = { id:String(input.id||`ST-${Math.floor(1000+Math.random()*9000)}`).slice(0,24),fullName,firstName:sanitizeName(input.firstName||parts[0]).split(' ')[0],lastName:sanitizeName(input.lastName||parts.at(-1)).split(' ').at(-1),classId:String(input.classId||''),role:['student','teacher','administrator'].includes(input.role)?input.role:'student',status:input.status==='inactive'?'inactive':'active',guardian:sanitizeName(input.guardian||''),academicSession:String(input.academicSession||ACADEMIC_SESSION),promotionStatus:String(input.promotionStatus||'on-track'),joinedAt:Number(input.joinedAt)||Date.now() }; const current = listUsers(); writeJson(ls, USER_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id)]); return item; };
-    const updateUserStatus = (userId, status) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, status: status === 'inactive' ? 'inactive' : 'active' } : entry); writeJson(ls, USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
-    const updatePromotion = (userId, promotionStatus, classId = null) => { const current = listUsers(), next = current.map((entry) => entry.id === userId ? { ...entry, promotionStatus, classId: classId || entry.classId } : entry); writeJson(ls, USER_STORE_KEY, next); return next.find((entry) => entry.id === userId) || null; };
-    const deleteUser = (userId) => writeJson(ls, USER_STORE_KEY, listUsers().filter((entry) => entry.id !== userId));
+  const normalizeIntegrityPolicy = (value = {}) => ({ focusMonitoring: value.focusMonitoring !== false, fullscreenPrompt: value.fullscreenPrompt !== false, clipboardGuard: value.clipboardGuard !== false, warnAfter: clamp(Math.round(Number(value.warnAfter) || 2), 1, 10) });
+  const normalizeRandomization = (value = {}) => ({ questionOrder: value.questionOrder !== false, optionOrder: value.optionOrder !== false, minimizePaperCollisions: value.minimizePaperCollisions !== false });
+  const normalizeSession = (input = {}) => {
+    const mode = String(input.mode || '');
+    const classLevel = String(input.classLevel || '');
+    const subjects = uniqueStrings(input.subjects);
+    const requestedTracks = uniqueStrings(input.placementTracks).filter((track) => TRACKS.includes(track));
+    const placementTracks = mode === 'qualifier' && !requestedTracks.length ? [...TRACKS] : requestedTracks;
+    const durationSeconds = Math.round(Number(input.durationSeconds ?? Number(input.durationMinutes) * 60));
+    const questionCount = Math.round(Number(input.questionCount));
+    if (!Object.hasOwn(MODE_LABELS, mode)) throw new Error('Unsupported examination mode.');
+    if (!['SS1', 'SS2', 'SS3'].includes(classLevel)) throw new Error('Choose SS1, SS2, or SS3.');
+    if (mode === 'qualifier' && classLevel !== 'SS1') throw new Error('Qualifier sessions are reserved for incoming SS1 candidates.');
+    if (mode === 'waec' && classLevel !== 'SS3') throw new Error('WAEC subject practice sessions are configured for SS3.');
+    if (mode === 'mixed' && (subjects.length < 2 || subjects.length > 12)) throw new Error('Mixed examinations need between two and twelve subjects.');
+    if ((mode === 'single' || mode === 'waec') && subjects.length !== 1) throw new Error('This examination mode requires exactly one subject.');
+    if (mode === 'qualifier' && subjects.length && subjects.some((code) => !code.startsWith('q-'))) throw new Error('Qualifier sessions can only use placement-domain subjects.');
+    if (mode === 'qualifier' && placementTracks.length < 1) throw new Error('Choose at least one eligible placement track.');
+    if (!Number.isInteger(durationSeconds) || durationSeconds < 30 || durationSeconds > 10800) throw new Error('Duration must be between 30 seconds and 3 hours.');
+    if (!Number.isInteger(questionCount) || questionCount < 5 || questionCount > 150) throw new Error('Question count must be between 5 and 150.');
+    return { id: String(input.id || makeId()).trim().toUpperCase().slice(0, 20), version: PAYLOAD_VERSION, title: sanitizeTitle(input.title) || MODE_LABELS[mode], classLevel, classGroup: String(input.classGroup || (mode === 'qualifier' ? 'Qualifier' : 'General')).slice(0, 40), academicSession: String(input.academicSession || ACADEMIC_SESSION).slice(0, 20), term: String(input.term || 'First term').slice(0, 24), mode, subjects, placementTracks: mode === 'qualifier' ? placementTracks : [], durationSeconds, durationMinutes: durationSeconds / 60, questionCount, status: ['open', 'draft', 'closed'].includes(input.status) ? input.status : 'open', instructions: String(input.instructions || '').trim().slice(0, 140), startsAt: input.startsAt ? Number(input.startsAt) : null, endsAt: input.endsAt ? Number(input.endsAt) : null, attemptLimit: 1, integrityPolicy: normalizeIntegrityPolicy(input.integrityPolicy), randomization: normalizeRandomization(input.randomization), createdAt: Number(input.createdAt) || Date.now(), updatedAt: Number(input.updatedAt) || Date.now() };
+  };
+  const toPayload = (s) => ({ v: PAYLOAD_VERSION, i: s.id, n: s.title, c: s.classLevel, g: s.classGroup, y: s.academicSession, e: s.term, m: MODE_CODES[s.mode], s: s.subjects, t: s.placementTracks?.length ? s.placementTracks : undefined, d: s.durationSeconds, q: s.questionCount, x: s.status, r: s.instructions || undefined, a: s.startsAt || undefined, z: s.endsAt || undefined, k: [s.integrityPolicy.focusMonitoring ? 1 : 0, s.integrityPolicy.fullscreenPrompt ? 1 : 0, s.integrityPolicy.clipboardGuard ? 1 : 0, s.integrityPolicy.warnAfter], o: [s.randomization.questionOrder ? 1 : 0, s.randomization.optionOrder ? 1 : 0, s.randomization.minimizePaperCollisions ? 1 : 0] });
+  const fromPayloadV3 = (p) => normalizeSession({ id: p.i, title: p.n, classLevel: p.c, classGroup: p.g, academicSession: p.y, term: p.e, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: p.t || TRACKS, durationSeconds: p.d, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, integrityPolicy: { focusMonitoring: p.k?.[0] !== 0, fullscreenPrompt: p.k?.[1] !== 0, clipboardGuard: p.k?.[2] !== 0, warnAfter: p.k?.[3] || 2 }, randomization: { questionOrder: p.o?.[0] !== 0, optionOrder: p.o?.[1] !== 0, minimizePaperCollisions: p.o?.[2] !== 0 }, createdAt: Date.now() });
+  const fromPayloadV2 = (p) => normalizeSession({ id: p.i, title: p.n, classLevel: p.c, mode: CODE_MODES[p.m], subjects: p.s || [], placementTracks: CODE_MODES[p.m] === 'qualifier' ? TRACKS : [], durationSeconds: Number(p.d) * 60, questionCount: clamp(Number(p.q) || 5, 5, 150), status: p.x, instructions: p.r || '', startsAt: p.a || null, endsAt: p.z || null, createdAt: Date.now() });
+  const encodeSession = (input) => utf8ToBase64Url(JSON.stringify(toPayload(normalizeSession(input))));
+  const decodeSession = (token) => { if (!token) throw new Error('No examination session was provided.'); let payload; try { payload = JSON.parse(base64UrlToUtf8(token)); } catch { throw new Error('This examination link is not valid.'); } if (!SUPPORTED_PAYLOAD_VERSIONS.has(payload?.v)) throw new Error('This examination link uses an unsupported format.'); return payload.v === 2 ? fromPayloadV2(payload) : fromPayloadV3(payload); };
+  const getSessionLink = (session, baseHref = global.location?.href || 'http://localhost/prototype/index.html') => routeUrl('exam', { session: encodeSession(session) }, baseHref);
+  const getModeLabel = (mode) => MODE_LABELS[mode] || 'Examination session';
 
-    const listCustomQuestions = () => { const value = readJson(ls, CUSTOM_QUESTION_STORE_KEY, []); return Array.isArray(value) ? value : []; };
-    const nextCustomQuestionId = () => { const ids = new Set(listCustomQuestions().map((item) => Number(item.id))); let id = Math.max(1000000, ...ids, 999999) + 1; while (ids.has(id)) id += 1; return id; };
-    const saveCustomQuestion = (input = {}) => {
-      const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
-      const id = supplied === null ? nextCustomQuestionId() : supplied;
-      if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
-      const existing = listCustomQuestions();
-      const duplicate = existing.find((entry) => Number(entry.id) === id);
-      if (duplicate && Number(input.id) === id && !input.custom) throw new Error(`Teacher-authored question id ${id} already exists.`);
-      const q = { ...input, id, custom: true, source: 'teacher' };
-      writeJson(ls, CUSTOM_QUESTION_STORE_KEY, [q, ...existing.filter((entry) => Number(entry.id) !== id)].slice(0,250));
-      return q;
-    };
-    const deleteCustomQuestion = (questionId) => writeJson(ls, CUSTOM_QUESTION_STORE_KEY, listCustomQuestions().filter((item) => Number(item.id) !== Number(questionId)));
-    const listQuestionOverrides = () => { const value = readJson(ls, QUESTION_OVERRIDE_STORE_KEY, []); return Array.isArray(value) ? value : []; };
-    const saveQuestionOverride = (questionId, patch = {}) => {
-      const id = Number(questionId);
-      if (!Number.isInteger(id) || id < 1) throw new Error('Question override requires a positive integer seed id.');
-      if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Question override patch must be an object.');
-      if (Object.hasOwn(patch, 'id') && Number(patch.id) !== id) throw new Error('A seed override cannot change the question id.');
-      const safePatch = JSON.parse(JSON.stringify({ ...patch, id: undefined }));
-      delete safePatch.id;
-      const item = { questionId: id, patch: safePatch, updatedAt: Date.now() };
-      writeJson(ls, QUESTION_OVERRIDE_STORE_KEY, [item, ...listQuestionOverrides().filter((entry) => Number(entry.questionId) !== id)].slice(0,720));
+  const normalizeAttempt = (a = {}) => ({ id: String(a.id || makeId()), attemptHash: String(a.attemptHash || ''), candidateHash: String(a.candidateHash || ''), studentHash: String(a.studentHash || ''), paperFingerprint: String(a.paperFingerprint || ''), sessionId: String(a.sessionId || '').toUpperCase(), sessionTitle: sanitizeTitle(a.sessionTitle), firstName: sanitizeName(a.firstName || '').split(' ')[0] || '', lastName: sanitizeName(a.lastName || '').split(' ').slice(-1)[0] || '', studentName: sanitizeName(a.studentName || [a.firstName, a.lastName].filter(Boolean).join(' ')), classLevel: String(a.classLevel || ''), classGroup: String(a.classGroup || ''), academicSession: String(a.academicSession || ACADEMIC_SESSION), mode: String(a.mode || ''), sessionStatus: String(a.sessionStatus || ''), sessionEndsAt: Number(a.sessionEndsAt) || null, subjects: uniqueStrings(a.subjects), startedAt: Number(a.startedAt) || null, submittedAt: Number(a.submittedAt) || null, remainingSeconds: Number.isFinite(Number(a.remainingSeconds)) ? Number(a.remainingSeconds) : null, elapsedActiveSeconds: Number(a.elapsedActiveSeconds) || 0, answered: Number(a.answered) || 0, questionCount: Number(a.questionCount) || 0, score: Number.isFinite(Number(a.score)) ? Number(a.score) : null, correctCount: Number.isFinite(Number(a.correctCount)) ? Number(a.correctCount) : null, completion: Number.isFinite(Number(a.completion)) ? Number(a.completion) : null, paceIndex: Number.isFinite(Number(a.paceIndex)) ? Number(a.paceIndex) : null, reasoningIndex: Number.isFinite(Number(a.reasoningIndex)) ? Number(a.reasoningIndex) : null, integrityScore: Number.isFinite(Number(a.integrityScore)) ? Number(a.integrityScore) : null, integrityEvents: Array.isArray(a.integrityEvents) ? a.integrityEvents.slice(-100) : [], subjectStats: Array.isArray(a.subjectStats) ? a.subjectStats : [], placement: a.placement && typeof a.placement === 'object' ? a.placement : null, details: Array.isArray(a.details) ? a.details : [], questionIds: Array.isArray(a.questionIds) ? a.questionIds.map(Number) : [], submissionReason: String(a.submissionReason || ''), rewriteArchivedAt: Number(a.rewriteArchivedAt) || null, rewriteSourceAttemptHash: String(a.rewriteSourceAttemptHash || '') });
+
+  // ---------------------------------------------------------------------------
+  // Supabase persistence layer.
+  // Durable entities live in Postgres via PostgREST. Ephemeral per-tab pointers
+  // (current auth, active candidate, camera session flags) live only in JS
+  // memory — never localStorage / sessionStorage.
+  // When Supabase is not configured (missing anon key, offline, Node contract
+  // tests), an in-memory Map backend with identical semantics is used so the
+  // UI behaviour and contracts stay verifiable.
+  // ---------------------------------------------------------------------------
+  const supabase = () => (win.FestacolSupabase?.getClient ? win.FestacolSupabase.getClient() : null);
+  const backendName = () => (supabase() ? 'supabase' : 'memory');
+
+  const mem = {
+    sessions: new Map(), attempts: new Map(), states: new Map(), profiles: new Map(),
+    resets: new Map(), background: new Map(), users: new Map(), classes: new Map(),
+    customQuestions: new Map(), overrides: new Map(), whatsapp: new Map(), proctor: new Map(),
+    qbankMeta: null, qbankItems: new Map(),
+    seeded: false
+  };
+
+  // No demo dataset anywhere: every backend starts empty and only stores
+  // records the school creates through the app. The memory fallback below is
+  // a transparent store with identical semantics (used by offline checks).
+  const ensureMemSeeded = () => {
+    if (mem.seeded) return;
+    mem.seeded = true;
+  };
+
+  // Ephemeral per-tab pointers only (never persisted).
+  let currentAuthHash = '';
+  const activeCandidateBySession = new Map();
+  const cameraSessionFlags = new Map();
+
+  // --- row mappers (Supabase snake_case <-> app camelCase) ---
+  const sessionToRow = (s) => ({ id: s.id, title: s.title, class_level: s.classLevel, class_group: s.classGroup, academic_session: s.academicSession, term: s.term, mode: s.mode, subjects: s.subjects, placement_tracks: s.placementTracks, duration_seconds: s.durationSeconds, question_count: s.questionCount, status: s.status, instructions: s.instructions, starts_at: s.startsAt, ends_at: s.endsAt, attempt_limit: 1, integrity_policy: s.integrityPolicy, randomization: s.randomization, created_at: s.createdAt, updated_at: s.updatedAt });
+  const sessionFromRow = (r) => normalizeSession({ id: r.id, title: r.title, classLevel: r.class_level, classGroup: r.class_group, academicSession: r.academic_session, term: r.term, mode: r.mode, subjects: r.subjects, placementTracks: r.placement_tracks, durationSeconds: r.duration_seconds, questionCount: clamp(Number(r.question_count) || 5, 5, 150), status: r.status, instructions: r.instructions, startsAt: r.starts_at, endsAt: r.ends_at, integrityPolicy: r.integrity_policy, randomization: r.randomization, createdAt: r.created_at, updatedAt: r.updated_at });
+  const attemptToRow = (a) => ({ id: a.id, attempt_hash: a.attemptHash, candidate_hash: a.candidateHash, student_hash: a.studentHash, paper_fingerprint: a.paperFingerprint, session_id: a.sessionId, session_title: a.sessionTitle, first_name: a.firstName, last_name: a.lastName, student_name: a.studentName, class_level: a.classLevel, class_group: a.classGroup, academic_session: a.academicSession, mode: a.mode, session_status: a.sessionStatus, session_ends_at: a.sessionEndsAt, subjects: a.subjects, started_at: a.startedAt, submitted_at: a.submittedAt, remaining_seconds: a.remainingSeconds, elapsed_active_seconds: a.elapsedActiveSeconds, answered: a.answered, question_count: a.questionCount, score: a.score, correct_count: a.correctCount, completion: a.completion, pace_index: a.paceIndex, reasoning_index: a.reasoningIndex, integrity_score: a.integrityScore, integrity_events: a.integrityEvents, subject_stats: a.subjectStats, placement: a.placement, details: a.details, question_ids: a.questionIds, submission_reason: a.submissionReason, rewrite_archived_at: a.rewriteArchivedAt, rewrite_source_attempt_hash: a.rewriteSourceAttemptHash });
+  const attemptFromRow = (r) => normalizeAttempt({ id: r.id, attemptHash: r.attempt_hash, candidateHash: r.candidate_hash, studentHash: r.student_hash, paperFingerprint: r.paper_fingerprint, sessionId: r.session_id, sessionTitle: r.session_title, firstName: r.first_name, lastName: r.last_name, studentName: r.student_name, classLevel: r.class_level, classGroup: r.class_group, academicSession: r.academic_session, mode: r.mode, sessionStatus: r.session_status, sessionEndsAt: r.session_ends_at, subjects: r.subjects, startedAt: r.started_at, submittedAt: r.submitted_at, remainingSeconds: r.remaining_seconds, elapsedActiveSeconds: r.elapsed_active_seconds, answered: r.answered, questionCount: r.question_count, score: r.score, correctCount: r.correct_count, completion: r.completion, paceIndex: r.pace_index, reasoningIndex: r.reasoning_index, integrityScore: r.integrity_score, integrityEvents: r.integrity_events, subjectStats: r.subject_stats, placement: r.placement, details: r.details, questionIds: r.question_ids, submissionReason: r.submission_reason, rewriteArchivedAt: r.rewrite_archived_at, rewriteSourceAttemptHash: r.rewrite_source_attempt_hash });
+
+  const throwSupabase = (error, fallbackMessage) => {
+    if (!error) return;
+    throw new Error(error.message || fallbackMessage || 'Supabase request failed.');
+  };
+
+  // --- sessions ---
+  const listSessions = async () => {
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      return [...mem.sessions.values()].map((s) => { try { return normalizeSession({ ...s, questionCount: clamp(Number(s.questionCount) || 5, 5, 150) }); } catch { return null; } }).filter(Boolean).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
+    const { data, error } = await client.from('exam_sessions').select('*').order('created_at', { ascending: false }).limit(80);
+    throwSupabase(error, 'Unable to list examination sessions.');
+    return (data || []).map((row) => { try { return sessionFromRow(row); } catch { return null; } }).filter(Boolean);
+  };
+  const saveSession = async (input) => {
+    const prior = input?.id ? await findSessionById(String(input.id)) : null;
+    const session = normalizeSession({ ...input, createdAt: input.createdAt || prior?.createdAt || Date.now(), updatedAt: Date.now() });
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      mem.sessions.set(session.id, session);
+      return session;
+    }
+    const { error } = await client.from('exam_sessions').upsert(sessionToRow(session), { onConflict: 'id' });
+    throwSupabase(error, 'Unable to save examination session.');
+    return session;
+  };
+  const findSessionById = async (sessionId) => {
+    const id = String(sessionId || '').trim().toUpperCase();
+    if (!id) return null;
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      const found = mem.sessions.get(id) || [...mem.sessions.values()].find((s) => s.id === id);
+      return found ? normalizeSession(found) : null;
+    }
+    const { data, error } = await client.from('exam_sessions').select('*').eq('id', id).maybeSingle();
+    if (error) throwSupabase(error, 'Unable to load examination session.');
+    return data ? sessionFromRow(data) : null;
+  };
+  const updateSessionStatus = async (sessionId, status) => {
+    if (!['open', 'draft', 'closed'].includes(status)) throw new Error('Unsupported session status.');
+    const found = await findSessionById(sessionId);
+    if (!found) return null;
+    return saveSession({ ...found, status });
+  };
+  const deleteSession = async (sessionId) => {
+    const id = String(sessionId).toUpperCase();
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.sessions.delete(id); return; }
+    const { error } = await client.from('exam_sessions').delete().eq('id', id);
+    throwSupabase(error, 'Unable to delete examination session.');
+  };
+  const resolveSession = async (session) => (session?.id ? await findSessionById(session.id) : null) || session;
+
+  // --- attempts ---
+  const getAttempts = async () => {
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      return [...mem.attempts.values()].map(normalizeAttempt).sort((a, b) => ((b.submittedAt || b.startedAt || 0)) - ((a.submittedAt || a.startedAt || 0))).slice(0, 500);
+    }
+    const { data, error } = await client.from('exam_attempts').select('*').order('started_at', { ascending: false }).limit(500);
+    throwSupabase(error, 'Unable to list attempts.');
+    return (data || []).map(attemptFromRow);
+  };
+  const getAttemptResetAt = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const ch = String(candidateHash || '');
+    if (!ch) return 0;
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return Number(mem.resets.get(`${sid}:${ch}`)) || 0; }
+    const { data, error } = await client.from('attempt_reset_markers').select('reset_at').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
+    if (error) throwSupabase(error, 'Unable to load reset marker.');
+    return Number(data?.reset_at) || 0;
+  };
+  const isAttemptInvalidated = async (sessionId, candidateHash, startedAt = 0) => {
+    const resetAt = await getAttemptResetAt(sessionId, candidateHash);
+    return Boolean(resetAt && resetAt >= Number(startedAt || 0));
+  };
+  const recordAttempt = async (attempt) => {
+    const normalized = normalizeAttempt(attempt);
+    if (normalized.candidateHash && normalized.startedAt && await isAttemptInvalidated(normalized.sessionId, normalized.candidateHash, normalized.startedAt)) throw new Error('This unfinished attempt was reset by an administrator.');
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      const key = normalized.attemptHash || normalized.id;
+      mem.attempts.set(key, normalized);
+      return normalized;
+    }
+    const { error } = await client.from('exam_attempts').upsert(attemptToRow(normalized), { onConflict: 'attempt_hash' });
+    throwSupabase(error, 'Unable to record attempt.');
+    return normalized;
+  };
+  const findAttempt = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      return [...mem.attempts.values()].find((a) => a.sessionId === sid && a.candidateHash === candidateHash && !a.rewriteArchivedAt) || null;
+    }
+    const { data, error } = await client.from('exam_attempts').select('*').eq('session_id', sid).eq('candidate_hash', candidateHash).is('rewrite_archived_at', null).limit(1).maybeSingle();
+    if (error) throwSupabase(error, 'Unable to load attempt.');
+    return data ? attemptFromRow(data) : null;
+  };
+  const attemptsForCandidate = async (candidateHash) => (await getAttempts()).filter((a) => a.candidateHash === candidateHash || a.rewriteSourceAttemptHash === candidateHash);
+  const attemptsForStudent = async (studentHash) => (await getAttempts()).filter((a) => a.studentHash === studentHash || (!a.studentHash && a.candidateHash === studentHash));
+  const attemptsForSession = async (sessionId) => (await getAttempts()).filter((a) => a.sessionId === String(sessionId || '').toUpperCase());
+  const hasSubmittedAttempt = async (sessionId, candidateHash) => Boolean((await findAttempt(sessionId, candidateHash))?.submittedAt);
+
+  // --- student state (in-progress papers) ---
+  const getStudentState = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const ch = candidateHash ?? activeCandidateBySession.get(sid) ?? '';
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return mem.states.get(`${sid}:${ch || 'anonymous'}`) || null; }
+    const { data, error } = await client.from('student_states').select('state').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle();
+    if (error) throwSupabase(error, 'Unable to load student state.');
+    return data?.state || null;
+  };
+  const saveStudentState = async (sessionId, candidateHashOrValue, maybeValue) => {
+    const sid = String(sessionId).toUpperCase();
+    const legacy = maybeValue === undefined;
+    const candidateHash = legacy ? (activeCandidateBySession.get(sid) || '') : candidateHashOrValue;
+    const value = legacy ? candidateHashOrValue : maybeValue;
+    if (candidateHash && value?.startedAt && await isAttemptInvalidated(sid, candidateHash, value.startedAt)) return false;
+    const key = String(candidateHash || 'anonymous');
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.states.set(`${sid}:${key}`, value); }
+    else {
+      const { error } = await client.from('student_states').upsert({ session_id: sid, candidate_hash: key, state: value, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+      throwSupabase(error, 'Unable to save student state.');
+    }
+    if (candidateHash) activeCandidateBySession.set(sid, String(candidateHash));
+    return true;
+  };
+  const clearStudentState = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const ch = String(candidateHash ?? activeCandidateBySession.get(sid) ?? 'anonymous');
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.states.delete(`${sid}:${ch}`); return; }
+    const { error } = await client.from('student_states').delete().eq('session_id', sid).eq('candidate_hash', ch);
+    throwSupabase(error, 'Unable to clear student state.');
+  };
+
+  // --- ephemeral auth pointers (memory only) ---
+  const setActiveCandidate = (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    if (candidateHash) activeCandidateBySession.set(sid, String(candidateHash));
+    else activeCandidateBySession.delete(sid);
+  };
+  const getActiveCandidate = (sessionId) => activeCandidateBySession.get(String(sessionId).toUpperCase()) || '';
+  const clearActiveCandidate = (sessionId) => { activeCandidateBySession.delete(String(sessionId).toUpperCase()); };
+  const setStudentAuth = (studentHash) => { const value = String(studentHash || ''); if (!value) throw new Error('Student identity is required.'); currentAuthHash = value; return value; };
+  const getStudentAuth = () => currentAuthHash || '';
+  const clearStudentAuth = () => { currentAuthHash = ''; };
+
+  const resetUnfinishedAttempt = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const attempt = await findAttempt(sid, candidateHash);
+    const state = await getStudentState(sid, candidateHash);
+    if (attempt?.submittedAt || state?.submittedAt) throw new Error('Submitted attempts require the rewrite action so their audit history is preserved.');
+    if (!attempt && !state?.startedAt) throw new Error('No unfinished attempt was found for this candidate.');
+    const resetAt = Date.now();
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      mem.resets.set(`${sid}:${candidateHash}`, resetAt);
+      for (const [key, item] of mem.attempts) { if (item.sessionId === sid && item.candidateHash === candidateHash && !item.rewriteArchivedAt) mem.attempts.delete(key); }
+      mem.states.delete(`${sid}:${candidateHash}`);
+    } else {
+      const { error: resetError } = await client.from('attempt_reset_markers').upsert({ session_id: sid, candidate_hash: candidateHash, reset_at: resetAt }, { onConflict: 'session_id,candidate_hash' });
+      throwSupabase(resetError, 'Unable to reset attempt.');
+      const { error: delError } = await client.from('exam_attempts').delete().eq('session_id', sid).eq('candidate_hash', candidateHash).is('rewrite_archived_at', null);
+      throwSupabase(delError, 'Unable to reset attempt.');
+      await clearStudentState(sid, candidateHash);
+    }
+    if (getActiveCandidate(sid) === candidateHash) { clearActiveCandidate(sid); clearStudentAuth(); }
+    return { ...(attempt || { sessionId: sid, candidateHash, studentName: state?.studentName || '' }), resetAt };
+  };
+  const authorizeRewrite = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const attempt = await findAttempt(sid, candidateHash);
+    if (!attempt?.submittedAt) throw new Error('Only a submitted attempt can be opened for a rewrite.');
+    const resetAt = Date.now();
+    const archiveSuffix = `rewrite-${resetAt.toString(36)}`;
+    const archived = normalizeAttempt({ ...attempt, id: `${attempt.id}-${archiveSuffix}`, attemptHash: `${attempt.attemptHash}:${archiveSuffix}`, candidateHash: `${attempt.candidateHash}:${archiveSuffix}`, rewriteSourceAttemptHash: attempt.candidateHash, rewriteArchivedAt: resetAt });
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      for (const [key, item] of mem.attempts) { if (item.attemptHash === attempt.attemptHash) mem.attempts.delete(key); }
+      mem.attempts.set(archived.attemptHash, archived);
+      mem.resets.set(`${sid}:${candidateHash}`, resetAt);
+      mem.states.delete(`${sid}:${candidateHash}`);
+    } else {
+      const { error: insError } = await client.from('exam_attempts').insert(attemptToRow(archived));
+      throwSupabase(insError, 'Unable to archive attempt.');
+      const { error: delError } = await client.from('exam_attempts').delete().eq('attempt_hash', attempt.attemptHash);
+      throwSupabase(delError, 'Unable to archive attempt.');
+      const { error: resetError } = await client.from('attempt_reset_markers').upsert({ session_id: sid, candidate_hash: candidateHash, reset_at: resetAt }, { onConflict: 'session_id,candidate_hash' });
+      throwSupabase(resetError, 'Unable to authorize rewrite.');
+      await clearStudentState(sid, candidateHash);
+    }
+    if (getActiveCandidate(sid) === candidateHash) { clearActiveCandidate(sid); clearStudentAuth(); }
+    return archived;
+  };
+
+  // --- background markers (timer reconciliation; Supabase-backed) ---
+  const getBackgroundMarker = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const ch = String(candidateHash || '');
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return mem.background.get(`${sid}:${ch}`) || null; }
+    const { data, error } = await client.from('background_markers').select('marker').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
+    if (error) throwSupabase(error, 'Unable to load background marker.');
+    return data?.marker || null;
+  };
+  const setBackgroundMarker = async (sessionId, candidateHash, marker) => {
+    const sid = String(sessionId).toUpperCase();
+    const ch = String(candidateHash || '');
+    if (!ch || !sid) return;
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.background.set(`${sid}:${ch}`, marker); return; }
+    const { error } = await client.from('background_markers').upsert({ session_id: sid, candidate_hash: ch, marker, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+    throwSupabase(error, 'Unable to save background marker.');
+  };
+  const clearBackgroundMarker = async (sessionId, candidateHash) => {
+    const sid = String(sessionId).toUpperCase();
+    const ch = String(candidateHash || '');
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.background.delete(`${sid}:${ch}`); return; }
+    const { error } = await client.from('background_markers').delete().eq('session_id', sid).eq('candidate_hash', ch);
+    throwSupabase(error, 'Unable to clear background marker.');
+  };
+
+  // --- student profiles (Supabase; single "current" profile tracked in memory) ---
+  let currentProfileHash = '';
+  const getStudentProfile = async () => {
+    if (!currentProfileHash) return null;
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return mem.profiles.get(currentProfileHash) || null; }
+    const { data, error } = await client.from('student_profiles').select('*').eq('student_hash', currentProfileHash).maybeSingle();
+    if (error) throwSupabase(error, 'Unable to load student profile.');
+    if (!data) return null;
+    return { firstName: data.first_name, lastName: data.last_name, fullName: data.full_name, candidateHash: data.candidate_hash, studentHash: data.student_hash, phone: data.phone, guardian: data.guardian, currentClassId: data.current_class_id, academicSession: data.academic_session, updatedAt: data.updated_at };
+  };
+  const saveStudentProfile = async (input = {}) => {
+    const profile = { firstName: sanitizeName(input.firstName).split(' ')[0] || '', lastName: sanitizeName(input.lastName).split(' ').slice(-1)[0] || '', fullName: sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`), candidateHash: String(input.candidateHash || ''), studentHash: String(input.studentHash || input.candidateHash || ''), phone: String(input.phone || '').trim().slice(0, 24), guardian: sanitizeName(input.guardian || ''), currentClassId: String(input.currentClassId || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), updatedAt: Date.now() };
+    if (!profile.firstName || !profile.lastName || !profile.candidateHash || !profile.studentHash) throw new Error('First name, last name and candidate identity are required.');
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.profiles.set(profile.studentHash, profile); }
+    else {
+      const { error } = await client.from('student_profiles').upsert({ student_hash: profile.studentHash, candidate_hash: profile.candidateHash, first_name: profile.firstName, last_name: profile.lastName, full_name: profile.fullName, phone: profile.phone, guardian: profile.guardian, current_class_id: profile.currentClassId, academic_session: profile.academicSession, updated_at: profile.updatedAt }, { onConflict: 'student_hash' });
+      throwSupabase(error, 'Unable to save student profile.');
+    }
+    currentProfileHash = profile.studentHash;
+    return profile;
+  };
+  const clearStudentProfile = async () => { currentProfileHash = ''; };
+
+  // --- users / classes (live records only — never demo data) ---
+  const listClasses = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return [...mem.classes.values()]; }
+    const { data, error } = await client.from('classes').select('*');
+    throwSupabase(error, 'Unable to list classes.');
+    // Live database is the source of truth — no demo records are merged in.
+    return (data || []).map((r) => ({ id: r.id, classLevel: r.class_level, name: r.name, stream: r.stream, group: r.grp, capacity: r.capacity, room: r.room, academicSession: r.academic_session, status: r.status }));
+  };
+  const saveClass = async (input = {}) => {
+    const classLevel = String(input.classLevel || '');
+    const stream = String(input.stream || input.group || 'General').trim().slice(0, 40);
+    const name = String(input.name || `${classLevel} ${stream}`).trim().slice(0, 60);
+    if (!name || !['SS1', 'SS2', 'SS3'].includes(classLevel)) throw new Error('Class name and level are required.');
+    const item = { id: String(input.id || makeId()).slice(0, 24), classLevel, name, stream, group: String(input.group || stream).slice(0, 40), capacity: clamp(Math.round(Number(input.capacity) || 40), 1, 500), room: String(input.room || '').trim().slice(0, 50), academicSession: String(input.academicSession || ACADEMIC_SESSION), status: input.status === 'archived' ? 'archived' : 'active' };
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.classes.set(item.id, item); return item; }
+    const { error } = await client.from('classes').upsert({ id: item.id, class_level: item.classLevel, name: item.name, stream: item.stream, grp: item.group, capacity: item.capacity, room: item.room, academic_session: item.academicSession, status: item.status }, { onConflict: 'id' });
+    throwSupabase(error, 'Unable to save class.');
+    return item;
+  };
+  const deleteClass = async (classId) => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.classes.delete(classId); for (const [k, g] of mem.whatsapp) { if (g.classId === classId) mem.whatsapp.delete(k); } return; }
+    const { error } = await client.from('classes').delete().eq('id', classId);
+    throwSupabase(error, 'Unable to delete class.');
+    await client.from('whatsapp_groups').delete().eq('class_id', classId);
+  };
+  const listUsers = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return [...mem.users.values()]; }
+    const { data, error } = await client.from('app_users').select('*');
+    throwSupabase(error, 'Unable to list users.');
+    // Live database is the source of truth — no demo records are merged in.
+    return (data || []).map((r) => ({ id: r.id, fullName: r.full_name, firstName: r.first_name, lastName: r.last_name, classId: r.class_id, role: r.role, status: r.status, guardian: r.guardian, academicSession: r.academic_session, promotionStatus: r.promotion_status, joinedAt: r.joined_at }));
+  };
+  const saveUser = async (input = {}) => {
+    const fullName = sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`);
+    const parts = fullName.split(/\s+/u).filter(Boolean);
+    if (parts.length < 2) throw new Error('Enter at least first and last name for the user.');
+    const item = { id: String(input.id || `ST-${Math.floor(1000 + Math.random() * 9000)}`).slice(0, 24), fullName, firstName: sanitizeName(input.firstName || parts[0]).split(' ')[0], lastName: sanitizeName(input.lastName || parts.at(-1)).split(' ').at(-1), classId: String(input.classId || ''), role: ['student', 'teacher', 'administrator'].includes(input.role) ? input.role : 'student', status: input.status === 'inactive' ? 'inactive' : 'active', guardian: sanitizeName(input.guardian || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), promotionStatus: String(input.promotionStatus || 'on-track'), joinedAt: Number(input.joinedAt) || Date.now() };
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.users.set(item.id, item); return item; }
+    const { error } = await client.from('app_users').upsert({ id: item.id, full_name: item.fullName, first_name: item.firstName, last_name: item.lastName, class_id: item.classId, role: item.role, status: item.status, guardian: item.guardian, academic_session: item.academicSession, promotion_status: item.promotionStatus, joined_at: item.joinedAt }, { onConflict: 'id' });
+    throwSupabase(error, 'Unable to save user.');
+    return item;
+  };
+  const updateUserStatus = async (userId, status) => {
+    const users = await listUsers();
+    const found = users.find((e) => e.id === userId);
+    if (!found) return null;
+    return saveUser({ ...found, status: status === 'inactive' ? 'inactive' : 'active' });
+  };
+  const updatePromotion = async (userId, promotionStatus, classId = null) => {
+    const users = await listUsers();
+    const found = users.find((e) => e.id === userId);
+    if (!found) return null;
+    return saveUser({ ...found, promotionStatus, classId: classId || found.classId });
+  };
+  const deleteUser = async (userId) => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.users.delete(userId); return; }
+    const { error } = await client.from('app_users').delete().eq('id', userId);
+    throwSupabase(error, 'Unable to delete user.');
+  };
+
+  // --- custom questions / overrides ---
+  const listCustomQuestions = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return [...mem.customQuestions.values()]; }
+    const { data, error } = await client.from('custom_questions').select('*').limit(250);
+    throwSupabase(error, 'Unable to list custom questions.');
+    return (data || []).map((r) => r.data);
+  };
+  const saveCustomQuestion = async (input = {}) => {
+    const existing = await listCustomQuestions();
+    const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
+    let id = supplied;
+    if (id === null) {
+      const ids = new Set(existing.map((item) => Number(item.id)));
+      id = Math.max(1000000, ...ids, 999999) + 1;
+      while (ids.has(id)) id += 1;
+    }
+    if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
+    const duplicate = existing.find((entry) => Number(entry.id) === id);
+    if (duplicate && Number(input.id) === id && !input.custom) throw new Error(`Teacher-authored question id ${id} already exists.`);
+    const q = { ...input, id, custom: true, source: 'teacher' };
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.customQuestions.set(id, q); return q; }
+    const { error } = await client.from('custom_questions').upsert({ id, data: q }, { onConflict: 'id' });
+    throwSupabase(error, 'Unable to save custom question.');
+    return q;
+  };
+  const deleteCustomQuestion = async (questionId) => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.customQuestions.delete(Number(questionId)); return; }
+    const { error } = await client.from('custom_questions').delete().eq('id', Number(questionId));
+    throwSupabase(error, 'Unable to delete custom question.');
+  };
+  const listQuestionOverrides = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return [...mem.overrides.values()]; }
+    const { data, error } = await client.from('question_overrides').select('*').limit(720);
+    throwSupabase(error, 'Unable to list question overrides.');
+    return (data || []).map((r) => ({ questionId: Number(r.question_id), patch: r.patch, updatedAt: r.updated_at }));
+  };
+  const saveQuestionOverride = async (questionId, patch = {}) => {
+    const id = Number(questionId);
+    if (!Number.isInteger(id) || id < 1) throw new Error('Question override requires a positive integer seed id.');
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Question override patch must be an object.');
+    if (Object.hasOwn(patch, 'id') && Number(patch.id) !== id) throw new Error('A seed override cannot change the question id.');
+    const safePatch = JSON.parse(JSON.stringify({ ...patch, id: undefined }));
+    delete safePatch.id;
+    const item = { questionId: id, patch: safePatch, updatedAt: Date.now() };
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.overrides.set(id, item); return item; }
+    const { error } = await client.from('question_overrides').upsert({ question_id: id, patch: safePatch, updated_at: item.updatedAt }, { onConflict: 'question_id' });
+    throwSupabase(error, 'Unable to save question override.');
+    return item;
+  };
+  const resetQuestionOverride = async (questionId) => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.overrides.delete(Number(questionId)); return; }
+    const { error } = await client.from('question_overrides').delete().eq('question_id', Number(questionId));
+    throwSupabase(error, 'Unable to reset question override.');
+  };
+
+  // --- question bank (seed questions + catalogue live in Supabase) ---
+  // Runtime source of truth. Admin "Load question bank" populates
+  // these tables; questions.load() reads from here, never from the seed file.
+  const getQuestionBankStatus = async () => {
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      return { backend: 'memory', configured: false, meta: mem.qbankMeta, questionCount: mem.qbankItems.size, syncedAt: mem.qbankMeta?.updatedAt || null };
+    }
+    const { data: meta, error: metaError } = await client.from('question_bank_meta').select('*').eq('id', 1).maybeSingle();
+    if (metaError && metaError.code !== 'PGRST205') throwSupabase(metaError, 'Unable to load question bank status.');
+    let questionCount = 0;
+    if (!metaError) {
+      const { count, error: countError } = await client.from('question_bank_items').select('id', { count: 'exact', head: true });
+      if (countError && countError.code !== 'PGRST205') throwSupabase(countError, 'Unable to count question bank.');
+      questionCount = count || 0;
+    }
+    return { backend: 'supabase', configured: true, meta: meta || null, questionCount, syncedAt: meta?.updated_at || null, missingTables: Boolean(metaError) };
+  };
+  const loadQuestionBankFromDb = async () => {
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      if (!mem.qbankMeta) return null;
+      return { questionSetId: mem.qbankMeta.questionSetId, subjectCatalog: mem.qbankMeta.subjectCatalog, assessmentAlignment: mem.qbankMeta.assessmentAlignment, questions: [...mem.qbankItems.values()].map((r) => r.data) };
+    }
+    const { data: meta, error: metaError } = await client.from('question_bank_meta').select('*').eq('id', 1).maybeSingle();
+    if (metaError) {
+      if (metaError.code === 'PGRST205') return null; // migration not run yet
+      throwSupabase(metaError, 'Unable to load question bank.');
+    }
+    if (!meta) return null;
+    const questions = [];
+    const pageSize = 1000;
+    let from = 0;
+    for (;;) {
+      const { data: rows, error } = await client.from('question_bank_items').select('data').order('id', { ascending: true }).range(from, from + pageSize - 1);
+      if (error) throwSupabase(error, 'Unable to load question bank items.');
+      (rows || []).forEach((r) => questions.push(r.data));
+      if (!rows || rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return { questionSetId: meta.question_set_id, subjectCatalog: meta.subject_catalog, assessmentAlignment: meta.assessment_alignment, questions };
+  };
+  const syncQuestionBank = async (payload) => {
+    if (!payload || !payload.questionSetId || !Array.isArray(payload.questions) || !payload.questions.length) throw new Error('Question payload is empty.');
+    if (!Array.isArray(payload.subjectCatalog) || !payload.subjectCatalog.length) throw new Error('Subject catalogue is missing.');
+    const now = Date.now();
+    const meta = { questionSetId: payload.questionSetId, subjectCatalog: payload.subjectCatalog, assessmentAlignment: payload.assessmentAlignment || null, questionCount: payload.questions.length, updatedAt: now };
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      mem.qbankMeta = meta;
+      mem.qbankItems.clear();
+      payload.questions.forEach((q) => mem.qbankItems.set(Number(q.id), { data: q }));
+      return { ...meta, backend: 'memory' };
+    }
+    const { error: metaError } = await client.from('question_bank_meta').upsert({ id: 1, question_set_id: meta.questionSetId, subject_catalog: meta.subjectCatalog, assessment_alignment: meta.assessmentAlignment, question_count: meta.questionCount, updated_at: now }, { onConflict: 'id' });
+    throwSupabase(metaError, 'Unable to sync question catalogue. Run migration_question_bank.sql first.');
+    const rows = payload.questions.map((q) => ({ id: Number(q.id), data: q, subject_code: String(q.subjectCode || ''), updated_at: now }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await client.from('question_bank_items').upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+      throwSupabase(error, 'Unable to sync question items.');
+    }
+    return { ...meta, backend: 'supabase' };
+  };
+
+  // --- whatsapp ---
+  const normalizeWhatsAppUrl = (value) => {
+    let url;
+    try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid WhatsApp group invite link.'); }
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || !['chat.whatsapp.com', 'www.whatsapp.com', 'whatsapp.com'].includes(host)) throw new Error('Use a secure WhatsApp group invite link from chat.whatsapp.com.');
+    if (host === 'chat.whatsapp.com' && url.pathname.replaceAll('/', '').length < 6) throw new Error('The WhatsApp invite code is incomplete.');
+    return url.href;
+  };
+  const listWhatsAppGroups = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); return [...mem.whatsapp.values()]; }
+    const { data, error } = await client.from('whatsapp_groups').select('*').limit(80);
+    throwSupabase(error, 'Unable to list WhatsApp groups.');
+    return (data || []).map((r) => ({ id: r.id, classId: r.class_id, name: r.name, inviteUrl: r.invite_url, createdAt: r.created_at, updatedAt: r.updated_at }));
+  };
+  const saveWhatsAppGroup = async (input = {}) => {
+    const classId = String(input.classId || '');
+    const classes = await listClasses();
+    const cls = classes.find((item) => item.id === classId);
+    if (!cls) throw new Error('Choose an existing class for this WhatsApp group.');
+    const item = { id: String(input.id || makeId()).slice(0, 24), classId, name: sanitizeTitle(input.name || `${cls.name} Parents`), inviteUrl: normalizeWhatsAppUrl(input.inviteUrl), createdAt: Number(input.createdAt) || Date.now(), updatedAt: Date.now() };
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      for (const [k, g] of mem.whatsapp) { if (g.id === item.id || g.classId === classId) mem.whatsapp.delete(k); }
+      mem.whatsapp.set(item.id, item);
       return item;
-    };
-    const resetQuestionOverride = (questionId) => writeJson(ls, QUESTION_OVERRIDE_STORE_KEY, listQuestionOverrides().filter((entry) => Number(entry.questionId) !== Number(questionId)));
+    }
+    const current = await listWhatsAppGroups();
+    for (const g of current) {
+      if (g.classId === classId && g.id !== item.id) await client.from('whatsapp_groups').delete().eq('id', g.id);
+    }
+    const { error } = await client.from('whatsapp_groups').upsert({ id: item.id, class_id: item.classId, name: item.name, invite_url: item.inviteUrl, created_at: item.createdAt, updated_at: item.updatedAt }, { onConflict: 'id' });
+    throwSupabase(error, 'Unable to save WhatsApp group.');
+    return item;
+  };
+  const deleteWhatsAppGroup = async (groupId) => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.whatsapp.delete(groupId); return; }
+    const { error } = await client.from('whatsapp_groups').delete().eq('id', groupId);
+    throwSupabase(error, 'Unable to delete WhatsApp group.');
+  };
+  const whatsAppGroupForClass = async (classId) => (await listWhatsAppGroups()).find((item) => item.classId === classId) || null;
 
-    const normalizeWhatsAppUrl = (value) => { let url; try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid WhatsApp group invite link.'); } const host = url.hostname.toLowerCase(); if (url.protocol !== 'https:' || !['chat.whatsapp.com', 'www.whatsapp.com', 'whatsapp.com'].includes(host)) throw new Error('Use a secure WhatsApp group invite link from chat.whatsapp.com.'); if (host === 'chat.whatsapp.com' && url.pathname.replaceAll('/', '').length < 6) throw new Error('The WhatsApp invite code is incomplete.'); return url.href; };
-    const saveWhatsAppGroup = (input = {}) => { const classId = String(input.classId || ''); const cls = listClasses().find((item) => item.id === classId); if (!cls) throw new Error('Choose an existing class for this WhatsApp group.'); const item = { id:String(input.id||makeId()).slice(0,24),classId,name:sanitizeTitle(input.name||`${cls.name} Parents`),inviteUrl:normalizeWhatsAppUrl(input.inviteUrl),createdAt:Number(input.createdAt)||Date.now(),updatedAt:Date.now() }; const current = listWhatsAppGroups(); writeJson(ls, WHATSAPP_GROUP_STORE_KEY, [item, ...current.filter((entry) => entry.id !== item.id && entry.classId !== classId)].slice(0,80)); return item; };
-    const deleteWhatsAppGroup = (groupId) => writeJson(ls, WHATSAPP_GROUP_STORE_KEY, listWhatsAppGroups().filter((item) => item.id !== groupId));
-    const whatsAppGroupForClass = (classId) => listWhatsAppGroups().find((item) => item.classId === classId) || null;
-    const clearSessions = () => { ls.removeItem(SESSION_STORE_KEY); ls.removeItem(LEGACY_SESSION_STORE_KEY); };
-    const clearAttempts = () => { ls.removeItem(ATTEMPT_STORE_KEY); ls.removeItem(LEGACY_ATTEMPT_STORE_KEY); };
-    const clearAllStudentStates = () => { const keys=[]; for(let i=0;i<ls.length;i+=1){const key=ls.key(i);if(key?.startsWith(STUDENT_STATE_PREFIX)||key?.startsWith(LEGACY_STUDENT_STATE_PREFIX)||key?.startsWith(RESET_MARKER_PREFIX))keys.push(key);} keys.forEach((key)=>ls.removeItem(key)); const sessionKeys=[]; for(let i=0;i<ss.length;i+=1){const key=ss.key(i);if(key?.startsWith(ACTIVE_CANDIDATE_PREFIX)||key===AUTH_STUDENT_KEY)sessionKeys.push(key);} sessionKeys.forEach((key)=>ss.removeItem(key)); return keys.length+sessionKeys.length; };
-    const clearPrototypeData = () => { const count=clearAllStudentStates(); clearSessions(); clearAttempts(); clearStudentProfile(); [USER_STORE_KEY,LEGACY_USER_STORE_KEY,CLASS_STORE_KEY,LEGACY_CLASS_STORE_KEY,CUSTOM_QUESTION_STORE_KEY,QUESTION_OVERRIDE_STORE_KEY,WHATSAPP_GROUP_STORE_KEY].forEach((key)=>ls.removeItem(key)); return count; };
-    return Object.freeze({ PAYLOAD_VERSION, MODE_LABELS, TRACKS, ACADEMIC_SESSION, normalizeSession, encodeSession, decodeSession, getSessionLink, resolveSession, findSessionById, listSessions, saveSession, updateSessionStatus, deleteSession, getAttempts, recordAttempt, findAttempt, attemptsForCandidate, attemptsForStudent, attemptsForSession, hasSubmittedAttempt, resetUnfinishedAttempt, authorizeRewrite, getStudentState, saveStudentState, clearStudentState, setActiveCandidate, getActiveCandidate, clearActiveCandidate, setStudentAuth, getStudentAuth, clearStudentAuth, getAttemptResetAt, isAttemptInvalidated, getStudentProfile, saveStudentProfile, clearStudentProfile, clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData, sanitizeName, sanitizeTitle, getModeLabel:(mode)=>MODE_LABELS[mode]||'Examination session', durationLabel, listClasses, saveClass, deleteClass, listUsers, saveUser, updateUserStatus, updatePromotion, deleteUser, listQuestionOverrides, saveQuestionOverride, resetQuestionOverride, listCustomQuestions, saveCustomQuestion, deleteCustomQuestion, listWhatsAppGroups, saveWhatsAppGroup, deleteWhatsAppGroup, whatsAppGroupForClass });
-  })();
+  const clearSessions = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.sessions.clear(); return; }
+    const { error } = await client.from('exam_sessions').delete().neq('id', '__none__');
+    throwSupabase(error, 'Unable to clear sessions.');
+  };
+  const clearAttempts = async () => {
+    const client = supabase();
+    if (!client) { ensureMemSeeded(); mem.attempts.clear(); return; }
+    const { error } = await client.from('exam_attempts').delete().neq('attempt_hash', '__none__');
+    throwSupabase(error, 'Unable to clear attempts.');
+  };
+  const clearAllStudentStates = async () => {
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      const count = mem.states.size + mem.resets.size;
+      mem.states.clear(); mem.resets.clear(); mem.background.clear();
+      activeCandidateBySession.clear(); currentAuthHash = '';
+      return count;
+    }
+    await client.from('student_states').delete().neq('session_id', '__none__');
+    await client.from('attempt_reset_markers').delete().neq('session_id', '__none__');
+    await client.from('background_markers').delete().neq('session_id', '__none__');
+    activeCandidateBySession.clear(); currentAuthHash = '';
+    return 0;
+  };
+  const clearPrototypeData = async () => {
+    await clearAllStudentStates();
+    await clearSessions();
+    await clearAttempts();
+    await clearStudentProfile();
+    const client = supabase();
+    if (!client) {
+      ensureMemSeeded();
+      mem.users.clear(); mem.classes.clear(); mem.customQuestions.clear(); mem.overrides.clear(); mem.whatsapp.clear(); mem.proctor.clear();
+      mem.seeded = false;
+      return 0;
+    }
+    await client.from('app_users').delete().neq('id', '__none__');
+    await client.from('classes').delete().neq('id', '__none__');
+    await client.from('custom_questions').delete().neq('id', -1);
+    await client.from('question_overrides').delete().neq('question_id', -1);
+    await client.from('whatsapp_groups').delete().neq('id', '__none__');
+    await client.from('student_profiles').delete().neq('student_hash', '__none__');
+    await client.from('proctor_policies').delete().neq('session_id', '__none__');
+    return 0;
+  };
+
+  // Test/compat helper: direct in-memory seeding without touching Supabase.
+  const __seedMemory = (kind, value) => {
+    ensureMemSeeded();
+    if (kind === 'session') { mem.sessions.set(value.id, { ...value }); return; }
+    if (kind === 'customQuestions') mem.customQuestions.set(Number(value.id), value);
+  };
+
+  const store = Object.freeze({
+    PAYLOAD_VERSION, MODE_LABELS, TRACKS, ACADEMIC_SESSION,
+    normalizeSession, encodeSession, decodeSession, getSessionLink, resolveSession,
+    findSessionById, listSessions, saveSession, updateSessionStatus, deleteSession,
+    normalizeAttempt, getAttempts, recordAttempt, findAttempt, attemptsForCandidate,
+    attemptsForStudent, attemptsForSession, hasSubmittedAttempt,
+    resetUnfinishedAttempt, authorizeRewrite,
+    getStudentState, saveStudentState, clearStudentState,
+    getBackgroundMarker, setBackgroundMarker, clearBackgroundMarker,
+    setActiveCandidate, getActiveCandidate, clearActiveCandidate,
+    setStudentAuth, getStudentAuth, clearStudentAuth,
+    getAttemptResetAt, isAttemptInvalidated,
+    getStudentProfile, saveStudentProfile, clearStudentProfile,
+    clearSessions, clearAttempts, clearAllStudentStates, clearPrototypeData,
+    sanitizeName, sanitizeTitle, getModeLabel, durationLabel,
+    listClasses, saveClass, deleteClass, listUsers, saveUser,
+    updateUserStatus, updatePromotion, deleteUser,
+    listCustomQuestions, saveCustomQuestion, deleteCustomQuestion,
+    listQuestionOverrides, saveQuestionOverride, resetQuestionOverride,
+    getQuestionBankStatus, loadQuestionBankFromDb, syncQuestionBank,
+    listWhatsAppGroups, saveWhatsAppGroup, deleteWhatsAppGroup, whatsAppGroupForClass,
+    backendName, __seedMemory
+  });
 
   const proctor = (() => {
-    const ADMIN_POLICY_PREFIX = 'festacol.exam.proctor.v1:';
-    const SESSION_POLICY_PREFIX = 'festacol.student.proctor.v1:';
     const bool = (value) => value === true || value === 1 || value === '1' || value === 'true';
-    const adminKey = (sessionId) => `${ADMIN_POLICY_PREFIX}${sessionId}`;
-    const sessionKey = (sessionId) => `${SESSION_POLICY_PREFIX}${sessionId}`;
     const readPayload = (token) => { try { return JSON.parse(base64UrlToUtf8(token)); } catch { return null; } };
     const writePayload = (payload) => utf8ToBase64Url(JSON.stringify(payload));
-    const getAdminPolicy = (sessionId) => { if (!sessionId) return { cameraRequired: false }; const value = readJson(ls, adminKey(sessionId), {}); return { cameraRequired: bool(value?.cameraRequired) }; };
-    const setAdminPolicy = (sessionId, policy = {}) => { if (!sessionId) throw new Error('Session id is required for proctoring policy.'); const normalized = { cameraRequired: bool(policy.cameraRequired), updatedAt: Date.now() }; ls.setItem(adminKey(sessionId), JSON.stringify(normalized)); return normalized; };
-    const policyFromUrl = (href = global.location?.href || 'http://localhost/prototype/index.html') => { const url = new URL(href, global.location?.href || 'http://localhost/prototype/index.html'); const payload = readPayload(url.searchParams.get('session')); if (payload && Object.hasOwn(payload, 'p')) return { cameraRequired: payload.p === 1 || payload.p === true }; const legacyValue = url.searchParams.get('camera'); if (legacyValue !== null) return { cameraRequired: legacyValue === '1' || legacyValue === 'true' }; return null; };
-    const rememberFromUrl = (sessionId, href = global.location?.href || 'http://localhost/prototype/index.html') => { if (!sessionId) return { cameraRequired: false }; const fromUrl = policyFromUrl(href); if (fromUrl) { if (fromUrl.cameraRequired) ss.setItem(sessionKey(sessionId), '1'); else ss.removeItem(sessionKey(sessionId)); return fromUrl; } return { cameraRequired: ss.getItem(sessionKey(sessionId)) === '1' || getAdminPolicy(sessionId).cameraRequired }; };
-    const isCameraRequired = (sessionId, href = global.location?.href || 'http://localhost/prototype/index.html') => rememberFromUrl(sessionId, href).cameraRequired;
-    const decorateStudentLink = (href, cameraRequired) => { const url = new URL(href, global.location?.href || 'http://localhost/prototype/index.html'); const token = url.searchParams.get('session'); const payload = readPayload(token); if (payload) { if (cameraRequired) payload.p = 1; else delete payload.p; url.searchParams.set('session', writePayload(payload)); } url.searchParams.delete('camera'); return url.href; };
-    const sessionIdFromLink = (href) => { try { const token = new URL(href, global.location?.href || 'http://localhost/prototype/index.html').searchParams.get('session'); if (!token) return ''; return store.decodeSession(token).id || ''; } catch { return ''; } };
+    const getAdminPolicy = async (sessionId) => {
+      if (!sessionId) return { cameraRequired: false };
+      const sid = String(sessionId).toUpperCase();
+      const client = supabase();
+      if (!client) { ensureMemSeeded(); return { cameraRequired: bool(mem.proctor.get(sid)?.cameraRequired) }; }
+      const { data, error } = await client.from('proctor_policies').select('*').eq('session_id', sid).maybeSingle();
+      if (error) throwSupabase(error, 'Unable to load proctor policy.');
+      return { cameraRequired: bool(data?.camera_required) };
+    };
+    const setAdminPolicy = async (sessionId, policy = {}) => {
+      if (!sessionId) throw new Error('Session id is required for proctoring policy.');
+      const sid = String(sessionId).toUpperCase();
+      const normalized = { cameraRequired: bool(policy.cameraRequired), updatedAt: Date.now() };
+      const client = supabase();
+      if (!client) { ensureMemSeeded(); mem.proctor.set(sid, normalized); return normalized; }
+      const { error } = await client.from('proctor_policies').upsert({ session_id: sid, camera_required: normalized.cameraRequired, updated_at: normalized.updatedAt }, { onConflict: 'session_id' });
+      throwSupabase(error, 'Unable to save proctor policy.');
+      return normalized;
+    };
+    const policyFromUrl = (href = global.location?.href || 'http://localhost/prototype/index.html') => {
+      const url = new URL(href, global.location?.href || 'http://localhost/prototype/index.html');
+      const payload = readPayload(url.searchParams.get('session'));
+      if (payload && Object.hasOwn(payload, 'p')) return { cameraRequired: payload.p === 1 || payload.p === true };
+      const legacyValue = url.searchParams.get('camera');
+      if (legacyValue !== null) return { cameraRequired: legacyValue === '1' || legacyValue === 'true' };
+      return null;
+    };
+    const rememberFromUrl = async (sessionId, href = global.location?.href || 'http://localhost/prototype/index.html') => {
+      if (!sessionId) return { cameraRequired: false };
+      const sid = String(sessionId).toUpperCase();
+      const fromUrl = policyFromUrl(href);
+      if (fromUrl) {
+        if (fromUrl.cameraRequired) cameraSessionFlags.set(sid, true);
+        else cameraSessionFlags.delete(sid);
+        return fromUrl;
+      }
+      if (cameraSessionFlags.get(sid)) return { cameraRequired: true };
+      const admin = await getAdminPolicy(sid);
+      return { cameraRequired: admin.cameraRequired };
+    };
+    const isCameraRequired = async (sessionId, href = global.location?.href || 'http://localhost/prototype/index.html') => (await rememberFromUrl(sessionId, href)).cameraRequired;
+    const decorateStudentLink = (href, cameraRequired) => {
+      const url = new URL(href, global.location?.href || 'http://localhost/prototype/index.html');
+      const token = url.searchParams.get('session');
+      const payload = readPayload(token);
+      if (payload) {
+        if (cameraRequired) payload.p = 1;
+        else delete payload.p;
+        url.searchParams.set('session', writePayload(payload));
+      }
+      url.searchParams.delete('camera');
+      return url.href;
+    };
+    const sessionIdFromLink = (href) => {
+      try {
+        const token = new URL(href, global.location?.href || 'http://localhost/prototype/index.html').searchParams.get('session');
+        if (!token) return '';
+        return decodeSession(token).id || '';
+      } catch { return ''; }
+    };
     return Object.freeze({ getAdminPolicy, setAdminPolicy, policyFromUrl, rememberFromUrl, isCameraRequired, decorateStudentLink, sessionIdFromLink });
   })();
+
 
   const questions = (() => {
     const SUPPORTED_TYPES = new Set(['single', 'multi', 'boolean', 'fill', 'fill-multi']);
@@ -282,10 +847,18 @@
       }
       return true;
     };
-    const resolveUrl = () => { const script = global.document?.currentScript; if (script?.src) return new URL('../data/questions.json', script.src).href; const base = global.document?.baseURI || global.location?.href || 'http://localhost/prototype/index.html'; return new URL('./data/questions.json', base).href; };
-    const applyOverrides = (payload) => {
+    // Seed file lives in Next.js public/ (canonical location). The runtime
+    // prefers Supabase; these URLs are only the one-time sync source.
+    // '/seed/questions.json' works when served from the repo root (Next dev,
+    // root static server); '/public/seed/questions.json' covers plain static
+    // servers rooted at the repo (e.g. Playwright).
+    const seedCandidates = () => {
+      const base = global.document?.baseURI || global.location?.href || 'http://localhost/prototype/index.html';
+      return ['/seed/questions.json', '/public/seed/questions.json'].map((path) => new URL(path, base).href);
+    };
+    const applyOverrides = async (payload) => {
       const seedIds = new Set(payload.questions.map((question) => question.id));
-      const overrideRecords = store.listQuestionOverrides();
+      const overrideRecords = await store.listQuestionOverrides();
       for (const record of overrideRecords) {
         if (!seedIds.has(Number(record?.questionId))) throw new Error(`Question override ${record?.questionId} does not match a seed question.`);
       }
@@ -297,7 +870,7 @@
       });
       const validCustom = [];
       const quarantinedCustomQuestions = [];
-      for (const raw of store.listCustomQuestions()) {
+      for (const raw of await store.listCustomQuestions()) {
         if (seedIds.has(Number(raw?.id)) || validCustom.some((item) => item.id === Number(raw?.id))) throw new Error(`Teacher-authored question id ${raw?.id} duplicates an existing question id.`);
         const candidate = { ...raw, custom: true, source: 'teacher' };
         try {
@@ -311,18 +884,45 @@
       const combined = validatePayload({ ...payload, questions: [...mergedSeeds, ...validCustom] });
       return { ...combined, quarantinedCustomQuestions };
     };
+    const loadSeedFile = async () => {
+      if (typeof global.fetch !== 'function') throw new Error('Question data cannot be loaded in this environment.');
+      let lastError = null;
+      for (const url of seedCandidates()) {
+        try {
+          const response = await global.fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+          if (response.ok) return response.json();
+          lastError = new Error(`Question seed request failed (${response.status}).`);
+        } catch (error) { lastError = error; }
+      }
+      throw lastError || new Error('Question seed file could not be loaded.');
+    };
     const load = async () => {
       if (!baseCache) {
-        if (typeof global.fetch !== 'function') throw new Error('Question data cannot be loaded in this environment.');
-        const response = await global.fetch(resolveUrl(), { headers: { Accept: 'application/json' }, cache: 'no-store' });
-        if (!response.ok) throw new Error(`Question data request failed (${response.status}).`);
-        baseCache = validatePayload(await response.json(), { minimumQuestions: 720 });
-        validateRoutingCoverage(baseCache);
+        // Primary source: Supabase question bank (populated via Admin sync).
+        // The JSON seed file is only the sync source, never the runtime source
+        // once the database has been synced.
+        let fromDb = null;
+        try { fromDb = await store.loadQuestionBankFromDb(); } catch { fromDb = null; }
+        if (fromDb && Array.isArray(fromDb.questions) && fromDb.questions.length) {
+          baseCache = validatePayload({ ...fromDb, assessmentAlignment: fromDb.assessmentAlignment }, { minimumQuestions: 720 });
+          validateRoutingCoverage(baseCache);
+        } else {
+          const seedJson = await loadSeedFile();
+          baseCache = validatePayload(seedJson, { minimumQuestions: 720 });
+          validateRoutingCoverage(baseCache);
+        }
       }
-      const merged = applyOverrides(baseCache);
+      const merged = await applyOverrides(baseCache);
       validateRoutingCoverage({ ...merged, questions: merged.questions.filter((question) => !question.custom) });
       return merged;
     };
+    const syncSeedFileToDatabase = async () => {
+      const seedJson = await loadSeedFile();
+      const validated = validatePayload(seedJson, { minimumQuestions: 720 });
+      validateRoutingCoverage(validated);
+      return store.syncQuestionBank(validated);
+    };
+    const resetCache = () => { baseCache = null; };
     const availableSubjects = (payload, classLevel, mode, pathway = '') => payload.subjectCatalog.filter((subject) => {
       if (!subject.levels.includes(classLevel)) return false;
       return payload.questions.some((question) => isEligible(question, { classLevel, mode, subjects: [subject.code], classGroup: pathway, placementTracks: pathway ? [pathway] : [] }));
@@ -332,7 +932,7 @@
     const questionsForSession = (payload, session) => { const candidates = eligibleQuestions(payload, session); const limit = Math.min(session.questionCount, candidates.length); if (session.mode === 'single' || session.mode === 'waec') return candidates.slice(0, limit); const subjectOrder = session.subjects?.length ? session.subjects : [...new Set(candidates.map((question) => question.subjectCode))]; return interleaveBySubject(candidates, subjectOrder, limit); };
     const subjectByCode = (payload, code) => payload.subjectCatalog.find((subject) => subject.code === code) || null;
     const questionById = (payload, id) => payload.questions.find((question) => question.id === Number(id)) || null;
-    return Object.freeze({ load, validatePayload, validateAnswerShape, validateRoutingCoverage, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
+    return Object.freeze({ load, syncSeedFileToDatabase, resetCache, validatePayload, validateAnswerShape, validateRoutingCoverage, availableSubjects, eligibleQuestions, questionsForSession, subjectByCode, questionById });
   })();
 
   const assessment = (() => {
@@ -420,6 +1020,7 @@
     const render=(element,text)=>{if(!element)throw new Error('QR target element is missing.');element.innerHTML=svgFor(String(text));const svg=element.querySelector('svg');if(svg)svg.classList.add('h-auto','w-full');};
     return Object.freeze({ render, svgFor });
   })();
+
 
   const Festacol = Object.freeze({ store, questions, assessment, proctor, qr, utils });
   win.Festacol = Festacol;

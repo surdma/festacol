@@ -30,6 +30,8 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
     html { scroll-behavior: smooth; }
+    dialog { margin: auto; max-height: calc(100dvh - 2rem); }
+    dialog::backdrop { background: rgb(9 9 11 / 0.5); }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         scroll-behavior: auto !important;
@@ -51,6 +53,9 @@
     </main>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="./js/supabase-config.js"></script>
+  <script src="./js/supabase-client.js"></script>
   <script src="./js/shared.js"></script>
   <script>
     (() => {

@@ -2,17 +2,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 
-const questionFile = new URL('../data/questions.json', import.meta.url);
+const questionFile = new URL('../../public/seed/questions.json', import.meta.url);
 const seedPayload = JSON.parse(fs.readFileSync(questionFile, 'utf8'));
-const local = new Map();
-const session = new Map();
-const storage = (map) => ({
-  get length(){return map.size}, key(i){return [...map.keys()][i]??null},
-  getItem(k){return map.has(k)?map.get(k):null}, setItem(k,v){map.set(k,String(v))},
-  removeItem(k){map.delete(k)}, clear(){map.clear()}
-});
-const localStorage=storage(local), sessionStorage=storage(session);
-const ctx={window:{},localStorage,sessionStorage,location:{href:'http://localhost/prototype/index.html'},crypto:webcrypto,TextEncoder,TextDecoder,btoa:(v)=>Buffer.from(v,'binary').toString('base64'),atob:(v)=>Buffer.from(v,'base64').toString('binary'),URL,console,Date,Math,setTimeout,clearTimeout,fetch:async()=>({ok:true,status:200,json:async()=>structuredClone(seedPayload)})};
+// Supabase-backed store: no localStorage/sessionStorage. The shared runtime
+// uses Supabase when configured, otherwise an in-memory Map backend with
+// identical semantics (used here for contract verification).
+const ctx={window:{},location:{href:'http://localhost/prototype/index.html'},crypto:webcrypto,TextEncoder,TextDecoder,btoa:(v)=>Buffer.from(v,'binary').toString('base64'),atob:(v)=>Buffer.from(v,'base64').toString('binary'),URL,console,Date,Math,setTimeout,clearTimeout,fetch:async()=>({ok:true,status:200,json:async()=>structuredClone(seedPayload)})};
 ctx.globalThis=ctx;ctx.window=ctx;
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(new URL('../js/shared.js',import.meta.url),'utf8'),ctx,{filename:'shared.js'});
@@ -21,16 +16,18 @@ if(!F||!Object.isFrozen(F))throw new Error('shared namespace was not initialized
 for(const key of ['store','questions','assessment','proctor','qr','utils'])if(!F[key])throw new Error(`Festacol.${key} unavailable`);
 if(ctx.FestacolSessionStore!==F.store||ctx.FestacolQuestionData!==F.questions||ctx.FestacolAssessmentEngine!==F.assessment||ctx.FestacolProctorPolicy!==F.proctor||ctx.FestacolQR!==F.qr)throw new Error('legacy compatibility aliases do not point to shared modules');
 const S=F.store,Q=F.questions,A=F.assessment,P=F.proctor;
+if(S.backendName()!=='memory')throw new Error('contract must run against the memory fallback (no Supabase keys in Node)');
+if(/localStorage|sessionStorage/u.test(fs.readFileSync(new URL('../js/shared.js',import.meta.url),'utf8').replace(/never localStorage \/ sessionStorage/gu,'')))throw new Error('shared runtime must not use browser storage for persistence');
 
-// Preserve session compatibility/routing.
-localStorage.setItem('festacol.exam.sessions.v3',JSON.stringify([{id:'OLD1',version:3,title:'Legacy stored exam',classLevel:'SS2',classGroup:'General',academicSession:'2026/2027',term:'First term',mode:'single',subjects:['mat'],placementTracks:[],durationSeconds:600,durationMinutes:10,questionCount:1,status:'open',instructions:'',startsAt:null,endsAt:null,attemptLimit:1,integrityPolicy:{},randomization:{},createdAt:1}]));
-if(S.listSessions()[0]?.questionCount!==5)throw new Error('stored pre-5-question session was not migrated');
-localStorage.removeItem('festacol.exam.sessions.v3');
+// Preserve session compatibility/routing (raw seed bypasses validation, read path clamps).
+S.__seedMemory('session',{id:'OLD1',version:3,title:'Legacy stored exam',classLevel:'SS2',classGroup:'General',academicSession:'2026/2027',term:'First term',mode:'single',subjects:['mat'],placementTracks:[],durationSeconds:600,durationMinutes:10,questionCount:1,status:'open',instructions:'',startsAt:null,endsAt:null,attemptLimit:1,integrityPolicy:{},randomization:{},createdAt:1});
+if((await S.listSessions())[0]?.questionCount!==5)throw new Error('stored pre-5-question session was not migrated');
+await S.clearSessions();
 const legacyV2={v:2,i:'OLDV2',n:'Legacy v2',c:'SS2',m:'s',s:['mat'],d:10,q:5,x:'open'};
 if(S.decodeSession(Buffer.from(JSON.stringify(legacyV2)).toString('base64url')).durationSeconds!==600)throw new Error('v2 token compatibility failed');
 const qualifier=S.normalizeSession({mode:'qualifier',classLevel:'SS1',classGroup:'Qualifier',subjects:['q-eng','q-math','q-bst','q-social'],placementTracks:['Science','Arts'],durationSeconds:30,questionCount:5,status:'open'});
-S.saveSession(qualifier);
-if(S.findSessionById(qualifier.id.toLowerCase())?.id!==qualifier.id)throw new Error('case-insensitive Exam ID lookup failed');
+await S.saveSession(qualifier);
+if((await S.findSessionById(qualifier.id.toLowerCase()))?.id!==qualifier.id)throw new Error('case-insensitive Exam ID lookup failed');
 const canonical=new URL(S.getSessionLink(qualifier,'http://localhost/prototype/admin.html'));
 if(!canonical.pathname.endsWith('/prototype/index.html')||canonical.searchParams.get('route')!=='exam')throw new Error('canonical exam route failed');
 
@@ -76,19 +73,19 @@ for(const bad of [
 // Seed overrides alter loaded content/scoring and reset restores it.
 const seed=loaded.questions.find(q=>q.type==='single'&&q.id>43);
 const alternate=seed.options.find(v=>v!==seed.answer);
-S.saveQuestionOverride(seed.id,{answer:alternate,prompt:`${seed.prompt} [edited]`});
-if(!Array.isArray(S.listQuestionOverrides())||S.listQuestionOverrides().length!==1)throw new Error('override API does not return array');
+await S.saveQuestionOverride(seed.id,{answer:alternate,prompt:`${seed.prompt} [edited]`});
+if(!Array.isArray(await S.listQuestionOverrides())||(await S.listQuestionOverrides()).length!==1)throw new Error('override API does not return array');
 const overridden=await Q.load();
 const edited=Q.questionById(overridden,seed.id);
 if(edited.answer!==alternate||edited.source!=='edited-seed'||!edited.prompt.endsWith('[edited]')||!A.scoreQuestion(edited,alternate)||A.scoreQuestion(edited,seed.answer))throw new Error('seed override did not affect content/scoring');
-S.resetQuestionOverride(seed.id);
+await S.resetQuestionOverride(seed.id);
 const restored=Q.questionById(await Q.load(),seed.id);
 if(restored.answer!==seed.answer||restored.prompt!==seed.prompt||restored.source==='edited-seed')throw new Error('reset did not restore seed');
 
 // Teacher-authored valid questions participate; answerless legacy records are quarantined.
 const custom={id:1000001,subject:'Mathematics',subjectCode:'mat',domain:'Contract',levels:['SS2'],pathways:['Science'],examModes:['single','mixed'],type:'single',difficulty:'medium',label:'Contract question',prompt:'For the Task 5 contract only, choose the value four.',options:['3','4','5','6'],answer:'4',explanation:'Four is the requested value.'};
-S.saveCustomQuestion(custom);
-localStorage.setItem('festacol.admin.custom-questions.v1',JSON.stringify([custom,{id:1000002,subject:'Mathematics',subjectCode:'mat',domain:'Legacy',levels:['SS2'],pathways:['Science'],examModes:['single'],type:'single',difficulty:'medium',label:'Legacy',prompt:'Legacy question without an answer.',options:['A','B'],explanation:'Legacy persisted record.'}]));
+await S.saveCustomQuestion(custom);
+S.__seedMemory('customQuestions',{id:1000002,subject:'Mathematics',subjectCode:'mat',domain:'Legacy',levels:['SS2'],pathways:['Science'],examModes:['single'],type:'single',difficulty:'medium',label:'Legacy',prompt:'Legacy question without an answer.',options:['A','B'],explanation:'Legacy persisted record.'});
 const withCustom=await Q.load();
 if(!Q.questionById(withCustom,custom.id)||!A.scoreQuestion(Q.questionById(withCustom,custom.id),'4'))throw new Error('teacher-authored scoring failed');
 if(Q.questionById(withCustom,1000002)||withCustom.quarantinedCustomQuestions?.length!==1)throw new Error('legacy answerless custom question was not quarantined');
@@ -113,14 +110,23 @@ const responses=Object.fromEntries(paper.map(q=>[String(q.id),q.type==='multi'?q
 const now=Date.now(); const result=A.scoreAttempt(paper,{responses,questionTimings:{},integrityEvents:[{type:'window-blur',at:now-500}],startedAt:now-20000,submittedAt:now,elapsedActiveSeconds:7},qualifier);
 if(result.elapsedSeconds!==7||result.accuracy!==100||result.integrityScore>=100)throw new Error('attempt scoring/integrity regression');
 const fingerprint=await A.paperFingerprint(qualifier.id,studentHash,paper),attemptHash=await A.attemptHash(qualifier.id,studentHash,fingerprint);
-S.recordAttempt({id:'A1',attemptHash,candidateHash,studentHash,sessionId:qualifier.id,sessionTitle:qualifier.title,studentName:'Amina Bello',startedAt:now-20000,submittedAt:now,score:100});
-const archived=S.authorizeRewrite(qualifier.id,candidateHash); if(!archived.rewriteArchivedAt||S.findAttempt(qualifier.id,candidateHash))throw new Error('rewrite regression');
-let staleRejected=false;try{S.recordAttempt({id:'STALE',attemptHash:'stale',candidateHash,studentHash,sessionId:qualifier.id,startedAt:archived.rewriteArchivedAt});}catch{staleRejected=true;}if(!staleRejected)throw new Error('reset equality boundary regressed');
+await S.recordAttempt({id:'A1',attemptHash,candidateHash,studentHash,sessionId:qualifier.id,sessionTitle:qualifier.title,studentName:'Amina Bello',startedAt:now-20000,submittedAt:now,score:100});
+const archived=await S.authorizeRewrite(qualifier.id,candidateHash); if(!archived.rewriteArchivedAt||await S.findAttempt(qualifier.id,candidateHash))throw new Error('rewrite regression');
+let staleRejected=false;try{await S.recordAttempt({id:'STALE',attemptHash:'stale',candidateHash,studentHash,sessionId:qualifier.id,startedAt:archived.rewriteArchivedAt});}catch{staleRejected=true;}if(!staleRejected)throw new Error('reset equality boundary regressed');
 
-const currentStudent=S.listUsers().find(u=>u.role==='student'); const cls=S.listClasses().find(c=>c.id!==currentStudent.classId);
-S.saveUser({...currentStudent,classId:cls.id}); if(Array.isArray(S.listUsers().find(u=>u.id===currentStudent.id).classId))throw new Error('one-class scalar contract failed');
-const group=S.saveWhatsAppGroup({classId:cls.id,name:'Parents',inviteUrl:'https://chat.whatsapp.com/ABCDEFGHIJKLMNOPQRSTUV'}); if(S.whatsAppGroupForClass(cls.id)?.id!==group.id)throw new Error('WhatsApp association failed');
-P.setAdminPolicy(qualifier.id,{cameraRequired:true}); const decorated=P.decorateStudentLink(S.getSessionLink(qualifier,'http://localhost/prototype/admin.html'),true); if(!P.policyFromUrl(decorated)?.cameraRequired||!F.qr.svgFor(decorated).startsWith('<svg'))throw new Error('proctor/QR regression');
-const retained=S.attemptsForSession(qualifier.id).length; S.deleteSession(qualifier.id); if(S.attemptsForSession(qualifier.id).length!==retained)throw new Error('session deletion erased attempts');
+await S.saveClass({id:'ss2-science',classLevel:'SS2',stream:'Science',capacity:64,room:'Science Wing'});
+await S.saveClass({id:'ss2-arts',classLevel:'SS2',stream:'Arts',capacity:58,room:'Humanities Wing'});
+const currentStudent=await S.saveUser({id:'ST-2401',fullName:'Amina Yusuf Bello',firstName:'Amina',lastName:'Bello',classId:'ss2-science',role:'student',status:'active',guardian:'Yusuf Bello'});
+const cls=(await S.listClasses()).find(c=>c.id!==currentStudent.classId);
+await S.saveUser({...currentStudent,classId:cls.id}); if(Array.isArray((await S.listUsers()).find(u=>u.id===currentStudent.id).classId))throw new Error('one-class scalar contract failed');
+const group=await S.saveWhatsAppGroup({classId:cls.id,name:'Parents',inviteUrl:'https://chat.whatsapp.com/ABCDEFGHIJKLMNOPQRSTUV'}); if((await S.whatsAppGroupForClass(cls.id))?.id!==group.id)throw new Error('WhatsApp association failed');
+await P.setAdminPolicy(qualifier.id,{cameraRequired:true}); const decorated=P.decorateStudentLink(S.getSessionLink(qualifier,'http://localhost/prototype/admin.html'),true); if(!P.policyFromUrl(decorated)?.cameraRequired||!F.qr.svgFor(decorated).startsWith('<svg'))throw new Error('proctor/QR regression');
+const retained=(await S.attemptsForSession(qualifier.id)).length; await S.deleteSession(qualifier.id); if((await S.attemptsForSession(qualifier.id)).length!==retained)throw new Error('session deletion erased attempts');
 
-console.log('state/shared contract: PASS (720 validated seeds)');
+// Question bank sync: seed payload syncs to the bank and status reflects it.
+const synced=await S.syncQuestionBank(seedPayload);
+if(synced.questionCount!==720)throw new Error('question bank sync did not store 720 seeds');
+const bankStatus=await S.getQuestionBankStatus();
+if(bankStatus.questionCount!==720)throw new Error('question bank status is incorrect');
+
+console.log('state/shared contract: PASS (720 validated seeds) [supabase-backed, memory fallback]');

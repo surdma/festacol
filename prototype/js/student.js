@@ -40,23 +40,24 @@
     warning: 'inline-flex min-h-7 items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200'
   });
 
+  let decodedSession = null;
   try {
-    if (token) session = store.resolveSession(store.decodeSession(token));
+    if (token) decodedSession = store.decodeSession(token);
   } catch (failure) {
     sessionError = failure.message;
   }
 
-  const profile = () => store.getStudentProfile();
-  const portalAuthed = () => {
-    const current = profile();
+  const profile = async () => store.getStudentProfile();
+  const portalAuthed = async () => {
+    const current = await profile();
     return Boolean(current?.studentHash && store.getStudentAuth() === current.studentHash);
   };
-  const attempts = () => {
-    const current = profile();
-    return current?.studentHash ? store.attemptsForStudent(current.studentHash) : [];
+  const attempts = async () => {
+    const current = await profile();
+    return current?.studentHash ? await store.attemptsForStudent(current.studentHash) : [];
   };
-  const answerUnlocked = (attempt) => {
-    const source = store.listSessions().find((item) => item.id === attempt.sessionId) || session;
+  const answerUnlocked = async (attempt) => {
+    const source = (await store.listSessions()).find((item) => item.id === attempt.sessionId) || session;
     return assessment.answersMayBeRevealed(source, source?.status);
   };
   const navHref = (next) => utils.routeUrl('student', { page: next }, location.href);
@@ -128,8 +129,8 @@
       </div>
     </main>`;
 
-  const shellMarkup = (content) => {
-    const current = profile();
+  const shellMarkup = async (content) => {
+    const current = await profile();
     const activeTitle = navItems.find(([key]) => key === page)?.[1] || 'Dashboard';
     const navigation = navItems.map(([key, label]) => {
       const active = page === key;
@@ -154,56 +155,63 @@
 
   const metric = (label, value, detail) => `<article class="relative min-h-32 overflow-hidden ${cardClass} p-4"><span class="absolute right-4 top-4 size-2.5 rounded-full bg-neutral-950 ring-4 ring-neutral-100"></span><span class="${eyebrowClass}">${escapeHtml(label)}</span><strong class="mt-3 block font-display text-2xl font-extrabold tabular-nums text-neutral-950">${escapeHtml(value)}</strong><small class="mt-2 block text-xs leading-5 text-neutral-500">${escapeHtml(detail)}</small></article>`;
 
-  const activeAttemptCard = () => {
-    const open = attempts().find((attempt) => attempt.startedAt && !attempt.submittedAt);
+  const activeAttemptCard = async () => {
+    const open = (await attempts()).find((attempt) => attempt.startedAt && !attempt.submittedAt);
     if (!open) return `<section class="${raisedCardClass} overflow-hidden lg:grid lg:grid-cols-[1fr_280px]"><div class="p-6 sm:p-8">${badge('No active exam')}<h2 class="mt-4 font-display text-3xl font-extrabold text-neutral-950">Use the examination link or QR code issued by your school.</h2><p class="mt-3 max-w-xl text-base leading-7 text-neutral-600">Exam links carry the exact session configuration. After authentication, they open directly into instructions or resume the same attempt.</p></div><div class="relative overflow-hidden border-t border-neutral-200 bg-neutral-100 p-5 lg:border-l lg:border-t-0"><img src="${ART.question}" alt="Student considering an examination question" class="mx-auto h-52 max-w-full" loading="lazy"></div></section>`;
-    const savedSession = store.listSessions().find((item) => item.id === open.sessionId);
+    const savedSession = (await store.listSessions()).find((item) => item.id === open.sessionId);
     if (!savedSession) return `<section class="${raisedCardClass} p-6">${badge('In progress', 'warning')}<h2 class="mt-3 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(open.sessionTitle)}</h2><p class="mt-2 text-sm leading-6 text-neutral-600">Reopen the original exam link to resume this attempt.</p></section>`;
     return `<section class="${raisedCardClass} p-6 sm:p-8">${badge('In progress', 'warning')}<h2 class="mt-4 font-display text-3xl font-extrabold text-neutral-950">${escapeHtml(open.sessionTitle)}</h2><p class="mt-2 text-base leading-7 text-neutral-600">Your exact attempt is saved and can be resumed while the examination remains available.</p><a class="${primaryButton} mt-6" href="${examHref(savedSession)}">Resume examination</a></section>`;
   };
 
-  const dashboard = () => {
-    const all = attempts();
+  const dashboard = async () => {
+    const all = await attempts();
     const submitted = all.filter((attempt) => attempt.submittedAt);
     const average = submitted.length ? Math.round(submitted.reduce((total, attempt) => total + (attempt.score || 0), 0) / submitted.length) : 0;
     const integrity = submitted.length ? Math.round(submitted.reduce((total, attempt) => total + (attempt.integrityScore ?? 100), 0) / submitted.length) : null;
-    return `${activeAttemptCard()}<section class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">${metric('Completed', submitted.length, 'submitted exams')}${metric('Average', submitted.length ? `${average}%` : '—', 'across scored attempts')}${metric('Integrity', integrity === null ? '—' : `${integrity}%`, 'recorded browser signals')}${metric('Academic session', profile()?.academicSession || store.ACADEMIC_SESSION, 'current student profile')}</section>`;
+    return `${await activeAttemptCard()}<section class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">${metric('Completed', submitted.length, 'submitted exams')}${metric('Average', submitted.length ? `${average}%` : '—', 'across scored attempts')}${metric('Integrity', integrity === null ? '—' : `${integrity}%`, 'recorded browser signals')}${metric('Academic session', (await profile())?.academicSession || store.ACADEMIC_SESSION, 'current student profile')}</section>`;
   };
 
   const attemptRow = (attempt, trailing) => `<div class="flex min-h-[4.5rem] items-center gap-3 border-b border-neutral-100 px-4 py-3 last:border-b-0"><div class="min-w-0 flex-1"><strong class="block truncate text-sm text-neutral-950">${escapeHtml(attempt.sessionTitle)}</strong><span class="mt-1 block text-xs text-neutral-500">${escapeHtml(attempt.classLevel || '—')} · ${attempt.submittedAt ? 'Submitted' : 'In progress'}</span></div>${trailing}</div>`;
-  const examsPage = () => `<section class="${cardClass} overflow-hidden"><div class="border-b border-neutral-200 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Exam activity</h2><p class="mt-1 text-sm text-neutral-500">All attempts associated with this student identity.</p></div>${attempts().length ? attempts().map((attempt) => attemptRow(attempt, badge(attempt.submittedAt ? 'Locked' : 'Resume', attempt.submittedAt ? 'success' : 'warning'))).join('') : '<p class="p-6 text-sm text-neutral-500">No exam attempts yet.</p>'}</section>`;
+  const examsPage = async () => {
+    const all = await attempts();
+    return `<section class="${cardClass} overflow-hidden"><div class="border-b border-neutral-200 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Exam activity</h2><p class="mt-1 text-sm text-neutral-500">All attempts associated with this student identity.</p></div>${all.length ? all.map((attempt) => attemptRow(attempt, badge(attempt.submittedAt ? 'Locked' : 'Resume', attempt.submittedAt ? 'success' : 'warning'))).join('') : '<p class="p-6 text-sm text-neutral-500">No exam attempts yet.</p>'}</section>`;
+  };
 
-  const analyticsPage = () => {
-    const submitted = attempts().filter((attempt) => attempt.submittedAt);
+  const analyticsPage = async () => {
+    const submitted = (await attempts()).filter((attempt) => attempt.submittedAt);
     if (!submitted.length) return `<section class="${cardClass} p-7 text-sm text-neutral-600">No submitted results yet.</section>`;
     const attempt = submitted[0];
-    const unlocked = answerUnlocked(attempt);
+    const unlocked = await answerUnlocked(attempt);
     const subjectStats = (attempt.subjectStats || []).map((item) => `<div class="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3"><span class="text-sm text-neutral-700">${escapeHtml(item.subject)}</span><strong class="tabular-nums text-neutral-950">${escapeHtml(`${item.percent}%`)}</strong></div>`).join('');
     const details = unlocked ? (attempt.details || []).map((detail, index) => `<article class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><strong class="text-sm text-neutral-950">Question ${index + 1}</strong><p class="mt-1 text-xs text-neutral-500">Correct answer: ${escapeHtml(detail.correctAnswer || 'Unavailable')}</p></article>`).join('') : '';
     return `<section class="grid grid-cols-2 gap-3 xl:grid-cols-4">${metric('Score', `${attempt.score ?? 0}%`, 'latest submitted exam')}${metric('Completion', `${attempt.completion ?? 100}%`, 'questions completed')}${metric('Pace', `${attempt.paceIndex ?? 0}`, 'exam-derived pace index')}${metric('Integrity', `${attempt.integrityScore ?? 100}%`, 'browser integrity score')}</section><section class="${cardClass} mt-5 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Subject performance</h2><div class="mt-4 grid gap-3">${subjectStats || '<p class="text-sm text-neutral-500">No subject breakdown available.</p>'}</div><div class="mt-5 rounded-xl border p-4 text-sm ${unlocked ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-blue-200 bg-blue-50 text-blue-900'}"><strong class="block font-semibold">${unlocked ? 'Answer review unlocked' : 'Answers remain locked'}</strong><span class="mt-1 block">${unlocked ? 'The examination is closed, so review details may now be displayed.' : 'Correct answers are hidden until the administrator closes the examination.'}</span></div>${details ? `<div class="mt-4 grid gap-3">${details}</div>` : ''}</section>`;
   };
 
-  const historyPage = () => `<section class="${cardClass} overflow-hidden"><div class="border-b border-neutral-200 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Exam history</h2></div>${attempts().length ? attempts().map((attempt) => attemptRow(attempt, `<strong class="tabular-nums text-neutral-950">${attempt.submittedAt ? `${attempt.score ?? 0}%` : '—'}</strong>`)).join('') : '<p class="p-6 text-sm text-neutral-500">No history yet.</p>'}</section>`;
-
-  const progressPage = () => {
-    const completed = attempts().filter((attempt) => attempt.submittedAt);
-    const qualifier = completed.find((attempt) => attempt.placement);
-    const placement = qualifier?.placement;
-    return `<section class="grid gap-5 lg:grid-cols-2"><article class="${raisedCardClass} p-6"><p class="${eyebrowClass}">Academic session</p><h2 class="mt-2 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(profile()?.academicSession || store.ACADEMIC_SESSION)}</h2><p class="mt-2 text-sm text-neutral-600">Student: ${escapeHtml(profile()?.fullName || '—')}</p></article><article class="${raisedCardClass} p-6"><p class="${eyebrowClass}">Placement / promotion</p><h2 class="mt-2 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(placement?.assignedTrack || 'Pending')}</h2><p class="mt-2 text-sm text-neutral-600">${placement ? `${escapeHtml(placement.confidence)}% confidence · exam-derived recommendation` : 'Complete a qualifier or promotion assessment to populate this view.'}</p></article></section>`;
+  const historyPage = async () => {
+    const all = await attempts();
+    return `<section class="${cardClass} overflow-hidden"><div class="border-b border-neutral-200 p-5"><h2 class="font-display text-lg font-extrabold text-neutral-950">Exam history</h2></div>${all.length ? all.map((attempt) => attemptRow(attempt, `<strong class="tabular-nums text-neutral-950">${attempt.submittedAt ? `${attempt.score ?? 0}%` : '—'}</strong>`)).join('') : '<p class="p-6 text-sm text-neutral-500">No history yet.</p>'}</section>`;
   };
 
-  const profilePage = () => {
-    const current = profile();
+  const progressPage = async () => {
+    const completed = (await attempts()).filter((attempt) => attempt.submittedAt);
+    const qualifier = completed.find((attempt) => attempt.placement);
+    const placement = qualifier?.placement;
+    const current = await profile();
+    return `<section class="grid gap-5 lg:grid-cols-2"><article class="${raisedCardClass} p-6"><p class="${eyebrowClass}">Academic session</p><h2 class="mt-2 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(current?.academicSession || store.ACADEMIC_SESSION)}</h2><p class="mt-2 text-sm text-neutral-600">Student: ${escapeHtml(current?.fullName || '—')}</p></article><article class="${raisedCardClass} p-6"><p class="${eyebrowClass}">Placement / promotion</p><h2 class="mt-2 font-display text-2xl font-extrabold text-neutral-950">${escapeHtml(placement?.assignedTrack || 'Pending')}</h2><p class="mt-2 text-sm text-neutral-600">${placement ? `${escapeHtml(placement.confidence)}% confidence · exam-derived recommendation` : 'Complete a qualifier or promotion assessment to populate this view.'}</p></article></section>`;
+  };
+
+  const profilePage = async () => {
+    const current = await profile();
     return `<section class="${raisedCardClass} max-w-3xl p-6"><h2 class="font-display text-lg font-extrabold text-neutral-950">Profile management</h2><p class="mt-2 text-sm leading-6 text-neutral-600">Your examination identity is fixed to the authenticated first and last name. Contact the school to change those credentials.</p><form id="student-profile-form" class="mt-6 grid gap-4 sm:grid-cols-2"><label for="profile-first" class="text-sm font-semibold text-neutral-800">First name</label><label for="profile-last" class="text-sm font-semibold text-neutral-800 sm:col-start-2">Last name</label><input id="profile-first" class="${fieldClass} mt-0" value="${escapeHtml(current?.firstName || '')}" disabled><input id="profile-last" class="${fieldClass} mt-0" value="${escapeHtml(current?.lastName || '')}" disabled><label for="profile-guardian" class="text-sm font-semibold text-neutral-800">Guardian</label><label for="profile-phone" class="text-sm font-semibold text-neutral-800 sm:col-start-2">Phone</label><input id="profile-guardian" class="${fieldClass} mt-0" value="${escapeHtml(current?.guardian || '')}"><input id="profile-phone" class="${fieldClass} mt-0" value="${escapeHtml(current?.phone || '')}"><button class="${primaryButton} sm:col-span-2" type="submit">Save profile</button></form></section>`;
   };
 
-  const render = () => {
+  const render = async () => {
     if (sessionError) {
       mount(gateMarkup(sessionError));
       bindGate();
       return;
     }
-    if (!portalAuthed()) {
+    if (!(await portalAuthed())) {
       mount(gateMarkup());
       bindGate();
       return;
@@ -213,7 +221,7 @@
       return;
     }
     const renderPage = { home: dashboard, exams: examsPage, analytics: analyticsPage, history: historyPage, progress: progressPage, profile: profilePage }[page] || dashboard;
-    mount(shellMarkup(renderPage()));
+    mount(await shellMarkup(await renderPage()));
     bindPortal();
   };
 
@@ -228,16 +236,16 @@
         const credentials = assessment.candidateCredentials(first, last);
         const studentHash = await assessment.studentHash(first, last);
         store.setStudentAuth(studentHash);
-        const existing = profile();
-        store.saveStudentProfile({ ...existing, firstName: credentials.firstName, lastName: credentials.lastName, fullName: credentials.fullName, candidateHash: existing?.candidateHash || studentHash, studentHash, academicSession: session?.academicSession || existing?.academicSession || store.ACADEMIC_SESSION });
+        const existing = await profile();
+        await store.saveStudentProfile({ ...existing, firstName: credentials.firstName, lastName: credentials.lastName, fullName: credentials.fullName, candidateHash: existing?.candidateHash || studentHash, studentHash, academicSession: session?.academicSession || existing?.academicSession || store.ACADEMIC_SESSION });
         if (session) {
           const candidateHash = await assessment.candidateHash(session.id, first, last);
           store.setActiveCandidate(session.id, candidateHash);
-          store.saveStudentProfile({ ...store.getStudentProfile(), candidateHash, currentClassId: session.classGroup, academicSession: session.academicSession });
+          await store.saveStudentProfile({ ...(await store.getStudentProfile()), candidateHash, currentClassId: session.classGroup, academicSession: session.academicSession });
           location.replace(examHref(session));
           return;
         }
-        render();
+        await render();
       } catch (failure) {
         if (error) {
           error.textContent = failure.message;
@@ -271,15 +279,15 @@
       sidebar?.querySelector('a')?.focus();
     });
     document.getElementById('student-scrim')?.addEventListener('click', () => closeMenu());
-    document.querySelector('[data-student-logout]')?.addEventListener('click', () => {
+    document.querySelector('[data-student-logout]')?.addEventListener('click', async () => {
       store.clearStudentAuth();
-      render();
+      await render();
     });
-    document.getElementById('student-profile-form')?.addEventListener('submit', (event) => {
+    document.getElementById('student-profile-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const current = profile();
-      store.saveStudentProfile({ ...current, guardian: document.getElementById('profile-guardian')?.value || '', phone: document.getElementById('profile-phone')?.value || '' });
-      render();
+      const current = await profile();
+      await store.saveStudentProfile({ ...current, guardian: document.getElementById('profile-guardian')?.value || '', phone: document.getElementById('profile-phone')?.value || '' });
+      await render();
     });
   };
 
@@ -315,12 +323,12 @@
     dialog.addEventListener('close', () => {
       lastDialogFocus?.focus?.();
     });
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
       error.classList.add('hidden');
       error.textContent = '';
       const id = input.value.trim().toUpperCase();
-      const found = store.findSessionById(id);
+      const found = await store.findSessionById(id);
       if (!found) {
         error.textContent = 'No examination matches that ID. Check the characters and try again.';
         error.classList.remove('hidden');
@@ -341,7 +349,7 @@
         error.classList.remove('hidden');
         return;
       }
-      const link = proctor.decorateStudentLink(store.getSessionLink(found, location.href), proctor.getAdminPolicy(found.id).cameraRequired);
+      const link = proctor.decorateStudentLink(store.getSessionLink(found, location.href), (await proctor.getAdminPolicy(found.id)).cameraRequired);
       location.assign(link);
     });
   }
@@ -354,5 +362,16 @@
     if (sidebar && !sidebar.classList.contains('hidden') && matchMedia('(max-width: 1023px)').matches) closeMenu();
   });
 
-  render();
+  const init = async () => {
+    if (decodedSession && !sessionError) {
+      try {
+        session = await store.resolveSession(decodedSession);
+      } catch (failure) {
+        sessionError = failure.message;
+      }
+    }
+    await render();
+  };
+
+  init();
 })();

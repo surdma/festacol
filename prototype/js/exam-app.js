@@ -171,16 +171,15 @@
     afterRender();
   };
 
-  const markerKey = (hash = candidateHash || Store.getActiveCandidate(session?.id)) => `festacol.exam.background-guard.v2:${session?.id || 'unknown'}:${hash || 'anonymous'}`;
-  const readMarker = (hash = candidateHash) => {
-    try { return JSON.parse(localStorage.getItem(markerKey(hash)) || 'null'); } catch { return null; }
-  };
+  // Background markers persist in Supabase (store background API), never browser storage.
+  const readMarker = (hash = candidateHash) => Store.getBackgroundMarker(session?.id, hash).catch(() => null);
   const writeMarker = (value, hash = candidateHash) => {
-    if (!hash || !session?.id) return;
-    localStorage.setItem(markerKey(hash), JSON.stringify(value));
+    if (!hash || !session?.id) return Promise.resolve();
+    return Store.setBackgroundMarker(session.id, hash, value).catch(() => undefined);
   };
   const clearMarker = (hash = candidateHash) => {
-    if (hash && session?.id) localStorage.removeItem(markerKey(hash));
+    if (hash && session?.id) return Store.clearBackgroundMarker(session.id, hash).catch(() => undefined);
+    return Promise.resolve();
   };
 
   const seriousIntegrityCount = () => (state?.integrityEvents || []).filter((item) => ![
@@ -244,17 +243,17 @@
     }
   };
 
-  const reconcilePersistedBackground = () => {
+  const reconcilePersistedBackground = async () => {
     if (!candidateHash || !session?.id) return { reconciled: false, elapsedSeconds: 0 };
-    const marker = readMarker(candidateHash);
-    const saved = Store.getStudentState(session.id, candidateHash);
+    const marker = await readMarker(candidateHash);
+    const saved = await Store.getStudentState(session.id, candidateHash);
     if (!marker?.hiddenAt || !saved?.startedAt || saved.submittedAt || Number(marker.startedAt) !== Number(saved.startedAt)) {
-      clearMarker(candidateHash);
+      await clearMarker(candidateHash);
       return { reconciled: false, elapsedSeconds: 0 };
     }
     const elapsedSeconds = Math.max(0, (Date.now() - Number(marker.hiddenAt)) / 1000);
     if (elapsedSeconds < 0.5) {
-      clearMarker(candidateHash);
+      await clearMarker(candidateHash);
       return { reconciled: false, elapsedSeconds: 0 };
     }
     saved.remainingSeconds = Math.max(0, (Number(saved.remainingSeconds) || 0) - elapsedSeconds);
@@ -262,9 +261,9 @@
     saved.integrityEvents = Array.isArray(saved.integrityEvents) ? saved.integrityEvents : [];
     saved.integrityEvents.push({ type: 'background-resume-reconciled', detail: `${Math.round(elapsedSeconds)}s counted while away`, at: Date.now() });
     saved.integrityEvents = saved.integrityEvents.slice(-100);
-    Store.saveStudentState(session.id, candidateHash, saved);
+    await Store.saveStudentState(session.id, candidateHash, saved);
     state = saved;
-    clearMarker(candidateHash);
+    await clearMarker(candidateHash);
     return { reconciled: true, elapsedSeconds };
   };
 
@@ -273,7 +272,7 @@
     const panel = document.createElement('aside');
     panel.dataset.cameraPreview = 'true';
     panel.className = 'fixed bottom-24 right-3 z-[70] w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl sm:bottom-5 sm:right-5 sm:w-56';
-    panel.innerHTML = `<div class="relative aspect-video bg-black"><video data-camera-video class="h-full w-full object-cover" autoplay muted playsinline aria-label="Candidate camera preview"></video><span class="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-900">${icon(I.camera, 'h-3.5 w-3.5')}Live</span></div><div class="hidden p-3 sm:block"><p class="text-xs font-semibold text-neutral-950">Local camera preview</p><p class="mt-1 text-[11px] leading-4 text-neutral-500">Not recorded, uploaded or analysed by this prototype.</p></div>`;
+    panel.innerHTML = `<div class="relative aspect-video bg-black"><video data-camera-video class="h-full w-full object-cover" autoplay muted playsinline aria-label="Candidate camera preview"></video><span class="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-900">${icon(I.camera, 'h-3.5 w-3.5')}Live</span></div><div class="hidden p-3 sm:block"><p class="text-xs font-semibold text-neutral-950">Camera preview</p><p class="mt-1 text-[11px] leading-4 text-neutral-500">Shown only on this screen. It is not recorded or sent anywhere.</p></div>`;
     document.body.append(panel);
     const video = panel.querySelector('[data-camera-video]');
     video.srcObject = cameraStream;
@@ -288,7 +287,7 @@
       overlay.className = 'fixed inset-0 z-[130] grid place-items-center bg-black/60 p-4 backdrop-blur-sm';
       document.body.append(overlay);
     }
-    overlay.innerHTML = `<section class="w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="camera-gate-title" aria-describedby="camera-gate-description" tabindex="-1"><div class="border-b border-neutral-200 bg-neutral-50 p-5"><span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">${icon(I.camera)}</span><p class="mt-4 text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Camera required</p><h2 id="camera-gate-title" class="mt-1 font-display text-2xl font-extrabold text-neutral-950">${activeExam ? 'Restore camera access to continue.' : 'Enable your camera before starting.'}</h2></div><div class="space-y-4 p-5"><p id="camera-gate-description" class="text-sm leading-6 text-neutral-600">${esc(message)}</p>${alertMarkup('info', 'Privacy in this prototype', 'The video is shown only as a live local preview. It is not recorded, uploaded, stored or automatically analysed.')}</div><div class="border-t border-neutral-200 p-5"><button class="${C.primary} w-full" data-camera-retry>${icon(I.camera, 'h-4 w-4')}Enable camera</button></div></section>`;
+    overlay.innerHTML = `<section class="w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="camera-gate-title" aria-describedby="camera-gate-description" tabindex="-1"><div class="border-b border-neutral-200 bg-neutral-50 p-5"><span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">${icon(I.camera)}</span><p class="mt-4 text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Camera required</p><h2 id="camera-gate-title" class="mt-1 font-display text-2xl font-extrabold text-neutral-950">${activeExam ? 'Restore camera access to continue.' : 'Enable your camera before starting.'}</h2></div><div class="space-y-4 p-5"><p id="camera-gate-description" class="text-sm leading-6 text-neutral-600">${esc(message)}</p>${alertMarkup('info', 'Your privacy', 'Your video appears only in the small preview on this screen. It is not recorded, saved or sent anywhere.')}</div><div class="border-t border-neutral-200 p-5"><button class="${C.primary} w-full" data-camera-retry>${icon(I.camera, 'h-4 w-4')}Enable camera</button></div></section>`;
     const dialog = overlay.querySelector('[role="dialog"]');
     queueMicrotask(() => dialog?.focus({ preventScroll: true }));
     overlay.querySelector('[data-camera-retry]')?.addEventListener('click', () => requestCamera().catch(() => {}), { once: true });
@@ -336,7 +335,7 @@
 
   const briefingView = () => {
     const subjects = (session.subjects || []).map((code) => Data.subjectByCode(data, code)?.label || code).join(', ') || Store.getModeLabel(session.mode);
-    root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<span class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">Attempt 1 of 1</span></div></header><div class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]"><div class="p-6 sm:p-8 lg:p-10"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Before you begin</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950 sm:text-4xl">${esc(session.title)}</h1><p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-600">Read the information below carefully. Your timer starts only after you select Start examination.</p><div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Duration</span><strong class="mt-1 block text-sm text-neutral-950">${esc(formatDuration(session.durationSeconds))}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Questions</span><strong class="mt-1 block text-sm text-neutral-950">${paper.length}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Coverage</span><strong class="mt-1 block truncate text-sm text-neutral-950" title="${esc(subjects)}">${esc(subjects)}</strong></div></div><div class="mt-7 space-y-4">${session.instructions ? alertMarkup('info', 'School instruction', session.instructions) : ''}${cameraRequired ? alertMarkup('warning', 'Camera required', 'Camera permission must remain active during this session. The local preview is not recorded by this prototype.') : ''}<div class="rounded-xl border border-neutral-200 p-5"><h2 class="text-sm font-semibold text-neutral-950">Examination rules</h2><ul class="mt-3 space-y-2 text-sm leading-6 text-neutral-600"><li>Stay on the examination screen. Leaving the tab, minimising the window or exiting required fullscreen is recorded.</li><li>Clipboard actions can be blocked and recorded when the school enables that policy.</li><li>Your remaining time continues to be accounted for while the exam is backgrounded or reloaded.</li><li>Use Flag for review and the question navigator before final submission. Submission cannot be undone.</li></ul></div></div><button type="button" class="${C.primary} mt-7 w-full sm:w-auto" data-start>${cameraRequired ? icon(I.camera, 'h-4 w-4') : ''}Start examination${icon(I.arrowRight, 'h-4 w-4')}</button></div><aside class="border-t border-neutral-200 bg-black p-6 text-white lg:border-l lg:border-t-0 lg:p-7"><div class="sticky top-6"><span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">${icon(I.shield)}</span><h2 class="mt-5 font-display text-lg font-bold">Integrity-aware session</h2><p class="mt-2 text-sm leading-6 text-neutral-400">Focus changes, fullscreen exits and blocked clipboard actions can be recorded with the attempt so the school can review context.</p><div class="mt-6 rounded-xl border border-neutral-800 p-4 text-xs leading-5 text-neutral-400"><strong class="text-neutral-200">Important</strong><br>This browser prototype is not a tamper-proof production invigilation system.</div></div></aside></div></section></div></main>`;
+    root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<span class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">Attempt 1 of 1</span></div></header><div class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]"><div class="p-6 sm:p-8 lg:p-10"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Before you begin</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950 sm:text-4xl">${esc(session.title)}</h1><p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-600">Read the information below carefully. Your timer starts only after you select Start examination.</p><div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Duration</span><strong class="mt-1 block text-sm text-neutral-950">${esc(formatDuration(session.durationSeconds))}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Questions</span><strong class="mt-1 block text-sm text-neutral-950">${paper.length}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Coverage</span><strong class="mt-1 block truncate text-sm text-neutral-950" title="${esc(subjects)}">${esc(subjects)}</strong></div></div><div class="mt-7 space-y-4">${session.instructions ? alertMarkup('info', 'School instruction', session.instructions) : ''}${cameraRequired ? alertMarkup('warning', 'Camera required', 'Camera permission must stay on during this exam. The preview is only visible to you and is never recorded.') : ''}<div class="rounded-xl border border-neutral-200 p-5"><h2 class="text-sm font-semibold text-neutral-950">Examination rules</h2><ul class="mt-3 space-y-2 text-sm leading-6 text-neutral-600"><li>Stay on the examination screen. Leaving the tab, minimising the window or exiting required fullscreen is recorded.</li><li>Clipboard actions can be blocked and recorded when the school enables that policy.</li><li>Your remaining time continues to be accounted for while the exam is backgrounded or reloaded.</li><li>Use Flag for review and the question navigator before final submission. Submission cannot be undone.</li></ul></div></div><button type="button" class="${C.primary} mt-7 w-full sm:w-auto" data-start>${cameraRequired ? icon(I.camera, 'h-4 w-4') : ''}Start examination${icon(I.arrowRight, 'h-4 w-4')}</button></div><aside class="border-t border-neutral-200 bg-black p-6 text-white lg:border-l lg:border-t-0 lg:p-7"><div class="sticky top-6"><span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">${icon(I.shield)}</span><h2 class="mt-5 font-display text-lg font-bold">Integrity-aware session</h2><p class="mt-2 text-sm leading-6 text-neutral-400">Focus changes, fullscreen exits and blocked clipboard actions can be recorded with the attempt so the school can review context.</p><div class="mt-6 rounded-xl border border-neutral-800 p-4 text-xs leading-5 text-neutral-400"><strong class="text-neutral-200">Important</strong><br>This browser prototype is not a tamper-proof production invigilation system.</div></div></aside></div></section></div></main>`;
     root.querySelector('[data-start]')?.addEventListener('click', startExam);
     afterRender();
   };
@@ -409,7 +408,7 @@
   const option = (question, value, label, index, checked, type = 'radio') => {
     const inputId = `q-${question.id}-${index}`;
     const marker = label || String.fromCharCode(65 + index);
-    const markerShape = type === 'checkbox' ? 'rounded-md' : 'rounded-full';
+    const markerShape = 'rounded-full';
     const selected = checked ? 'border-black bg-black text-white' : 'border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50';
     const markerSelected = checked ? 'border-white/40 bg-white text-black' : 'border-neutral-300 bg-neutral-50 text-neutral-700';
     return `<label for="${inputId}" data-answer-option class="group relative block cursor-pointer"><input id="${inputId}" class="peer sr-only" type="${type}" name="q-${question.id}" value="${esc(value)}" ${checked ? 'checked' : ''}><span class="flex min-h-16 items-start gap-3 rounded-xl border p-4 text-sm font-medium transition-colors duration-150 peer-focus-visible:ring-4 peer-focus-visible:ring-neutral-200 motion-reduce:transition-none ${selected}"><span class="grid h-8 w-8 shrink-0 place-items-center ${markerShape} border text-xs font-bold ${markerSelected}">${esc(marker)}</span><span class="min-w-0 flex-1 pt-1 leading-6">${esc(value)}</span>${checked ? `<span class="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-black">${icon('m7 12 3 3 7-7', 'h-3.5 w-3.5')}</span>` : ''}</span></label>`;
@@ -542,7 +541,7 @@
     if (existing?.startedAt && !existing.submittedAt) {
       state = existing;
       paper = Engine.paperForStudent(data, session, candidateHash);
-      reconcilePersistedBackground();
+      await reconcilePersistedBackground();
       if (state.remainingSeconds <= 0) {
         timeoutSubmitting = true;
         submitExam({ automatic: true, reason: 'time-expired' });
@@ -762,7 +761,7 @@
       return;
     }
     if (state?.startedAt && !state.submittedAt) {
-      const reconciliation = reconcilePersistedBackground();
+      const reconciliation = await reconcilePersistedBackground();
       if (reconciliation.reconciled) {
         showToast('warning', 'Background time counted', `${Math.max(1, Math.round(reconciliation.elapsedSeconds))} seconds were deducted while the examination was away from the foreground.`);
       }
@@ -823,14 +822,15 @@
     }
     recordElapsed(false);
     persist();
-    const existing = readMarker(candidateHash);
-    writeMarker(existing?.hiddenAt ? existing : { sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() });
+    readMarker(candidateHash).then((existing) => {
+      writeMarker(existing?.hiddenAt ? existing : { sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() });
+    });
     stopCamera();
   });
 
-  window.addEventListener('pageshow', (event) => {
+  window.addEventListener('pageshow', async (event) => {
     if (event.persisted && state?.startedAt && !state.submittedAt) {
-      const reconciliation = reconcilePersistedBackground();
+      const reconciliation = await reconcilePersistedBackground();
       if (reconciliation.reconciled) {
         lastTick = Date.now();
         updateChrome();

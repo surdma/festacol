@@ -1,8 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
 async function clearPrototypeStorage(page) {
-  await page.goto('/admin.html?page=overview');
-  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.goto('/prototype/admin.html?page=overview');
+  await page.evaluate(() => window.Festacol.store.clearPrototypeData());
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Administration overview' })).toBeVisible();
   const url = new URL(page.url());
@@ -35,7 +35,7 @@ async function expectSafeExternalLink(locator, expectedPart) {
 }
 
 async function createExam(page, { camera = false, seconds = 180, count = 5 } = {}) {
-  await page.goto('/admin.html?page=exams');
+  await page.goto('/prototype/admin.html?page=exams');
   await page.getByRole('button', { name: /Create exam/i }).first().click();
   await page.locator('[data-wizard-mode="mixed"]').click();
   await page.locator('[data-wizard-level="SS2"]').click();
@@ -58,14 +58,15 @@ async function createExam(page, { camera = false, seconds = 180, count = 5 } = {
   await expect(page.locator('#created-exam-qr svg')).toBeVisible();
   await expect(page.locator('[data-session-link]')).toHaveCount(0);
   await expectSafeExternalLink(page.locator('#admin-dialog-content [data-open-qr-link]').first(), 'route=exam');
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
     const { store, proctor } = window.Festacol;
-    const session = store.listSessions()[0];
+    const session = (await store.listSessions())[0];
+    const policy = await proctor.getAdminPolicy(session.id);
     return {
       id: session.id,
       link: proctor.decorateStudentLink(
         store.getSessionLink(session, location.href),
-        proctor.getAdminPolicy(session.id).cameraRequired
+        policy.cameraRequired
       )
     };
   });
@@ -117,7 +118,7 @@ test('admin canonical shell exposes eight routes and legacy users normalizes to 
     await expectNoHorizontalOverflow(page);
   }
 
-  await page.goto('/admin.html?page=users&q=Amina');
+  await page.goto('/prototype/admin.html?page=users&q=Amina');
   await expect(page.getByRole('heading', { name: 'Students' })).toBeVisible();
   const normalized = new URL(page.url());
   expect(normalized.pathname).toMatch(/\/index\.html$/);
@@ -128,7 +129,7 @@ test('admin canonical shell exposes eight routes and legacy users normalizes to 
 
 test('admin compatibility alias preserves nested query state and back closes URL-backed record overlays', async ({ page }) => {
   await clearPrototypeStorage(page);
-  await page.goto('/admin.html?page=students&q=Amina&tab=history');
+  await page.goto('/prototype/admin.html?page=students&q=Amina&tab=history');
   const routed = new URL(page.url());
   expect(routed.pathname).toMatch(/\/index\.html$/);
   expect(routed.searchParams.get('route')).toBe('admin');
@@ -174,7 +175,7 @@ test('exam wizard exposes 5–150 question range, integrated proctoring and QR-o
 test('student can enter Exam ID and reach the same candidate login session without scanning QR', async ({ page }) => {
   await clearPrototypeStorage(page);
   const { id } = await createExam(page, { camera: false });
-  await page.goto('/student.html');
+  await page.goto('/prototype/student.html');
   await page.getByRole('button', { name: 'Enter exam ID' }).click();
   await expect(page.getByRole('heading', { name: 'Enter the Exam ID.' })).toBeVisible();
   await page.locator('#exam-id-input').fill(id.toLowerCase());
@@ -190,7 +191,7 @@ test('exam compatibility alias preserves session state and forwards to the canon
   await clearPrototypeStorage(page);
   const { link } = await createExam(page, { camera: false });
   const canonical = new URL(link);
-  const alias = new URL('/exam.html', canonical.origin);
+  const alias = new URL('/prototype/exam.html', canonical.origin);
   alias.search = canonical.search;
   alias.searchParams.set('candidate', 'compatibility-check');
   await page.goto(alias.href);
@@ -237,27 +238,23 @@ test('timeout auto-submits and clears active candidate authentication', async ({
   const { link, id } = await createExam(page, { seconds: 180 });
   await loginExam(page, link);
   await startExam(page);
-  const backgroundMarkerKey = await page.evaluate((sessionId) => {
+  await page.evaluate(async (sessionId) => {
     const S = window.Festacol.store;
     const hash = S.getActiveCandidate(sessionId);
-    return `festacol.exam.background-guard.v2:${sessionId}:${hash}`;
-  }, id);
-  await page.goto('/index.html');
-  await page.evaluate((key) => {
-    const marker = JSON.parse(localStorage.getItem(key) || 'null');
+    const marker = await S.getBackgroundMarker(sessionId, hash);
     if (!marker?.hiddenAt) throw new Error('Exam page did not persist a background marker on leave.');
-    marker.hiddenAt = Date.now() - 181000;
-    localStorage.setItem(key, JSON.stringify(marker));
-  }, backgroundMarkerKey);
+    await S.setBackgroundMarker(sessionId, hash, { ...marker, hiddenAt: Date.now() - 181000 });
+  }, id);
+  await page.goto('/prototype/index.html');
   await page.goto(link);
   await page.waitForTimeout(1200);
   await expect(page.getByText(/Time expired\. Your examination was submitted automatically/i)).toBeVisible();
-  const locked = await page.evaluate((sessionId) => {
+  const locked = await page.evaluate(async (sessionId) => {
     const S = window.Festacol.store;
     return {
       auth: S.getStudentAuth(),
       active: S.getActiveCandidate(sessionId),
-      submitted: S.attemptsForSession(sessionId).some((a) => a.submittedAt)
+      submitted: (await S.attemptsForSession(sessionId)).some((a) => a.submittedAt)
     };
   }, id);
   expect(locked.auth).toBe('');
@@ -272,16 +269,16 @@ test('submitted exam rewrite preserves original score and proctor log then allow
   await startExam(page);
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await submitExam(page);
-  const before = await page.evaluate((sessionId) => window.Festacol.store.attemptsForSession(sessionId).find((a) => a.submittedAt), id);
+  const before = await page.evaluate(async (sessionId) => (await window.Festacol.store.attemptsForSession(sessionId)).find((a) => a.submittedAt), id);
   expect(before.integrityEvents.some((event) => event.type === 'window-blur')).toBe(true);
 
-  await page.goto('/admin.html?page=exams');
+  await page.goto('/prototype/admin.html?page=exams');
   await page.locator(`[data-exam-detail="${id}"]`).first().click();
   await page.locator(`[data-attempt-detail="${before.attemptHash}"]`).click();
   await expect(page.getByText('Integrity / proctor log')).toBeVisible();
   await page.getByRole('button', { name: 'Authorize rewrite' }).click();
   await page.getByRole('button', { name: 'Authorize rewrite' }).last().click();
-  const archived = await page.evaluate((sessionId) => window.Festacol.store.attemptsForSession(sessionId).find((a) => a.rewriteArchivedAt), id);
+  const archived = await page.evaluate(async (sessionId) => (await window.Festacol.store.attemptsForSession(sessionId)).find((a) => a.rewriteArchivedAt), id);
   expect(archived.score).toBe(before.score);
   expect(archived.integrityEvents.some((event) => event.type === 'window-blur')).toBe(true);
 
@@ -291,7 +288,7 @@ test('submitted exam rewrite preserves original score and proctor log then allow
   await page.locator('#student-last-name').fill('Bello');
   await page.locator('#student-login-form button[type="submit"]').click();
   await startExam(page);
-  const attempts = await page.evaluate((sessionId) => window.Festacol.store.attemptsForSession(sessionId), id);
+  const attempts = await page.evaluate(async (sessionId) => window.Festacol.store.attemptsForSession(sessionId), id);
   expect(attempts.some((a) => a.rewriteArchivedAt)).toBe(true);
   expect(attempts.some((a) => !a.rewriteArchivedAt && !a.submittedAt)).toBe(true);
 });
@@ -301,7 +298,7 @@ test('exam settings remain editable while structural paper fields lock after a c
   const { link, id } = await createExam(page);
   await loginExam(page, link);
   await startExam(page);
-  await page.goto('/admin.html?page=exams');
+  await page.goto('/prototype/admin.html?page=exams');
   await page.locator(`[data-exam-detail="${id}"]`).first().click();
   await page.getByRole('button', { name: /Edit settings/i }).click();
   await expect(page.locator('#exam-edit-count')).toBeDisabled();
@@ -309,9 +306,9 @@ test('exam settings remain editable while structural paper fields lock after a c
   await page.locator('#exam-edit-title').fill('Updated SS2 Integrated Assessment');
   await page.locator('#exam-edit-camera').check();
   await page.locator('#exam-edit-form button[type="submit"]').click();
-  const saved = await page.evaluate((sessionId) => ({
-    session: window.Festacol.store.findSessionById(sessionId),
-    policy: window.Festacol.proctor.getAdminPolicy(sessionId)
+  const saved = await page.evaluate(async (sessionId) => ({
+    session: await window.Festacol.store.findSessionById(sessionId),
+    policy: await window.Festacol.proctor.getAdminPolicy(sessionId)
   }), id);
   expect(saved.session.title).toBe('Updated SS2 Integrated Assessment');
   expect(saved.policy.cameraRequired).toBe(true);
@@ -319,7 +316,7 @@ test('exam settings remain editable while structural paper fields lock after a c
 
 test('WhatsApp group board associates one validated group with its intended class and renders QR', async ({ page }) => {
   await clearPrototypeStorage(page);
-  await page.goto('/admin.html?page=classes');
+  await page.goto('/prototype/admin.html?page=classes');
   await page.getByRole('button', { name: /Add WhatsApp group/i }).first().click();
   const classId = await page.locator('#whatsapp-class option').nth(1).getAttribute('value');
   await page.locator('#whatsapp-class').selectOption(classId);
@@ -328,21 +325,21 @@ test('WhatsApp group board associates one validated group with its intended clas
   await page.locator('#whatsapp-form button[type="submit"]').click();
   await expect(page.locator('#whatsapp-qr svg')).toBeVisible();
   await expectSafeExternalLink(page.locator('#whatsapp-form [data-open-qr-link]'), 'chat.whatsapp.com');
-  const group = await page.evaluate((id) => window.Festacol.store.whatsAppGroupForClass(id), classId);
+  const group = await page.evaluate(async (id) => window.Festacol.store.whatsAppGroupForClass(id), classId);
   expect(group.name).toBe('SS1 Parents');
   expect(group.inviteUrl).toContain('chat.whatsapp.com');
 });
 
 test('invalid WhatsApp URL is rejected inline and not stored', async ({ page }) => {
   await clearPrototypeStorage(page);
-  await page.goto('/admin.html?page=classes');
+  await page.goto('/prototype/admin.html?page=classes');
   await page.getByRole('button', { name: /Add WhatsApp group/i }).first().click();
   await page.locator('#whatsapp-class').selectOption({ index: 1 });
   await page.locator('#whatsapp-name').fill('Wrong group');
   await page.locator('#whatsapp-link').fill('https://example.com/not-whatsapp');
   await page.locator('#whatsapp-form button[type="submit"]').click();
   await expect(page.locator('#whatsapp-error')).toBeVisible();
-  expect(await page.evaluate(() => window.Festacol.store.listWhatsAppGroups().length)).toBe(0);
+  expect(await page.evaluate(async () => (await window.Festacol.store.listWhatsAppGroups()).length)).toBe(0);
 });
 
 test('admin exam/student relationships expose exact per-attempt integrity records', async ({ page }) => {
@@ -355,20 +352,20 @@ test('admin exam/student relationships expose exact per-attempt integrity record
     document.dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true }));
   });
   await submitExam(page);
-  const relation = await page.evaluate((sessionId) => {
+  const relation = await page.evaluate(async (sessionId) => {
     const S = window.Festacol.store;
-    const a = S.attemptsForSession(sessionId).find((x) => x.submittedAt);
+    const a = (await S.attemptsForSession(sessionId)).find((x) => x.submittedAt);
     return {
       studentHash: a.studentHash,
       events: a.integrityEvents.map((e) => e.type),
-      count: S.attemptsForStudent(a.studentHash).length
+      count: (await S.attemptsForStudent(a.studentHash)).length
     };
   }, id);
   expect(relation.studentHash).toBeTruthy();
   expect(relation.events).toContain('window-blur');
   expect(relation.events).toContain('clipboard-copy');
   expect(relation.count).toBeGreaterThan(0);
-  await page.goto('/admin.html?page=reports&view=integrity');
+  await page.goto('/prototype/admin.html?page=reports&view=integrity');
   await expect(page.getByText(/Amina Bello · window-blur/i)).toBeVisible();
 });
 
@@ -376,7 +373,7 @@ test('admin dialogs remain within mobile, tablet and desktop viewport bounds', a
   await clearPrototypeStorage(page);
   for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1000 }, { width: 1440, height: 1000 }]) {
     await page.setViewportSize(viewport);
-    await page.goto('/admin.html?page=exams');
+    await page.goto('/prototype/admin.html?page=exams');
     await page.getByRole('button', { name: /Create exam/i }).first().click();
     const box = await page.locator('#admin-dialog-panel').boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);

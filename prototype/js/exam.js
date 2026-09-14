@@ -69,14 +69,14 @@
     return `<div ${id ? `id="${id}"` : ''} class="rounded-xl border p-4 text-sm ${tones[tone] || tones.info}" role="${role}"><strong class="font-semibold">${esc(title)}</strong><p class="mt-1 leading-6">${esc(detail)}</p></div>`;
   };
 
-  const resolveCurrentSession = () => {
+  const resolveCurrentSession = async () => {
     if (!session) return null;
-    session = store.resolveSession(session) || session;
+    session = (await store.resolveSession(session)) || session;
     return session;
   };
 
-  const effectiveStatus = () => {
-    const current = resolveCurrentSession();
+  const effectiveStatus = async () => {
+    const current = await resolveCurrentSession();
     if (!current) return 'missing';
     if (current.status !== 'open') return current.status;
     if (current.startsAt && Date.now() < Number(current.startsAt)) return 'scheduled';
@@ -104,15 +104,17 @@
   };
 
   const markerKey = (hash = candidateHash || store.getActiveCandidate(session?.id)) => `festacol.exam.background-guard.v2:${session?.id || 'unknown'}:${hash || 'anonymous'}`;
-  const readMarker = (hash = candidateHash) => {
-    try { return JSON.parse(localStorage.getItem(markerKey(hash)) || 'null'); } catch { return null; }
+  const readMarker = async (hash = candidateHash) => {
+    if (!hash || !session?.id) return null;
+    try { return (await store.getBackgroundMarker(session.id, hash)) || null; } catch { return null; }
   };
-  const writeMarker = (value, hash = candidateHash) => {
+  const writeMarker = async (value, hash = candidateHash) => {
     if (!hash || !session?.id) return;
-    localStorage.setItem(markerKey(hash), JSON.stringify(value));
+    try { await store.setBackgroundMarker(session.id, hash, value); } catch { /* marker persist is best-effort */ }
   };
-  const clearMarker = (hash = candidateHash) => {
-    if (hash && session?.id) localStorage.removeItem(markerKey(hash));
+  const clearMarker = async (hash = candidateHash) => {
+    if (!hash || !session?.id) return;
+    try { await store.clearBackgroundMarker(session.id, hash); } catch { /* marker clear is best-effort */ }
   };
 
   const seriousIntegrityCount = () => (state?.integrityEvents || []).filter((event) => ![
@@ -148,9 +150,9 @@
     setTimeout(() => toast.remove(), duration);
   };
 
-  const persist = () => {
+  const persist = async () => {
     if (!state || state.submittedAt) return false;
-    if (store.isAttemptInvalidated(session.id, candidateHash, state.startedAt)) {
+    if (await store.isAttemptInvalidated(session.id, candidateHash, state.startedAt)) {
       showReset();
       return false;
     }
@@ -158,7 +160,7 @@
     return store.saveStudentState(session.id, candidateHash, state);
   };
 
-  const recordIntegrity = (type, detail = '', { notify = true } = {}) => {
+  const recordIntegrity = async (type, detail = '', { notify = true } = {}) => {
     if (!state?.startedAt || state.submittedAt) return;
     const now = Date.now();
     if (lastIntegrityEvent.type === type && now - lastIntegrityEvent.at < 750) return;
@@ -166,7 +168,7 @@
     state.integrityEvents ||= [];
     state.integrityEvents.push({ type, detail, at: now });
     state.integrityEvents = state.integrityEvents.slice(-100);
-    persist();
+    await persist().catch(() => false);
     updateChrome();
     const threshold = Math.max(1, Number(session?.integrityPolicy?.warnAfter) || 2);
     const count = seriousIntegrityCount();
@@ -175,17 +177,17 @@
     }
   };
 
-  const reconcilePersistedBackground = () => {
+  const reconcilePersistedBackground = async () => {
     if (!candidateHash || !session?.id) return { reconciled: false, elapsedSeconds: 0 };
-    const marker = readMarker(candidateHash);
-    const saved = store.getStudentState(session.id, candidateHash);
+    const marker = await readMarker(candidateHash);
+    const saved = await store.getStudentState(session.id, candidateHash);
     if (!marker?.hiddenAt || !saved?.startedAt || saved.submittedAt || Number(marker.startedAt) !== Number(saved.startedAt)) {
-      clearMarker(candidateHash);
+      await clearMarker(candidateHash);
       return { reconciled: false, elapsedSeconds: 0 };
     }
     const elapsedSeconds = Math.max(0, (Date.now() - Number(marker.hiddenAt)) / 1000);
     if (elapsedSeconds < 0.5) {
-      clearMarker(candidateHash);
+      await clearMarker(candidateHash);
       return { reconciled: false, elapsedSeconds: 0 };
     }
     saved.remainingSeconds = Math.max(0, (Number(saved.remainingSeconds) || 0) - elapsedSeconds);
@@ -193,9 +195,9 @@
     saved.integrityEvents = Array.isArray(saved.integrityEvents) ? saved.integrityEvents : [];
     saved.integrityEvents.push({ type: 'background-resume-reconciled', detail: `${Math.round(elapsedSeconds)}s counted while away`, at: Date.now() });
     saved.integrityEvents = saved.integrityEvents.slice(-100);
-    store.saveStudentState(session.id, candidateHash, saved);
+    await store.saveStudentState(session.id, candidateHash, saved);
     state = saved;
-    clearMarker(candidateHash);
+    await clearMarker(candidateHash);
     return { reconciled: true, elapsedSeconds };
   };
 
@@ -204,7 +206,7 @@
     const panel = document.createElement('aside');
     panel.dataset.cameraPreview = 'true';
     panel.className = 'fixed bottom-24 right-3 z-[70] w-40 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:bottom-5 sm:right-5 sm:w-56';
-    panel.innerHTML = '<div class="relative aspect-video bg-black"><video data-camera-video class="h-full w-full object-cover" autoplay muted playsinline aria-label="Candidate camera preview"></video><span class="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-900">Live camera</span></div><div class="hidden p-3 sm:block"><p class="text-xs font-semibold text-neutral-950">Local camera preview</p><p class="mt-1 text-[11px] leading-4 text-neutral-500">Not recorded, uploaded or analysed by this prototype.</p></div>';
+    panel.innerHTML = '<div class="relative aspect-video bg-black"><video data-camera-video class="h-full w-full object-cover" autoplay muted playsinline aria-label="Candidate camera preview"></video><span class="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-900">Live camera</span></div><div class="hidden p-3 sm:block"><p class="text-xs font-semibold text-neutral-950">Camera preview</p><p class="mt-1 text-[11px] leading-4 text-neutral-500">Shown only on this screen. It is not recorded or sent anywhere.</p></div>';
     document.body.append(panel);
     const video = panel.querySelector('[data-camera-video]');
     video.srcObject = cameraStream;
@@ -219,7 +221,7 @@
       overlay.className = 'fixed inset-0 z-[130] grid place-items-center bg-black/60 p-4 backdrop-blur-sm';
       document.body.append(overlay);
     }
-    overlay.innerHTML = `<section class="w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="camera-gate-title" aria-describedby="camera-gate-description" tabindex="-1"><div class="border-b border-neutral-200 bg-neutral-50 p-5"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Camera required</p><h2 id="camera-gate-title" class="mt-1 font-display text-2xl font-extrabold text-neutral-950">${activeExam ? 'Restore camera access to continue.' : 'Enable your camera before starting.'}</h2></div><div class="space-y-4 p-5"><p id="camera-gate-description" class="text-base leading-7 text-neutral-600">${esc(message)}</p>${alertMarkup('info', 'Privacy in this prototype', 'The video is shown only as a live local preview. It is not recorded, uploaded, stored or automatically analysed.')}</div><div class="border-t border-neutral-200 p-5"><button class="${C.primary} w-full" data-camera-retry>Enable camera</button></div></section>`;
+    overlay.innerHTML = `<section class="w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="camera-gate-title" aria-describedby="camera-gate-description" tabindex="-1"><div class="border-b border-neutral-200 bg-neutral-50 p-5"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Camera required</p><h2 id="camera-gate-title" class="mt-1 font-display text-2xl font-extrabold text-neutral-950">${activeExam ? 'Restore camera access to continue.' : 'Enable your camera before starting.'}</h2></div><div class="space-y-4 p-5"><p id="camera-gate-description" class="text-base leading-7 text-neutral-600">${esc(message)}</p>${alertMarkup('info', 'Your privacy', 'Your video appears only in the small preview on this screen. It is not recorded, saved or sent anywhere.')}</div><div class="border-t border-neutral-200 p-5"><button class="${C.primary} w-full" data-camera-retry>Enable camera</button></div></section>`;
     const dialog = overlay.querySelector('[role="dialog"]');
     queueMicrotask(() => dialog?.focus({ preventScroll: true }));
     overlay.querySelector('[data-camera-retry]')?.addEventListener('click', () => requestCamera().catch(() => {}), { once: true });
@@ -240,7 +242,7 @@
           track.addEventListener('ended', () => {
             if (!state?.submittedAt) {
               cameraReady = false;
-              recordIntegrity('camera-ended', 'Camera stream ended during the examination.');
+              recordIntegrity('camera-ended', 'Camera stream ended during the examination.').catch(() => {});
               document.querySelector('[data-camera-preview]')?.remove();
               cameraGate('The camera stream stopped. Restore camera access to continue the monitored examination.', true);
             }
@@ -248,7 +250,7 @@
         }
         document.querySelector('[data-camera-gate]')?.remove();
         ensureCameraPreview();
-        if (state?.startedAt && !state.submittedAt) recordIntegrity('camera-restored', 'Camera access active.', { notify: false });
+        if (state?.startedAt && !state.submittedAt) recordIntegrity('camera-restored', 'Camera access active.', { notify: false }).catch(() => {});
         updateChrome();
         return true;
       } catch (error) {
@@ -266,10 +268,10 @@
   };
 
   const hydrateExistingAuth = async () => {
-    profile = store.getStudentProfile();
+    profile = await store.getStudentProfile();
     if (!profile?.studentHash || store.getStudentAuth() !== profile.studentHash) return false;
     const active = store.getActiveCandidate(session.id);
-    const resetAt = store.getAttemptResetAt(session.id, active);
+    const resetAt = await store.getAttemptResetAt(session.id, active);
     if (resetAt && resetAt > Number(profile.updatedAt || 0)) {
       store.clearStudentAuth();
       store.clearActiveCandidate(session.id);
@@ -287,8 +289,8 @@
     const credentials = assessment.candidateCredentials(firstName, lastName);
     const studentHash = await assessment.studentHash(credentials.firstName, credentials.lastName);
     candidateHash = await assessment.candidateHash(session.id, credentials.firstName, credentials.lastName);
-    const existing = store.getStudentState(session.id, candidateHash);
-    profile = store.saveStudentProfile({
+    const existing = await store.getStudentState(session.id, candidateHash);
+    profile = await store.saveStudentProfile({
       ...credentials,
       studentHash,
       candidateHash,
@@ -321,8 +323,8 @@
 
   const briefingView = () => {
     const subjects = (session.subjects || []).map((code) => questions.subjectByCode(data, code)?.label || code).join(', ') || store.getModeLabel(session.mode);
-    root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<span class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">Attempt 1 of 1</span></div></header><div class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]"><div class="p-6 sm:p-8 lg:p-10"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Before you begin</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950 sm:text-4xl">${esc(session.title)}</h1><p class="mt-4 max-w-2xl text-base leading-7 text-neutral-600">Read the information below carefully. Your timer starts only after you select Start examination.</p><div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Duration</span><strong class="mt-1 block text-sm text-neutral-950">${esc(formatDuration(session.durationSeconds))}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Questions</span><strong class="mt-1 block text-sm text-neutral-950">${paper.length}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Coverage</span><strong class="mt-1 block truncate text-sm text-neutral-950" title="${esc(subjects)}">${esc(subjects)}</strong></div></div><div class="mt-7 space-y-4">${session.instructions ? alertMarkup('info', 'School instruction', session.instructions) : ''}${cameraRequired ? alertMarkup('warning', 'Camera required', 'Camera permission must remain active during this session. The local preview is not recorded by this prototype.') : ''}<div class="rounded-xl border border-neutral-200 p-5"><h2 class="text-sm font-semibold text-neutral-950">Examination rules</h2><ul class="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-600"><li>Stay on the examination screen. Leaving the tab or exiting required fullscreen is recorded.</li><li>Clipboard actions can be blocked and recorded when the school enables that policy.</li><li>Your remaining time continues to be accounted for while the exam is backgrounded or reloaded.</li><li>Use Flag for review and the navigator before final submission. Submission cannot be undone.</li></ul></div></div><button type="button" class="${C.primary} mt-7 w-full sm:w-auto" data-start>Start examination</button></div><aside class="border-t border-neutral-200 bg-neutral-950 p-6 text-white lg:border-l lg:border-t-0 lg:p-7"><div class="sticky top-6"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Integrity-aware session</p><h2 class="mt-3 font-display text-lg font-bold">Keep the examination foregrounded.</h2><p class="mt-2 text-sm leading-6 text-neutral-400">Focus changes, fullscreen exits and blocked clipboard actions can be recorded with the attempt so the school can review context.</p><div class="mt-6 rounded-xl border border-neutral-800 p-4 text-xs leading-5 text-neutral-400"><strong class="text-neutral-200">Important</strong><br>This browser prototype is not a tamper-proof production invigilation system.</div></div></aside></div></section></div></main>`;
-    root.querySelector('[data-start]')?.addEventListener('click', startExam);
+    root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<span class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">Attempt 1 of 1</span></div></header><div class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]"><div class="p-6 sm:p-8 lg:p-10"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Before you begin</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950 sm:text-4xl">${esc(session.title)}</h1><p class="mt-4 max-w-2xl text-base leading-7 text-neutral-600">Read the information below carefully. Your timer starts only after you select Start examination.</p><div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Duration</span><strong class="mt-1 block text-sm text-neutral-950">${esc(formatDuration(session.durationSeconds))}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Questions</span><strong class="mt-1 block text-sm text-neutral-950">${paper.length}</strong></div><div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><span class="text-xs text-neutral-500">Coverage</span><strong class="mt-1 block truncate text-sm text-neutral-950" title="${esc(subjects)}">${esc(subjects)}</strong></div></div><div class="mt-7 space-y-4">${session.instructions ? alertMarkup('info', 'School instruction', session.instructions) : ''}${cameraRequired ? alertMarkup('warning', 'Camera required', 'Camera permission must stay on during this exam. The preview is only visible to you and is never recorded.') : ''}<div class="rounded-xl border border-neutral-200 p-5"><h2 class="text-sm font-semibold text-neutral-950">Examination rules</h2><ul class="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-600"><li>Stay on the examination screen. Leaving the tab or exiting required fullscreen is recorded.</li><li>Clipboard actions can be blocked and recorded when the school enables that policy.</li><li>Your remaining time continues to be accounted for while the exam is backgrounded or reloaded.</li><li>Use Flag for review and the navigator before final submission. Submission cannot be undone.</li></ul></div></div><button type="button" class="${C.primary} mt-7 w-full sm:w-auto" data-start>Start examination</button></div><aside class="border-t border-neutral-200 bg-neutral-950 p-6 text-white lg:border-l lg:border-t-0 lg:p-7"><div class="sticky top-6"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Integrity-aware session</p><h2 class="mt-3 font-display text-lg font-bold">Keep the examination foregrounded.</h2><p class="mt-2 text-sm leading-6 text-neutral-400">Focus changes, fullscreen exits and blocked clipboard actions can be recorded with the attempt so the school can review context.</p><div class="mt-6 rounded-xl border border-neutral-800 p-4 text-xs leading-5 text-neutral-400"><strong class="text-neutral-200">Important</strong><br>This browser prototype is not a tamper-proof production invigilation system.</div></div></aside></div></section></div></main>`;
+    root.querySelector('[data-start]')?.addEventListener('click', () => startExam().catch((error) => showToast('danger', 'Unable to start examination', error?.message || 'Please try again.')));
     afterRender();
   };
 
@@ -394,7 +396,7 @@
   const option = (question, value, label, index, checked, type = 'radio') => {
     const inputId = `q-${question.id}-${index}`;
     const marker = label || String.fromCharCode(65 + index);
-    const markerShape = type === 'checkbox' ? 'rounded-md' : 'rounded-full';
+    const markerShape = 'rounded-full';
     const selected = checked ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50';
     const markerSelected = checked ? 'border-white/40 bg-white text-black' : 'border-neutral-300 bg-neutral-50 text-neutral-700';
     return `<label for="${inputId}" data-answer-option class="group relative block cursor-pointer"><input id="${inputId}" class="peer sr-only" type="${type}" name="q-${question.id}" value="${esc(value)}" ${checked ? 'checked' : ''}><span class="flex min-h-16 items-start gap-3 rounded-xl border p-4 text-base font-medium transition peer-focus-visible:ring-4 peer-focus-visible:ring-neutral-200 motion-reduce:transition-none ${selected}"><span class="grid size-8 shrink-0 place-items-center ${markerShape} border text-xs font-bold ${markerSelected}">${esc(marker)}</span><span class="min-w-0 flex-1 pt-1 leading-6">${esc(value)}</span></span></label>`;
@@ -444,9 +446,9 @@
     afterRender();
   };
 
-  const reviewView = () => {
-    recordElapsed(false);
-    persist();
+  const reviewView = async () => {
+    await recordElapsed(false);
+    await persist().catch(() => false);
     const summary = counts();
     const issues = summary.unanswered + summary.incomplete;
     root.innerHTML = `<main class="min-h-dvh bg-neutral-100"><header class="border-b border-neutral-200 bg-white"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">${pageBrand()}<div class="text-right"><strong class="block max-w-[13rem] truncate text-sm text-neutral-950 sm:max-w-sm">${esc(session.title)}</strong><span class="text-xs text-neutral-500">Review · timer continues</span></div></div></header><div class="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><section class="overflow-hidden ${C.card}"><div class="border-b border-neutral-200 p-6 sm:p-8"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Final review</p><h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-neutral-950">Check your paper before submitting.</h1><p class="mt-3 max-w-2xl text-base leading-7 text-neutral-600">Open any question to revise your response or review a flag. Submission is final.</p><div class="mt-5">${issues ? alertMarkup('warning', 'Paper not fully complete', `${summary.unanswered} unanswered · ${summary.incomplete} incomplete.`) : alertMarkup('success', 'All questions answered', 'You can still revisit any question before submitting.')}</div></div><div class="grid grid-cols-2 gap-3 border-b border-neutral-200 bg-neutral-50 p-5 sm:grid-cols-4">${[['Answered', summary.answered], ['Incomplete', summary.incomplete], ['Unanswered', summary.unanswered], ['Flagged', state.flagged?.length || 0]].map(([label, value]) => `<div class="rounded-xl border border-neutral-200 bg-white p-4"><span class="text-xs font-semibold uppercase tracking-wide text-neutral-500">${label}</span><strong class="mt-1 block text-2xl font-extrabold text-neutral-950">${value}</strong></div>`).join('')}</div><div class="p-5 sm:p-7"><div class="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">${paper.map((question, index) => navigatorButton(question, index, true)).join('')}</div><div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button type="button" class="${C.secondary}" data-back-exam>Back to questions</button><button type="button" class="${C.primary}" data-modal-target="submit-modal">Submit examination</button></div></div></section></div><dialog id="submit-modal" class="w-[calc(100%_-_1.5rem)] max-w-lg rounded-2xl border border-neutral-200 bg-white p-0 text-neutral-950 shadow-2xl backdrop:bg-neutral-950/50 backdrop:backdrop-blur-sm"><div class="p-5"><p class="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Final action</p><h2 class="mt-1 font-display text-2xl font-extrabold text-neutral-950">Submit this examination?</h2><div class="mt-4">${issues ? alertMarkup('warning', 'Some questions need attention', `${summary.unanswered} unanswered · ${summary.incomplete} incomplete.`) : alertMarkup('success', 'Paper complete', 'All questions are answered.')}</div><p class="mt-4 text-sm leading-6 text-neutral-600">Once submitted, Attempt 1 of 1 is locked and cannot be restarted.</p><div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" class="${C.secondary}" data-submit-cancel>Continue reviewing</button><button type="button" class="${C.primary}" data-confirm-submit>Submit examination</button></div></div></dialog></main>`;
@@ -456,7 +458,7 @@
     afterRender();
   };
 
-  const recordElapsed = (autoSubmit = true) => {
+  const recordElapsed = async (autoSubmit = true) => {
     if (!state?.startedAt || state.submittedAt || timeoutSubmitting) return;
     const now = Date.now();
     const delta = Math.max(0, (now - lastTick) / 1000);
@@ -469,18 +471,18 @@
       state.questionTimings[String(question.id)] = (Number(state.questionTimings[String(question.id)]) || 0) + delta;
     }
     if (!autoSubmit) return;
-    const status = effectiveStatus();
+    const status = await effectiveStatus();
     if (status === 'closed') {
       timeoutSubmitting = true;
-      persist();
-      submitExam({ automatic: true, reason: 'session-ended' });
+      await persist().catch(() => false);
+      await submitExam({ automatic: true, reason: 'session-ended' });
       return;
     }
     if (state.remainingSeconds <= 0) {
       timeoutSubmitting = true;
       state.remainingSeconds = 0;
-      persist();
-      submitExam({ automatic: true, reason: 'time-expired' });
+      await persist().catch(() => false);
+      await submitExam({ automatic: true, reason: 'time-expired' });
     }
   };
 
@@ -488,14 +490,15 @@
     stopTimer();
     lastTick = Date.now();
     timer = setInterval(() => {
-      recordElapsed(true);
-      updateChrome();
-      if (state && !state.submittedAt && !timeoutSubmitting) persist();
+      recordElapsed(true).catch(() => {}).finally(() => {
+        updateChrome();
+        if (state && !state.submittedAt && !timeoutSubmitting) persist().catch(() => {});
+      });
     }, 1000);
   };
 
-  const lockedView = () => {
-    const attempt = store.findAttempt(session.id, candidateHash);
+  const lockedView = async () => {
+    const attempt = await store.findAttempt(session.id, candidateHash).catch(() => null);
     fatal('Attempt complete', 'This examination has already been submitted.', 'Attempt 1 of 1 is locked and cannot be restarted.', `<div class="flex flex-wrap gap-3"><a class="${C.primary}" href="${portalHref('analytics')}">Open result & analytics</a><span class="inline-flex min-h-11 items-center rounded-xl border border-neutral-200 bg-neutral-50 px-4 text-sm font-semibold text-neutral-950">Score ${attempt?.score ?? 0}%</span></div>`);
   };
 
@@ -508,7 +511,7 @@
   };
 
   const startExam = async () => {
-    if (effectiveStatus() !== 'open') {
+    if ((await effectiveStatus()) !== 'open') {
       await enterAuthenticatedFlow();
       return;
     }
@@ -516,25 +519,25 @@
       const granted = await requestCamera();
       if (!granted) return;
     }
-    const existing = store.getStudentState(session.id, candidateHash);
+    const existing = await store.getStudentState(session.id, candidateHash);
     if (existing?.startedAt && !existing.submittedAt) {
       state = existing;
       paper = assessment.paperForStudent(data, session, candidateHash);
-      reconcilePersistedBackground();
+      await reconcilePersistedBackground();
       if (state.remainingSeconds <= 0) {
         timeoutSubmitting = true;
-        submitExam({ automatic: true, reason: 'time-expired' });
+        await submitExam({ automatic: true, reason: 'time-expired' });
         return;
       }
       startTimer();
       examView();
       return;
     }
-    if (store.hasSubmittedAttempt(session.id, candidateHash)) {
-      lockedView();
+    if (await store.hasSubmittedAttempt(session.id, candidateHash)) {
+      await lockedView();
       return;
     }
-    const resetAt = store.getAttemptResetAt(session.id, candidateHash);
+    const resetAt = await store.getAttemptResetAt(session.id, candidateHash);
     paper = assessment.paperForStudent(data, session, candidateHash);
     const fingerprint = await assessment.paperFingerprint(session.id, candidateHash, paper);
     const attemptHash = await assessment.attemptHash(session.id, candidateHash, fingerprint);
@@ -559,8 +562,8 @@
       elapsedActiveSeconds: 0,
       integrityEvents: []
     };
-    store.saveStudentState(session.id, candidateHash, state);
-    store.recordAttempt({
+    await store.saveStudentState(session.id, candidateHash, state);
+    await store.recordAttempt({
       id: attemptHash.slice(0, 12), attemptHash, candidateHash,
       studentHash: profile.studentHash, paperFingerprint: fingerprint,
       sessionId: session.id, sessionTitle: session.title,
@@ -573,18 +576,18 @@
     try {
       if (session.integrityPolicy?.fullscreenPrompt && document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
-        recordIntegrity('fullscreen-enter', 'Fullscreen mode entered.', { notify: false });
+        recordIntegrity('fullscreen-enter', 'Fullscreen mode entered.', { notify: false }).catch(() => {});
       }
     } catch {
-      recordIntegrity('fullscreen-denied', 'Fullscreen permission was denied.');
+      recordIntegrity('fullscreen-denied', 'Fullscreen permission was denied.').catch(() => {});
     }
     startTimer();
     examView();
   };
 
-  const submitExam = ({ automatic = false, reason = 'manual' } = {}) => {
+  const submitExam = async ({ automatic = false, reason = 'manual' } = {}) => {
     if (!state || state.submittedAt) return;
-    if (!timeoutSubmitting) recordElapsed(false);
+    if (!timeoutSubmitting) await recordElapsed(false);
     stopTimer();
     state.submittedAt = Date.now();
     const result = assessment.scoreAttempt(paper, state, session);
@@ -599,8 +602,8 @@
       details: result.details,
       submissionReason: reason
     });
-    store.saveStudentState(session.id, candidateHash, state);
-    store.recordAttempt({
+    await store.saveStudentState(session.id, candidateHash, state);
+    await store.recordAttempt({
       id: state.attemptHash.slice(0, 12), attemptHash: state.attemptHash, candidateHash,
       studentHash: profile.studentHash, paperFingerprint: state.paperFingerprint,
       sessionId: session.id, sessionTitle: session.title,
@@ -617,7 +620,7 @@
       subjectStats: result.subjectStats, placement: result.placement || null,
       details: result.details, questionIds: state.questionIds, submissionReason: reason
     });
-    clearMarker(candidateHash);
+    await clearMarker(candidateHash);
     stopCamera();
     if (document.fullscreenElement) document.exitFullscreen?.().catch?.(() => {});
     if (automatic) {
@@ -634,10 +637,10 @@
     afterRender();
   };
 
-  const goTo = (index) => {
-    recordElapsed(false);
+  const goTo = async (index) => {
+    await recordElapsed(false);
     state.currentIndex = Math.max(0, Math.min(paper.length - 1, Number(index) || 0));
-    persist();
+    await persist().catch(() => false);
     examView();
   };
 
@@ -668,20 +671,20 @@
       } else {
         state.responses[String(question.id)] = input.value;
       }
-      persist();
+      persist().catch(() => {});
       examView();
     }));
     root.querySelectorAll('[data-fill-key]').forEach((input) => input.addEventListener('input', () => {
       state.responses[String(question.id)] ||= {};
       state.responses[String(question.id)][input.dataset.fillKey] = input.value;
-      persist();
+      persist().catch(() => {});
     }));
     root.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => goTo(button.dataset.go)));
     root.querySelector('[data-flag]')?.addEventListener('click', (event) => {
       const id = Number(event.currentTarget.dataset.flag);
       state.flagged ||= [];
       state.flagged = state.flagged.includes(id) ? state.flagged.filter((value) => value !== id) : [...state.flagged, id];
-      persist();
+      persist().catch(() => {});
       examView();
     });
     root.querySelectorAll('[data-previous]').forEach((button) => button.addEventListener('click', () => goTo(state.currentIndex - 1)));
@@ -701,24 +704,24 @@
     dialog?.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
     root.querySelector('[data-confirm-submit]')?.addEventListener('click', () => {
       dialog?.close();
-      submitExam({ automatic: false, reason: 'manual' });
+      submitExam({ automatic: false, reason: 'manual' }).catch((error) => showToast('danger', 'Submission failed', error?.message || 'Unable to submit. Please try again.'));
     });
   };
 
   const enterAuthenticatedFlow = async () => {
-    const status = effectiveStatus();
+    const status = await effectiveStatus();
     if (status !== 'open') {
       fatal('Session unavailable', 'This examination is not open.', status === 'scheduled'
         ? 'The session is scheduled but has not started yet.'
         : 'The school has closed or disabled this examination.', `<a class="${C.primary}" href="${portalHref()}">Return to student portal</a>`);
       return;
     }
-    if (store.hasSubmittedAttempt(session.id, candidateHash)) {
-      lockedView();
+    if (await store.hasSubmittedAttempt(session.id, candidateHash)) {
+      await lockedView();
       return;
     }
-    state = store.getStudentState(session.id, candidateHash);
-    if (state?.startedAt && store.isAttemptInvalidated(session.id, candidateHash, state.startedAt)) {
+    state = await store.getStudentState(session.id, candidateHash);
+    if (state?.startedAt && await store.isAttemptInvalidated(session.id, candidateHash, state.startedAt)) {
       showReset();
       return;
     }
@@ -728,13 +731,13 @@
       return;
     }
     if (state?.startedAt && !state.submittedAt) {
-      const reconciliation = reconcilePersistedBackground();
+      const reconciliation = await reconcilePersistedBackground();
       if (reconciliation.reconciled) {
         showToast('warning', 'Background time counted', `${Math.max(1, Math.round(reconciliation.elapsedSeconds))} seconds were deducted while the examination was away from the foreground.`);
       }
       if (state.remainingSeconds <= 0) {
         timeoutSubmitting = true;
-        submitExam({ automatic: true, reason: 'time-expired' });
+        await submitExam({ automatic: true, reason: 'time-expired' });
         return;
       }
       if (cameraRequired) await requestCamera();
@@ -747,39 +750,39 @@
 
   window.addEventListener('blur', () => {
     if (document.hidden) return;
-    recordIntegrity('window-blur', 'Examination window lost focus.');
+    recordIntegrity('window-blur', 'Examination window lost focus.').catch(() => {});
   });
 
   document.addEventListener('visibilitychange', () => {
     if (!state?.startedAt || state.submittedAt) return;
     if (document.hidden) {
-      recordElapsed(false);
-      persist();
-      writeMarker({ sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() });
-      recordIntegrity('tab-hidden', 'Examination tab became hidden.');
+      recordElapsed(false).catch(() => {});
+      persist().catch(() => {});
+      writeMarker({ sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() }).catch(() => {});
+      recordIntegrity('tab-hidden', 'Examination tab became hidden.').catch(() => {});
       return;
     }
-    recordElapsed(false);
-    clearMarker(candidateHash);
-    recordIntegrity('focus-return', 'Candidate returned to the examination.', { notify: false });
-    persist();
+    recordElapsed(false).catch(() => {});
+    clearMarker(candidateHash).catch(() => {});
+    recordIntegrity('focus-return', 'Candidate returned to the examination.', { notify: false }).catch(() => {});
+    persist().catch(() => {});
     updateChrome();
   });
 
   document.addEventListener('fullscreenchange', () => {
     if (!state?.startedAt || state.submittedAt || !session?.integrityPolicy?.fullscreenPrompt) return;
     if (document.fullscreenElement) {
-      recordIntegrity('fullscreen-enter', 'Fullscreen mode active.', { notify: false });
+      recordIntegrity('fullscreen-enter', 'Fullscreen mode active.', { notify: false }).catch(() => {});
       return;
     }
-    recordIntegrity('fullscreen-exit', 'Candidate exited fullscreen mode.');
+    recordIntegrity('fullscreen-exit', 'Candidate exited fullscreen mode.').catch(() => {});
     showToast('warning', 'Fullscreen exited', 'This event has been recorded. Return to fullscreen if your school requires it.');
   });
 
   ['copy', 'cut', 'paste'].forEach((type) => document.addEventListener(type, (event) => {
     if (!state?.startedAt || state.submittedAt || !session?.integrityPolicy?.clipboardGuard) return;
     event.preventDefault();
-    recordIntegrity(`clipboard-${type}`, `${type} action blocked by examination policy.`);
+    recordIntegrity(`clipboard-${type}`, `${type} action blocked by examination policy.`).catch(() => {});
   }));
 
   window.addEventListener('pagehide', () => {
@@ -787,40 +790,45 @@
       stopCamera();
       return;
     }
-    recordElapsed(false);
-    persist();
-    const existing = readMarker(candidateHash);
-    writeMarker(existing?.hiddenAt ? existing : { sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() });
+    recordElapsed(false).catch(() => {});
+    persist().catch(() => {});
+    readMarker(candidateHash).then((existing) => {
+      writeMarker(existing?.hiddenAt ? existing : { sessionId: session.id, candidateHash, startedAt: state.startedAt, hiddenAt: Date.now() }).catch(() => {});
+    }).catch(() => {});
     stopCamera();
   });
 
   window.addEventListener('pageshow', (event) => {
     if (event.persisted && state?.startedAt && !state.submittedAt) {
-      const reconciliation = reconcilePersistedBackground();
-      if (reconciliation.reconciled) {
-        lastTick = Date.now();
-        updateChrome();
-      }
+      reconcilePersistedBackground().then((reconciliation) => {
+        if (reconciliation.reconciled) {
+          lastTick = Date.now();
+          updateChrome();
+        }
+      }).catch(() => {});
       if (cameraRequired && !cameraReady) requestCamera().catch(() => {});
     }
   });
 
-  try {
-    session = store.resolveSession(store.decodeSession(token));
-    cameraRequired = Boolean(proctor.rememberFromUrl(session.id, location.href)?.cameraRequired);
-  } catch (error) {
-    fatal('Invalid exam link', 'This examination link cannot be opened.', error?.message || 'The session token is missing or invalid.');
-    return;
-  }
-
-  questions.load().then(async (payload) => {
-    data = payload;
-    if (!(await hydrateExistingAuth())) {
-      authView();
+  const boot = async () => {
+    try {
+      session = await store.resolveSession(store.decodeSession(token));
+      cameraRequired = Boolean((await proctor.rememberFromUrl(session.id, location.href))?.cameraRequired);
+    } catch (error) {
+      fatal('Invalid exam link', 'This examination link cannot be opened.', error?.message || 'The session token is missing or invalid.');
       return;
     }
-    await enterAuthenticatedFlow();
-  }).catch((error) => fatal('Exam unavailable', 'The examination could not be prepared.', error?.message || 'Question data could not be loaded.'));
+
+    questions.load().then(async (payload) => {
+      data = payload;
+      if (!(await hydrateExistingAuth())) {
+        authView();
+        return;
+      }
+      await enterAuthenticatedFlow();
+    }).catch((error) => fatal('Exam unavailable', 'The examination could not be prepared.', error?.message || 'Question data could not be loaded.'));
+  };
+  boot();
 
   window.FestacolExamApp = Object.freeze({
     requestCamera,

@@ -6,9 +6,10 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const exists = (file) => fs.existsSync(path.join(root, file));
 
 const legacyRequired = [
-  'admin.html','student.html','exam.html','js/session-store.js','js/proctor-policy.js','js/question-data.js','js/assessment-engine.js','js/student-dashboard.js','js/exam-app.js','js/admin-app.js','js/qr.js','data/questions.json'
+  'admin.html','student.html','exam.html','js/session-store.js','js/proctor-policy.js','js/question-data.js','js/assessment-engine.js','js/student-dashboard.js','js/exam-app.js','js/admin-app.js','js/qr.js'
 ];
 for (const file of legacyRequired) if (!exists(file)) throw new Error(`Missing required prototype file: ${file}`);
+if (exists('data/questions.json')) throw new Error('Seed file must live in Next.js public/, not prototype/data/');
 
 const targetRuntime = ['js/shared.js', 'js/admin.js', 'js/student.js', 'js/exam.js'];
 const targetSurfaces = ['index.html', 'admin.html', 'student.html', 'exam.html'];
@@ -23,7 +24,7 @@ const legacyStore=read('js/session-store.js');
 for(const token of ['questionCount < 5','questionCount > 150','findSessionById','authorizeRewrite','rewriteArchivedAt','listWhatsAppGroups','saveWhatsAppGroup','whatsAppGroupForClass','attemptsForStudent','attemptsForSession','resetUnfinishedAttempt'])if(!legacyStore.includes(token))throw new Error(`Session store missing ${token}`);
 const css=read('assets/festacol.css'); if(css.includes('festacol-exam.css'))throw new Error('Shared legacy CSS still imports deleted festacol-exam.css');
 
-const payload=JSON.parse(read('data/questions.json'));
+const payload=JSON.parse(read('../public/seed/questions.json'));
 const TRACKS=new Set(['Science','Arts','Social Science']),LEVELS=new Set(['SS1','SS2','SS3']),MODES=new Set(['qualifier','single','mixed','waec']),DIFFICULTIES=new Set(['easy','medium','hard']),TYPES=new Set(['single','multi','boolean','fill','fill-multi']);
 if(!Array.isArray(payload.questions)||payload.questions.length<720)throw new Error(`Question bank must contain at least 720 validated seeds; found ${payload.questions?.length||0}.`);
 if(!Array.isArray(payload.subjectCatalog)||!payload.subjectCatalog.length)throw new Error('Question subject catalogue is unavailable.');
