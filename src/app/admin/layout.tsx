@@ -1,66 +1,82 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { adminNav } from "@/lib/nav";
+import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { AdminDialogs } from "@/components/admin/admin-dialogs";
+import { AdminBreadcrumbLabel, AdminNav } from "@/components/admin/admin-nav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-// The sidebar only renders for signed-in staff. Visitors (e.g. /admin/login)
-// get a bare page — no nav leaks before authentication. The proxy already
-// redirects unauthenticated /admin/* traffic; this covers the login route.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
+  const user = data.user;
   const role =
-    (data.user?.app_metadata?.role as string | undefined) ??
-    (data.user?.user_metadata?.role as string | undefined);
-  const signedIn = role === "administrator" || role === "teacher";
+    (user?.app_metadata?.role as string | undefined) ??
+    (user?.user_metadata?.role as string | undefined) ??
+    "";
 
-  if (!signedIn) {
-    return <main className="flex min-h-svh flex-1 flex-col">{children}</main>;
-  }
+  if (!user) return <main className="min-h-dvh bg-background">{children}</main>;
+  if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <Link href="/admin" className="flex items-center gap-2 px-2 py-1">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">F</span>
-            <span className="flex flex-col">
-              <span className="text-sm font-semibold">Festacol</span>
-              <span className="text-xs text-muted-foreground">{role === "administrator" ? "Admin workspace" : "Staff workspace"}</span>
+      <Sidebar collapsible="icon" className="border-neutral-800">
+        <SidebarHeader className="border-b border-neutral-800 bg-neutral-950 p-3 text-white">
+          <Link href="/admin" className="flex min-h-12 items-center gap-3 rounded-xl px-1 outline-none ring-neutral-600 focus-visible:ring-2">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-sm font-black text-neutral-950">F</span>
+            <span className="min-w-0 group-data-[collapsible=icon]:hidden">
+              <strong className="block truncate text-sm">Festacol</strong>
+              <span className="block truncate text-[11px] text-neutral-400">Academic operations</span>
             </span>
           </Link>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent className="bg-neutral-950 text-white">
           <SidebarGroup>
-            <SidebarGroupLabel>Manage</SidebarGroupLabel>
-            <SidebarMenu>
-              {adminNav.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton render={<Link href={item.href} />}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <SidebarGroupLabel className="text-neutral-500">Workspace</SidebarGroupLabel>
+            <SidebarGroupContent><AdminNav /></SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          <p className="px-2 text-xs text-muted-foreground">Supabase + Prisma</p>
+        <SidebarFooter className="border-t border-neutral-800 bg-neutral-950 text-white">
+          <div className="flex items-center gap-2 rounded-lg px-2 py-2 group-data-[collapsible=icon]:justify-center">
+            <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />
+            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-xs font-medium">Production workspace</p>
+              <p className="truncate text-[11px] text-neutral-500">Supabase + Prisma</p>
+            </div>
+          </div>
         </SidebarFooter>
+        <SidebarRail />
       </Sidebar>
-      <main className="flex min-h-svh flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background px-4 py-2">
+
+      <SidebarInset className="min-w-0 bg-neutral-50/70">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-6">
           <SidebarTrigger />
-          <p className="text-sm text-muted-foreground">Admin</p>
+          <div className="h-5 w-px bg-border" aria-hidden="true" />
+          <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            <span>Administration</span>
+            <span className="px-2" aria-hidden="true">/</span>
+            <AdminBreadcrumbLabel />
+          </div>
+          <Badge variant="outline" className="capitalize">{role}</Badge>
         </header>
-        <div className="mx-auto w-full max-w-[1600px] flex-1 p-4 sm:p-6">{children}</div>
-        <Suspense>
-          <AdminDialogs />
-        </Suspense>
-      </main>
+        <main className="w-full flex-1 p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+        </main>
+        <Suspense><AdminDialogs /></Suspense>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
