@@ -131,6 +131,11 @@ export interface QuestionEditorInput {
   explanation?: string;
 }
 
+type ExistingQuestionRow = {
+  subject_code: string;
+  created_by: string | null;
+};
+
 function questionValidation(input: QuestionEditorInput): string | null {
   if (!input.subjectCode.trim()) return "Choose a subject.";
   if (input.prompt.trim().length < 3) return "Enter the question prompt.";
@@ -161,10 +166,10 @@ export async function upsertQuestionParityAction(input: QuestionEditorInput): Pr
     const { supabase, scope } = await currentStaff();
     if (!scope.isAdmin && !scope.subjects.includes(input.subjectCode)) return { ok: false, error: "Outside your subject scope." };
 
-    let existing: { subject_code: string; created_by: string | null } | null = null;
+    let existing: ExistingQuestionRow | null = null;
     if (input.id !== undefined) {
       const { data } = await supabase.from("questions").select("subject_code,created_by").eq("id", input.id).maybeSingle();
-      existing = data as typeof existing;
+      existing = data as ExistingQuestionRow | null;
       if (!existing) return { ok: false, error: "Question not found." };
       if (!scope.isAdmin && existing.created_by !== scope.staffId) return { ok: false, error: "Teachers can edit only questions they authored." };
     }
