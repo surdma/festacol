@@ -17,9 +17,9 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
           </div>
 
           <div className="py-12">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground/45">Administration workspace</p>
-            <h1 className="mt-4 max-w-xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">Run examinations, enrolment and academic operations from one secure workspace.</h1>
-            <p className="mt-5 max-w-sm text-base leading-7 text-primary-foreground/65">Teacher and administrator access is managed through the school’s Supabase identity and permission model.</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground/45">Administration</p>
+            <h1 className="mt-4 max-w-xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">Admin sign in</h1>
+            <p className="mt-5 max-w-sm text-base leading-7 text-primary-foreground/65">Supabase-managed administrator account (email + password).</p>
           </div>
 
           <span className="text-xs text-primary-foreground/45">Assessment operations · student records · integrity review</span>
@@ -29,8 +29,8 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
           <Card className="mx-auto w-full max-w-xl border-0 bg-transparent py-0 shadow-none">
             <CardHeader className="px-0">
               <Badge className="mb-2">Staff authentication</Badge>
-              <CardTitle className="font-display text-3xl font-extrabold">Sign in to Festacol administration.</CardTitle>
-              <CardDescription className="mt-2 text-base leading-7">Use your Supabase-managed administrator or teacher email and password.</CardDescription>
+              <CardTitle className="font-display text-3xl font-extrabold">Admin sign in</CardTitle>
+              <CardDescription className="mt-2 text-base leading-7">Supabase-managed administrator account (email + password).</CardDescription>
             </CardHeader>
             <CardContent className="px-0 pt-3">
               <AdminLoginForm next={next} />
