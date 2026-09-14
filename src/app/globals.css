@@ -4,6 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Production theme mirrors the canonical prototype while keeping shadcn as the component layer. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
