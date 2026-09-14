@@ -24,8 +24,13 @@
     if (!isConfigured()) return null;
     const factory = win.supabase?.createClient;
     if (typeof factory !== 'function') return null;
+    // Session MUST persist: the prototype spans multiple page loads
+    // (student.html -> exam.html -> index.html), and a memory-only session
+    // is wiped on every navigation/reload, causing login loops.
+    // Persistence is handled internally by supabase-js; app pointers
+    // (currentAuthHash, active candidates) stay memory-only per contract.
     client = factory(getUrl(), getKey(), {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
     });
     return client;
   };
