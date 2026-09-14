@@ -6,7 +6,8 @@ import { StaffScopeDialog } from "@/components/admin/staff-provision-dialog";
 import { WhatsappGlobalDialog } from "@/components/admin/prototype-parity-dialogs";
 import { ExamWizard } from "./exam-wizard";
 import { AttemptDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDialog, UserDetailDialog } from "./detail-dialogs";
-import { ClassFormDialog, QuestionFormDialog, UserFormDialog, WhatsappFormDialog } from "./entity-forms";
+import { QuestionFormDialog, UserFormDialog, WhatsappFormDialog } from "./entity-forms";
+import { Task7ClassFormDialog } from "./task7-class-form";
 import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./task7-record-dialogs";
 
 const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step"] as const;
@@ -48,8 +49,8 @@ function Host() {
       {modal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
       {modal === "user-new" ? <UserFormDialog open presetRole={params.get("role") ?? "student"} onClose={close} /> : null}
       {modal === "user-edit" && studentId ? <UserFormDialog open presetRole="student" userId={studentId} onClose={close} /> : null}
-      {modal === "class-new" ? <ClassFormDialog open onClose={close} /> : null}
-      {modal === "class-edit" && classId ? <ClassFormDialog open classId={classId} onClose={close} /> : null}
+      {modal === "class-new" ? <Task7ClassFormDialog open onClose={close} /> : null}
+      {modal === "class-edit" && classId ? <Task7ClassFormDialog open classId={classId} onClose={close} /> : null}
       {modal === "question-new" ? <QuestionFormDialog open onClose={close} /> : null}
       {modal === "question-edit" && questionId ? <QuestionFormDialog open questionId={Number(questionId)} onClose={close} /> : null}
       {modal === "whatsapp-new" ? classId ? <WhatsappFormDialog open classId={classId} onClose={close} /> : <WhatsappGlobalDialog onClose={close} /> : null}
