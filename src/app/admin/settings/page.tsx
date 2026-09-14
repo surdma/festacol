@@ -1,7 +1,6 @@
 import { BookOpenCheck, Database, ShieldCheck } from "lucide-react";
-import { AdminPageHeader } from "@/components/admin/admin-ui";
+import { AdminMetricCard, AdminPageHeader, adminSurfaceClass } from "@/components/admin/admin-ui";
 import { MajorPicker } from "@/components/admin/major-picker";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { currentStaff } from "@/lib/auth/staff";
 import { SubjectsManager } from "./subjects-manager";
 
@@ -10,13 +9,13 @@ export default async function AdminSettingsPage() {
 
   if (!scope.isAdmin) {
     return (
-      <div className="flex flex-col gap-5">
+      <div>
         <AdminPageHeader eyebrow="Workspace" title="Settings" description="Manage your teaching scope. School-wide catalogs, classes, communication and staff provisioning remain administrator-only." />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BookOpenCheck className="size-4" />Current scope</CardTitle><CardDescription>Subjects control which examinations, questions, attempts and reports are visible to you.</CardDescription></CardHeader><CardContent><p className="text-sm font-medium">{scope.subjects.length ? scope.subjects.join(", ") : "No subjects selected"}</p></CardContent></Card>
-          <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="size-4" />Qualifier access</CardTitle><CardDescription>This permission is controlled by an administrator.</CardDescription></CardHeader><CardContent><p className="text-sm font-medium">{scope.qualifierAccess ? "Enabled" : "Not enabled"}</p></CardContent></Card>
-        </div>
-        <MajorPicker />
+        <section className="grid gap-3 sm:grid-cols-2">
+          <article className={`${adminSurfaceClass} p-5`}><span className="grid size-9 place-items-center rounded-xl bg-neutral-950 text-white"><BookOpenCheck className="size-4" /></span><p className="mt-4 text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Current scope</p><strong className="mt-2 block text-sm text-neutral-950">{scope.subjects.length ? scope.subjects.join(", ") : "No subjects selected"}</strong><p className="mt-2 text-xs leading-5 text-neutral-500">Subjects control which examinations, questions, attempts and reports are visible to you.</p></article>
+          <article className={`${adminSurfaceClass} p-5`}><span className="grid size-9 place-items-center rounded-xl bg-neutral-950 text-white"><ShieldCheck className="size-4" /></span><p className="mt-4 text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Qualifier access</p><strong className="mt-2 block text-sm text-neutral-950">{scope.qualifierAccess ? "Enabled" : "Not enabled"}</strong><p className="mt-2 text-xs leading-5 text-neutral-500">This permission is controlled by an administrator.</p></article>
+        </section>
+        <div className="mt-5"><MajorPicker /></div>
       </div>
     );
   }
@@ -26,14 +25,14 @@ export default async function AdminSettingsPage() {
   const activeCount = subjects.filter((subject) => subject.active).length;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       <AdminPageHeader eyebrow="Workspace" title="Settings" description="Manage the shared academic catalog that feeds examinations, question authoring and teacher subject scopes." />
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><BookOpenCheck className="size-4" />Subject catalog</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold tabular-nums">{subjects.length}</p><p className="mt-1 text-xs text-muted-foreground">{activeCount} active</p></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="size-4" />Authentication</CardTitle></CardHeader><CardContent><p className="text-sm font-semibold">Supabase Auth</p><p className="mt-1 text-xs text-muted-foreground">Staff roles and staff IDs are enforced server-side.</p></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><Database className="size-4" />Persistence</CardTitle></CardHeader><CardContent><p className="text-sm font-semibold">Typed Postgres records</p><p className="mt-1 text-xs text-muted-foreground">The prototype's browser-local records are not used by production admin flows.</p></CardContent></Card>
-      </div>
-      <SubjectsManager initial={subjects} />
+      <section className="grid gap-3 sm:grid-cols-3">
+        <AdminMetricCard label="Subject catalog" value={String(subjects.length)} detail={`${activeCount} active subjects`} icon={BookOpenCheck} />
+        <AdminMetricCard label="Authentication" value="Supabase" detail="staff roles and staff IDs enforced server-side" icon={ShieldCheck} />
+        <AdminMetricCard label="Persistence" value="Postgres" detail="typed production records, not prototype local storage" icon={Database} />
+      </section>
+      <div className="mt-5"><SubjectsManager initial={subjects} /></div>
     </div>
   );
 }

@@ -1,19 +1,8 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { CSSProperties } from "react";
 import { Suspense } from "react";
 import { AdminDialogs } from "@/components/admin/admin-dialogs";
 import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
 import { AdminNav } from "@/components/admin/admin-nav";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarInset,
-  SidebarProvider,
-  SidebarRail,
-} from "@/components/ui/sidebar";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -25,11 +14,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     (user?.user_metadata?.role as string | undefined) ??
     "";
 
-  if (!user) return <main className="min-h-dvh bg-background">{children}</main>;
+  if (!user) return <main className="min-h-dvh bg-neutral-50">{children}</main>;
   if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
 
-  const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
   const displayName =
     (user.user_metadata?.full_name as string | undefined)?.trim() ||
     (user.user_metadata?.name as string | undefined)?.trim() ||
@@ -38,50 +25,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const email = user.email ?? "";
 
   return (
-    <SidebarProvider
-      defaultOpen={defaultOpen}
-      style={
-        {
-          "--sidebar-width": "18rem",
-          "--sidebar-width-icon": "4.75rem",
-          "--sidebar": "oklch(0.145 0 0)",
-          "--sidebar-foreground": "oklch(0.985 0 0)",
-          "--sidebar-primary": "oklch(1 0 0)",
-          "--sidebar-primary-foreground": "oklch(0.145 0 0)",
-          "--sidebar-accent": "oklch(1 0 0 / 0.075)",
-          "--sidebar-accent-foreground": "oklch(0.985 0 0)",
-          "--sidebar-border": "oklch(1 0 0 / 0.09)",
-          "--sidebar-ring": "oklch(0.708 0 0)",
-        } as CSSProperties
-      }
-      className="bg-background"
-    >
-      <Sidebar
-        variant="inset"
-        collapsible="icon"
-        className="border-0 [&_[data-slot=sidebar-inner]]:overflow-hidden [&_[data-slot=sidebar-inner]]:rounded-[26px] [&_[data-slot=sidebar-inner]]:bg-sidebar [&_[data-slot=sidebar-inner]]:shadow-[0_20px_70px_rgba(0,0,0,0.24)] [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-sidebar-border"
-      >
-        <SidebarHeader className="bg-sidebar p-3 pb-1.5 pt-[calc(0.75rem+env(safe-area-inset-top))] text-sidebar-foreground md:pt-3">
-          <AdminSidebarBrand />
-        </SidebarHeader>
-        <SidebarContent className="bg-sidebar px-1 pb-2 text-sidebar-foreground overscroll-contain">
-          <AdminNav />
-        </SidebarContent>
-        <SidebarFooter className="bg-sidebar p-3 pt-1.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-sidebar-foreground group-data-[collapsible=icon]:p-2 md:pb-3">
-          <AdminSidebarFooter displayName={displayName} email={email} role={role} />
-        </SidebarFooter>
-        <SidebarRail className="after:bg-transparent hover:after:bg-sidebar-border" />
-      </Sidebar>
+    <div className="min-h-screen bg-neutral-50 text-neutral-950">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-neutral-800 bg-neutral-950 text-white lg:flex lg:flex-col">
+        <div className="border-b border-neutral-800 px-5 py-5"><AdminSidebarBrand /></div>
+        <div className="px-4 pb-2 pt-4"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-500">Workspace</p></div>
+        <AdminNav />
+        <AdminSidebarFooter displayName={displayName} email={email} role={role} />
+      </aside>
 
-      <SidebarInset className="min-w-0 overflow-hidden bg-background md:rounded-[28px] md:shadow-[0_12px_40px_rgba(15,23,42,0.06)] md:ring-1 md:ring-black/[0.045]">
+      <div className="min-h-screen lg:pl-64">
         <AdminTopbar displayName={displayName} role={role} />
-        <main className="w-full flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-[1600px]">{children}</div>
-        </main>
-        <Suspense>
-          <AdminDialogs />
-        </Suspense>
-      </SidebarInset>
-    </SidebarProvider>
+        <main className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">{children}</main>
+      </div>
+
+      <Suspense>
+        <AdminDialogs />
+      </Suspense>
+    </div>
   );
 }

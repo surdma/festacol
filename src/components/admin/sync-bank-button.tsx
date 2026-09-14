@@ -2,19 +2,16 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { syncQuestionBankAction } from "@/app/actions/admin";
+import { adminSecondaryButtonClass } from "@/components/admin/admin-ui";
+import { Button } from "@/components/ui/button";
 
 export function SyncBankButton() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   return (
-    <Button size="sm" variant="outline" disabled={pending}
-      onClick={() => startTransition(async () => {
-        const r = await syncQuestionBankAction();
-        if (r.ok) router.refresh();
-      })}>
-      {pending ? "Syncing…" : "Sync bank"}
+    <Button type="button" variant="outline" disabled={pending} className={adminSecondaryButtonClass} onClick={() => startTransition(async () => { const result = await syncQuestionBankAction(); if (result.ok) router.refresh(); })}>
+      {pending ? "Loading…" : "Load question bank"}
     </Button>
   );
 }

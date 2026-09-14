@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import { AdminEmptyState, adminSurfaceClass } from "@/components/admin/admin-ui";
 import { StatusBadge } from "@/components/status-badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface Attempt {
   attempt_hash: string;
@@ -15,10 +15,24 @@ interface Attempt {
   score: number | null;
   integrity_score: number | null;
   submitted_at: number | null;
+  assigned_track: string | null;
+  placement_confidence: number | null;
 }
 interface FeedItem { student: string; type: string; hash: string; at?: number }
+type ReportView = "overview" | "exams" | "students" | "placements" | "integrity";
 
-type ReportView = "exams" | "students" | "integrity";
+const views: { value: ReportView; label: string }[] = [
+  { value: "overview", label: "Overview" },
+  { value: "exams", label: "Exams" },
+  { value: "students", label: "Students" },
+  { value: "placements", label: "Placements" },
+  { value: "integrity", label: "Integrity" },
+];
+
+function dateTime(value: number | null | undefined) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
 
 export function ReportsTabs({ attempts, titles, feed, initialView }: { attempts: Attempt[]; titles: Record<string, string>; feed: FeedItem[]; initialView: ReportView }) {
   const router = useRouter();
@@ -33,36 +47,62 @@ export function ReportsTabs({ attempts, titles, feed, initialView }: { attempts:
     if (attempt.submitted_at) { value.submitted += 1; value.sum += attempt.score ?? 0; }
     byExam.set(key, value);
   }
+
   const byStudent = new Map<string, { total: number; sum: number; integrity: number; latest: string }>();
   for (const attempt of attempts.filter((item) => item.submitted_at)) {
     const value = byStudent.get(attempt.student_name) ?? { total: 0, sum: 0, integrity: 0, latest: attempt.attempt_hash };
-    value.total += 1; value.sum += attempt.score ?? 0; value.integrity += attempt.integrity_score ?? 100; value.latest = attempt.attempt_hash;
+    value.total += 1;
+    value.sum += attempt.score ?? 0;
+    value.integrity += attempt.integrity_score ?? 100;
+    value.latest = attempt.attempt_hash;
     byStudent.set(attempt.student_name, value);
   }
+
+  const placements = attempts.filter((attempt) => attempt.assigned_track);
+  const recent = [...attempts].filter((attempt) => attempt.submitted_at).sort((a, b) => Number(b.submitted_at ?? 0) - Number(a.submitted_at ?? 0)).slice(0, 8);
 
   function changeView(value: string) {
     const next = new URLSearchParams(params.toString());
     next.set("view", value);
-    next.delete("modal");
-    next.delete("attempt");
+    for (const key of ["modal", "attempt", "exam", "student", "question", "class", "staff", "group"]) next.delete(key);
     router.replace(`${pathname}?${next.toString()}`);
   }
 
   return (
-    <Tabs value={initialView} onValueChange={changeView}>
-      <TabsList variant="line" className="max-w-full overflow-x-auto">
-        <TabsTrigger value="exams">Exams</TabsTrigger>
-        <TabsTrigger value="students">Students</TabsTrigger>
-        <TabsTrigger value="integrity">Integrity</TabsTrigger>
+    <Tabs value={initialView} onValueChange={changeView} className="mt-5 gap-4">
+      <TabsList variant="line" className="h-auto max-w-full justify-start gap-1 overflow-x-auto rounded-lg border border-neutral-300 bg-white p-1 shadow-none">
+        {views.map((view) => <TabsTrigger key={view.value} value={view.value} className="min-h-9 rounded-md border-0 px-3 text-xs font-semibold text-neutral-600 data-active:bg-black data-active:text-white">{view.label}</TabsTrigger>)}
       </TabsList>
+
+      <TabsContent value="overview">
+        <section className={cn(adminSurfaceClass, "overflow-hidden")}>
+          <div className="border-b border-neutral-200 p-5"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Latest activity</p><h2 className="mt-1 font-display text-lg font-extrabold text-neutral-950">Recent submissions</h2></div>
+          {recent.length ? <div className="divide-y divide-neutral-100">{recent.map((attempt) => <Link key={attempt.attempt_hash} href={`/admin/reports?view=overview&modal=attempt&attempt=${encodeURIComponent(attempt.attempt_hash)}`} className="grid gap-2 p-4 transition hover:bg-neutral-50 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center"><span><strong className="block text-sm text-neutral-950">{attempt.student_name}</strong><span className="mt-1 block text-xs text-neutral-500">{attempt.session_title}</span></span><span className="text-xs text-neutral-500">{dateTime(attempt.submitted_at)}</span><span className="font-display text-lg font-extrabold tabular-nums text-neutral-950">{attempt.score ?? 0}%</span></Link>)}</div> : <AdminEmptyState title="No submissions yet" description="Completed attempts will appear here as candidates submit examinations." />}
+        </section>
+      </TabsContent>
+
       <TabsContent value="exams">
-        {byExam.size ? <Card className="overflow-hidden"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Exam</TableHead><TableHead>Attempts</TableHead><TableHead>Average</TableHead></TableRow></TableHeader><TableBody>{[...byExam.entries()].map(([key, value]) => <TableRow key={key}><TableCell><Link href={`/admin/exams?modal=exam&exam=${encodeURIComponent(key)}`} className="font-medium hover:underline">{titles[key] ?? key}</Link></TableCell><TableCell>{value.submitted}/{value.total} submitted</TableCell><TableCell>{value.submitted ? `${Math.round(value.sum / value.submitted)}%` : "—"}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card> : <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">No exam attempt data yet.</CardContent></Card>}
+        <section className={cn(adminSurfaceClass, "overflow-hidden")}>
+          {byExam.size ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Exam</th><th className="px-4 py-3">Attempts</th><th className="px-4 py-3">Average</th></tr></thead><tbody className="divide-y divide-neutral-100">{[...byExam.entries()].map(([key, value]) => <tr key={key} className="hover:bg-neutral-50"><td className="px-4 py-3">{titles[key] ? <Link href={`/admin/exams?modal=exam&exam=${encodeURIComponent(key)}`} className="font-semibold hover:underline">{titles[key]}</Link> : <span className="font-semibold">{key}</span>}</td><td className="px-4 py-3">{value.submitted}/{value.total} submitted</td><td className="px-4 py-3 font-semibold tabular-nums">{value.submitted ? `${Math.round(value.sum / value.submitted)}%` : "—"}</td></tr>)}</tbody></table></div> : <AdminEmptyState title="No exam data yet" description="Exam attempt data will appear here once candidates start papers." />}
+        </section>
       </TabsContent>
+
       <TabsContent value="students">
-        {byStudent.size ? <Card className="overflow-hidden"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Student</TableHead><TableHead>Submitted</TableHead><TableHead>Average</TableHead><TableHead>Integrity</TableHead><TableHead>Latest attempt</TableHead></TableRow></TableHeader><TableBody>{[...byStudent.entries()].map(([name, value]) => <TableRow key={name}><TableCell className="font-medium">{name}</TableCell><TableCell>{value.total}</TableCell><TableCell>{Math.round(value.sum / value.total)}%</TableCell><TableCell>{Math.round(value.integrity / value.total)}%</TableCell><TableCell><Link href={`/admin/reports?view=students&modal=attempt&attempt=${encodeURIComponent(value.latest)}`} className="font-mono text-xs hover:underline">Open</Link></TableCell></TableRow>)}</TableBody></Table></CardContent></Card> : <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Submitted student attempts will appear here.</CardContent></Card>}
+        <section className={cn(adminSurfaceClass, "overflow-hidden")}>
+          {byStudent.size ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Submitted</th><th className="px-4 py-3">Average</th><th className="px-4 py-3">Integrity</th><th className="px-4 py-3">Latest attempt</th></tr></thead><tbody className="divide-y divide-neutral-100">{[...byStudent.entries()].map(([name, value]) => <tr key={name} className="hover:bg-neutral-50"><td className="px-4 py-3 font-semibold">{name}</td><td className="px-4 py-3">{value.total}</td><td className="px-4 py-3 tabular-nums">{Math.round(value.sum / value.total)}%</td><td className="px-4 py-3 tabular-nums">{Math.round(value.integrity / value.total)}%</td><td className="px-4 py-3"><Link href={`/admin/reports?view=students&modal=attempt&attempt=${encodeURIComponent(value.latest)}`} className="text-xs font-semibold hover:underline">Open</Link></td></tr>)}</tbody></table></div> : <AdminEmptyState title="No student report data" description="Submitted student attempts will appear here." />}
+        </section>
       </TabsContent>
+
+      <TabsContent value="placements">
+        <section className={cn(adminSurfaceClass, "overflow-hidden")}>
+          {placements.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Placement</th><th className="px-4 py-3">Confidence</th><th className="px-4 py-3">Attempt</th></tr></thead><tbody className="divide-y divide-neutral-100">{placements.map((attempt) => <tr key={attempt.attempt_hash} className="hover:bg-neutral-50"><td className="px-4 py-3 font-semibold">{attempt.student_name}</td><td className="px-4 py-3"><StatusBadge tone="blue">{attempt.assigned_track}</StatusBadge></td><td className="px-4 py-3 tabular-nums">{attempt.placement_confidence == null ? "—" : `${Math.round(Number(attempt.placement_confidence) * (Number(attempt.placement_confidence) <= 1 ? 100 : 1))}%`}</td><td className="px-4 py-3"><Link href={`/admin/reports?view=placements&modal=attempt&attempt=${encodeURIComponent(attempt.attempt_hash)}`} className="text-xs font-semibold hover:underline">Open</Link></td></tr>)}</tbody></table></div> : <AdminEmptyState title="No placement results yet" description="Qualifier placement outcomes will appear here after eligible attempts are submitted." />}
+        </section>
+      </TabsContent>
+
       <TabsContent value="integrity">
-        {feed.length ? <Card className="overflow-hidden"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Student</TableHead><TableHead>Event</TableHead><TableHead>Time</TableHead><TableHead>Attempt</TableHead></TableRow></TableHeader><TableBody>{feed.map((item, index) => <TableRow key={`${item.hash}-${item.type}-${index}`}><TableCell>{item.student}</TableCell><TableCell><StatusBadge tone="amber">{item.type}</StatusBadge></TableCell><TableCell className="text-xs text-muted-foreground">{item.at ? new Date(item.at).toLocaleString() : "—"}</TableCell><TableCell><Link href={`/admin/reports?view=integrity&modal=attempt&attempt=${encodeURIComponent(item.hash)}`} className="font-mono text-xs hover:underline">{item.hash.slice(0, 12)}…</Link></TableCell></TableRow>)}</TableBody></Table></CardContent></Card> : <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">No review-worthy integrity events are visible in your scope.</CardContent></Card>}
+        <section className={cn(adminSurfaceClass, "overflow-hidden")}>
+          {feed.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Event</th><th className="px-4 py-3">Time</th><th className="px-4 py-3">Attempt</th></tr></thead><tbody className="divide-y divide-neutral-100">{feed.map((item, index) => <tr key={`${item.hash}-${item.type}-${index}`} className="hover:bg-neutral-50"><td className="px-4 py-3">{item.student}</td><td className="px-4 py-3"><StatusBadge tone="amber">{item.type}</StatusBadge></td><td className="px-4 py-3 text-xs text-neutral-500">{dateTime(item.at)}</td><td className="px-4 py-3"><Link href={`/admin/reports?view=integrity&modal=attempt&attempt=${encodeURIComponent(item.hash)}`} className="font-mono text-xs hover:underline">{item.hash.slice(0, 12)}…</Link></td></tr>)}</tbody></table></div> : <AdminEmptyState title="No integrity events" description="No review-worthy integrity events are visible in your current scope." />}
+        </section>
       </TabsContent>
     </Tabs>
   );

@@ -1,10 +1,17 @@
 import Link from "next/link";
-import { BookOpenCheck, Plus } from "lucide-react";
-import { AdminFilterLinks, AdminPageHeader, AdminSearchForm } from "@/components/admin/admin-ui";
+import { BookOpenCheck, CheckCircle2, Clock3, MoreHorizontal, Plus, ShieldAlert } from "lucide-react";
+import {
+  AdminEmptyState,
+  AdminFilterLinks,
+  AdminMetricCard,
+  AdminPageHeader,
+  AdminSearchForm,
+  adminIconButtonClass,
+  adminPrimaryButtonClass,
+  adminSurfaceClass,
+} from "@/components/admin/admin-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { currentStaff, examVisibleTo } from "@/lib/auth/staff";
 import { listSessions } from "@/lib/supabase/queries";
 import type { ExamSessionRow } from "@/types/db";
@@ -29,76 +36,102 @@ export default async function AdminExamsPage({ searchParams }: { searchParams: P
   const q = String(params.q ?? "").trim().toLowerCase();
   const status = ["open", "draft", "scheduled", "closed"].includes(String(params.status)) ? String(params.status) : "all";
   const { supabase, scope } = await currentStaff();
-  const [allSessions, attemptsResult] = await Promise.all([
+  const [allSessions, attemptsResult, eventsResult] = await Promise.all([
     listSessions(supabase),
     supabase.from("exam_attempts").select("session_id,submitted_at,rewrite_archived_at").limit(2000),
+    supabase.from("exam_integrity_events").select("session_id").limit(5000),
   ]);
-  const sessions = allSessions
-    .filter((session) => examVisibleTo(session, scope))
+
+  const visibleSessions = allSessions.filter((session) => examVisibleTo(session, scope));
+  const sessions = visibleSessions
     .filter((session) => !q || `${session.title} ${session.id} ${session.class_level} ${session.class_group} ${(session.subjects ?? []).join(" ")}`.toLowerCase().includes(q))
     .filter((session) => status === "all" || examState(session) === status);
+
+  const visibleIds = new Set(visibleSessions.map((session) => session.id));
   const counts = new Map<string, { total: number; submitted: number }>();
+  let submittedCount = 0;
   for (const attempt of ((attemptsResult.data ?? []) as { session_id: string | null; submitted_at: number | null; rewrite_archived_at: number | null }[])) {
     if (!attempt.session_id || attempt.rewrite_archived_at) continue;
     const value = counts.get(attempt.session_id) ?? { total: 0, submitted: 0 };
     value.total += 1;
-    if (attempt.submitted_at) value.submitted += 1;
+    if (attempt.submitted_at) { value.submitted += 1; if (visibleIds.has(attempt.session_id)) submittedCount += 1; }
     counts.set(attempt.session_id, value);
   }
+  const integrityEvents = ((eventsResult.data ?? []) as { session_id: string }[]).filter((event) => visibleIds.has(event.session_id)).length;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       <AdminPageHeader
-        eyebrow="Assessment control"
+        eyebrow="Assessment operations"
         title="Examinations"
-        description={scope.isAdmin ? "Create, publish and monitor production examination sessions." : `Scoped to ${scope.subjects.join(", ") || "your assigned subjects"}${scope.qualifierAccess ? " plus qualifier examinations" : ""}.`}
-        actions={<Button render={<Link href="/admin/exams?modal=create-exam" />}><Plus data-icon="inline-start" />New exam</Button>}
+        description={scope.isAdmin ? "Create, distribute, update and audit examinations without exposing raw candidate URLs." : `Scoped to ${scope.subjects.join(", ") || "your assigned subjects"}${scope.qualifierAccess ? " plus qualifier examinations" : ""}.`}
+        actions={<Button render={<Link href="/admin/exams?modal=create-exam" />} className={adminPrimaryButtonClass}><Plus className="size-4" />Create exam</Button>}
       />
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-        <AdminSearchForm query={params.q} placeholder="Search title, Exam ID, class or subject" hidden={{ status: status === "all" ? undefined : status }} />
-        <AdminFilterLinks pathname="/admin/exams" param="status" current={status} preserve={{ q: params.q }} options={[{ value: "all", label: "All exams" }, { value: "open", label: "Open" }, { value: "draft", label: "Draft" }, { value: "scheduled", label: "Scheduled" }, { value: "closed", label: "Closed" }]} />
-      </div>
-      <div className="text-sm text-muted-foreground">{sessions.length} visible examination{sessions.length === 1 ? "" : "s"}</div>
 
-      {sessions.length ? (
-        <Card className="overflow-hidden">
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader><TableRow><TableHead>Exam</TableHead><TableHead>Audience</TableHead><TableHead>Paper</TableHead><TableHead>Attempts</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {sessions.map((session) => {
-                  const state = examState(session);
-                  const activity = counts.get(session.id) ?? { total: 0, submitted: 0 };
-                  return (
-                    <TableRow key={session.id}>
-                      <TableCell><Link href={`/admin/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} className="font-medium hover:underline">{session.title}</Link><p className="mt-1 font-mono text-[11px] text-muted-foreground">{session.id}</p></TableCell>
-                      <TableCell><strong className="block text-sm font-medium">{session.class_level} · {session.class_group}</strong><span className="mt-1 block max-w-sm text-xs text-muted-foreground">{session.subjects?.length ? session.subjects.join(", ") : session.mode}</span></TableCell>
-                      <TableCell><strong className="tabular-nums">{session.question_count}</strong><span className="mt-1 block text-xs text-muted-foreground">{Math.round(session.duration_seconds / 60)} min</span></TableCell>
-                      <TableCell><strong className="tabular-nums">{activity.total}</strong><span className="mt-1 block text-xs text-muted-foreground">{activity.submitted} submitted</span></TableCell>
-                      <TableCell><StatusBadge tone={stateTone(state)}>{state}</StatusBadge></TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="divide-y lg:hidden">
-            {sessions.map((session) => {
-              const state = examState(session);
-              const activity = counts.get(session.id) ?? { total: 0, submitted: 0 };
-              return (
-                <Link key={session.id} href={`/admin/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} className="flex gap-3 p-4 hover:bg-muted/50">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white"><BookOpenCheck className="size-4" /></span>
-                  <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{session.title}</strong><span className="mt-1 block truncate text-xs text-muted-foreground">{session.class_level} · {session.question_count} questions · {activity.submitted}/{activity.total} submitted</span></span>
-                  <StatusBadge tone={stateTone(state)}>{state}</StatusBadge>
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
-      ) : (
-        <Card><CardContent className="p-8 text-center"><BookOpenCheck className="mx-auto size-8 text-muted-foreground" /><h2 className="mt-3 font-medium">No matching examinations</h2><p className="mt-1 text-sm text-muted-foreground">Change the search/filter or create a new exam.</p></CardContent></Card>
-      )}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminMetricCard label="Sessions" value={String(visibleSessions.length)} detail="all visible examinations" icon={BookOpenCheck} />
+        <AdminMetricCard label="Live" value={String(visibleSessions.filter((session) => examState(session) === "open").length)} detail="currently open" icon={Clock3} />
+        <AdminMetricCard label="Submitted" value={String(submittedCount)} detail="current submitted attempts" icon={CheckCircle2} />
+        <AdminMetricCard label="Integrity events" value={String(integrityEvents)} detail="attached to exam attempts" icon={ShieldAlert} />
+      </section>
+
+      <div className="mt-5 mb-4">
+        <AdminSearchForm query={params.q} placeholder="Search title, Exam ID, class or subject" hidden={{ status: status === "all" ? undefined : status }} />
+      </div>
+
+      <section className={`${adminSurfaceClass} overflow-hidden`}>
+        <div className="flex flex-col gap-3 border-b border-neutral-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <AdminFilterLinks
+            pathname="/admin/exams"
+            param="status"
+            current={status}
+            preserve={{ q: params.q }}
+            options={[{ value: "all", label: "All" }, { value: "open", label: "Open" }, { value: "scheduled", label: "Scheduled" }, { value: "draft", label: "Draft" }, { value: "closed", label: "Closed" }]}
+          />
+          <span className="text-xs font-semibold text-neutral-500">{sessions.length} shown</span>
+        </div>
+
+        {sessions.length ? (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500">
+                  <tr><th className="whitespace-nowrap px-4 py-3">Exam</th><th className="whitespace-nowrap px-4 py-3">Audience</th><th className="whitespace-nowrap px-4 py-3">Paper</th><th className="whitespace-nowrap px-4 py-3">Attempts</th><th className="whitespace-nowrap px-4 py-3">Status</th><th className="whitespace-nowrap px-4 py-3"><span className="sr-only">Manage</span></th></tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {sessions.map((session) => {
+                    const state = examState(session);
+                    const activity = counts.get(session.id) ?? { total: 0, submitted: 0 };
+                    return (
+                      <tr key={session.id} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3"><Link href={`/admin/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} className="text-left"><strong className="block max-w-sm text-neutral-950">{session.title}</strong><span className="mt-1 block font-mono text-[11px] tracking-wider text-neutral-500">{session.id}</span></Link></td>
+                        <td className="px-4 py-3"><span className="block text-xs font-semibold text-neutral-800">{session.class_level} · {session.class_group}</span><span className="mt-1 block max-w-xs text-xs text-neutral-500">{session.subjects?.length ? session.subjects.join(", ") : session.mode}</span></td>
+                        <td className="px-4 py-3"><strong className="text-neutral-950">{session.question_count}</strong><span className="block text-xs text-neutral-500">{Math.round(session.duration_seconds / 60)} min</span></td>
+                        <td className="px-4 py-3"><strong className="text-neutral-950">{activity.total}</strong><span className="block text-xs text-neutral-500">{activity.submitted} submitted</span></td>
+                        <td className="px-4 py-3"><StatusBadge tone={stateTone(state)}>{state}</StatusBadge></td>
+                        <td className="px-4 py-3 text-right"><Button size="icon" variant="outline" render={<Link href={`/admin/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} />} className={adminIconButtonClass} aria-label={`Manage ${session.title}`}><MoreHorizontal className="size-4" /></Button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="divide-y divide-neutral-100 md:hidden">
+              {sessions.map((session) => {
+                const state = examState(session);
+                const activity = counts.get(session.id) ?? { total: 0, submitted: 0 };
+                return (
+                  <Link key={session.id} href={`/admin/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} className="block w-full p-4 text-left transition hover:bg-neutral-50">
+                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block truncate text-sm text-neutral-950">{session.title}</strong><span className="mt-1 block font-mono text-[11px] tracking-wider text-neutral-500">{session.id}</span></div><StatusBadge tone={stateTone(state)}>{state}</StatusBadge></div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-neutral-600"><span>{session.question_count} Q</span><span>{Math.round(session.duration_seconds / 60)} min</span><span>{activity.total} attempts</span></div>
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        ) : <AdminEmptyState title="No exams in this view" description="Change the filter or create a new examination." action={<Button render={<Link href="/admin/exams?modal=create-exam" />} className={adminPrimaryButtonClass}><Plus className="size-4" />Create exam</Button>} />}
+      </section>
     </div>
   );
 }
