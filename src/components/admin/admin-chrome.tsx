@@ -1,13 +1,15 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { cn } from "cn";
+import { ExternalLink, LogOut, Plus, Settings2, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { ExternalLink, LogOut, Plus, Settings2, ShieldCheck } from "lucide-react";
 import { AdminLiveBadge } from "@/app/admin/live-badge";
 import { signOutAdminAction } from "@/app/actions/admin-auth";
-import { Button } from "@/components/ui/button";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAdminNavItem } from "@/components/admin/admin-nav";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 function initials(name: string) {
   return name
@@ -21,28 +23,68 @@ function initials(name: string) {
 
 export function AdminSidebarBrand() {
   const reduceMotion = useReducedMotion();
+  const { isMobile, setOpenMobile, state } = useSidebar();
+  const compact = state === "collapsed" && !isMobile;
 
   return (
-    <Link
-      href="/admin"
-      className="group/brand flex min-h-14 items-center gap-3 rounded-[18px] px-2 outline-none ring-white/30 transition-colors hover:bg-white/[0.055] focus-visible:ring-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-    >
-      <motion.span
-        whileHover={reduceMotion ? undefined : { scale: 1.04, rotate: -2 }}
-        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-        transition={{ type: "spring", stiffness: 450, damping: 28 }}
-        className="grid size-10 shrink-0 place-items-center rounded-[14px] bg-white text-sm font-black tracking-[-0.04em] text-neutral-950 shadow-[0_8px_24px_rgba(0,0,0,0.24)]"
+    <div className="flex min-h-14 items-center gap-1.5">
+      <Link
+        href="/admin"
+        onClick={() => {
+          if (isMobile) setOpenMobile(false);
+        }}
+        className={cn(
+          "group/brand flex min-w-0 flex-1 items-center gap-3 rounded-[17px] px-2 py-2 outline-none transition-colors duration-200 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+          compact && "justify-center px-0",
+        )}
       >
-        F
-      </motion.span>
-      <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-        <span className="flex items-center gap-2">
-          <strong className="truncate text-[15px] font-semibold tracking-[-0.02em] text-white">Festacol</strong>
-          <span className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Admin</span>
-        </span>
-        <span className="mt-0.5 block truncate text-[11px] text-neutral-500">Academic operations</span>
-      </span>
-    </Link>
+        <motion.span
+          whileHover={reduceMotion ? undefined : { scale: 1.035, rotate: -1.5 }}
+          whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 440, damping: 28 }}
+          className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-sidebar-primary text-sm font-black tracking-[-0.04em] text-sidebar-primary-foreground shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
+        >
+          F
+        </motion.span>
+
+        <AnimatePresence initial={false}>
+          {!compact ? (
+            <motion.span
+              initial={reduceMotion ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }}
+              transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
+              className="min-w-0 flex-1"
+            >
+              <span className="flex items-center gap-2">
+                <strong className="truncate text-[15px] font-semibold tracking-[-0.02em] text-sidebar-foreground">
+                  Festacol
+                </strong>
+                <span className="rounded-md border border-sidebar-border bg-sidebar-accent px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/55">
+                  Admin
+                </span>
+              </span>
+              <span className="mt-0.5 block truncate text-[11px] text-sidebar-foreground/42">Academic operations</span>
+            </motion.span>
+          ) : null}
+        </AnimatePresence>
+      </Link>
+
+      {isMobile ? (
+        <Button
+          type="button"
+          size="icon-lg"
+          variant="ghost"
+          onClick={() => setOpenMobile(false)}
+          className="size-11 shrink-0 rounded-[13px] text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label="Close sidebar"
+        >
+          <X />
+        </Button>
+      ) : (
+        <SidebarTrigger className="size-9 shrink-0 rounded-[12px] text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden" />
+      )}
+    </div>
   );
 }
 
@@ -55,45 +97,121 @@ export function AdminSidebarFooter({
   email: string;
   role: string;
 }) {
+  const reduceMotion = useReducedMotion();
+  const { isMobile, setOpenMobile, state } = useSidebar();
+  const compact = state === "collapsed" && !isMobile;
+
+  function closeMobileSidebar() {
+    if (isMobile) setOpenMobile(false);
+  }
+
+  if (compact) {
+    return (
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
+        className="flex flex-col items-center gap-2 rounded-[18px] border border-sidebar-border bg-sidebar-accent/35 p-2"
+      >
+        <span className="relative grid size-10 place-items-center rounded-[13px] bg-sidebar-accent text-[10px] font-bold text-sidebar-foreground ring-1 ring-sidebar-border">
+          {initials(displayName)}
+          <span className="absolute -right-0.5 -bottom-0.5 grid size-3 place-items-center rounded-full bg-sidebar">
+            <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+          </span>
+        </span>
+        <span className="sr-only">Connected</span>
+
+        <div className="flex flex-col gap-1.5" aria-label="Account actions">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Link
+                  href="/admin/settings"
+                  className={cn(
+                    buttonVariants({ variant: "ghost", size: "icon-lg" }),
+                    "size-11 rounded-[13px] text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                  aria-label="Settings"
+                />
+              }
+            >
+              <Settings2 />
+            </TooltipTrigger>
+            <TooltipContent side="right">Settings</TooltipContent>
+          </Tooltip>
+
+          <form action={signOutAdminAction}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="submit"
+                    size="icon-lg"
+                    variant="ghost"
+                    className="size-11 rounded-[13px] text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    aria-label="Sign out"
+                  />
+                }
+              >
+                <LogOut />
+              </TooltipTrigger>
+              <TooltipContent side="right">Sign out</TooltipContent>
+            </Tooltip>
+          </form>
+        </div>
+        <span className="sr-only">Signed in as {email || displayName}</span>
+      </motion.div>
+    );
+  }
+
   return (
-    <div className="rounded-[18px] border border-white/[0.08] bg-white/[0.035] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
-      <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-        <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white/[0.09] text-[11px] font-bold text-white ring-1 ring-white/10">
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
+      className="rounded-[20px] border border-sidebar-border bg-sidebar-accent/35 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+    >
+      <div className="flex items-center gap-2.5 rounded-[14px] px-1 py-1">
+        <span className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-sidebar-accent text-[11px] font-bold text-sidebar-foreground ring-1 ring-sidebar-border">
           {initials(displayName)}
         </span>
-        <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-          <strong className="block truncate text-xs font-semibold text-neutral-100">{displayName}</strong>
-          <span className="mt-0.5 block truncate text-[10px] capitalize text-neutral-500">{role}</span>
+        <span className="min-w-0 flex-1">
+          <strong className="block truncate text-xs font-semibold text-sidebar-foreground">{displayName}</strong>
+          <span className="mt-0.5 block truncate text-[10px] capitalize text-sidebar-foreground/42">{role}</span>
         </span>
-        <span
-          className="size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.08)] group-data-[collapsible=icon]:hidden"
-          aria-hidden="true"
-        />
+        <span className="relative flex size-3 shrink-0 items-center justify-center" aria-hidden="true">
+          <span className="absolute size-2 rounded-full bg-emerald-400/20" />
+          <span className="relative size-1.5 rounded-full bg-emerald-400" />
+        </span>
         <span className="sr-only">Connected</span>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-1.5 group-data-[collapsible=icon]:hidden">
-        <Button
-          size="sm"
-          variant="ghost"
-          render={<Link href="/admin/settings" />}
-          className="h-8 justify-start rounded-[10px] px-2 text-[11px] text-neutral-400 hover:bg-white/[0.07] hover:text-white"
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <Link
+          href="/admin/settings"
+          onClick={closeMobileSidebar}
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "h-11 justify-start rounded-[13px] px-3 text-xs text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          )}
         >
-          <Settings2 data-icon="inline-start" className="size-3.5" />
+          <Settings2 data-icon="inline-start" />
           Settings
-        </Button>
+        </Link>
         <form action={signOutAdminAction}>
-          <button
+          <Button
             type="submit"
-            className="flex h-8 w-full items-center justify-start gap-1.5 rounded-[10px] px-2 text-[11px] font-medium text-neutral-400 outline-none transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:ring-2 focus-visible:ring-white/25"
+            size="sm"
+            variant="ghost"
+            className="h-11 w-full justify-start rounded-[13px] px-3 text-xs text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <LogOut className="size-3.5" />
+            <LogOut data-icon="inline-start" />
             Sign out
-          </button>
+          </Button>
         </form>
       </div>
       <span className="sr-only">Signed in as {email || displayName}</span>
-    </div>
+    </motion.div>
   );
 }
 

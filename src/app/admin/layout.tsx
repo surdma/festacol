@@ -1,6 +1,10 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { CSSProperties } from "react";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
+import { AdminDialogs } from "@/components/admin/admin-dialogs";
+import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
+import { AdminNav } from "@/components/admin/admin-nav";
 import {
   Sidebar,
   SidebarContent,
@@ -10,9 +14,6 @@ import {
   SidebarProvider,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { AdminDialogs } from "@/components/admin/admin-dialogs";
-import { AdminNav } from "@/components/admin/admin-nav";
-import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) return <main className="min-h-dvh bg-background">{children}</main>;
   if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
 
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
   const displayName =
     (user.user_metadata?.full_name as string | undefined)?.trim() ||
     (user.user_metadata?.name as string | undefined)?.trim() ||
@@ -36,29 +39,38 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <SidebarProvider
+      defaultOpen={defaultOpen}
       style={
         {
-          "--sidebar-width": "17.5rem",
-          "--sidebar-width-icon": "4.5rem",
+          "--sidebar-width": "18rem",
+          "--sidebar-width-icon": "4.75rem",
+          "--sidebar": "oklch(0.155 0 0)",
+          "--sidebar-foreground": "oklch(0.985 0 0)",
+          "--sidebar-primary": "oklch(0.985 0 0)",
+          "--sidebar-primary-foreground": "oklch(0.155 0 0)",
+          "--sidebar-accent": "oklch(1 0 0 / 0.075)",
+          "--sidebar-accent-foreground": "oklch(0.985 0 0)",
+          "--sidebar-border": "oklch(1 0 0 / 0.09)",
+          "--sidebar-ring": "oklch(0.74 0 0)",
         } as CSSProperties
       }
-      className="bg-neutral-950 md:bg-[#f3f4f6]"
+      className="bg-muted/55"
     >
       <Sidebar
         variant="inset"
         collapsible="icon"
-        className="border-0 [&_[data-slot=sidebar-inner]]:overflow-hidden [&_[data-slot=sidebar-inner]]:rounded-[24px] [&_[data-slot=sidebar-inner]]:bg-neutral-950 [&_[data-slot=sidebar-inner]]:shadow-[0_18px_60px_rgba(0,0,0,0.22)] [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-white/[0.07]"
+        className="border-0 [&_[data-slot=sidebar-inner]]:overflow-hidden [&_[data-slot=sidebar-inner]]:rounded-[26px] [&_[data-slot=sidebar-inner]]:bg-sidebar [&_[data-slot=sidebar-inner]]:shadow-[0_20px_70px_rgba(0,0,0,0.24)] [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-sidebar-border"
       >
-        <SidebarHeader className="bg-neutral-950 p-3 pb-2 text-white">
+        <SidebarHeader className="bg-sidebar p-3 pb-1.5 pt-[calc(0.75rem+env(safe-area-inset-top))] text-sidebar-foreground md:pt-3">
           <AdminSidebarBrand />
         </SidebarHeader>
-        <SidebarContent className="bg-neutral-950 px-1 pb-3 text-white">
+        <SidebarContent className="bg-sidebar px-1 pb-2 text-sidebar-foreground overscroll-contain">
           <AdminNav />
         </SidebarContent>
-        <SidebarFooter className="bg-neutral-950 p-3 pt-2 text-white">
+        <SidebarFooter className="bg-sidebar p-3 pt-1.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-sidebar-foreground group-data-[collapsible=icon]:p-2 md:pb-3">
           <AdminSidebarFooter displayName={displayName} email={email} role={role} />
         </SidebarFooter>
-        <SidebarRail />
+        <SidebarRail className="after:bg-transparent hover:after:bg-sidebar-border" />
       </Sidebar>
 
       <SidebarInset className="min-w-0 overflow-hidden bg-[#f7f8fa] md:rounded-[28px] md:shadow-[0_12px_40px_rgba(15,23,42,0.06)] md:ring-1 md:ring-black/[0.045]">
@@ -66,7 +78,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <main className="w-full flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
-        <Suspense><AdminDialogs /></Suspense>
+        <Suspense>
+          <AdminDialogs />
+        </Suspense>
       </SidebarInset>
     </SidebarProvider>
   );
