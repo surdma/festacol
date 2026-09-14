@@ -1,22 +1,18 @@
-import Link from "next/link";
+import type { CSSProperties } from "react";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AdminDialogs } from "@/components/admin/admin-dialogs";
-import { AdminBreadcrumbLabel, AdminNav } from "@/components/admin/admin-nav";
+import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -31,47 +27,42 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) return <main className="min-h-dvh bg-background">{children}</main>;
   if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
 
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined)?.trim() ||
+    (user.user_metadata?.name as string | undefined)?.trim() ||
+    user.email?.split("@")[0] ||
+    (role === "administrator" ? "Administrator" : "Teacher");
+  const email = user.email ?? "";
+
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon" className="border-neutral-800">
-        <SidebarHeader className="border-b border-neutral-800 bg-neutral-950 p-3 text-white">
-          <Link href="/admin" className="flex min-h-12 items-center gap-3 rounded-xl px-1 outline-none ring-neutral-600 focus-visible:ring-2">
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-sm font-black text-neutral-950">F</span>
-            <span className="min-w-0 group-data-[collapsible=icon]:hidden">
-              <strong className="block truncate text-sm">Festacol</strong>
-              <span className="block truncate text-[11px] text-neutral-400">Academic operations</span>
-            </span>
-          </Link>
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "17.5rem",
+          "--sidebar-width-icon": "4.5rem",
+        } as CSSProperties
+      }
+      className="bg-neutral-950 md:bg-[#f3f4f6]"
+    >
+      <Sidebar
+        variant="inset"
+        collapsible="icon"
+        className="border-0 [&_[data-slot=sidebar-inner]]:overflow-hidden [&_[data-slot=sidebar-inner]]:rounded-[24px] [&_[data-slot=sidebar-inner]]:bg-neutral-950 [&_[data-slot=sidebar-inner]]:shadow-[0_18px_60px_rgba(0,0,0,0.22)] [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-white/[0.07]"
+      >
+        <SidebarHeader className="bg-neutral-950 p-3 pb-2 text-white">
+          <AdminSidebarBrand />
         </SidebarHeader>
-        <SidebarContent className="bg-neutral-950 text-white">
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-neutral-500">Workspace</SidebarGroupLabel>
-            <SidebarGroupContent><AdminNav /></SidebarGroupContent>
-          </SidebarGroup>
+        <SidebarContent className="bg-neutral-950 px-1 pb-3 text-white">
+          <AdminNav />
         </SidebarContent>
-        <SidebarFooter className="border-t border-neutral-800 bg-neutral-950 text-white">
-          <div className="flex items-center gap-2 rounded-lg px-2 py-2 group-data-[collapsible=icon]:justify-center">
-            <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />
-            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-              <p className="truncate text-xs font-medium">Production workspace</p>
-              <p className="truncate text-[11px] text-neutral-500">Supabase + Prisma</p>
-            </div>
-          </div>
+        <SidebarFooter className="bg-neutral-950 p-3 pt-2 text-white">
+          <AdminSidebarFooter displayName={displayName} email={email} role={role} />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="min-w-0 bg-neutral-50/70">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-6">
-          <SidebarTrigger />
-          <div className="h-5 w-px bg-border" aria-hidden="true" />
-          <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            <span>Administration</span>
-            <span className="px-2" aria-hidden="true">/</span>
-            <AdminBreadcrumbLabel />
-          </div>
-          <Badge variant="outline" className="capitalize">{role}</Badge>
-        </header>
+      <SidebarInset className="min-w-0 overflow-hidden bg-[#f7f8fa] md:rounded-[28px] md:shadow-[0_12px_40px_rgba(15,23,42,0.06)] md:ring-1 md:ring-black/[0.045]">
+        <AdminTopbar displayName={displayName} role={role} />
         <main className="w-full flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>

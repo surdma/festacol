@@ -1,15 +1,78 @@
-import { BookOpen, Users, GraduationCap, ClipboardList, School, Library, BarChart3, Settings, LayoutDashboard } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  GraduationCap,
+  LayoutDashboard,
+  Library,
+  School,
+  Settings,
+  Users,
+} from "lucide-react";
 
 export const adminNav = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/students", label: "Students", icon: Users },
-  { href: "/admin/staff", label: "Staff", icon: GraduationCap },
-  { href: "/admin/exams", label: "Examinations", icon: BookOpen },
-  { href: "/admin/classes", label: "Classes", icon: School },
-  { href: "/admin/questions", label: "Question Bank", icon: Library },
-  { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  {
+    href: "/admin",
+    label: "Overview",
+    description: "Command center",
+    section: "Workspace",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "/admin/students",
+    label: "Students",
+    description: "Directory and records",
+    section: "People",
+    icon: Users,
+  },
+  {
+    href: "/admin/staff",
+    label: "Staff",
+    description: "Access and subject scope",
+    section: "People",
+    icon: GraduationCap,
+  },
+  {
+    href: "/admin/classes",
+    label: "Classes",
+    description: "Structure and communication",
+    section: "People",
+    icon: School,
+  },
+  {
+    href: "/admin/exams",
+    label: "Examinations",
+    description: "Assessment control",
+    section: "Assessment",
+    icon: BookOpen,
+  },
+  {
+    href: "/admin/questions",
+    label: "Question Bank",
+    description: "Question inventory",
+    section: "Assessment",
+    icon: Library,
+  },
+  {
+    href: "/admin/reports",
+    label: "Reports",
+    description: "Performance and audit",
+    section: "Assessment",
+    icon: BarChart3,
+  },
+  {
+    href: "/admin/settings",
+    label: "Settings",
+    description: "Workspace configuration",
+    section: "System",
+    icon: Settings,
+  },
 ] as const;
+
+export const adminNavGroups = ["Workspace", "People", "Assessment", "System"].map((section) => ({
+  section,
+  items: adminNav.filter((item) => item.section === section),
+}));
 
 export const studentNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
