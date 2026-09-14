@@ -12,7 +12,7 @@ import {
 import { MajorPicker } from "@/components/admin/major-picker";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { currentStaff, examVisibleTo } from "@/lib/auth/staff";
+import { currentStaff, examVisibleTo, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import type { ClassRow, ExamAttemptRow, ExamSessionRow, QuestionRow, UserRow } from "@/types/db";
 
 interface WhatsappRow { id: string; class_id: string; name: string; invite_url: string }
@@ -63,7 +63,7 @@ export default async function AdminOverviewPage() {
   const attempts = ((attemptsResult.data ?? []) as ExamAttemptRow[]).filter((attempt) => scope.isAdmin || Boolean(attempt.session_id && sessionIds.has(attempt.session_id)));
   const groups = (groupsResult.data ?? []) as WhatsappRow[];
   const events = ((eventsResult.data ?? []) as EventRow[]).filter((event) => scope.isAdmin || sessionIds.has(event.session_id));
-  const questions = ((questionsResult.data ?? []) as Pick<QuestionRow, "id" | "subject_code">[]).filter((question) => scope.isAdmin || scope.subjects.includes(question.subject_code) || (scope.qualifierAccess && question.subject_code.startsWith("q-")));
+  const questions = ((questionsResult.data ?? []) as Pick<QuestionRow, "id" | "subject_code">[]).filter((question) => questionSubjectVisibleTo(question.subject_code, scope));
 
   const students = users.filter((user) => user.role === "student");
   const activeStudents = students.filter((user) => user.status === "active");
@@ -78,8 +78,10 @@ export default async function AdminOverviewPage() {
   const drafts = sessions.filter((session) => session.status === "draft");
   const liveAttempts = attempts.filter((attempt) => attempt.started_at && !attempt.submitted_at && !attempt.rewrite_archived_at);
   const submitted = attempts.filter((attempt) => attempt.submitted_at && !attempt.rewrite_archived_at);
+  const submittedHashes = new Set(submitted.map((attempt) => attempt.attempt_hash));
+  const integrityEvents = events.filter((event) => Boolean(event.attempt_hash && submittedHashes.has(event.attempt_hash)));
   const averageScore = submitted.length ? Math.round(submitted.reduce((sum, attempt) => sum + Number(attempt.score ?? 0), 0) / submitted.length) : 0;
-  const affectedAttempts = new Set(events.map((event) => event.attempt_hash).filter(Boolean));
+  const affectedAttempts = new Set(integrityEvents.map((event) => event.attempt_hash).filter(Boolean));
   const setupEmpty = students.length === 0 && activeClasses.length === 0 && sessions.length === 0;
 
   const attemptCounts = new Map<string, { total: number; submitted: number }>();
@@ -99,17 +101,17 @@ export default async function AdminOverviewPage() {
 
   const queue = [
     drafts.length ? { title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"}`, detail: "Not visible to candidates yet.", href: "/admin/exams?status=draft", tone: "amber", icon: BookOpenCheck } : null,
-    liveAttempts.length ? { title: `${liveAttempts.length} live attempt${liveAttempts.length === 1 ? "" : "s"}`, detail: "Candidates currently have unfinished papers.", href: "/admin/reports?view=students", tone: "blue", icon: Clock3 } : null,
-    affectedAttempts.size ? { title: `${affectedAttempts.size} integrity review${affectedAttempts.size === 1 ? "" : "s"}`, detail: `${events.length} recorded integrity event${events.length === 1 ? "" : "s"}.`, href: "/admin/reports?view=integrity", tone: "red", icon: ShieldAlert } : null,
+    liveAttempts.length ? { title: `${liveAttempts.length} live attempt${liveAttempts.length === 1 ? "" : "s"}`, detail: "Candidates currently have unfinished papers.", href: "/admin/exams", tone: "blue", icon: Clock3 } : null,
+    affectedAttempts.size ? { title: `${affectedAttempts.size} integrity review${affectedAttempts.size === 1 ? "" : "s"}`, detail: `${integrityEvents.length} browser integrity event${integrityEvents.length === 1 ? "" : "s"} on submitted attempts.`, href: "/admin/reports?view=integrity", tone: "red", icon: ShieldAlert } : null,
     fullClasses.length ? { title: `${fullClasses.length} class${fullClasses.length === 1 ? " is" : "es are"} at capacity`, detail: "Review assignment before adding more students.", href: "/admin/classes", tone: "red", icon: School } : null,
-    scope.isAdmin && missingGroups.length ? { title: `${missingGroups.length} communication gap${missingGroups.length === 1 ? "" : "s"}`, detail: "Active classes without a WhatsApp group.", href: "/admin/classes", tone: "neutral", icon: MessageCircle } : null,
+    scope.isAdmin && missingGroups.length ? { title: `${missingGroups.length} class communication gap${missingGroups.length === 1 ? "" : "s"}`, detail: "Active classes without WhatsApp QR access.", href: "/admin/classes", tone: "neutral", icon: MessageCircle } : null,
     inactiveStudents.length ? { title: `${inactiveStudents.length} inactive student record${inactiveStudents.length === 1 ? "" : "s"}`, detail: "Review suspended or inactive enrolments.", href: "/admin/students?status=inactive", tone: "neutral", icon: Users } : null,
   ].filter(Boolean) as { title: string; detail: string; href: string; tone: string; icon: typeof Users }[];
 
   const quickActions = [
     { title: "Student directory", detail: "Enrolment & exam history", href: "/admin/students", icon: Users },
     { title: "Class operations", detail: "Capacity & WhatsApp QR", href: "/admin/classes", icon: School },
-    { title: "Question inventory", detail: `${questions.length} visible items`, href: "/admin/questions", icon: BookOpenCheck },
+    { title: "Question inventory", detail: `${questions.length} validated items`, href: "/admin/questions", icon: BookOpenCheck },
     { title: "Integrity review", detail: "Exact attempt audit trail", href: "/admin/reports?view=integrity", icon: ShieldAlert },
   ];
 
@@ -142,7 +144,7 @@ export default async function AdminOverviewPage() {
         <AdminMetricCard label="Live exams" value={String(liveExams.length)} detail={`${drafts.length} draft · ${sessions.length} visible`} icon={BookOpenCheck} />
         <AdminMetricCard label="Live attempts" value={String(liveAttempts.length)} detail="unfinished candidate sessions" icon={Clock3} />
         <AdminMetricCard label="Submitted" value={String(submitted.length)} detail={`${averageScore}% current average`} icon={CheckCircle2} />
-        <AdminMetricCard label="Integrity events" value={String(events.length)} detail={`${affectedAttempts.size} submitted attempts affected`} icon={ShieldAlert} />
+        <AdminMetricCard label="Integrity events" value={String(integrityEvents.length)} detail={`${affectedAttempts.size} submitted attempts affected`} icon={ShieldAlert} />
       </section>
 
       <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Quick actions">
@@ -228,7 +230,7 @@ export default async function AdminOverviewPage() {
           </div>
           <div className="mt-4 grid gap-2">
             {[
-              ["Question inventory", `${questions.length} visible`, BookOpenCheck],
+              ["Question inventory", `${questions.length} validated`, BookOpenCheck],
               ["Class communication", `${communicationCoverage}% coverage`, MessageCircle],
               ["Student records", `${activeStudents.length} active`, Users],
               ["Exam definitions", `${sessions.length} visible`, BookOpenCheck],
