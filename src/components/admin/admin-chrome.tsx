@@ -1,22 +1,22 @@
 "use client";
 
-import { Bell, CheckCircle2, ExternalLink, LogOut, Menu, Plus, Search, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Bell, BookOpenCheck, CheckCircle2, LogOut, Menu, MessageCircle, Plus, Search, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AdminLiveBadge } from "@/app/admin/live-badge";
 import { signOutAdminAction } from "@/app/actions/admin-auth";
 import { AdminNav, useAdminNavItem } from "@/components/admin/admin-nav";
+import { adminIconButtonClass, adminPrimaryButtonClass } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { adminIconButtonClass, adminPrimaryButtonClass } from "@/components/admin/admin-ui";
 
 export function AdminSidebarBrand() {
   return (
@@ -74,7 +74,31 @@ function MobileNavigation() {
   );
 }
 
-export function AdminTopbar({ displayName, role }: { displayName: string; role: string }) {
+const prototypeTopbarShortcuts = [
+  {
+    href: "/admin/exams?status=draft",
+    title: "Review draft examinations",
+    detail: "Open examinations to publish or refine them.",
+    icon: BookOpenCheck,
+    tone: "bg-amber-50 text-amber-700",
+  },
+  {
+    href: "/admin/reports?view=integrity",
+    title: "Review integrity events",
+    detail: "Review exact candidate attempt logs.",
+    icon: ShieldAlert,
+    tone: "bg-red-50 text-red-700",
+  },
+  {
+    href: "/admin/classes",
+    title: "Review class communication",
+    detail: "Complete WhatsApp group and QR access setup.",
+    icon: MessageCircle,
+    tone: "bg-neutral-100 text-neutral-700",
+  },
+] as const;
+
+export function AdminTopbar() {
   const item = useAdminNavItem();
 
   return (
@@ -99,29 +123,36 @@ export function AdminTopbar({ displayName, role }: { displayName: string; role: 
         </Button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" className={adminIconButtonClass} aria-label="Administration shortcuts" />}>
+          <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" className={adminIconButtonClass} aria-label="Notifications" />}>
             <Bell className="size-5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[min(92vw,360px)] rounded-2xl border-neutral-200 bg-white p-2 shadow-xl">
-            <DropdownMenuLabel className="px-3 pb-3 pt-2">
+            <DropdownMenuLabel className="border-b border-neutral-100 px-3 pb-3 pt-2">
               <span className="block text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Activity centre</span>
-              <span className="mt-1 block font-display text-base font-extrabold text-neutral-950">Needs attention</span>
+              <span className="mt-1 flex items-center justify-between gap-3">
+                <span className="font-display text-base font-extrabold text-neutral-950">Needs attention</span>
+                <span className="text-xs font-semibold text-neutral-400">{prototypeTopbarShortcuts.length}</span>
+              </span>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-neutral-100" />
-            <DropdownMenuItem render={<Link href="/admin/exams?status=draft" />} className="rounded-xl p-3 text-xs">Review draft examinations</DropdownMenuItem>
-            <DropdownMenuItem render={<Link href="/admin/reports?view=integrity" />} className="rounded-xl p-3 text-xs">Review integrity events</DropdownMenuItem>
-            <DropdownMenuItem render={<Link href="/admin/classes" />} className="rounded-xl p-3 text-xs">Review class communication</DropdownMenuItem>
+            <DropdownMenuGroup className="grid gap-1 p-1">
+              {prototypeTopbarShortcuts.map((shortcut) => {
+                const Icon = shortcut.icon;
+                return (
+                  <DropdownMenuItem key={shortcut.href} render={<Link href={shortcut.href} />} className="group flex items-start gap-3 rounded-xl p-3 text-left focus:bg-neutral-50">
+                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${shortcut.tone}`}>
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-xs text-neutral-900">{shortcut.title}</strong>
+                      <span className="mt-1 block text-[11px] leading-4 text-neutral-500">{shortcut.detail}</span>
+                    </span>
+                    <ArrowUpRight className="size-3.5 shrink-0 text-neutral-300 transition group-hover:text-neutral-600" />
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <Button size="icon" variant="outline" render={<Link href="/dashboard" target="_blank" />} className="hidden size-10 rounded-lg border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 sm:inline-flex" aria-label="Open student portal">
-          <ExternalLink className="size-4" />
-        </Button>
-
-        <Link href="/admin/settings" className="hidden h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-2.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 xl:flex" aria-label={`Signed in as ${displayName}, ${role}`}>
-          <ShieldCheck className="size-4" />
-          <span className="max-w-28 truncate">{displayName}</span>
-        </Link>
       </div>
     </header>
   );

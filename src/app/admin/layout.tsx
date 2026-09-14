@@ -34,7 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </aside>
 
       <div className="min-h-screen lg:pl-64">
-        <AdminTopbar displayName={displayName} role={role} />
+        <AdminTopbar />
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">{children}</main>
       </div>
 
