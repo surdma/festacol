@@ -95,10 +95,10 @@
   const backendName = () => (supabase() ? 'supabase' : 'memory');
 
   const mem = {
-    sessions: new Map(), attempts: new Map(), states: new Map(), profiles: new Map(),
-    resets: new Map(), background: new Map(), users: new Map(), classes: new Map(),
-    customQuestions: new Map(), overrides: new Map(), whatsapp: new Map(), proctor: new Map(),
-    qbankMeta: null, qbankItems: new Map(),
+    sessions: new Map(), attempts: new Map(), examStates: new Map(), profiles: new Map(),
+    resetMarkers: new Map(), backgroundMarkers: new Map(), users: new Map(), classes: new Map(),
+    questions: new Map(), overrides: new Map(), whatsapp: new Map(), proctor: new Map(),
+    bankMeta: null,
     seeded: false
   };
 
@@ -172,7 +172,22 @@
   const deleteSession = async (sessionId) => {
     const id = String(sessionId).toUpperCase();
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.sessions.delete(id); return; }
+    if (!client) {
+      ensureMemSeeded();
+      mem.sessions.delete(id);
+      for (const attempt of mem.attempts.values()) { if (attempt.sessionId === id) attempt.sessionId = ''; }
+      for (const map of [mem.examStates, mem.resetMarkers, mem.backgroundMarkers, mem.proctor]) {
+        for (const key of [...map.keys()]) { if (key === id || key.startsWith(`${id}:`)) map.delete(key); }
+      }
+      return;
+    }
+    // Attempts survive as audit history with their session link nulled (FK SET NULL).
+    const { error: nullError } = await client.from('exam_attempts').update({ session_id: null }).eq('session_id', id);
+    throwSupabase(nullError, 'Unable to delete examination session.');
+    for (const table of ['exam_states', 'exam_reset_markers', 'exam_background_markers', 'exam_proctor_policies']) {
+      const { error } = await client.from(table).delete().eq('session_id', id);
+      throwSupabase(error, 'Unable to delete examination session.');
+    }
     const { error } = await client.from('exam_sessions').delete().eq('id', id);
     throwSupabase(error, 'Unable to delete examination session.');
   };
@@ -194,8 +209,8 @@
     const ch = String(candidateHash || '');
     if (!ch) return 0;
     const client = supabase();
-    if (!client) { ensureMemSeeded(); return Number(mem.resets.get(`${sid}:${ch}`)) || 0; }
-    const { data, error } = await client.from('attempt_reset_markers').select('reset_at').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
+    if (!client) { ensureMemSeeded(); return Number(mem.resetMarkers.get(`${sid}:${ch}`)) || 0; }
+    const { data, error } = await client.from('exam_reset_markers').select('reset_at').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
     if (error) throwSupabase(error, 'Unable to load reset marker.');
     return Number(data?.reset_at) || 0;
   };
@@ -238,8 +253,8 @@
     const sid = String(sessionId).toUpperCase();
     const ch = candidateHash ?? activeCandidateBySession.get(sid) ?? '';
     const client = supabase();
-    if (!client) { ensureMemSeeded(); return mem.states.get(`${sid}:${ch || 'anonymous'}`) || null; }
-    const { data, error } = await client.from('student_states').select('state').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle();
+    if (!client) { ensureMemSeeded(); return mem.examStates.get(`${sid}:${ch || 'anonymous'}`) || null; }
+    const { data, error } = await client.from('exam_states').select('state').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle();
     if (error) throwSupabase(error, 'Unable to load student state.');
     return data?.state || null;
   };
@@ -251,9 +266,9 @@
     if (candidateHash && value?.startedAt && await isAttemptInvalidated(sid, candidateHash, value.startedAt)) return false;
     const key = String(candidateHash || 'anonymous');
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.states.set(`${sid}:${key}`, value); }
+    if (!client) { ensureMemSeeded(); mem.examStates.set(`${sid}:${key}`, value); }
     else {
-      const { error } = await client.from('student_states').upsert({ session_id: sid, candidate_hash: key, state: value, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+      const { error } = await client.from('exam_states').upsert({ session_id: sid, candidate_hash: key, state: value, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
       throwSupabase(error, 'Unable to save student state.');
     }
     if (candidateHash) activeCandidateBySession.set(sid, String(candidateHash));
@@ -263,8 +278,8 @@
     const sid = String(sessionId).toUpperCase();
     const ch = String(candidateHash ?? activeCandidateBySession.get(sid) ?? 'anonymous');
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.states.delete(`${sid}:${ch}`); return; }
-    const { error } = await client.from('student_states').delete().eq('session_id', sid).eq('candidate_hash', ch);
+    if (!client) { ensureMemSeeded(); mem.examStates.delete(`${sid}:${ch}`); return; }
+    const { error } = await client.from('exam_states').delete().eq('session_id', sid).eq('candidate_hash', ch);
     throwSupabase(error, 'Unable to clear student state.');
   };
 
@@ -290,11 +305,11 @@
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      mem.resets.set(`${sid}:${candidateHash}`, resetAt);
+      mem.resetMarkers.set(`${sid}:${candidateHash}`, resetAt);
       for (const [key, item] of mem.attempts) { if (item.sessionId === sid && item.candidateHash === candidateHash && !item.rewriteArchivedAt) mem.attempts.delete(key); }
-      mem.states.delete(`${sid}:${candidateHash}`);
+      mem.examStates.delete(`${sid}:${candidateHash}`);
     } else {
-      const { error: resetError } = await client.from('attempt_reset_markers').upsert({ session_id: sid, candidate_hash: candidateHash, reset_at: resetAt }, { onConflict: 'session_id,candidate_hash' });
+      const { error: resetError } = await client.from('exam_reset_markers').upsert({ session_id: sid, candidate_hash: candidateHash, reset_at: resetAt }, { onConflict: 'session_id,candidate_hash' });
       throwSupabase(resetError, 'Unable to reset attempt.');
       const { error: delError } = await client.from('exam_attempts').delete().eq('session_id', sid).eq('candidate_hash', candidateHash).is('rewrite_archived_at', null);
       throwSupabase(delError, 'Unable to reset attempt.');
@@ -315,14 +330,14 @@
       ensureMemSeeded();
       for (const [key, item] of mem.attempts) { if (item.attemptHash === attempt.attemptHash) mem.attempts.delete(key); }
       mem.attempts.set(archived.attemptHash, archived);
-      mem.resets.set(`${sid}:${candidateHash}`, resetAt);
-      mem.states.delete(`${sid}:${candidateHash}`);
+      mem.resetMarkers.set(`${sid}:${candidateHash}`, resetAt);
+      mem.examStates.delete(`${sid}:${candidateHash}`);
     } else {
       const { error: insError } = await client.from('exam_attempts').insert(attemptToRow(archived));
       throwSupabase(insError, 'Unable to archive attempt.');
       const { error: delError } = await client.from('exam_attempts').delete().eq('attempt_hash', attempt.attemptHash);
       throwSupabase(delError, 'Unable to archive attempt.');
-      const { error: resetError } = await client.from('attempt_reset_markers').upsert({ session_id: sid, candidate_hash: candidateHash, reset_at: resetAt }, { onConflict: 'session_id,candidate_hash' });
+      const { error: resetError } = await client.from('exam_reset_markers').upsert({ session_id: sid, candidate_hash: candidateHash, reset_at: resetAt }, { onConflict: 'session_id,candidate_hash' });
       throwSupabase(resetError, 'Unable to authorize rewrite.');
       await clearStudentState(sid, candidateHash);
     }
@@ -335,8 +350,8 @@
     const sid = String(sessionId).toUpperCase();
     const ch = String(candidateHash || '');
     const client = supabase();
-    if (!client) { ensureMemSeeded(); return mem.background.get(`${sid}:${ch}`) || null; }
-    const { data, error } = await client.from('background_markers').select('marker').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
+    if (!client) { ensureMemSeeded(); return mem.backgroundMarkers.get(`${sid}:${ch}`) || null; }
+    const { data, error } = await client.from('exam_background_markers').select('marker').eq('session_id', sid).eq('candidate_hash', ch).maybeSingle();
     if (error) throwSupabase(error, 'Unable to load background marker.');
     return data?.marker || null;
   };
@@ -345,16 +360,16 @@
     const ch = String(candidateHash || '');
     if (!ch || !sid) return;
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.background.set(`${sid}:${ch}`, marker); return; }
-    const { error } = await client.from('background_markers').upsert({ session_id: sid, candidate_hash: ch, marker, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+    if (!client) { ensureMemSeeded(); mem.backgroundMarkers.set(`${sid}:${ch}`, marker); return; }
+    const { error } = await client.from('exam_background_markers').upsert({ session_id: sid, candidate_hash: ch, marker, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
     throwSupabase(error, 'Unable to save background marker.');
   };
   const clearBackgroundMarker = async (sessionId, candidateHash) => {
     const sid = String(sessionId).toUpperCase();
     const ch = String(candidateHash || '');
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.background.delete(`${sid}:${ch}`); return; }
-    const { error } = await client.from('background_markers').delete().eq('session_id', sid).eq('candidate_hash', ch);
+    if (!client) { ensureMemSeeded(); mem.backgroundMarkers.delete(`${sid}:${ch}`); return; }
+    const { error } = await client.from('exam_background_markers').delete().eq('session_id', sid).eq('candidate_hash', ch);
     throwSupabase(error, 'Unable to clear background marker.');
   };
 
@@ -406,18 +421,23 @@
   };
   const deleteClass = async (classId) => {
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.classes.delete(classId); for (const [k, g] of mem.whatsapp) { if (g.classId === classId) mem.whatsapp.delete(k); } return; }
+    if (!client) {
+      ensureMemSeeded();
+      mem.classes.delete(classId);
+      for (const [k, g] of mem.whatsapp) { if (g.classId === classId) mem.whatsapp.delete(k); }
+      for (const u of mem.users.values()) { if (u.classId === classId) u.classId = ''; }
+      return;
+    }
     const { error } = await client.from('classes').delete().eq('id', classId);
     throwSupabase(error, 'Unable to delete class.');
-    await client.from('whatsapp_groups').delete().eq('class_id', classId);
   };
   const listUsers = async () => {
     const client = supabase();
     if (!client) { ensureMemSeeded(); return [...mem.users.values()]; }
-    const { data, error } = await client.from('app_users').select('*');
+    const { data, error } = await client.from('users').select('*');
     throwSupabase(error, 'Unable to list users.');
     // Live database is the source of truth — no demo records are merged in.
-    return (data || []).map((r) => ({ id: r.id, fullName: r.full_name, firstName: r.first_name, lastName: r.last_name, classId: r.class_id, role: r.role, status: r.status, guardian: r.guardian, academicSession: r.academic_session, promotionStatus: r.promotion_status, joinedAt: r.joined_at }));
+    return (data || []).map((r) => ({ id: r.id, fullName: r.full_name, firstName: r.first_name, lastName: r.last_name, classId: r.class_id || '', role: r.role, status: r.status, guardian: r.guardian, academicSession: r.academic_session, promotionStatus: r.promotion_status, joinedAt: r.joined_at }));
   };
   const saveUser = async (input = {}) => {
     const fullName = sanitizeName(input.fullName || `${input.firstName || ''} ${input.lastName || ''}`);
@@ -426,7 +446,7 @@
     const item = { id: String(input.id || `ST-${Math.floor(1000 + Math.random() * 9000)}`).slice(0, 24), fullName, firstName: sanitizeName(input.firstName || parts[0]).split(' ')[0], lastName: sanitizeName(input.lastName || parts.at(-1)).split(' ').at(-1), classId: String(input.classId || ''), role: ['student', 'teacher', 'administrator'].includes(input.role) ? input.role : 'student', status: input.status === 'inactive' ? 'inactive' : 'active', guardian: sanitizeName(input.guardian || ''), academicSession: String(input.academicSession || ACADEMIC_SESSION), promotionStatus: String(input.promotionStatus || 'on-track'), joinedAt: Number(input.joinedAt) || Date.now() };
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.users.set(item.id, item); return item; }
-    const { error } = await client.from('app_users').upsert({ id: item.id, full_name: item.fullName, first_name: item.firstName, last_name: item.lastName, class_id: item.classId, role: item.role, status: item.status, guardian: item.guardian, academic_session: item.academicSession, promotion_status: item.promotionStatus, joined_at: item.joinedAt }, { onConflict: 'id' });
+    const { error } = await client.from('users').upsert({ id: item.id, full_name: item.fullName, first_name: item.firstName, last_name: item.lastName, class_id: item.classId || null, role: item.role, status: item.status, guardian: item.guardian, academic_session: item.academicSession, promotion_status: item.promotionStatus, joined_at: item.joinedAt }, { onConflict: 'id' });
     throwSupabase(error, 'Unable to save user.');
     return item;
   };
@@ -445,41 +465,45 @@
   const deleteUser = async (userId) => {
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.users.delete(userId); return; }
-    const { error } = await client.from('app_users').delete().eq('id', userId);
+    const { error } = await client.from('users').delete().eq('id', userId);
     throwSupabase(error, 'Unable to delete user.');
   };
 
-  // --- custom questions / overrides ---
+  // --- teacher-authored questions (origin 'teacher' inside the one questions table) ---
   const listCustomQuestions = async () => {
     const client = supabase();
-    if (!client) { ensureMemSeeded(); return [...mem.customQuestions.values()]; }
-    const { data, error } = await client.from('custom_questions').select('*').limit(250);
+    if (!client) { ensureMemSeeded(); return [...mem.questions.values()].filter((q) => q.origin === 'teacher').map((q) => q.data); }
+    const { data, error } = await client.from('questions').select('data').eq('origin', 'teacher').limit(250);
     throwSupabase(error, 'Unable to list custom questions.');
     return (data || []).map((r) => r.data);
   };
   const saveCustomQuestion = async (input = {}) => {
-    const existing = await listCustomQuestions();
+    const client = supabase();
     const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
+    const seedOwnsId = async (id) => {
+      if (!client) { ensureMemSeeded(); const row = mem.questions.get(id); return Boolean(row && row.origin === 'seed'); }
+      const { data, error } = await client.from('questions').select('origin').eq('id', id).maybeSingle();
+      if (error) throwSupabase(error, 'Unable to save custom question.');
+      return data?.origin === 'seed';
+    };
     let id = supplied;
     if (id === null) {
-      const ids = new Set(existing.map((item) => Number(item.id)));
-      id = Math.max(1000000, ...ids, 999999) + 1;
-      while (ids.has(id)) id += 1;
+      const teacherIds = new Set((await listCustomQuestions()).map((item) => Number(item.id)));
+      id = Math.max(1000000, ...teacherIds, 999999) + 1;
+      while (teacherIds.has(id)) id += 1;
     }
     if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
-    const duplicate = existing.find((entry) => Number(entry.id) === id);
-    if (duplicate && Number(input.id) === id && !input.custom) throw new Error(`Teacher-authored question id ${id} already exists.`);
+    if (await seedOwnsId(id)) throw new Error(`Teacher-authored question id ${id} duplicates an existing question id.`);
     const q = { ...input, id, custom: true, source: 'teacher' };
-    const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.customQuestions.set(id, q); return q; }
-    const { error } = await client.from('custom_questions').upsert({ id, data: q }, { onConflict: 'id' });
+    if (!client) { ensureMemSeeded(); mem.questions.set(id, { data: q, origin: 'teacher' }); return q; }
+    const { error } = await client.from('questions').upsert({ id, origin: 'teacher', data: q, subject_code: String(q.subjectCode || ''), updated_at: Date.now() }, { onConflict: 'id' });
     throwSupabase(error, 'Unable to save custom question.');
     return q;
   };
   const deleteCustomQuestion = async (questionId) => {
     const client = supabase();
-    if (!client) { ensureMemSeeded(); mem.customQuestions.delete(Number(questionId)); return; }
-    const { error } = await client.from('custom_questions').delete().eq('id', Number(questionId));
+    if (!client) { ensureMemSeeded(); const row = mem.questions.get(Number(questionId)); if (row?.origin === 'teacher') mem.questions.delete(Number(questionId)); return; }
+    const { error } = await client.from('questions').delete().eq('id', Number(questionId)).eq('origin', 'teacher');
     throwSupabase(error, 'Unable to delete custom question.');
   };
   const listQuestionOverrides = async () => {
@@ -510,20 +534,20 @@
     throwSupabase(error, 'Unable to reset question override.');
   };
 
-  // --- question bank (seed questions + catalogue live in Supabase) ---
+  // --- question bank (seed-origin rows + catalogue live in Supabase) ---
   // Runtime source of truth. Admin "Load question bank" populates
-  // these tables; questions.load() reads from here, never from the seed file.
+  // these rows; questions.load() reads from here, never from the seed file.
   const getQuestionBankStatus = async () => {
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      return { backend: 'memory', configured: false, meta: mem.qbankMeta, questionCount: mem.qbankItems.size, syncedAt: mem.qbankMeta?.updatedAt || null };
+      return { backend: 'memory', configured: false, meta: mem.bankMeta, questionCount: [...mem.questions.values()].filter((q) => q.origin === 'seed').length, syncedAt: mem.bankMeta?.updatedAt || null };
     }
-    const { data: meta, error: metaError } = await client.from('question_bank_meta').select('*').eq('id', 1).maybeSingle();
+    const { data: meta, error: metaError } = await client.from('question_bank').select('*').eq('id', 1).maybeSingle();
     if (metaError && metaError.code !== 'PGRST205') throwSupabase(metaError, 'Unable to load question bank status.');
     let questionCount = 0;
     if (!metaError) {
-      const { count, error: countError } = await client.from('question_bank_items').select('id', { count: 'exact', head: true });
+      const { count, error: countError } = await client.from('questions').select('id', { count: 'exact', head: true }).eq('origin', 'seed');
       if (countError && countError.code !== 'PGRST205') throwSupabase(countError, 'Unable to count question bank.');
       questionCount = count || 0;
     }
@@ -533,10 +557,10 @@
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      if (!mem.qbankMeta) return null;
-      return { questionSetId: mem.qbankMeta.questionSetId, subjectCatalog: mem.qbankMeta.subjectCatalog, assessmentAlignment: mem.qbankMeta.assessmentAlignment, questions: [...mem.qbankItems.values()].map((r) => r.data) };
+      if (!mem.bankMeta) return null;
+      return { questionSetId: mem.bankMeta.questionSetId, subjectCatalog: mem.bankMeta.subjectCatalog, assessmentAlignment: mem.bankMeta.assessmentAlignment, questions: [...mem.questions.values()].filter((r) => r.origin === 'seed').map((r) => r.data) };
     }
-    const { data: meta, error: metaError } = await client.from('question_bank_meta').select('*').eq('id', 1).maybeSingle();
+    const { data: meta, error: metaError } = await client.from('question_bank').select('*').eq('id', 1).maybeSingle();
     if (metaError) {
       if (metaError.code === 'PGRST205') return null; // migration not run yet
       throwSupabase(metaError, 'Unable to load question bank.');
@@ -546,7 +570,7 @@
     const pageSize = 1000;
     let from = 0;
     for (;;) {
-      const { data: rows, error } = await client.from('question_bank_items').select('data').order('id', { ascending: true }).range(from, from + pageSize - 1);
+      const { data: rows, error } = await client.from('questions').select('data').eq('origin', 'seed').order('id', { ascending: true }).range(from, from + pageSize - 1);
       if (error) throwSupabase(error, 'Unable to load question bank items.');
       (rows || []).forEach((r) => questions.push(r.data));
       if (!rows || rows.length < pageSize) break;
@@ -559,19 +583,28 @@
     if (!Array.isArray(payload.subjectCatalog) || !payload.subjectCatalog.length) throw new Error('Subject catalogue is missing.');
     const now = Date.now();
     const meta = { questionSetId: payload.questionSetId, subjectCatalog: payload.subjectCatalog, assessmentAlignment: payload.assessmentAlignment || null, questionCount: payload.questions.length, updatedAt: now };
+    const seedIds = new Set(payload.questions.map((q) => Number(q.id)));
     const client = supabase();
+    const teacherClash = async () => {
+      if (!client) { ensureMemSeeded(); for (const [id, row] of mem.questions) { if (row.origin === 'teacher' && seedIds.has(id)) return id; } return null; }
+      const { data, error } = await client.from('questions').select('id').eq('origin', 'teacher');
+      if (error) throwSupabase(error, 'Unable to sync question bank.');
+      return (data || []).map((r) => Number(r.id)).find((id) => seedIds.has(id)) ?? null;
+    };
+    const clash = await teacherClash();
+    if (clash !== null) throw new Error(`Teacher-authored question id ${clash} duplicates an existing question id.`);
     if (!client) {
       ensureMemSeeded();
-      mem.qbankMeta = meta;
-      mem.qbankItems.clear();
-      payload.questions.forEach((q) => mem.qbankItems.set(Number(q.id), { data: q }));
+      mem.bankMeta = meta;
+      for (const [id, row] of mem.questions) { if (row.origin === 'seed') mem.questions.delete(id); }
+      payload.questions.forEach((q) => mem.questions.set(Number(q.id), { data: q, origin: 'seed' }));
       return { ...meta, backend: 'memory' };
     }
-    const { error: metaError } = await client.from('question_bank_meta').upsert({ id: 1, question_set_id: meta.questionSetId, subject_catalog: meta.subjectCatalog, assessment_alignment: meta.assessmentAlignment, question_count: meta.questionCount, updated_at: now }, { onConflict: 'id' });
-    throwSupabase(metaError, 'Unable to sync question catalogue. Run migration_question_bank.sql first.');
-    const rows = payload.questions.map((q) => ({ id: Number(q.id), data: q, subject_code: String(q.subjectCode || ''), updated_at: now }));
+    const { error: metaError } = await client.from('question_bank').upsert({ id: 1, question_set_id: meta.questionSetId, subject_catalog: meta.subjectCatalog, assessment_alignment: meta.assessmentAlignment, question_count: meta.questionCount, updated_at: now }, { onConflict: 'id' });
+    throwSupabase(metaError, 'Unable to sync question catalogue.');
+    const rows = payload.questions.map((q) => ({ id: Number(q.id), origin: 'seed', data: q, subject_code: String(q.subjectCode || ''), updated_at: now }));
     for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await client.from('question_bank_items').upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+      const { error } = await client.from('questions').upsert(rows.slice(i, i + 500), { onConflict: 'id' });
       throwSupabase(error, 'Unable to sync question items.');
     }
     return { ...meta, backend: 'supabase' };
@@ -638,14 +671,14 @@
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      const count = mem.states.size + mem.resets.size;
-      mem.states.clear(); mem.resets.clear(); mem.background.clear();
+      const count = mem.examStates.size + mem.resetMarkers.size;
+      mem.examStates.clear(); mem.resetMarkers.clear(); mem.backgroundMarkers.clear();
       activeCandidateBySession.clear(); currentAuthHash = '';
       return count;
     }
-    await client.from('student_states').delete().neq('session_id', '__none__');
-    await client.from('attempt_reset_markers').delete().neq('session_id', '__none__');
-    await client.from('background_markers').delete().neq('session_id', '__none__');
+    await client.from('exam_states').delete().neq('session_id', '__none__');
+    await client.from('exam_reset_markers').delete().neq('session_id', '__none__');
+    await client.from('exam_background_markers').delete().neq('session_id', '__none__');
     activeCandidateBySession.clear(); currentAuthHash = '';
     return 0;
   };
@@ -657,17 +690,17 @@
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      mem.users.clear(); mem.classes.clear(); mem.customQuestions.clear(); mem.overrides.clear(); mem.whatsapp.clear(); mem.proctor.clear();
+      mem.users.clear(); mem.classes.clear(); for (const [id, row] of mem.questions) { if (row.origin === 'teacher') mem.questions.delete(id); } mem.overrides.clear(); mem.whatsapp.clear(); mem.proctor.clear();
       mem.seeded = false;
       return 0;
     }
-    await client.from('app_users').delete().neq('id', '__none__');
+    await client.from('users').delete().neq('id', '__none__');
     await client.from('classes').delete().neq('id', '__none__');
-    await client.from('custom_questions').delete().neq('id', -1);
+    await client.from('questions').delete().eq('origin', 'teacher');
     await client.from('question_overrides').delete().neq('question_id', -1);
     await client.from('whatsapp_groups').delete().neq('id', '__none__');
     await client.from('student_profiles').delete().neq('student_hash', '__none__');
-    await client.from('proctor_policies').delete().neq('session_id', '__none__');
+    await client.from('exam_proctor_policies').delete().neq('session_id', '__none__');
     return 0;
   };
 
@@ -675,7 +708,6 @@
   const __seedMemory = (kind, value) => {
     ensureMemSeeded();
     if (kind === 'session') { mem.sessions.set(value.id, { ...value }); return; }
-    if (kind === 'customQuestions') mem.customQuestions.set(Number(value.id), value);
   };
 
   const store = Object.freeze({
@@ -711,7 +743,7 @@
       const sid = String(sessionId).toUpperCase();
       const client = supabase();
       if (!client) { ensureMemSeeded(); return { cameraRequired: bool(mem.proctor.get(sid)?.cameraRequired) }; }
-      const { data, error } = await client.from('proctor_policies').select('*').eq('session_id', sid).maybeSingle();
+      const { data, error } = await client.from('exam_proctor_policies').select('*').eq('session_id', sid).maybeSingle();
       if (error) throwSupabase(error, 'Unable to load proctor policy.');
       return { cameraRequired: bool(data?.camera_required) };
     };
@@ -721,7 +753,7 @@
       const normalized = { cameraRequired: bool(policy.cameraRequired), updatedAt: Date.now() };
       const client = supabase();
       if (!client) { ensureMemSeeded(); mem.proctor.set(sid, normalized); return normalized; }
-      const { error } = await client.from('proctor_policies').upsert({ session_id: sid, camera_required: normalized.cameraRequired, updated_at: normalized.updatedAt }, { onConflict: 'session_id' });
+      const { error } = await client.from('exam_proctor_policies').upsert({ session_id: sid, camera_required: normalized.cameraRequired, updated_at: normalized.updatedAt }, { onConflict: 'session_id' });
       throwSupabase(error, 'Unable to save proctor policy.');
       return normalized;
     };

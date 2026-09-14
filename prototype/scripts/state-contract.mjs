@@ -85,7 +85,7 @@ if(restored.answer!==seed.answer||restored.prompt!==seed.prompt||restored.source
 // Teacher-authored valid questions participate; answerless legacy records are quarantined.
 const custom={id:1000001,subject:'Mathematics',subjectCode:'mat',domain:'Contract',levels:['SS2'],pathways:['Science'],examModes:['single','mixed'],type:'single',difficulty:'medium',label:'Contract question',prompt:'For the Task 5 contract only, choose the value four.',options:['3','4','5','6'],answer:'4',explanation:'Four is the requested value.'};
 await S.saveCustomQuestion(custom);
-S.__seedMemory('customQuestions',{id:1000002,subject:'Mathematics',subjectCode:'mat',domain:'Legacy',levels:['SS2'],pathways:['Science'],examModes:['single'],type:'single',difficulty:'medium',label:'Legacy',prompt:'Legacy question without an answer.',options:['A','B'],explanation:'Legacy persisted record.'});
+await S.saveCustomQuestion({id:1000002,subject:'Mathematics',subjectCode:'mat',domain:'Legacy',levels:['SS2'],pathways:['Science'],examModes:['single'],type:'single',difficulty:'medium',label:'Legacy',prompt:'Legacy question without an answer.',options:['A','B'],explanation:'Legacy persisted record.'});
 const withCustom=await Q.load();
 if(!Q.questionById(withCustom,custom.id)||!A.scoreQuestion(Q.questionById(withCustom,custom.id),'4'))throw new Error('teacher-authored scoring failed');
 if(Q.questionById(withCustom,1000002)||withCustom.quarantinedCustomQuestions?.length!==1)throw new Error('legacy answerless custom question was not quarantined');
@@ -121,7 +121,7 @@ const cls=(await S.listClasses()).find(c=>c.id!==currentStudent.classId);
 await S.saveUser({...currentStudent,classId:cls.id}); if(Array.isArray((await S.listUsers()).find(u=>u.id===currentStudent.id).classId))throw new Error('one-class scalar contract failed');
 const group=await S.saveWhatsAppGroup({classId:cls.id,name:'Parents',inviteUrl:'https://chat.whatsapp.com/ABCDEFGHIJKLMNOPQRSTUV'}); if((await S.whatsAppGroupForClass(cls.id))?.id!==group.id)throw new Error('WhatsApp association failed');
 await P.setAdminPolicy(qualifier.id,{cameraRequired:true}); const decorated=P.decorateStudentLink(S.getSessionLink(qualifier,'http://localhost/prototype/admin.html'),true); if(!P.policyFromUrl(decorated)?.cameraRequired||!F.qr.svgFor(decorated).startsWith('<svg'))throw new Error('proctor/QR regression');
-const retained=(await S.attemptsForSession(qualifier.id)).length; await S.deleteSession(qualifier.id); if((await S.attemptsForSession(qualifier.id)).length!==retained)throw new Error('session deletion erased attempts');
+const totalBefore=(await S.getAttempts()).length; await S.deleteSession(qualifier.id); if(await S.findSessionById(qualifier.id))throw new Error('session was not deleted'); if((await S.getAttempts()).length!==totalBefore)throw new Error('session deletion erased attempts');
 
 // Question bank sync: seed payload syncs to the bank and status reflects it.
 const synced=await S.syncQuestionBank(seedPayload);

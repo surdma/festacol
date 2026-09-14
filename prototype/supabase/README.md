@@ -14,14 +14,26 @@ Or via psql with your connection string:
 psql "postgresql://postgres:[YOUR-PASSWORD]@db.ktjadzttsziosuhqzupz.supabase.co:5432/postgres" -f prototype/supabase/schema.sql
 ```
 
-Tables: `exam_sessions`, `exam_attempts`, `student_states`,
-`student_profiles`, `attempt_reset_markers`, `background_markers`,
-`app_users`, `classes`, `custom_questions`, `question_overrides`,
-`whatsapp_groups`, `proctor_policies`, `question_bank_meta`,
-`question_bank_items`.
+Tables: `classes`, `users`, `student_profiles`, `exam_sessions`,
+`exam_attempts`, `exam_states`, `exam_reset_markers`,
+`exam_background_markers`, `exam_proctor_policies`, `whatsapp_groups`,
+`questions` (seed + teacher rows, told apart by `origin`),
+`question_overrides`, `question_bank`.
 
-> If you ran the base `schema.sql` before the question bank existed, run
-> `prototype/supabase/migration_question_bank.sql` in SQL Editor too.
+Every cross-table reference is a foreign key: users and WhatsApp groups belong
+to classes; attempts survive their session (link nulled, history kept) while
+in-progress states, reset/background markers, and proctor policies are removed
+with it; seed edits patch questions without deleting them.
+
+> If your database still has the old names (`app_users`, `student_states`,
+> `custom_questions`, …), run `prototype/supabase/migration_standardize.sql`
+> once in SQL Editor — it renames tables with data kept, adds the foreign
+> keys, merges the old split question tables into `questions`, and retires
+> the outdated policies.
+
+To seed the initial school classes (SS1–SS3 + Qualifier pool), run
+`prototype/supabase/seed_classes.sql` — safe to re-run, existing ids are
+kept.
 
 ## 2. Configure the browser client
 
@@ -45,9 +57,8 @@ The exam runtime loads questions from Supabase, never from
 `public/seed/questions.json`. The JSON file is only the sync source:
 
 1. Open the prototype Admin → Question Bank.
-2. The status card shows database count / sync state (or a missing-migration
-   warning before `migration_question_bank.sql` is run).
-3. Click **Sync questions.json to database** — validates all 720 seeds,
+2. The status card shows database count / sync state.
+3. Click **Load question bank** — validates all 720 seeds,
    upserts the catalogue + items, resets the local cache and reloads from
    the database. Student papers (`eligibleQuestions` / `paperForStudent`)
    are then generated from DB questions filtered by the exam config
