@@ -141,13 +141,13 @@ export function AdminTopbar({ notifications }: { notifications: AdminTopbarNotif
                   </DropdownMenuItem>
                 );
               }) : (
-                <div className="flex gap-3 rounded-xl p-3" role="status">
+                <output className="flex gap-3 rounded-xl p-3">
                   <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><CheckCircle2 className="size-4" /></span>
                   <span>
                     <strong className="block text-xs text-neutral-900">No immediate exceptions</strong>
                     <span className="mt-1 block text-[11px] leading-4 text-neutral-500">Draft, active-attempt, integrity and communication queues are clear.</span>
                   </span>
-                </div>
+                </output>
               )}
             </DropdownMenuGroup>
           </DropdownMenuContent>
