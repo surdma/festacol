@@ -71,4 +71,20 @@ Date: 2026-09-14. Status: approved for implementation (user: "brainstorm, plan a
 ## 7. Out of scope
 
 - RLS tightening (separate `supabase/rls-hardening.sql` still pending run).
-- Teacher exam creation, per-class teacher assignment, cohost notifications.
+- Per-class teacher assignment, cohost notifications.
+
+## 8. Addendum (2026-09-14): teacher scoped CRUD + majors
+
+- Teachers perform full CRUD on students (role forced to `student`),
+  exams, questions and attempt records — every mutation checks
+  `requireStaff()` + subject scope (`subjects ⊆ teacher.subjects`,
+  qualifier requires `qualifier_access`). Admin-only: staff provisioning,
+  classes/WhatsApp, bank sync, cohost management, status of out-of-scope rows.
+- Major selection is dual: admin sets subjects at provisioning (or PATCH),
+  teacher self-selects via `MajorPicker` onboarding card + `updateMySubjectsAction`
+  (`qualifier_access` never self-editable).
+- `GET` detail readers enforce the same scope (out-of-scope → empty).
+- Blocker found: live DB unreachable on direct 5432 from this network, so the
+  new columns must be added once via SQL editor (see chat); afterwards
+  `prisma migrate dev` owns schema evolution.
+
