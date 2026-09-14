@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { studentHashFor, candidateHashFor } from "@/lib/assessment";
+import { questionSubjectVisibleTo } from "@/lib/auth/staff";
 import type { ActionResult } from "@/app/actions/student";
 
 async function requireAdmin() {
@@ -341,7 +342,7 @@ export async function upsertQuestionAction(input: { subject: string; subjectCode
   try {
     const ctx = await requireStaff();
     const supabase = ctx.supabase;
-    if (!ctx.isAdmin && !ctx.subjects.includes(input.subjectCode)) {
+    if (!questionSubjectVisibleTo(input.subjectCode, ctx)) {
       return { ok: false, error: "Outside your subject scope." };
     }
     if (!input.prompt.trim()) return { ok: false, error: "Enter the question prompt." };
@@ -381,7 +382,7 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
     // Bank-seeded rows (created_by null) are admin-managed; teachers remove
     // only rows they created — replaces the old origin flag.
     if (!ctx.isAdmin && q.created_by !== ctx.staffId) return { ok: false, error: "Only your own questions can be deleted." };
-    if (!ctx.isAdmin && !ctx.subjects.includes(q.subject_code)) return { ok: false, error: "Outside your subject scope." };
+    if (!questionSubjectVisibleTo(q.subject_code, ctx)) return { ok: false, error: "Outside your subject scope." };
     const { error } = await supabase.from("questions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/questions");
@@ -569,7 +570,7 @@ export async function getQuestionDetailAction(id: number) {
     supabase.from("question_blanks").select("*").eq("question_id", id).order("position"),
   ]);
   const q = question as { subject_code: string } | null;
-  if (!ctx.isAdmin && q && !ctx.subjects.includes(q.subject_code)) return { question: null, blanks: [] };
+  if (q && !questionSubjectVisibleTo(q.subject_code, ctx)) return { question: null, blanks: [] };
   return { question, blanks: blanks ?? [] };
 }
 

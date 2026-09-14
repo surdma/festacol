@@ -12,7 +12,7 @@ import {
 import { SyncBankButton } from "@/components/admin/sync-bank-button";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { currentStaff } from "@/lib/auth/staff";
+import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import { cn } from "@/lib/utils";
 import type { QuestionRow, SubjectRow } from "@/types/db";
 
@@ -29,7 +29,7 @@ export default async function AdminQuestionsPage({ searchParams }: { searchParam
   const subjects = (subjectsResult.data ?? []) as SubjectRow[];
   const subject = params.subject && subjects.some((item) => item.code === params.subject) ? params.subject : "all";
   const all = (questionsResult.data ?? []) as QuestionRow[];
-  const scoped = scope.isAdmin ? all : all.filter((item) => scope.subjects.includes(item.subject_code) || (scope.qualifierAccess && item.subject_code.startsWith("q-")));
+  const scoped = all.filter((item) => questionSubjectVisibleTo(item.subject_code, scope));
   const questions = scoped.filter((item) => {
     if (q && !`${item.prompt} ${item.subject_name} ${item.subject_code} ${item.domain}`.toLowerCase().includes(q)) return false;
     if (type !== "all" && item.qtype !== type) return false;

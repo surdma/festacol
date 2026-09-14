@@ -7,7 +7,7 @@ import {
   updateExamAction,
   type ExamWizardInput,
 } from "@/app/actions/admin";
-import { currentStaff } from "@/lib/auth/staff";
+import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import { WAEC_SUBJECTS } from "@/lib/subjects-catalog";
 import type { ActionResult } from "@/app/actions/student";
 import type { QuestionType } from "@/types/exam";
@@ -164,7 +164,7 @@ export async function upsertQuestionParityAction(input: QuestionEditorInput): Pr
     const validationError = questionValidation(input);
     if (validationError) return { ok: false, error: validationError };
     const { supabase, scope } = await currentStaff();
-    if (!scope.isAdmin && !scope.subjects.includes(input.subjectCode)) return { ok: false, error: "Outside your subject scope." };
+    if (!questionSubjectVisibleTo(input.subjectCode, scope)) return { ok: false, error: "Outside your subject scope." };
 
     let existing: ExistingQuestionRow | null = null;
     if (input.id !== undefined) {

@@ -10,6 +10,16 @@ export interface StaffScope {
   qualifierAccess: boolean;
 }
 
+export type QuestionScope = Pick<StaffScope, "isAdmin" | "subjects" | "qualifierAccess">;
+
+// Qualifier access is an explicit permission, separate from a teacher's normal
+// subject list. Keep that distinction while allowing q-* question domains.
+export function questionSubjectVisibleTo(subjectCode: string, scope: QuestionScope): boolean {
+  if (scope.isAdmin) return true;
+  if (scope.subjects.includes(subjectCode)) return true;
+  return scope.qualifierAccess && subjectCode.startsWith("q-");
+}
+
 // Who is behind the admin-area session, and what may they see?
 // Admins: everything. Teachers: own subjects (+qualifier iff granted,
 // +cohosted exams). Reads happen here so pages can filter server-side.
