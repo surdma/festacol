@@ -3,12 +3,12 @@
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StaffScopeDialog } from "@/components/admin/staff-provision-dialog";
-import { WhatsappGlobalDialog } from "@/components/admin/prototype-parity-dialogs";
 import { ExamWizard } from "./exam-wizard";
 import { AttemptDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDialog, UserDetailDialog } from "./detail-dialogs";
-import { QuestionFormDialog, UserFormDialog, WhatsappFormDialog } from "./entity-forms";
+import { QuestionFormDialog, UserFormDialog } from "./entity-forms";
 import { Task7ClassFormDialog } from "./task7-class-form";
 import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./task7-record-dialogs";
+import { Task7WhatsappFormDialog } from "./task7-whatsapp-form";
 
 const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step"] as const;
 
@@ -53,8 +53,8 @@ function Host() {
       {modal === "class-edit" && classId ? <Task7ClassFormDialog open classId={classId} onClose={close} /> : null}
       {modal === "question-new" ? <QuestionFormDialog open onClose={close} /> : null}
       {modal === "question-edit" && questionId ? <QuestionFormDialog open questionId={Number(questionId)} onClose={close} /> : null}
-      {modal === "whatsapp-new" ? classId ? <WhatsappFormDialog open classId={classId} onClose={close} /> : <WhatsappGlobalDialog onClose={close} /> : null}
-      {modal === "whatsapp-edit" && classId && groupId ? <WhatsappFormDialog open classId={classId} groupId={groupId} onClose={close} /> : null}
+      {modal === "whatsapp-new" ? <Task7WhatsappFormDialog open classId={classId ?? undefined} onClose={close} /> : null}
+      {modal === "whatsapp-edit" && groupId ? <Task7WhatsappFormDialog open classId={classId ?? undefined} groupId={groupId} onClose={close} /> : null}
     </>
   );
 }
