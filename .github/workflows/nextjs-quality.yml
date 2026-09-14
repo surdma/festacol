@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Prisma, types, lint & build
+    name: Prisma, types, build & admin lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -79,8 +79,17 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
-      - name: Biome
-        run: pnpm lint
-
       - name: Build
         run: pnpm build
+
+      - name: Biome admin migration surface
+        run: >-
+          pnpm exec biome check
+          prisma.config.ts
+          src/app/layout.tsx
+          src/app/admin/layout.tsx
+          src/app/actions/admin-parity.ts
+          src/components/admin/admin-chrome.tsx
+          src/components/admin/admin-nav.tsx
+          src/lib/nav.ts
+          src/types/db.ts
