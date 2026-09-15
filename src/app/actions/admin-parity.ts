@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { ActionResult } from "@/app/actions/student";
 import {
   createExamAction,
   getExamDetailAction,
@@ -11,11 +12,12 @@ import {
 import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listClasses } from "@/lib/supabase/queries";
-import type { ActionResult } from "@/app/actions/student";
 import type { QuestionType } from "@/types/exam";
+import type { AcademicTrack } from "@/types/db";
 
 export interface SubjectOption {
   id: string;
+  code: string;
   name: string;
 }
 
@@ -24,8 +26,8 @@ export interface OfferingOption {
   classId: string;
   className: string;
   classLevel: string;
-  programmeId: string | null;
-  programmeName: string;
+  track: AcademicTrack | null;
+  trackName: string;
   subjectId: string;
   subjectName: string;
   academicYearId: string;
@@ -44,21 +46,19 @@ async function staffContext() {
 
 export async function getSubjectCatalogAction(): Promise<SubjectOption[]> {
   const { admin } = await staffContext();
-  const { data } = await admin.from("subjects").select("id,name").eq("active", true).order("name");
+  const { data } = await admin.from("subjects").select("id,code,name").eq("active", true).order("name");
   return (data ?? []) as SubjectOption[];
 }
 
 export async function getAdminFormOptionsAction() {
   const { admin, scope } = await staffContext();
-  const [subjects, classes, programmesResult, yearsResult, termsResult, offeringsResult] = await Promise.all([
+  const [subjects, classes, yearsResult, termsResult, offeringsResult] = await Promise.all([
     getSubjectCatalogAction(),
     listClasses(admin),
-    admin.from("academic_programmes").select("id,name").eq("active", true).order("name"),
     admin.from("academic_years").select("id,name,status").order("name", { ascending: false }),
     admin.from("academic_terms").select("id,academic_year_id,name,sequence,status").order("sequence"),
     admin.from("class_subject_offerings").select("id,class_id,subject_id,academic_term_id,participation,status").in("status", ["active", "draft"]).limit(1000),
   ]);
-  const programmes = (programmesResult.data ?? []) as { id: string; name: string }[];
   const years = (yearsResult.data ?? []) as { id: string; name: string; status: string }[];
   const terms = (termsResult.data ?? []) as { id: string; academic_year_id: string; name: string; sequence: number; status: string }[];
   const classMap = new Map(classes.map((row) => [row.id, row]));
@@ -76,8 +76,8 @@ export async function getAdminFormOptionsAction() {
       classId: row.class_id,
       className: cls.display_name,
       classLevel: cls.level_name,
-      programmeId: cls.programme_id,
-      programmeName: cls.programme_name ?? "General",
+      track: cls.track,
+      trackName: cls.track_name ?? "Unassigned",
       subjectId: row.subject_id,
       subjectName: subject.name,
       academicYearId: cls.academic_year_id,
@@ -88,16 +88,26 @@ export async function getAdminFormOptionsAction() {
       status: row.status,
     }];
   });
+  const tracks = [
+    { id: "science" as const, name: "Science" },
+    { id: "art" as const, name: "Art" },
+    { id: "social_science" as const, name: "Social Science" },
+  ];
   return {
     subjects,
     classes: classes.map((row) => ({
       id: row.id,
       name: row.display_name,
       class_level: row.level_name,
-      programme_id: row.programme_id,
+      track: row.track,
+      track_name: row.track_name,
       status: row.status,
     })),
-    programmes, years, terms, offerings, scope,
+    tracks,
+    years,
+    terms,
+    offerings,
+    scope,
   };
 }
 
