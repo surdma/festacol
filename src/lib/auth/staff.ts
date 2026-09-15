@@ -33,36 +33,31 @@ export async function currentStaff(): Promise<{
   };
   if (!authUser) return { supabase, scope: emptyScope };
 
-  const { data: profileRow } = await supabase
-    .from("academic_profiles")
-    .select("id,role,status")
+  const { data: memberRow } = await supabase
+    .from("school_members")
+    .select("id,role,status,qualifier_access")
     .eq("auth_user_id", authUser.id)
     .eq("status", "active")
     .in("role", ["teacher", "administrator"])
     .maybeSingle();
-  const profile = profileRow as { id: string; role: string; status: string } | null;
-  if (!profile) return { supabase, scope: emptyScope };
+  const member = memberRow as { id: string; role: string; status: string; qualifier_access: boolean } | null;
+  if (!member) return { supabase, scope: emptyScope };
 
-  const [{ data: extension }, { data: qualifications }] = await Promise.all([
-    supabase.from("staff_academic_profiles").select("qualifier_access").eq("profile_id", profile.id).maybeSingle(),
-    supabase
-      .from("staff_subject_qualifications")
-      .select("subject_id")
-      .eq("staff_profile_id", profile.id)
-      .eq("active", true),
-  ]);
+  const { data: qualifications } = await supabase
+    .from("staff_subject_qualifications")
+    .select("subject_id")
+    .eq("staff_id", member.id)
+    .eq("active", true);
 
   return {
     supabase,
     scope: {
-      role: profile.role,
-      isAdmin: profile.role === "administrator",
-      isTeacher: profile.role === "teacher",
-      profileId: profile.id,
+      role: member.role,
+      isAdmin: member.role === "administrator",
+      isTeacher: member.role === "teacher",
+      profileId: member.id,
       subjectIds: ((qualifications ?? []) as { subject_id: string }[]).map((row) => row.subject_id),
-      qualifierAccess:
-        profile.role === "administrator" ||
-        Boolean((extension as { qualifier_access?: boolean } | null)?.qualifier_access),
+      qualifierAccess: member.role === "administrator" || member.qualifier_access,
     },
   };
 }
