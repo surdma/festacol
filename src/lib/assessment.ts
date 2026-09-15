@@ -1,11 +1,11 @@
 import type { ExamMode, ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
-export const TRACKS = ["Science", "Arts", "Social Science"] as const;
+export const TRACKS = ["Science", "Humanities", "Business"] as const;
 
 const TRACK_WEIGHTS: Record<string, Record<string, number>> = {
   Science: { mathematics: 1.5, "basic science": 1.55, digital: 1.05, english: 0.75, "social studies": 0.55, business: 0.45 },
-  Arts: { english: 1.55, "social studies": 1.25, business: 0.7, digital: 0.55, mathematics: 0.55, "basic science": 0.45 },
-  "Social Science": { "social studies": 1.45, business: 1.45, english: 1.0, mathematics: 0.85, digital: 0.75, "basic science": 0.55 },
+  Humanities: { english: 1.55, "social studies": 1.25, business: 0.7, digital: 0.55, mathematics: 0.55, "basic science": 0.45 },
+  Business: { "social studies": 1.45, business: 1.45, english: 1.0, mathematics: 0.85, digital: 0.75, "basic science": 0.55 },
 };
 
 export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -168,7 +168,7 @@ function placementDomain(subjectName: string): string {
   if (value.includes("basic science")) return "basic science";
   if (value.includes("digital") || value.includes("computer") || value.includes("ict") || value.includes("data processing")) return "digital";
   if (value.includes("english")) return "english";
-  if (value.includes("social studies")) return "social studies";
+  if (value.includes("social studies") || value.includes("citizenship") || value.includes("heritage")) return "social studies";
   if (value.includes("business") || value.includes("commerce") || value.includes("account")) return "business";
   return value;
 }
