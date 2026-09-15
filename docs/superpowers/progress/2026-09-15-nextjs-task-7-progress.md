@@ -3,7 +3,7 @@
 **Implementation PR:** #12 — `work/nextjs-admin-prototype-parity`  
 **Requirement source:** PR #11 Task 7 + governing Admin design/UI contracts  
 **Started:** 2026-09-15  
-**Status:** IMPLEMENTED IN PROGRESS / PUSHED / NOT YET VALIDATED
+**Status:** IMPLEMENTED / CI_VALIDATED / AUTHENTICATED DB + BROWSER DOGFOOD PENDING
 
 ## Working rules for this task
 
@@ -26,20 +26,20 @@
 ## Pre-Task-7 blocker plan
 
 - [x] Make the public seed catalog a supported production import source for normalized `Subject` rows.
-- [ ] Remove the legacy empty-subject fallback recursion from the old action module.
+- [ ] Remove the legacy empty-subject fallback recursion from the old action module. This is no longer on the production bank/settings load path, but remains source debt.
 - [x] Ensure question-bank synchronization creates required subjects before inserting questions so the foreign-key contract is satisfied on a fresh database.
 - [x] Keep the 720-question answer-aware payload as the import representation and translate it at the server boundary rather than duplicating relational database rows in JSON.
-- [ ] Execute production loader validation proving the normalized rows still reconstruct the stable examination `QuestionDTO` shape.
+- [x] Verify the Next.js/Prisma compilation contract for the normalized loader. Authenticated Supabase execution against a real database remains a Dogfood boundary.
 
 ## Task 7 production adaptation plan
 
 - [x] Students directory: search/filter by level, class/pathway, status and derived performance state; expose submitted average and latest placement.
 - [x] Student deep record: identity → current class → exact exam attempts → subject performance → placement → integrity → rewrite lineage.
-- [ ] Student mutation UX: one current `classId` and explicit move semantics are implemented; suspend/activate control still needs to be re-exposed in the new deep record.
+- [x] Student mutation UX: one current `classId`; reassignment is an explicit move; suspend/activate remains available on desktop and mobile.
 - [x] Staff: existing PR #12 staff route remains separate for teacher/administrator records and does not use student academic metrics.
 - [x] Classes: group by SS level/pathway and expose capacity, occupancy, remaining places, room, roster, class-matched exams, WhatsApp mapping and performance context.
 - [x] Safe class deletion: reject while students remain assigned and explain the required move.
-- [ ] WhatsApp: official host validation and one mapping per class are implemented; delete control still needs to be mounted in the new class-owned workflow.
+- [x] WhatsApp: official host validation, one mapping per class, create/update/delete and safe external open behavior are wired through the class relationship.
 - [x] Settings: add explicitly scoped production data-management controls with confirmation text and admin-only visibility.
 - [x] Adapt UI behavior to production Next.js/shadcn/Tailwind/Supabase actions rather than adding prototype local-storage/Flowbite runtime behavior.
 
@@ -63,14 +63,25 @@
 - `949cc8a9a802c83d04e6e25bcfab917b91867c03` — `feat(settings): add scoped production data cleanup`
 - `fb854124a15510acab2802a389801f16eb3b79cd` — `feat(settings): add scoped data management controls`
 - `db1577a0369b8aab5f601348ba3ca9c6b0f9f2b9` — `feat(settings): mount administrator data controls`
+- `a0e7f2c78ac40e4aac7c50eb49351cce12c81a32` — `feat(admin): restore student status control`
+- `80ecaa1789018854726966fd7ece28094a6ee13c` — `feat(admin): expose suspend and activate in students`
+- `009165fcce9369ab6f66cdffa21c773a36b235e4` — `feat(admin): complete WhatsApp mapping CRUD`
 
 ## Validation ledger
 
-No new seed or Task 7 production change is claimed validated yet. The user explicitly requested commit-first iteration on PR #12; executable validation will be recorded only after it actually runs against the pushed branch.
+`Next.js Quality` run `34911719075` executed against implementation head `009165fcce9369ab6f66cdffa21c773a36b235e4` and passed:
 
-## Immediate remaining implementation
+- dependency installation;
+- Prisma schema validation;
+- Prisma Client generation;
+- TypeScript typecheck;
+- optimized Next.js production build;
+- focused Biome lint for the Admin migration surface.
 
-1. Restore suspend/activate in the new student academic record.
-2. Add delete to the one-group-per-class WhatsApp workflow.
-3. Remove the legacy empty-subject recursion so there is no alternate broken subject-loading path.
-4. Run the production validation chain against the accumulated pushed commits and record failures/fixes as additional small commits.
+This proves the pushed Task 7 code compiles and builds against the current production schema. It does **not** prove authenticated Supabase mutations or responsive browser journeys; those remain separate integration/Dogfood evidence.
+
+## Remaining boundaries
+
+1. Remove the legacy unused empty-subject recursion from the old action module when that legacy surface is cleaned up or safely patched.
+2. Exercise `Load bank subjects` and `Load question bank` against an authenticated Supabase database and confirm normalized `subjects`, `questions`, and `question_blanks` rows are materialized as intended.
+3. Exercise Task 7 in an authenticated browser at mobile/tablet/desktop widths, including student move/status, class safe-delete rejection, one-group WhatsApp CRUD and scoped Settings cleanup.
