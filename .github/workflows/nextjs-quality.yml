@@ -190,6 +190,11 @@ jobs:
       - name: Apply Prisma migration history
         run: pnpm exec prisma migrate deploy
 
+      - name: Apply post-Prisma Supabase integration
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/auth-rpc.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rls.sql
+
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
