@@ -5,7 +5,7 @@ on:
     branches:
       - work/academic-relational-schema-v2-validation
     paths:
-      - scripts/.pr13-final-sandbox.chunk11
+      - scripts/.pr13-final-sandbox.chunk16
 
 permissions:
   contents: write
@@ -24,20 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat \
-            scripts/.pr13-final-sandbox.chunk00 \
-            scripts/.pr13-final-sandbox.chunk01 \
-            scripts/.pr13-final-sandbox.chunk02 \
-            scripts/.pr13-final-sandbox.chunk03 \
-            scripts/.pr13-final-sandbox.chunk04 \
-            scripts/.pr13-final-sandbox.chunk05 \
-            scripts/.pr13-final-sandbox.chunk06 \
-            scripts/.pr13-final-sandbox.chunk07 \
-            scripts/.pr13-final-sandbox.chunk08 \
-            scripts/.pr13-final-sandbox.chunk09 \
-            scripts/.pr13-final-sandbox.chunk10 \
-            scripts/.pr13-final-sandbox.chunk11 \
-            | base64 -d > /tmp/pr13-final-sandbox.tar.gz
+          cat scripts/.pr13-final-sandbox.chunk* | base64 -d > /tmp/pr13-final-sandbox.tar.gz
           tar -tzf /tmp/pr13-final-sandbox.tar.gz >/dev/null
           tar -xzf /tmp/pr13-final-sandbox.tar.gz -C .
 
