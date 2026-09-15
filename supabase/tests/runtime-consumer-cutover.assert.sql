@@ -34,13 +34,18 @@ begin
 end $$;
 
 -- Correct-answer-bearing attempt details must have no direct student policy.
-do $$;
+do $$
 begin
   if exists(
     select 1 from pg_policies
     where schemaname='public' and tablename='exam_attempt_answers'
       and policyname in ('eab_student_rw','exam_attempt_answers_student_profile_read','exam_attempt_answers_student_v2')
   ) then raise exception 'student can directly read answer-bearing result detail'; end if;
+end $$;
+
+-- Staff access to answer-bearing details remains relationship-scoped.
+do $$
+begin
   if not exists(select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_answers' and policyname='exam_attempt_answers_staff_v2') then
     raise exception 'staff answer-detail read policy missing';
   end if;
