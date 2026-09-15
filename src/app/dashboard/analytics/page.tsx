@@ -21,8 +21,8 @@ export default async function AnalyticsPage() {
   }
 
   const admin = createSupabaseAdminClient();
-  const { data: answers } = await admin.from("exam_attempt_answers").select("question_id,correct,correct_answer").eq("attempt_id", latest.id).order("question_id");
-  const answerRows = (answers ?? []) as { question_id: number; correct: boolean | null; correct_answer: string }[];
+  const { data: answers } = await admin.from("exam_attempt_responses").select("question_id,correct,correct_answer").eq("attempt_id", latest.id).not("graded_at", "is", null).order("question_id");
+  const answerRows = (answers ?? []) as { question_id: number; correct: boolean | null; correct_answer: string | null }[];
   const questionIds = answerRows.map((row) => row.question_id);
   const { data: questions } = questionIds.length ? await admin.from("questions").select("id,subject_id").in("id", questionIds) : { data: [] };
   const questionRows = (questions ?? []) as { id: number; subject_id: string }[];
@@ -55,7 +55,7 @@ export default async function AnalyticsPage() {
         <MetricCard label="Integrity" value={`${latest.integrity_score ?? 100}%`} icon={ShieldCheck} />
       </Stagger>
       <Card><CardHeader><CardTitle>Subject performance</CardTitle></CardHeader><CardContent className="flex flex-col gap-3">{subjectStats.map((stat) => <div key={stat.subject} className="flex flex-col gap-1"><p className="flex justify-between text-sm"><span>{stat.subject}</span><span className="tabular-nums">{stat.percent}%</span></p><Progress value={stat.percent} /></div>)}</CardContent></Card>
-      <Card><CardHeader><CardTitle>Answer review</CardTitle><CardDescription>{revealed ? "Review unlocked." : "Answers remain locked until the session closes."}</CardDescription></CardHeader>{revealed ? <CardContent className="flex flex-col gap-2">{answerRows.map((detail, index) => <p key={detail.question_id} className="border-b py-1 text-sm">Question {index + 1}: {detail.correct ? "Correct" : "Incorrect"} — answer: {detail.correct_answer}</p>)}</CardContent> : null}</Card>
+      <Card><CardHeader><CardTitle>Answer review</CardTitle><CardDescription>{revealed ? "Review unlocked." : "Answers remain locked until the session closes."}</CardDescription></CardHeader>{revealed ? <CardContent className="flex flex-col gap-2">{answerRows.map((detail, index) => <p key={detail.question_id} className="border-b py-1 text-sm">Question {index + 1}: {detail.correct ? "Correct" : "Incorrect"} — answer: {detail.correct_answer ?? "Not available"}</p>)}</CardContent> : null}</Card>
       <ExamIdDialog />
     </FadeUp>
   );
