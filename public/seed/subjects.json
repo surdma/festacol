@@ -11,451 +11,177 @@
       "code": "eng",
       "name": "English Language",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "REQUIRED"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "REQUIRED"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "REQUIRED"
-        }
+        { "track": "ART", "participation": "REQUIRED" },
+        { "track": "SCIENCE", "participation": "REQUIRED" },
+        { "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
       ]
     },
     {
       "code": "mat",
       "name": "Mathematics",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "REQUIRED"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "REQUIRED"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "REQUIRED"
-        }
+        { "track": "ART", "participation": "REQUIRED" },
+        { "track": "SCIENCE", "participation": "REQUIRED" },
+        { "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
       ]
     },
     {
       "code": "bio",
       "name": "Biology",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "chem",
       "name": "Chemistry",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "phy",
       "name": "Physics",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "eco",
       "name": "Economics",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "gov",
       "name": "Government",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "ART", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "lit",
       "name": "Literature in English",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        }
+        { "track": "ART", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "civ",
       "name": "Civic Education",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "REQUIRED"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "REQUIRED"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "REQUIRED"
-        }
+        { "track": "ART", "participation": "REQUIRED" },
+        { "track": "SCIENCE", "participation": "REQUIRED" },
+        { "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
       ]
     },
     {
       "code": "geo",
       "name": "Geography",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "agric",
       "name": "Agricultural Science",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "comp",
       "name": "Computer Studies",
       "active": true,
-      "levels": [
-        "SS1",
-        "SS2",
-        "SS3"
-      ],
-      "modes": [
-        "single",
-        "mixed",
-        "waec"
-      ],
+      "levels": ["SS1", "SS2", "SS3"],
+      "modes": ["single", "mixed", "waec"],
       "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
+        { "track": "ART", "participation": "ELECTIVE" },
+        { "track": "SCIENCE", "participation": "ELECTIVE" },
+        { "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
       ]
     },
     {
       "code": "q-eng",
       "name": "English Studies",
       "active": true,
-      "levels": [
-        "SS1"
-      ],
-      "modes": [
-        "qualifier"
-      ],
-      "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
-      ]
+      "levels": ["SS1"],
+      "modes": ["qualifier"],
+      "trackRules": []
     },
     {
       "code": "q-math",
       "name": "Mathematics Aptitude",
       "active": true,
-      "levels": [
-        "SS1"
-      ],
-      "modes": [
-        "qualifier"
-      ],
-      "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
-      ]
+      "levels": ["SS1"],
+      "modes": ["qualifier"],
+      "trackRules": []
     },
     {
       "code": "q-bst",
       "name": "Basic Science & Technology",
       "active": true,
-      "levels": [
-        "SS1"
-      ],
-      "modes": [
-        "qualifier"
-      ],
-      "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
-      ]
+      "levels": ["SS1"],
+      "modes": ["qualifier"],
+      "trackRules": []
     },
     {
       "code": "q-social",
       "name": "Social & Citizenship Studies",
       "active": true,
-      "levels": [
-        "SS1"
-      ],
-      "modes": [
-        "qualifier"
-      ],
-      "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
-      ]
+      "levels": ["SS1"],
+      "modes": ["qualifier"],
+      "trackRules": []
     },
     {
       "code": "q-business",
       "name": "Business Studies",
       "active": true,
-      "levels": [
-        "SS1"
-      ],
-      "modes": [
-        "qualifier"
-      ],
-      "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
-      ]
+      "levels": ["SS1"],
+      "modes": ["qualifier"],
+      "trackRules": []
     },
     {
       "code": "q-digital",
       "name": "Digital Technologies",
       "active": true,
-      "levels": [
-        "SS1"
-      ],
-      "modes": [
-        "qualifier"
-      ],
-      "trackRules": [
-        {
-          "track": "ART",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SCIENCE",
-          "participation": "ELECTIVE"
-        },
-        {
-          "track": "SOCIAL_SCIENCE",
-          "participation": "ELECTIVE"
-        }
-      ]
+      "levels": ["SS1"],
+      "modes": ["qualifier"],
+      "trackRules": []
     }
   ]
 }
