@@ -69,6 +69,8 @@ const VALID_MODES = new Set(["qualifier", "bece", "waec", "neco", "jamb", "mixed
 const VALID_TYPES = new Set(["single", "multi", "boolean", "fill", "fill-multi"]);
 const VALID_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const MINIMUM_QUESTION_COUNT = 720;
+const MINIMUM_SENIOR_QUESTION_COUNT = 500;
+const MINIMUM_SENIOR_SUBJECT_COUNT = 8;
 const QUESTION_FIXTURE_SCHEMA_VERSION = 4;
 const QUESTION_FIXTURE_FILES = [
   "questions.json",
@@ -259,9 +261,11 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
   unique(questionIds, "question ids");
   const promptKeys = new Set<string>();
   const responseTypes = new Set<string>();
-  const coveredSeniorSlices = new Set<string>();
+  const coveredSeniorLevels = new Set<string>();
+  const coveredSeniorSubjects = new Set<string>();
   const coveredQualifierSubjects = new Set<string>();
   let qualifierQuestionCount = 0;
+  let seniorQuestionCount = 0;
 
   for (const question of questions.questions) {
     const id = Number(question.id);
@@ -304,7 +308,15 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
       qualifierQuestionCount += 1;
     } else {
       assert(!modes.includes("qualifier"), `Curriculum question ${id} cannot use qualifier mode.`);
-      for (const level of qLevels) coveredSeniorSlices.add(`${code}:${level}`);
+      for (const level of qLevels) {
+        assert(
+          offeredSlices.has(`${code}:${level}`),
+          `Question ${id} targets ${code}:${level}, but no seeded class offers that subject at that level.`,
+        );
+        coveredSeniorLevels.add(level);
+      }
+      coveredSeniorSubjects.add(code);
+      seniorQuestionCount += 1;
     }
   }
 
@@ -315,8 +327,16 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
     assert(coveredQualifierSubjects.has(subject.code), `Qualifier subject ${subject.code} has no questions.`);
   }
   assert(qualifierQuestionCount >= 150, "Qualifier bank must contain at least 150 eligible questions for a full-size paper.");
-  for (const slice of offeredSlices) {
-    assert(coveredSeniorSlices.has(slice), `Class offering slice ${slice} has zero senior questions.`);
+  assert(
+    seniorQuestionCount >= MINIMUM_SENIOR_QUESTION_COUNT,
+    `Senior bank must contain at least ${MINIMUM_SENIOR_QUESTION_COUNT} curriculum questions.`,
+  );
+  assert(
+    coveredSeniorSubjects.size >= MINIMUM_SENIOR_SUBJECT_COUNT,
+    `Senior bank must cover at least ${MINIMUM_SENIOR_SUBJECT_COUNT} curriculum subjects.`,
+  );
+  for (const level of levelNames) {
+    assert(coveredSeniorLevels.has(level), `Senior bank has no questions for ${level}.`);
   }
 }
 
