@@ -3,13 +3,13 @@
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StaffScopeDialog } from "@/components/admin/staff-provision-dialog";
-import { ExamWizard } from "./exam-wizard";
+import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./academic-record-dialogs";
+import { ClassFormDialog } from "./class-form-dialog";
 import { AttemptDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDialog, UserDetailDialog } from "./detail-dialogs";
 import { QuestionFormDialog, UserFormDialog } from "./entity-forms";
-import { Task7ClassFormDialog } from "./task7-class-form";
-import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./task7-record-dialogs";
-import { Task7StudentFormDialog } from "./task7-student-form";
-import { Task7WhatsappFormDialog } from "./task7-whatsapp-form";
+import { ExamWizard } from "./exam-wizard";
+import { StudentFormDialog } from "./student-form-dialog";
+import { WhatsappFormDialog } from "./whatsapp-form-dialog";
 
 const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step"] as const;
 
@@ -49,14 +49,14 @@ function Host() {
       {modal === "attempt" && attemptId ? <AttemptDetailDialog attemptId={attemptId} onClose={close} /> : null}
       {modal === "question" && questionId ? <QuestionDetailDialog questionId={Number(questionId)} onClose={close} /> : null}
       {modal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
-      {modal === "user-new" ? newUserRole === "student" ? <Task7StudentFormDialog open onClose={close} /> : <UserFormDialog open presetRole={newUserRole} onClose={close} /> : null}
-      {modal === "user-edit" && studentId ? <Task7StudentFormDialog open userId={studentId} onClose={close} /> : null}
-      {modal === "class-new" ? <Task7ClassFormDialog open onClose={close} /> : null}
-      {modal === "class-edit" && classId ? <Task7ClassFormDialog open classId={classId} onClose={close} /> : null}
+      {modal === "user-new" ? newUserRole === "student" ? <StudentFormDialog open onClose={close} /> : <UserFormDialog open presetRole={newUserRole} onClose={close} /> : null}
+      {modal === "user-edit" && studentId ? <StudentFormDialog open userId={studentId} onClose={close} /> : null}
+      {modal === "class-new" ? <ClassFormDialog open onClose={close} /> : null}
+      {modal === "class-edit" && classId ? <ClassFormDialog open classId={classId} onClose={close} /> : null}
       {modal === "question-new" ? <QuestionFormDialog open onClose={close} /> : null}
       {modal === "question-edit" && questionId ? <QuestionFormDialog open questionId={Number(questionId)} onClose={close} /> : null}
-      {modal === "whatsapp-new" ? <Task7WhatsappFormDialog open classId={classId ?? undefined} onClose={close} /> : null}
-      {modal === "whatsapp-edit" && groupId ? <Task7WhatsappFormDialog open classId={classId ?? undefined} groupId={groupId} onClose={close} /> : null}
+      {modal === "whatsapp-new" ? <WhatsappFormDialog open classId={classId ?? undefined} onClose={close} /> : null}
+      {modal === "whatsapp-edit" && groupId ? <WhatsappFormDialog open classId={classId ?? undefined} groupId={groupId} onClose={close} /> : null}
     </>
   );
 }
