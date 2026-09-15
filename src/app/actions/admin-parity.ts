@@ -100,8 +100,8 @@ export async function getAdminFormOptionsAction() {
 
   const tracks = [
     { id: "science" as AcademicTrack, name: "Science" },
-    { id: "art" as AcademicTrack, name: "Art" },
-    { id: "social_science" as AcademicTrack, name: "Social Science" },
+    { id: "humanities" as AcademicTrack, name: "Humanities" },
+    { id: "business" as AcademicTrack, name: "Business" },
   ];
 
   return {
