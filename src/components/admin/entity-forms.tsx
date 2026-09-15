@@ -6,25 +6,27 @@ import { Plus, Trash2 } from "lucide-react";
 import {
   deleteClassAction,
   deleteWhatsappAction,
-  getQuestionDetailAction,
   getUserDetailAction,
   toggleUserAction,
-  upsertClassAction,
   upsertUserAction,
   upsertWhatsappAction,
 } from "@/app/actions/admin";
+import { upsertClassAction } from "@/app/actions/academic-structure";
 import {
   getAdminFormOptionsAction,
   getClassDetailAction,
   getWhatsappDetailAction,
   upsertQuestionParityAction,
+  type SubjectOption,
 } from "@/app/actions/admin-parity";
+import { getQuestionEditorDetailAction } from "@/app/actions/question-bank";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import type { AcademicTrack } from "@/types/db";
 import type { QuestionType } from "@/types/exam";
 
 function Shell({ title, description, open, onClose, submit, pending, error, children, saveLabel = "Save" }: {
@@ -99,7 +101,7 @@ export function UserFormDialog({ open, onClose, presetRole = "student", userId }
 export function ClassFormDialog({ open, onClose, classId }: { open: boolean; onClose: () => void; classId?: string }) {
   const router = useRouter();
   const [classLevel, setClassLevel] = useState("SS1");
-  const [stream, setStream] = useState("Science");
+  const [track, setTrack] = useState<AcademicTrack | "">("science");
   const [arm, setArm] = useState("A");
   const [capacity, setCapacity] = useState(40);
   const [room, setRoom] = useState("");
@@ -109,25 +111,28 @@ export function ClassFormDialog({ open, onClose, classId }: { open: boolean; onC
   useEffect(() => {
     if (!open) return;
     setError(null);
-    if (!classId) { setClassLevel("SS1"); setStream("Science"); setArm("A"); setCapacity(40); setRoom(""); return; }
+    if (!classId) { setClassLevel("SS1"); setTrack("science"); setArm("A"); setCapacity(40); setRoom(""); return; }
     void getClassDetailAction(classId).then((detail) => {
-      const item = detail.classRow as { class_level?: string; stream?: string; arm?: string; capacity?: number; room?: string } | null;
+      const item = detail.classRow as { level_name?: string; track?: AcademicTrack | null; arm?: string; capacity?: number; room?: string } | null;
       if (!item) { setError("Class record is unavailable."); return; }
-      setClassLevel(item.class_level ?? "SS1"); setStream(item.stream ?? "General"); setArm(item.arm ?? "A"); setCapacity(Number(item.capacity ?? 40)); setRoom(item.room ?? "");
+      setClassLevel(item.level_name ?? "SS1");
+      setTrack(item.track ?? "");
+      setArm(item.arm ?? "A");
+      setCapacity(Number(item.capacity ?? 40));
+      setRoom(item.room ?? "");
     }).catch(() => setError("Class record could not be loaded."));
   }, [classId, open]);
 
   return (
-    <Shell title={classId ? "Edit class" : "Add class"} description="Class capacity and structure are administrator-managed production records." open={open} pending={pending} error={error} onClose={onClose} saveLabel={classId ? "Update class" : "Add class"} submit={() => startTransition(async () => {
+    <Shell title={classId ? "Edit class" : "Add class"} description="Class identity is level + academic track + arm for an academic year. Subject offerings are configured separately." open={open} pending={pending} error={error} onClose={onClose} saveLabel={classId ? "Update class" : "Add class"} submit={() => startTransition(async () => {
       setError(null);
-      if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500) { setError("Capacity must be between 1 and 500."); return; }
-      const result = await upsertClassAction({ id: classId, classLevel, stream, arm, capacity, room });
+      const result = await upsertClassAction({ id: classId, classLevel, track: track || null, arm, capacity, room });
       if (!result.ok) { setError(result.error ?? "Save failed."); return; }
       onClose(); router.refresh();
     })}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field><FieldLabel htmlFor="c-level">Level</FieldLabel><NativeSelect id="c-level" value={classLevel} onChange={(event) => setClassLevel(event.target.value)}>{["SS1", "SS2", "SS3"].map((level) => <NativeSelectOption key={level} value={level}>{level}</NativeSelectOption>)}</NativeSelect></Field>
-        <Field><FieldLabel htmlFor="c-stream">Stream</FieldLabel><NativeSelect id="c-stream" value={stream} onChange={(event) => setStream(event.target.value)}>{["Science", "Art", "Commercial", "General", "Qualifier"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></Field>
+        <Field><FieldLabel htmlFor="c-track">Academic track</FieldLabel><NativeSelect id="c-track" value={track} onChange={(event) => setTrack(event.target.value as AcademicTrack | "")}><NativeSelectOption value="">Unassigned / qualifier</NativeSelectOption><NativeSelectOption value="science">Science</NativeSelectOption><NativeSelectOption value="art">Art</NativeSelectOption><NativeSelectOption value="social_science">Social Science</NativeSelectOption></NativeSelect></Field>
         <Field><FieldLabel htmlFor="c-arm">Arm</FieldLabel><Input id="c-arm" value={arm} onChange={(event) => setArm(event.target.value.toUpperCase())} maxLength={4} /></Field>
         <Field><FieldLabel htmlFor="c-cap">Capacity</FieldLabel><Input id="c-cap" type="number" min={1} max={500} value={capacity} onChange={(event) => setCapacity(Number(event.target.value))} /></Field>
       </div>
@@ -169,9 +174,9 @@ export function WhatsappFormDialog({ open, onClose, classId, groupId }: { open: 
 
 export function QuestionFormDialog({ open, onClose, questionId }: { open: boolean; onClose: () => void; questionId?: number }) {
   const router = useRouter();
-  const [catalog, setCatalog] = useState<{ code: string; name: string }[]>([]);
-  const [scope, setScope] = useState<{ isAdmin: boolean; subjects: string[]; qualifierAccess: boolean } | null>(null);
-  const [subjectCode, setSubjectCode] = useState("");
+  const [catalog, setCatalog] = useState<SubjectOption[]>([]);
+  const [scope, setScope] = useState<{ isAdmin: boolean; subjectIds: string[]; qualifierAccess: boolean } | null>(null);
+  const [subjectId, setSubjectId] = useState("");
   const [kind, setKind] = useState<QuestionType>("single");
   const [prompt, setPrompt] = useState("");
   const [options, setOptions] = useState(["", "", "", ""]);
@@ -188,22 +193,25 @@ export function QuestionFormDialog({ open, onClose, questionId }: { open: boolea
   useEffect(() => {
     if (!open) return;
     setError(null);
-    void getAdminFormOptionsAction().then((data) => { setCatalog(data.subjects); setScope(data.scope); }).catch(() => setError("Question form options could not be loaded."));
+    void getAdminFormOptionsAction().then((data) => {
+      setCatalog(data.subjects);
+      setScope({ isAdmin: data.scope.isAdmin, subjectIds: data.scope.subjectIds, qualifierAccess: data.scope.qualifierAccess });
+    }).catch(() => setError("Question form options could not be loaded."));
     if (!questionId) {
-      setSubjectCode(""); setKind("single"); setPrompt(""); setOptions(["", "", "", ""]); setCorrectAnswers([]); setLevels(["SS1", "SS2", "SS3"]); setFillTemplate(""); setBlankAnswers(""); setDifficulty("medium"); setDomain(""); setExplanation("");
+      setSubjectId(""); setKind("single"); setPrompt(""); setOptions(["", "", "", ""]); setCorrectAnswers([]); setLevels(["SS1", "SS2", "SS3"]); setFillTemplate(""); setBlankAnswers(""); setDifficulty("medium"); setDomain(""); setExplanation("");
       return;
     }
-    void getQuestionDetailAction(questionId).then((detail) => {
-      const question = detail.question as { subject_code?: string; qtype?: QuestionType; prompt?: string; options?: string[]; correct_answers?: string[]; levels?: string[]; fill_template?: string | null; difficulty?: string; domain?: string; explanation?: string } | null;
+    void getQuestionEditorDetailAction(questionId).then((detail) => {
+      const question = detail.question as { subject_id?: string; qtype?: QuestionType; prompt?: string; options?: string[]; correct_answers?: string[]; levels?: string[]; fill_template?: string | null; difficulty?: string; domain?: string; explanation?: string } | null;
       const blanks = detail.blanks as { accepted?: string[] }[];
       if (!question) { setError("Question is unavailable or outside your scope."); return; }
-      setSubjectCode(question.subject_code ?? ""); setKind(question.qtype ?? "single"); setPrompt(question.prompt ?? ""); setOptions((question.options?.length ? [...question.options] : ["", "", "", ""])); setCorrectAnswers(question.correct_answers ?? []); setLevels(question.levels?.length ? question.levels : ["SS1", "SS2", "SS3"]); setFillTemplate((question.fill_template ?? "").replace(/\{\{\d+\}\}/g, "___")); setBlankAnswers(blanks.map((blank) => (blank.accepted ?? []).join(" | ")).join("\n")); setDifficulty(question.difficulty ?? "medium"); setDomain(question.domain ?? ""); setExplanation(question.explanation ?? "");
+      setSubjectId(question.subject_id ?? ""); setKind(question.qtype ?? "single"); setPrompt(question.prompt ?? ""); setOptions(question.options?.length ? [...question.options] : ["", "", "", ""]); setCorrectAnswers(question.correct_answers ?? []); setLevels(question.levels?.length ? question.levels : ["SS1", "SS2", "SS3"]); setFillTemplate((question.fill_template ?? "").replace(/\{\{\d+\}\}/g, "___")); setBlankAnswers(blanks.map((blank) => (blank.accepted ?? []).join(" | ")).join("\n")); setDifficulty(question.difficulty ?? "medium"); setDomain(question.domain ?? ""); setExplanation(question.explanation ?? "");
     }).catch(() => setError("Question could not be loaded."));
   }, [open, questionId]);
 
   const visibleSubjects = useMemo(() => {
     if (!scope || scope.isAdmin) return catalog;
-    return catalog.filter((subject) => scope.subjects.includes(subject.code) || (scope.qualifierAccess && subject.code.startsWith("q-")));
+    return catalog.filter((subject) => scope.subjectIds.includes(subject.id) || (scope.qualifierAccess && subject.code.startsWith("q-")));
   }, [catalog, scope]);
 
   function toggleLevel(level: string) { setLevels((current) => current.includes(level) ? current.filter((item) => item !== level) : [...current, level]); }
@@ -218,12 +226,12 @@ export function QuestionFormDialog({ open, onClose, questionId }: { open: boolea
   return (
     <Shell title={questionId ? "Edit question" : "Add question"} description="Author against the same typed question model consumed by the production exam engine." open={open} pending={pending} error={error} onClose={onClose} saveLabel={questionId ? "Update question" : "Add question"} submit={() => startTransition(async () => {
       setError(null);
-      const result = await upsertQuestionParityAction({ id: questionId, subjectCode, kind, prompt, options, correctAnswers: kind === "boolean" ? [correctAnswers[0] ?? ""] : correctAnswers, levels, fillTemplate, blankAnswers: fillLines, difficulty, domain, explanation });
+      const result = await upsertQuestionParityAction({ id: questionId, subjectId, kind, prompt, options, correctAnswers: kind === "boolean" ? [correctAnswers[0] ?? ""] : correctAnswers, levels, fillTemplate, blankAnswers: fillLines, difficulty, domain, explanation });
       if (!result.ok) { setError(result.error ?? "Save failed."); return; }
       onClose(); router.refresh();
     })}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field><FieldLabel htmlFor="q-subject">Subject</FieldLabel><NativeSelect id="q-subject" value={subjectCode} onChange={(event) => setSubjectCode(event.target.value)}><NativeSelectOption value="">Choose subject</NativeSelectOption>{visibleSubjects.map((subject) => <NativeSelectOption key={subject.code} value={subject.code}>{subject.name}</NativeSelectOption>)}</NativeSelect></Field>
+        <Field><FieldLabel htmlFor="q-subject">Subject</FieldLabel><NativeSelect id="q-subject" value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><NativeSelectOption value="">Choose subject</NativeSelectOption>{visibleSubjects.map((subject) => <NativeSelectOption key={subject.id} value={subject.id}>{subject.name}</NativeSelectOption>)}</NativeSelect></Field>
         <Field><FieldLabel htmlFor="q-type">Question type</FieldLabel><NativeSelect id="q-type" value={kind} onChange={(event) => { setKind(event.target.value as QuestionType); setCorrectAnswers([]); }}><NativeSelectOption value="single">Single choice</NativeSelectOption><NativeSelectOption value="multi">Multiple answers</NativeSelectOption><NativeSelectOption value="boolean">True / False</NativeSelectOption><NativeSelectOption value="fill">Fill one gap</NativeSelectOption><NativeSelectOption value="fill-multi">Fill multiple gaps</NativeSelectOption></NativeSelect></Field>
       </div>
       <Field><FieldLabel htmlFor="q-prompt">Prompt</FieldLabel><Textarea id="q-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} /></Field>
