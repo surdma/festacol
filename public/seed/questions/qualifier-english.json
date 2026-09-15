@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-qualifier-english-2026-09",
+  "questions": [
+    {
+      "id": 721,
+      "subjectCode": "q-eng",
+      "domain": "Grammar",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "English Studies · Grammar",
+      "explanation": "The plural subject 'players' takes the plural verb 'are'.",
+      "type": "single",
+      "prompt": "Choose the correct verb: The players ___ ready for the match.",
+      "options": ["is", "are", "was", "has"],
+      "answer": "are"
+    },
+    {
+      "id": 722,
+      "subjectCode": "q-eng",
+      "domain": "Vocabulary",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "easy",
+      "label": "English Studies · Vocabulary",
+      "explanation": "'Scarce' means limited or not available in sufficient quantity.",
+      "type": "single",
+      "prompt": "Which word is closest in meaning to 'scarce' in the sentence 'Clean water was scarce during the drought'?",
+      "options": ["abundant", "limited", "polluted", "flowing"],
+      "answer": "limited"
+    },
+    {
+      "id": 723,
+      "subjectCode": "q-eng",
+      "domain": "Punctuation",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "English Studies · Punctuation",
+      "explanation": "A question mark is used at the end of a direct question.",
+      "type": "boolean",
+      "prompt": "A direct question such as 'Where are you going?' should end with a question mark.",
+      "answer": true
+    },
+    {
+      "id": 724,
+      "subjectCode": "q-eng",
+      "domain": "Parts of speech",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "English Studies · Parts of speech",
+      "explanation": "An adjective describes or qualifies a noun or pronoun.",
+      "type": "fill",
+      "prompt": "Supply the part of speech that describes a noun or pronoun.",
+      "fillTemplate": [
+        {"text": "A word that describes a noun or pronoun is an "},
+        {"blank": "answer", "placeholder": "part of speech"},
+        {"text": "."}
+      ],
+      "acceptedAnswers": ["adjective"]
+    },
+    {
+      "id": 725,
+      "subjectCode": "q-eng",
+      "domain": "Comprehension",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "hard",
+      "label": "English Studies · Comprehension",
+      "explanation": "The passage states both that Musa left early and that he carried an umbrella because rain was expected.",
+      "type": "multi",
+      "prompt": "Musa left home early because the road often became crowded before school. He also carried an umbrella after hearing the weather forecast. Select exactly TWO conclusions supported by the passage.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "Musa wanted to avoid heavy traffic.",
+        "Musa expected that it might rain.",
+        "Musa planned to miss school.",
+        "Musa knew the road would be empty all morning."
+      ],
+      "answers": ["Musa wanted to avoid heavy traffic.", "Musa expected that it might rain."]
+    }
+  ]
+}
