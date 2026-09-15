@@ -12,10 +12,10 @@ alter table public.staff_academic_profiles enable row level security;
 alter table public.academic_years enable row level security;
 alter table public.academic_terms enable row level security;
 alter table public.academic_levels enable row level security;
-alter table public.academic_programmes enable row level security;
 alter table public.classes enable row level security;
 alter table public.class_enrollments enable row level security;
 alter table public.subjects enable row level security;
+alter table public.subject_track_rules enable row level security;
 alter table public.class_subject_offerings enable row level security;
 alter table public.student_subject_enrollments enable row level security;
 alter table public.staff_subject_qualifications enable row level security;
@@ -23,10 +23,12 @@ alter table public.teaching_assignments enable row level security;
 alter table public.exam_sessions enable row level security;
 alter table public.exam_class_targets enable row level security;
 alter table public.exam_offering_targets enable row level security;
-alter table public.exam_placement_programmes enable row level security;
+alter table public.exam_placement_tracks enable row level security;
 alter table public.exam_staff_assignments enable row level security;
 alter table public.exam_student_access enable row level security;
 alter table public.exam_retake_grants enable row level security;
+alter table public.exam_session_links enable row level security;
+alter table public.exam_qr_codes enable row level security;
 alter table public.exam_attempts enable row level security;
 alter table public.exam_attempt_runtime_states enable row level security;
 alter table public.exam_attempt_responses enable row level security;
@@ -48,13 +50,14 @@ begin
     where schemaname='public'
       and tablename = any(array[
         'academic_profiles','student_academic_profiles','staff_academic_profiles',
-        'academic_years','academic_terms','academic_levels','academic_programmes',
-        'classes','class_enrollments','subjects','class_subject_offerings',
+        'academic_years','academic_terms','academic_levels',
+        'classes','class_enrollments','subjects','subject_track_rules','class_subject_offerings',
         'student_subject_enrollments','staff_subject_qualifications','teaching_assignments',
-        'exam_sessions','exam_class_targets','exam_offering_targets','exam_placement_programmes',
-        'exam_staff_assignments','exam_student_access','exam_retake_grants','exam_attempts',
-        'exam_attempt_runtime_states','exam_attempt_responses','exam_attempt_answers',
-        'exam_integrity_events','questions','question_academic_levels','question_blanks','whatsapp_groups'
+        'exam_sessions','exam_class_targets','exam_offering_targets','exam_placement_tracks',
+        'exam_staff_assignments','exam_student_access','exam_retake_grants','exam_session_links',
+        'exam_qr_codes','exam_attempts','exam_attempt_runtime_states','exam_attempt_responses',
+        'exam_attempt_answers','exam_integrity_events','questions','question_academic_levels',
+        'question_blanks','whatsapp_groups'
       ])
   loop
     execute format('drop policy if exists %I on %I.%I',r.policyname,r.schemaname,r.tablename);
@@ -73,15 +76,16 @@ grant update(guardian,phone,updated_at) on public.student_academic_profiles to a
 grant select on public.staff_academic_profiles to authenticated;
 
 grant select on public.academic_years,public.academic_terms,public.academic_levels,
-  public.academic_programmes,public.classes,public.subjects to authenticated;
+  public.classes,public.subjects,public.subject_track_rules to authenticated;
 
 grant select on public.class_enrollments,public.class_subject_offerings,
   public.student_subject_enrollments,public.staff_subject_qualifications,
   public.teaching_assignments to authenticated;
 
 grant select on public.exam_sessions,public.exam_class_targets,public.exam_offering_targets,
-  public.exam_placement_programmes,public.exam_staff_assignments,public.exam_student_access,
-  public.exam_retake_grants,public.exam_attempts to authenticated;
+  public.exam_placement_tracks,public.exam_staff_assignments,public.exam_student_access,
+  public.exam_retake_grants,public.exam_session_links,public.exam_qr_codes,
+  public.exam_attempts to authenticated;
 
 grant select,update on public.exam_attempt_runtime_states to authenticated;
 grant select,insert,update,delete on public.exam_attempt_responses to authenticated;
@@ -124,11 +128,11 @@ create policy academic_terms_authenticated_read on public.academic_terms
   for select to authenticated using (true);
 create policy academic_levels_authenticated_read on public.academic_levels
   for select to authenticated using (true);
-create policy academic_programmes_authenticated_read on public.academic_programmes
-  for select to authenticated using (true);
 create policy classes_authenticated_read on public.classes
   for select to authenticated using (true);
 create policy subjects_authenticated_read on public.subjects
+  for select to authenticated using (true);
+create policy subject_track_rules_authenticated_read on public.subject_track_rules
   for select to authenticated using (true);
 
 -- ---------------------------------------------------------- academic relations
@@ -191,7 +195,7 @@ create policy exam_offering_targets_access_read on public.exam_offering_targets
     private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
     or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
   );
-create policy exam_placement_programmes_access_read on public.exam_placement_programmes
+create policy exam_placement_tracks_access_read on public.exam_placement_tracks
   for select to authenticated
   using (
     private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
@@ -214,6 +218,25 @@ create policy exam_retake_grants_self_read on public.exam_retake_grants
   using (
     student_profile_id=private.current_academic_profile_id()
     or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+  );
+create policy exam_session_links_access_read on public.exam_session_links
+  for select to authenticated
+  using (
+    private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
+    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+  );
+create policy exam_qr_codes_access_read on public.exam_qr_codes
+  for select to authenticated
+  using (
+    exists (
+      select 1
+      from public.exam_session_links l
+      where l.id=exam_qr_codes.link_id
+        and (
+          private.student_is_targeted_for_exam(l.session_id,private.current_academic_profile_id())
+          or private.staff_can_access_exam(private.current_academic_profile_id(),l.session_id)
+        )
+    )
   );
 
 -- ------------------------------------------------------------ attempt boundary
