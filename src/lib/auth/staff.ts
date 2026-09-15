@@ -1,3 +1,4 @@
+import type { User } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export interface StaffScope {
@@ -19,6 +20,7 @@ export function questionSubjectVisibleTo(subjectId: string, scope: QuestionScope
 export async function currentStaff(): Promise<{
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   scope: StaffScope;
+  user: User | null;
 }> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
@@ -31,7 +33,7 @@ export async function currentStaff(): Promise<{
     subjectIds: [],
     qualifierAccess: false,
   };
-  if (!authUser) return { supabase, scope: emptyScope };
+  if (!authUser) return { supabase, scope: emptyScope, user: null };
 
   const { data: memberRow } = await supabase
     .from("school_members")
@@ -41,7 +43,7 @@ export async function currentStaff(): Promise<{
     .in("role", ["teacher", "administrator"])
     .maybeSingle();
   const member = memberRow as { id: string; role: string; status: string; qualifier_access: boolean } | null;
-  if (!member) return { supabase, scope: emptyScope };
+  if (!member) return { supabase, scope: emptyScope, user: authUser };
 
   const { data: qualifications } = await supabase
     .from("staff_subject_qualifications")
@@ -51,6 +53,7 @@ export async function currentStaff(): Promise<{
 
   return {
     supabase,
+    user: authUser,
     scope: {
       role: member.role,
       isAdmin: member.role === "administrator",

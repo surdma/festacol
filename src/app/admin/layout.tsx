@@ -1,19 +1,20 @@
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { AdminDialogs } from "@/components/admin/admin-dialogs";
 import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
+import { AdminDialogs } from "@/components/admin/admin-dialogs";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { getAdminTopbarNotifications } from "@/lib/admin-notifications";
 import { currentStaff } from "@/lib/auth/staff";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { supabase, scope } = await currentStaff();
-  const { data } = await supabase.auth.getUser();
-  const user = data.user;
+  const { supabase, scope, user } = await currentStaff();
   const role = scope.role;
 
-  if (!user) return <main className="min-h-dvh bg-neutral-50">{children}</main>;
-  if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
+  // Logged-out and non-staff sessions only ever reach this layout on
+  // /admin/login: proxy.ts redirects them away from every other /admin
+  // route first. Render bare — redirecting here would 307 to self forever.
+  if (!user || (role !== "administrator" && role !== "teacher")) {
+    return <main className="min-h-dvh bg-neutral-50">{children}</main>;
+  }
 
   const notifications = await getAdminTopbarNotifications(supabase, scope);
 
