@@ -309,19 +309,19 @@ create policy q_teacher_insert on public.questions
   with check (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
     and subject_code = any (
-      select coalesce(u.subjects, '{}') from public.users u
+      select unnest(coalesce(u.subjects, '{}')) from public.users u
       where u.auth_user_id = (select auth.uid())::text));
 create policy q_teacher_write on public.questions
   for update to authenticated
   using (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
     and subject_code = any (
-      select coalesce(u.subjects, '{}') from public.users u
+      select unnest(coalesce(u.subjects, '{}')) from public.users u
       where u.auth_user_id = (select auth.uid())::text))
   with check (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
     and subject_code = any (
-      select coalesce(u.subjects, '{}') from public.users u
+      select unnest(coalesce(u.subjects, '{}')) from public.users u
       where u.auth_user_id = (select auth.uid())::text));
 -- NOTE: seed-row protection stays in the app (created_by check); policy only
 -- scopes by subject.
@@ -330,7 +330,7 @@ create policy q_teacher_delete on public.questions
   using (
     (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
     and subject_code = any (
-      select coalesce(u.subjects, '{}') from public.users u
+      select unnest(coalesce(u.subjects, '{}')) from public.users u
       where u.auth_user_id = (select auth.uid())::text));
 
 -- ------------------------------------------------- normalized detail rows
@@ -405,13 +405,13 @@ create policy qbl_teacher_write on public.question_blanks
     where q.id = question_id
       and (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
       and q.subject_code = any (
-        select coalesce(u.subjects, '{}') from public.users u
+        select unnest(coalesce(u.subjects, '{}')) from public.users u
         where u.auth_user_id = (select auth.uid())::text)))
   with check (exists (select 1 from public.questions q
     where q.id = question_id
       and (auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher'
       and q.subject_code = any (
-        select coalesce(u.subjects, '{}') from public.users u
+        select unnest(coalesce(u.subjects, '{}')) from public.users u
         where u.auth_user_id = (select auth.uid())::text)));
 
 alter table public.subjects enable row level security;

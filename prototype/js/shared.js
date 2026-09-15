@@ -147,6 +147,19 @@
     if (!error) return;
     throw new Error(error.message || fallbackMessage || 'Supabase request failed.');
   };
+  // Schema drift guard: prototype DBs created from the old
+  // prototype/supabase/schema.sql lack created_by / typed question columns and
+  // the subjects / question_blanks / exam_* child tables that shared.js now
+  // expects. Detect those PostgREST errors so callers can fall back instead of
+  // blanking admin pages. Run prototype/supabase/migration_normalize.sql once
+  // to fix the database permanently.
+  const isMissingSchemaError = (error) => {
+    if (!error) return false;
+    const code = String(error.code || '');
+    if (code === '42703' || code === '42P01' || code === 'PGRST204' || code === 'PGRST205') return true;
+    return /created_by|question_blanks|subjects|exam_attempt_answers|exam_attempt_subject_stats|exam_integrity_events|exam_responses|column .* does not exist|relation .* does not exist|table .* does not exist/i.test(String(error.message || JSON.stringify(error)));
+  };
+  const missingSchemaMessage = (what) => `${what} needs a database upgrade: run prototype/supabase/migration_normalize.sql once in Supabase SQL Editor, then reload.`;
 
   // --- sessions ---
   const listSessions = async () => {
@@ -227,11 +240,12 @@
     const hashes = (data || []).map((r) => r.attempt_hash);
     let answersByHash = new Map(), statsByHash = new Map(), eventsByHash = new Map();
     if (hashes.length) {
-      const [{ data: ans }, { data: sts }, { data: evs }] = await Promise.all([
-        client.from('exam_attempt_answers').select('*').in('attempt_hash', hashes),
-        client.from('exam_attempt_subject_stats').select('*').in('attempt_hash', hashes),
-        client.from('exam_integrity_events').select('*').in('attempt_hash', hashes),
-      ]);
+      try {
+        const [{ data: ans }, { data: sts }, { data: evs }] = await Promise.all([
+          client.from('exam_attempt_answers').select('*').in('attempt_hash', hashes),
+          client.from('exam_attempt_subject_stats').select('*').in('attempt_hash', hashes),
+          client.from('exam_integrity_events').select('*').in('attempt_hash', hashes),
+        ]);
       for (const row of ans || []) {
         const list = answersByHash.get(row.attempt_hash) || [];
         list.push({ questionId: row.question_id, subjectCode: row.subject_code, subject: row.subject_name, correct: row.correct, response: joinProtoResponse(row.response_text, row.response_values), correctAnswer: row.correct_answer, seconds: Number(row.seconds) || 0 });
@@ -247,16 +261,23 @@
         list.push({ type: row.type, detail: row.detail, at: Number(row.at) || 0 });
         eventsByHash.set(row.attempt_hash, list);
       }
+      } catch (childError) {
+        // Old prototype DB has no exam_attempt_* child tables: details live as
+        // jsonb on exam_attempts itself. Keep base rows loading; per-row
+        // fallback below reads those legacy columns when child maps are empty.
+        answersByHash = new Map(); statsByHash = new Map(); eventsByHash = new Map();
+      }
     }
     return (data || []).map((row) => {
       try {
+        const legacy = (name) => (row && typeof row === 'object' && name in row ? row[name] : undefined);
         return attemptFromRow(row, {
-          subjects: [],
-          details: answersByHash.get(row.attempt_hash) || [],
-          subjectStats: statsByHash.get(row.attempt_hash) || [],
-          integrityEvents: eventsByHash.get(row.attempt_hash) || [],
-          placement: row.assigned_track ? { assignedTrack: row.assigned_track, confidence: row.placement_confidence ?? 0 } : null,
-          questionIds: (answersByHash.get(row.attempt_hash) || []).map((d) => d.questionId),
+          subjects: Array.isArray(legacy('subjects')) ? legacy('subjects') : [],
+          details: answersByHash.get(row.attempt_hash) || legacy('details') || [],
+          subjectStats: statsByHash.get(row.attempt_hash) || legacy('subject_stats') || [],
+          integrityEvents: eventsByHash.get(row.attempt_hash) || legacy('integrity_events') || [],
+          placement: row.assigned_track ? { assignedTrack: row.assigned_track, confidence: row.placement_confidence ?? 0 } : (legacy('placement') || null),
+          questionIds: (answersByHash.get(row.attempt_hash) || []).map((d) => d.questionId).length ? (answersByHash.get(row.attempt_hash) || []).map((d) => d.questionId) : (legacy('question_ids') || []),
         });
       } catch { return null; }
     }).filter(Boolean);
@@ -286,9 +307,28 @@
       return normalized;
     }
     const { error } = await client.from('exam_attempts').upsert(attemptToRow(normalized), { onConflict: 'attempt_hash' });
-    throwSupabase(error, 'Unable to record attempt.');
-    await client.from('exam_attempt_answers').delete().eq('attempt_hash', normalized.attemptHash);
-    await client.from('exam_attempt_subject_stats').delete().eq('attempt_hash', normalized.attemptHash);
+    if (error) {
+      // Old DB still has legacy jsonb columns (details/subject_stats/...).
+      // Fall back to a legacy-shaped upsert so attempts keep saving pre-migration.
+      if (isMissingSchemaError(error)) {
+        const legacyRow = {
+          attempt_hash: normalized.attemptHash, candidate_hash: normalized.candidateHash,
+          session_id: normalized.sessionId || null, session_title: normalized.sessionTitle,
+          student_name: normalized.studentName, started_at: normalized.startedAt,
+          submitted_at: normalized.submittedAt, score: normalized.score,
+          details: normalized.details || [], subject_stats: normalized.subjectStats || [],
+          integrity_events: normalized.integrityEvents || [], placement: normalized.placement,
+          subjects: normalized.subjects || [], question_ids: normalized.questionIds || [],
+        };
+        const { error: legacyError } = await client.from('exam_attempts').upsert(legacyRow, { onConflict: 'attempt_hash' });
+        throwSupabase(legacyError, 'Unable to record attempt.');
+        return normalized;
+      }
+      throwSupabase(error, 'Unable to record attempt.');
+    }
+    try {
+      await client.from('exam_attempt_answers').delete().eq('attempt_hash', normalized.attemptHash);
+      await client.from('exam_attempt_subject_stats').delete().eq('attempt_hash', normalized.attemptHash);
     if ((normalized.details || []).length) {
       const { error: ansError } = await client.from('exam_attempt_answers').insert(normalized.details.map((d) => {
         const split = splitProtoResponse(d.response);
@@ -305,6 +345,10 @@
       const { error: evError } = await client.from('exam_integrity_events').insert(normalized.integrityEvents.map((e) => ({ session_id: normalized.sessionId, candidate_hash: normalized.candidateHash, attempt_hash: normalized.attemptHash, type: e.type, detail: e.detail || '', at: e.at })));
       throwSupabase(evError, 'Unable to record integrity events.');
     }
+    } catch (childError) {
+      if (!isMissingSchemaError(childError)) throw childError;
+      // Old DB without child tables: base row already saved above.
+    }
     return normalized;
   };
   const findAttempt = async (sessionId, candidateHash) => {
@@ -317,19 +361,31 @@
     const { data, error } = await client.from('exam_attempts').select('*').eq('session_id', sid).eq('candidate_hash', candidateHash).is('rewrite_archived_at', null).limit(1).maybeSingle();
     if (error) throwSupabase(error, 'Unable to load attempt.');
     if (!data) return null;
-    const [{ data: ans }, { data: sts }, { data: evs }] = await Promise.all([
-      client.from('exam_attempt_answers').select('*').eq('attempt_hash', data.attempt_hash).order('id'),
-      client.from('exam_attempt_subject_stats').select('*').eq('attempt_hash', data.attempt_hash),
-      client.from('exam_integrity_events').select('*').eq('attempt_hash', data.attempt_hash).order('at'),
-    ]);
-    return attemptFromRow(data, {
-      subjects: [],
-      details: (ans || []).map((row) => ({ questionId: row.question_id, subjectCode: row.subject_code, subject: row.subject_name, correct: row.correct, response: joinProtoResponse(row.response_text, row.response_values), correctAnswer: row.correct_answer, seconds: Number(row.seconds) || 0 })),
-      subjectStats: (sts || []).map((row) => ({ subjectCode: row.subject_code, subject: row.subject_name, total: row.total, correct: row.correct, seconds: Number(row.seconds) || 0, percent: row.percent })),
-      integrityEvents: (evs || []).map((row) => ({ type: row.type, detail: row.detail, at: Number(row.at) || 0 })),
-      placement: data.assigned_track ? { assignedTrack: data.assigned_track, confidence: data.placement_confidence ?? 0 } : null,
-      questionIds: (ans || []).map((row) => row.question_id),
-    });
+    try {
+      const [{ data: ans }, { data: sts }, { data: evs }] = await Promise.all([
+        client.from('exam_attempt_answers').select('*').eq('attempt_hash', data.attempt_hash).order('id'),
+        client.from('exam_attempt_subject_stats').select('*').eq('attempt_hash', data.attempt_hash),
+        client.from('exam_integrity_events').select('*').eq('attempt_hash', data.attempt_hash).order('at'),
+      ]);
+      return attemptFromRow(data, {
+        subjects: [],
+        details: (ans || []).map((row) => ({ questionId: row.question_id, subjectCode: row.subject_code, subject: row.subject_name, correct: row.correct, response: joinProtoResponse(row.response_text, row.response_values), correctAnswer: row.correct_answer, seconds: Number(row.seconds) || 0 })),
+        subjectStats: (sts || []).map((row) => ({ subjectCode: row.subject_code, subject: row.subject_name, total: row.total, correct: row.correct, seconds: Number(row.seconds) || 0, percent: row.percent })),
+        integrityEvents: (evs || []).map((row) => ({ type: row.type, detail: row.detail, at: Number(row.at) || 0 })),
+        placement: data.assigned_track ? { assignedTrack: data.assigned_track, confidence: data.placement_confidence ?? 0 } : (data.placement || null),
+        questionIds: (ans || []).map((row) => row.question_id),
+      });
+    } catch {
+      // Old DB without child tables: base row carries legacy jsonb columns.
+      return attemptFromRow(data, {
+        subjects: Array.isArray(data.subjects) ? data.subjects : [],
+        details: Array.isArray(data.details) ? data.details : [],
+        subjectStats: Array.isArray(data.subject_stats) ? data.subject_stats : [],
+        integrityEvents: Array.isArray(data.integrity_events) ? data.integrity_events : [],
+        placement: data.assigned_track ? { assignedTrack: data.assigned_track, confidence: data.placement_confidence ?? 0 } : (data.placement || null),
+        questionIds: Array.isArray(data.question_ids) ? data.question_ids : [],
+      });
+    }
   };
   const attemptsForCandidate = async (candidateHash) => (await getAttempts()).filter((a) => a.candidateHash === candidateHash || a.rewriteSourceAttemptHash === candidateHash);
   const attemptsForStudent = async (studentHash) => (await getAttempts()).filter((a) => a.studentHash === studentHash || (!a.studentHash && a.candidateHash === studentHash));
@@ -353,30 +409,45 @@
     const ch = candidateHash ?? activeCandidateBySession.get(sid) ?? '';
     const client = supabase();
     if (!client) { ensureMemSeeded(); return mem.examStates.get(`${sid}:${ch || 'anonymous'}`) || null; }
-    const [{ data: header, error }, { data: rows }, { data: liveEvents }] = await Promise.all([
-      client.from('exam_states').select('*').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle(),
-      client.from('exam_responses').select('*').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous'),
-      client.from('exam_integrity_events').select('type,detail,at').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').is('attempt_hash', null).order('at'),
-    ]);
-    if (error) throwSupabase(error, 'Unable to load student state.');
-    if (!header) return null;
-    const responses = {};
-    const questionTimings = {};
-    const flagged = [];
-    for (const r of rows || []) {
-      responses[String(r.question_id)] = joinProtoResponse(r.response_text, r.response_values);
-      questionTimings[String(r.question_id)] = Number(r.seconds) || 0;
-      if (r.flagged) flagged.push(String(r.question_id));
+    try {
+      const [{ data: header, error }, { data: rows }, { data: liveEvents }] = await Promise.all([
+        client.from('exam_states').select('*').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle(),
+        client.from('exam_responses').select('*').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous'),
+        client.from('exam_integrity_events').select('type,detail,at').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').is('attempt_hash', null).order('at'),
+      ]);
+      if (error) throw error;
+      if (!header) return null;
+      // Old DB: exam_states.state is a single jsonb blob.
+      if (header && typeof header === 'object' && 'state' in header && !('started_at' in header)) return header.state || null;
+      const responses = {};
+      const questionTimings = {};
+      const flagged = [];
+      for (const r of rows || []) {
+        responses[String(r.question_id)] = joinProtoResponse(r.response_text, r.response_values);
+        questionTimings[String(r.question_id)] = Number(r.seconds) || 0;
+        if (r.flagged) flagged.push(String(r.question_id));
+      }
+      return {
+        startedAt: header.started_at, submittedAt: header.submitted_at,
+        currentIndex: header.current_index, remainingSeconds: Number(header.remaining_seconds),
+        elapsedActiveSeconds: Number(header.elapsed_active_seconds),
+        lastActiveAt: header.last_active_at, attemptHash: header.attempt_hash,
+        paperFingerprint: header.paper_fingerprint, questionIds: header.question_ids || [],
+        responses, questionTimings, flagged,
+        integrityEvents: (liveEvents || []).map((e) => ({ type: e.type, detail: e.detail, at: e.at })),
+      };
+    } catch (error) {
+      if (isMissingSchemaError(error)) {
+        // Old exam_states(state jsonb) shape.
+        try {
+          const { data, error: legacyError } = await client.from('exam_states').select('state').eq('session_id', sid).eq('candidate_hash', ch || 'anonymous').maybeSingle();
+          if (legacyError) throw legacyError;
+          return data?.state || null;
+        } catch { return null; }
+      }
+      throwSupabase(error, 'Unable to load student state.');
+      return null;
     }
-    return {
-      startedAt: header.started_at, submittedAt: header.submitted_at,
-      currentIndex: header.current_index, remainingSeconds: Number(header.remaining_seconds),
-      elapsedActiveSeconds: Number(header.elapsed_active_seconds),
-      lastActiveAt: header.last_active_at, attemptHash: header.attempt_hash,
-      paperFingerprint: header.paper_fingerprint, questionIds: header.question_ids || [],
-      responses, questionTimings, flagged,
-      integrityEvents: (liveEvents || []).map((e) => ({ type: e.type, detail: e.detail, at: e.at })),
-    };
   };
   const saveStudentState = async (sessionId, candidateHashOrValue, maybeValue) => {
     const sid = String(sessionId).toUpperCase();
@@ -388,22 +459,40 @@
     const client = supabase();
     if (!client) { ensureMemSeeded(); mem.examStates.set(`${sid}:${key}`, value); }
     else {
-      const { error } = await client.from('exam_states').upsert(stateToHeader(sid, key, value), { onConflict: 'session_id,candidate_hash' });
-      throwSupabase(error, 'Unable to save student state.');
+      try {
+        const { error } = await client.from('exam_states').upsert(stateToHeader(sid, key, value), { onConflict: 'session_id,candidate_hash' });
+        if (error) throw error;
+      } catch (error) {
+        if (isMissingSchemaError(error)) {
+          // Old DB: single jsonb state column.
+          const { error: legacyError } = await client.from('exam_states').upsert({ session_id: sid, candidate_hash: key, state: value, updated_at: Date.now() }, { onConflict: 'session_id,candidate_hash' });
+          if (legacyError && !isMissingSchemaError(legacyError)) throwSupabase(legacyError, 'Unable to save student state.');
+          if (candidateHash) activeCandidateBySession.set(sid, String(candidateHash));
+          return true;
+        }
+        throwSupabase(error, 'Unable to save student state.');
+      }
       const rows = Object.entries(value.responses || {}).map(([qid, v]) => {
         const split = splitProtoResponse(v);
         return { session_id: sid, candidate_hash: key, question_id: Number(qid), response_text: split.text, response_values: split.values, seconds: Number(value.questionTimings?.[qid]) || 0, flagged: (value.flagged || []).includes(qid) };
       });
-      if (rows.length) {
-        const { error: respError } = await client.from('exam_responses').upsert(rows, { onConflict: 'session_id,candidate_hash,question_id' });
-        throwSupabase(respError, 'Unable to save responses.');
-      }
-      if (Array.isArray(value.integrityEvents)) {
-        await client.from('exam_integrity_events').delete().eq('session_id', sid).eq('candidate_hash', key).is('attempt_hash', null);
-        if (value.integrityEvents.length) {
-          const { error: evError } = await client.from('exam_integrity_events').insert(value.integrityEvents.map((e) => ({ session_id: sid, candidate_hash: key, type: e.type, detail: e.detail || '', at: e.at })));
-          throwSupabase(evError, 'Unable to save integrity events.');
+      try {
+        if (rows.length) {
+          const { error: respError } = await client.from('exam_responses').upsert(rows, { onConflict: 'session_id,candidate_hash,question_id' });
+          if (respError) throw respError;
         }
+        if (Array.isArray(value.integrityEvents)) {
+          await client.from('exam_integrity_events').delete().eq('session_id', sid).eq('candidate_hash', key).is('attempt_hash', null);
+          if (value.integrityEvents.length) {
+            const { error: evError } = await client.from('exam_integrity_events').insert(value.integrityEvents.map((e) => ({ session_id: sid, candidate_hash: key, type: e.type, detail: e.detail || '', at: e.at })));
+            if (evError) throw evError;
+          }
+        }
+      } catch (error) {
+        // Old DB without child tables: header/state upsert above already saved
+        // the paper. Swallow missing-relation errors so exams keep working
+        // pre-migration.
+        if (!isMissingSchemaError(error)) throwSupabase(error, 'Unable to save responses.');
       }
     }
     if (candidateHash) activeCandidateBySession.set(sid, String(candidateHash));
@@ -633,21 +722,47 @@
   };
 
   // --- teacher-authored questions (origin 'teacher' inside the one questions table) ---
+  const isTeacherMemRow = (row) => Boolean(row && (row.origin === 'teacher' || row.created_by));
+  const teacherDtoFromMem = (row) => (row?.data || row);
   const listCustomQuestions = async () => {
     const client = supabase();
-    if (!client) { ensureMemSeeded(); return [...mem.questions.values()].filter((q) => q.origin === 'teacher').map((q) => q.data); }
-    const { data, error } = await client.from('questions').select('*,question_blanks(*)').not('created_by', 'is', null).limit(250);
-    throwSupabase(error, 'Unable to list custom questions.');
-    return (data || []).map((r) => rowToQuestionDto(r, r.question_blanks || []));
+    if (!client) { ensureMemSeeded(); return [...mem.questions.values()].filter(isTeacherMemRow).map(teacherDtoFromMem).filter(Boolean); }
+    try {
+      const { data, error } = await client.from('questions').select('*,question_blanks(*)').not('created_by', 'is', null).limit(250);
+      if (error) throw error;
+      return (data || []).map((r) => rowToQuestionDto(r, r.question_blanks || []));
+    } catch (error) {
+      if (!isMissingSchemaError(error)) throwSupabase(error, 'Unable to list custom questions.');
+      // Old prototype DB: questions(id, origin, data, subject_code). Fall back
+      // to origin/data rows so admin pages keep loading pre-migration.
+      try {
+        const { data, error: legacyError } = await client.from('questions').select('*').eq('origin', 'teacher').limit(250);
+        if (legacyError) throw legacyError;
+        return (data || []).map((r) => r.data || r).filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
   };
   const saveCustomQuestion = async (input = {}) => {
     const client = supabase();
     const supplied = input.id === undefined || input.id === null || input.id === '' ? null : Number(input.id);
     const bankOwnsId = async (id) => {
-      if (!client) { ensureMemSeeded(); const row = mem.questions.get(id); return Boolean(row && !row.created_by); }
-      const { data, error } = await client.from('questions').select('created_by').eq('id', id).maybeSingle();
-      if (error) throwSupabase(error, 'Unable to save custom question.');
-      return Boolean(data) && !data.created_by;
+      if (!client) { ensureMemSeeded(); const row = mem.questions.get(id); return Boolean(row && !isTeacherMemRow(row)); }
+      try {
+        const { data, error } = await client.from('questions').select('created_by').eq('id', id).maybeSingle();
+        if (error) throw error;
+        return Boolean(data) && !data.created_by;
+      } catch (error) {
+        if (isMissingSchemaError(error)) {
+          try {
+            const { data } = await client.from('questions').select('id').eq('id', id).eq('origin', 'seed').maybeSingle();
+            return Boolean(data);
+          } catch { return false; }
+        }
+        throwSupabase(error, 'Unable to save custom question.');
+        return false;
+      }
     };
     let id = supplied;
     if (id === null) {
@@ -658,20 +773,38 @@
     if (!Number.isInteger(id) || id < 1) throw new Error('Teacher-authored question id must be a positive integer.');
     if (await bankOwnsId(id)) throw new Error(`Teacher-authored question id ${id} duplicates an existing question id.`);
     const q = { ...input, id, custom: true, source: 'teacher' };
-    if (!client) { ensureMemSeeded(); mem.questions.set(id, { ...q, created_by: 'teacher' }); return q; }
+    if (!client) { ensureMemSeeded(); mem.questions.set(id, { origin: 'teacher', created_by: 'teacher', data: q }); return q; }
     const { error } = await client.from('questions').upsert({ id, subject_code: String(q.subjectCode || ''), subject_name: String(q.subject || ''), label: String(q.label || ''), qtype: String(q.type || 'single'), prompt: String(q.prompt || ''), options: q.options || [], correct_answers: Array.isArray(q.answers) ? q.answers.map(String) : (q.answer === undefined ? [] : [String(typeof q.answer === 'boolean' ? q.answer : q.answer)]), levels: q.levels || ['SS1', 'SS2', 'SS3'], exam_modes: q.examModes || ['single', 'mixed', 'waec'], difficulty: q.difficulty || 'medium', domain: q.domain || '', explanation: q.explanation || '', created_by: 'teacher', updated_at: Date.now() }, { onConflict: 'id' });
-    throwSupabase(error, 'Unable to save custom question.');
+    if (error) {
+      if (isMissingSchemaError(error)) throw new Error(missingSchemaMessage('Saving teacher questions'));
+      throwSupabase(error, 'Unable to save custom question.');
+    }
     return q;
   };
   const deleteCustomQuestion = async (questionId) => {
     const client = supabase();
-    if (!client) { ensureMemSeeded(); const row = mem.questions.get(Number(questionId)); if (row?.created_by) mem.questions.delete(Number(questionId)); return; }
-    const { error } = await client.from('questions').delete().eq('id', Number(questionId)).not('created_by', 'is', null);
-    throwSupabase(error, 'Unable to delete custom question.');
+    if (!client) { ensureMemSeeded(); const row = mem.questions.get(Number(questionId)); if (isTeacherMemRow(row)) mem.questions.delete(Number(questionId)); return; }
+    try {
+      const { error } = await client.from('questions').delete().eq('id', Number(questionId)).not('created_by', 'is', null);
+      if (error) throw error;
+    } catch (error) {
+      if (isMissingSchemaError(error)) {
+        // Old schema: delete by origin flag instead.
+        const { error: legacyError } = await client.from('questions').delete().eq('id', Number(questionId)).eq('origin', 'teacher');
+        if (legacyError && !isMissingSchemaError(legacyError)) throwSupabase(legacyError, 'Unable to delete custom question.');
+        return;
+      }
+      throwSupabase(error, 'Unable to delete custom question.');
+    }
   };
   // Seed edits are direct column updates now (no override patches, no origin
   // flag): bank rows are identified by created_by being null.
-  const listQuestionOverrides = async () => [];
+  // Memory fallback (offline / contract tests) still keeps an override map so
+  // seed edits apply via applyOverrides(); Supabase mode writes columns directly.
+  const listQuestionOverrides = async () => {
+    if (!supabase()) { ensureMemSeeded(); return [...mem.overrides.values()]; }
+    return [];
+  };
   const saveQuestionOverride = async (questionId, patch = {}) => {
     const id = Number(questionId);
     if (!Number.isInteger(id) || id < 1) throw new Error('Seed edit requires a positive integer question id.');
@@ -685,12 +818,23 @@
       update.correct_answers = Array.isArray(patch.answer) ? patch.answer.map(String) : [String(typeof patch.answer === 'boolean' ? patch.answer : patch.answer)];
     }
     const client = supabase();
-    if (!client) { ensureMemSeeded(); return { questionId: id, patch, updatedAt: update.updated_at }; }
+    if (!client) { ensureMemSeeded(); const record = { questionId: id, patch, updatedAt: update.updated_at }; mem.overrides.set(id, record); return record; }
     const { error } = await client.from('questions').update(update).eq('id', id).is('created_by', null);
-    throwSupabase(error, 'Unable to save seed edit.');
+    if (error) {
+      if (isMissingSchemaError(error)) throw new Error(missingSchemaMessage('Seed edits'));
+      throwSupabase(error, 'Unable to save seed edit.');
+    }
     return { questionId: id, patch, updatedAt: update.updated_at };
   };
-  const resetQuestionOverride = async () => true;
+  const resetQuestionOverride = async (questionId) => {
+    if (!supabase()) {
+      ensureMemSeeded();
+      if (questionId === undefined || questionId === null) mem.overrides.clear();
+      else mem.overrides.delete(Number(questionId));
+      return true;
+    }
+    return true;
+  };
 
   // --- custom (teacher-created: created_by is set) questions as DTOs ---
   const rowToQuestionDto = (row, blanks) => {
@@ -741,24 +885,44 @@
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      return { backend: 'memory', configured: false, meta: mem.bankMeta, questionCount: [...mem.questions.values()].filter((q) => !q.created_by).length, syncedAt: mem.bankMeta?.updatedAt || null };
+      return { backend: 'memory', configured: false, meta: mem.bankMeta, questionCount: [...mem.questions.values()].filter((q) => !isTeacherMemRow(q)).length, syncedAt: mem.bankMeta?.updatedAt || null };
     }
-    const { count, error: countError } = await client.from('questions').select('id', { count: 'exact', head: true });
-    if (countError) throwSupabase(countError, 'Unable to count question bank.');
-    return { backend: 'supabase', configured: true, meta: null, questionCount: count || 0, syncedAt: null, missingTables: false };
+    try {
+      const { count, error: countError } = await client.from('questions').select('id', { count: 'exact', head: true });
+      if (countError) throw countError;
+      return { backend: 'supabase', configured: true, meta: null, questionCount: count || 0, syncedAt: null, missingTables: false };
+    } catch (error) {
+      if (isMissingSchemaError(error)) return { backend: 'supabase', configured: true, meta: null, questionCount: 0, syncedAt: null, missingTables: true, upgradeHint: missingSchemaMessage('Question bank') };
+      throwSupabase(error, 'Unable to count question bank.');
+      return { backend: 'supabase', configured: true, meta: null, questionCount: 0, syncedAt: null, missingTables: true };
+    }
   };
   const loadQuestionBankFromDb = async () => {
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
       if (!mem.bankMeta) return null;
-      return { questionSetId: mem.bankMeta.questionSetId, subjectCatalog: mem.bankMeta.subjectCatalog, assessmentAlignment: mem.bankMeta.assessmentAlignment, questions: [...mem.questions.values()].filter((r) => !r.created_by).map((r) => r.data || r) };
+      return { questionSetId: mem.bankMeta.questionSetId, subjectCatalog: mem.bankMeta.subjectCatalog, assessmentAlignment: mem.bankMeta.assessmentAlignment, questions: [...mem.questions.values()].filter((r) => !isTeacherMemRow(r)).map((r) => r.data || r) };
     }
     // Catalogue now lives in the subjects table; questions carry typed columns.
-    const [{ data: subjects }, { data: blanks }] = await Promise.all([
-      client.from('subjects').select('code,name').eq('active', true),
-      client.from('question_blanks').select('*').order('position'),
-    ]);
+    // Old prototype DBs have neither — return null so the runtime falls back
+    // to the seed JSON file instead of throwing created_by / relation errors.
+    let subjects = null;
+    let blanks = null;
+    try {
+      const [subjectRes, blankRes] = await Promise.all([
+        client.from('subjects').select('code,name').eq('active', true),
+        client.from('question_blanks').select('*').order('position'),
+      ]);
+      if (subjectRes.error) throw subjectRes.error;
+      if (blankRes.error && !isMissingSchemaError(blankRes.error)) throw blankRes.error;
+      subjects = subjectRes.data;
+      blanks = blankRes.error ? [] : blankRes.data;
+    } catch (error) {
+      if (isMissingSchemaError(error)) return null;
+      throwSupabase(error, 'Unable to load question bank catalogue.');
+      return null;
+    }
     const blanksByQ = new Map();
     for (const b of blanks || []) {
       const list = blanksByQ.get(b.question_id) || [];
@@ -770,8 +934,17 @@
     let from = 0;
     for (;;) {
       const { data: rows, error } = await client.from('questions').select('*').order('id', { ascending: true }).range(from, from + pageSize - 1);
-      if (error) throwSupabase(error, 'Unable to load question bank items.');
-      for (const r of rows || []) questions.push(rowToQuestionDto(r, blanksByQ.get(Number(r.id)) || []));
+      if (error) {
+        if (isMissingSchemaError(error)) return null;
+        throwSupabase(error, 'Unable to load question bank items.');
+      }
+      for (const r of rows || []) {
+        try {
+          // New typed row; old origin/data rows expose .data instead.
+          if (r && typeof r === 'object' && ('prompt' in r || 'qtype' in r || 'created_by' in r)) questions.push(rowToQuestionDto(r, blanksByQ.get(Number(r.id)) || []));
+          else if (r?.data) questions.push(r.data);
+        } catch { /* skip malformed row, keep page loading */ }
+      }
       if (!rows || rows.length < pageSize) break;
       from += pageSize;
     }
@@ -786,18 +959,29 @@
     const seedIds = new Set(payload.questions.map((q) => Number(q.id)));
     const client = supabase();
     const teacherClash = async () => {
-      if (!client) { ensureMemSeeded(); for (const [id, row] of mem.questions) { if (row.created_by && seedIds.has(id)) return id; } return null; }
-      const { data, error } = await client.from('questions').select('id').not('created_by', 'is', null);
-      if (error) throwSupabase(error, 'Unable to sync question bank.');
-      return (data || []).map((r) => Number(r.id)).find((id) => seedIds.has(id)) ?? null;
+      if (!client) { ensureMemSeeded(); for (const [id, row] of mem.questions) { if (isTeacherMemRow(row) && seedIds.has(id)) return id; } return null; }
+      try {
+        const { data, error } = await client.from('questions').select('id').not('created_by', 'is', null);
+        if (error) throw error;
+        return (data || []).map((r) => Number(r.id)).find((id) => seedIds.has(id)) ?? null;
+      } catch (error) {
+        if (isMissingSchemaError(error)) {
+          try {
+            const { data } = await client.from('questions').select('id').eq('origin', 'teacher');
+            return (data || []).map((r) => Number(r.id)).find((id) => seedIds.has(id)) ?? null;
+          } catch { return null; }
+        }
+        throwSupabase(error, 'Unable to sync question bank.');
+        return null;
+      }
     };
     const clash = await teacherClash();
     if (clash !== null) throw new Error(`Teacher-authored question id ${clash} duplicates an existing question id.`);
     if (!client) {
       ensureMemSeeded();
       mem.bankMeta = meta;
-      for (const [id, row] of mem.questions) { if (!row.created_by) mem.questions.delete(id); }
-      payload.questions.forEach((q) => mem.questions.set(Number(q.id), { data: q }));
+      for (const [id, row] of mem.questions) { if (!isTeacherMemRow(row)) mem.questions.delete(id); }
+      payload.questions.forEach((q) => mem.questions.set(Number(q.id), { origin: 'seed', data: q }));
       return { ...meta, backend: 'memory' };
     }
     // Insert-only: new seed rows are added, edited rows are never overwritten.
@@ -831,7 +1015,10 @@
     const rows = fresh.map(toColumns);
     for (let i = 0; i < rows.length; i += 500) {
       const { error } = await client.from('questions').insert(rows.slice(i, i + 500));
-      throwSupabase(error, 'Unable to sync question items.');
+      if (error) {
+        if (isMissingSchemaError(error)) throw new Error(missingSchemaMessage('Question bank sync'));
+        throwSupabase(error, 'Unable to sync question items.');
+      }
     }
     return { ...meta, backend: 'supabase' };
   };
@@ -916,18 +1103,31 @@
     const client = supabase();
     if (!client) {
       ensureMemSeeded();
-      mem.users.clear(); mem.classes.clear(); for (const [id, row] of mem.questions) { if (row.origin === 'teacher') mem.questions.delete(id); } mem.overrides.clear(); mem.whatsapp.clear(); mem.proctor.clear();
+      mem.users.clear(); mem.classes.clear(); for (const [id, row] of mem.questions) { if (isTeacherMemRow(row)) mem.questions.delete(id); } mem.overrides.clear(); mem.whatsapp.clear(); mem.proctor.clear();
       mem.seeded = false;
       return 0;
     }
     await client.from('users').delete().neq('id', '__none__');
     await client.from('classes').delete().neq('id', '__none__');
-    await client.from('questions').delete().not('created_by', 'is', null);
-    await client.from('question_blanks').delete().neq('question_id', -1);
-    await client.from('exam_attempt_answers').delete().neq('attempt_hash', '__none__');
-    await client.from('exam_attempt_subject_stats').delete().neq('attempt_hash', '__none__');
-    await client.from('exam_integrity_events').delete().neq('id', -1);
-    await client.from('exam_responses').delete().neq('session_id', '__none__');
+    // New schema prefers created_by; old schema uses origin='teacher'. Try new
+    // first, fall back so Settings reset works pre-migration.
+    try {
+      const { error } = await client.from('questions').delete().not('created_by', 'is', null);
+      if (error) throw error;
+    } catch (error) {
+      if (!isMissingSchemaError(error)) throwSupabase(error, 'Unable to clear custom questions.');
+      await client.from('questions').delete().eq('origin', 'teacher');
+    }
+    for (const table of ['question_blanks', 'exam_attempt_answers', 'exam_attempt_subject_stats', 'exam_integrity_events', 'exam_responses']) {
+      try {
+        if (table === 'question_blanks') await client.from(table).delete().neq('question_id', -1);
+        else if (table === 'exam_integrity_events') await client.from(table).delete().neq('id', -1);
+        else if (table === 'exam_responses') await client.from(table).delete().neq('session_id', '__none__');
+        else await client.from(table).delete().neq('attempt_hash', '__none__');
+      } catch (error) {
+        if (!isMissingSchemaError(error)) throw error;
+      }
+    }
     await client.from('whatsapp_groups').delete().neq('id', '__none__');
     await client.from('student_profiles').delete().neq('student_hash', '__none__');
     await client.from('exam_proctor_policies').delete().neq('session_id', '__none__');
