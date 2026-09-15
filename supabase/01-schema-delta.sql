@@ -1,7 +1,8 @@
--- 01-schema-delta.sql — run FIRST in Supabase SQL editor.
--- Adds the staff-identity + cohost columns (Prisma schema already includes
--- them; this is the one-time catch-up because the live DB predates them).
--- After this, Prisma owns all future schema changes (`prisma migrate dev`).
+-- 01-schema-delta.sql — LEGACY UPGRADE STEP ONLY.
+-- Do not use this file to bootstrap a new environment; use supabase/schema.sql.
+-- This file catches an older prototype database up to the pre-normalization
+-- shape so 04-normalize.sql can backfill and remove its historical JSONB
+-- columns safely. 05-prisma-alignment.sql verifies the final typed shape.
 -- NOTE: needs the pooler (6543) or SQL editor — direct 5432 may be blocked.
 
 alter table public.users
@@ -40,7 +41,8 @@ begin
 exception when duplicate_object then null;
 end $$;
 
--- Subject catalog (admin-extensible; codes match question subject_code).
+-- Legacy catalog starts in the historical JSONB shape only so 04 can migrate
+-- it using the same path as an already-existing prototype database.
 create table if not exists public.subjects (
   code text primary key,
   name text not null,

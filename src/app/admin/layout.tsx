@@ -1,66 +1,39 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { adminNav } from "@/lib/nav";
 import { AdminDialogs } from "@/components/admin/admin-dialogs";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { AdminSidebarBrand, AdminSidebarFooter, AdminTopbar } from "@/components/admin/admin-chrome";
+import { AdminNav } from "@/components/admin/admin-nav";
+import { getAdminTopbarNotifications } from "@/lib/admin-notifications";
+import { currentStaff } from "@/lib/auth/staff";
 
-// The sidebar only renders for signed-in staff. Visitors (e.g. /admin/login)
-// get a bare page — no nav leaks before authentication. The proxy already
-// redirects unauthenticated /admin/* traffic; this covers the login route.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase, scope } = await currentStaff();
   const { data } = await supabase.auth.getUser();
-  const role =
-    (data.user?.app_metadata?.role as string | undefined) ??
-    (data.user?.user_metadata?.role as string | undefined);
-  const signedIn = role === "administrator" || role === "teacher";
+  const user = data.user;
+  const role = scope.role;
 
-  if (!signedIn) {
-    return <main className="flex min-h-svh flex-1 flex-col">{children}</main>;
-  }
+  if (!user) return <main className="min-h-dvh bg-neutral-50">{children}</main>;
+  if (role !== "administrator" && role !== "teacher") redirect("/admin/login");
+
+  const notifications = await getAdminTopbarNotifications(supabase, scope);
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <Link href="/admin" className="flex items-center gap-2 px-2 py-1">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">F</span>
-            <span className="flex flex-col">
-              <span className="text-sm font-semibold">Festacol</span>
-              <span className="text-xs text-muted-foreground">{role === "administrator" ? "Admin workspace" : "Staff workspace"}</span>
-            </span>
-          </Link>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Manage</SidebarGroupLabel>
-            <SidebarMenu>
-              {adminNav.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton render={<Link href={item.href} />}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter>
-          <p className="px-2 text-xs text-muted-foreground">Supabase + Prisma</p>
-        </SidebarFooter>
-      </Sidebar>
-      <main className="flex min-h-svh flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background px-4 py-2">
-          <SidebarTrigger />
-          <p className="text-sm text-muted-foreground">Admin</p>
-        </header>
-        <div className="mx-auto w-full max-w-[1600px] flex-1 p-4 sm:p-6">{children}</div>
-        <Suspense>
-          <AdminDialogs />
-        </Suspense>
-      </main>
-    </SidebarProvider>
+    <div className="min-h-screen bg-neutral-50 text-neutral-950">
+      <a href="#admin-root" className="fixed left-4 top-4 z-[200] -translate-y-24 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white transition focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-neutral-300 motion-reduce:transition-none">Skip to application</a>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-neutral-800 bg-neutral-950 text-white lg:flex lg:flex-col">
+        <div className="border-b border-neutral-800 px-5 py-5"><AdminSidebarBrand /></div>
+        <div className="px-4 pb-2 pt-4"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-500">Workspace</p></div>
+        <AdminNav />
+        <AdminSidebarFooter />
+      </aside>
+
+      <div className="lg:pl-64">
+        <AdminTopbar notifications={notifications} />
+        <div id="admin-alert" className="hidden" />
+        <main id="admin-root" tabIndex={-1} className="mx-auto max-w-[1600px] px-4 py-5 outline-none sm:px-6 lg:px-8">{children}</main>
+      </div>
+
+      <Suspense><AdminDialogs /></Suspense>
+    </div>
   );
 }

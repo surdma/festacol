@@ -1,15 +1,27 @@
-import { BookOpen, Users, GraduationCap, ClipboardList, School, Library, BarChart3, Settings, LayoutDashboard } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  GraduationCap,
+  LayoutDashboard,
+  Library,
+  School,
+  Settings,
+  Users,
+} from "lucide-react";
 
 export const adminNav = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/students", label: "Students", icon: Users },
-  { href: "/admin/staff", label: "Staff", icon: GraduationCap },
-  { href: "/admin/exams", label: "Examinations", icon: BookOpen },
-  { href: "/admin/classes", label: "Classes", icon: School },
-  { href: "/admin/questions", label: "Question Bank", icon: Library },
-  { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin", label: "Overview", description: "Command center", section: "Workspace", icon: LayoutDashboard },
+  { href: "/admin/students", label: "Students", description: "Directory and records", section: "Workspace", icon: Users },
+  { href: "/admin/staff", label: "Staff", description: "Access and subject scope", section: "Workspace", icon: GraduationCap },
+  { href: "/admin/exams", label: "Examinations", description: "Assessment control", section: "Workspace", icon: BookOpen },
+  { href: "/admin/classes", label: "Classes", description: "Structure and communication", section: "Workspace", icon: School },
+  { href: "/admin/questions", label: "Question Bank", description: "Question inventory", section: "Workspace", icon: Library },
+  { href: "/admin/reports", label: "Reports", description: "Performance and audit", section: "Workspace", icon: BarChart3 },
+  { href: "/admin/settings", label: "Settings", description: "Workspace configuration", section: "Workspace", icon: Settings },
 ] as const;
+
+export const adminNavGroups = [{ section: "Workspace", items: adminNav }];
 
 export const studentNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
