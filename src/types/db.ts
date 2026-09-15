@@ -6,6 +6,7 @@
 export type AcademicRole = "student" | "teacher" | "administrator";
 export type RecordStatus = "active" | "inactive";
 export type AcademicPeriodStatus = "planned" | "active" | "closed" | "archived";
+export type AcademicTrack = "science" | "art" | "social_science";
 export type EnrollmentStatus = "active" | "completed" | "withdrawn" | "transferred" | "ended";
 export type OfferingParticipation = "required" | "elective";
 export type OfferingStatus = "draft" | "active" | "ended";
@@ -72,18 +73,10 @@ export interface AcademicLevelRow {
   created_at: string;
 }
 
-export interface AcademicProgrammeRow {
-  id: string;
-  name: string;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ClassRow {
   id: string;
   level_id: string;
-  programme_id: string | null;
+  track: AcademicTrack | null;
   academic_year_id: string;
   arm: string;
   capacity: number;
@@ -104,8 +97,17 @@ export interface ClassEnrollmentRow {
 
 export interface SubjectRow {
   id: string;
+  code: string;
   name: string;
   active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubjectTrackRuleRow {
+  subject_id: string;
+  track: AcademicTrack;
+  participation: OfferingParticipation;
   created_at: string;
   updated_at: string;
 }
@@ -151,7 +153,6 @@ export interface ExamSessionRow {
   academic_term_id: string | null;
   mode: ExamMode;
   status: ExamStatus;
-  placement_tracks: string[];
   duration_seconds: number;
   question_count: number;
   instructions: string;
@@ -181,6 +182,31 @@ export interface ExamOfferingTargetRow {
   session_id: string;
   offering_id: string;
   created_at: string;
+}
+
+export interface ExamPlacementTrackRow {
+  session_id: string;
+  track: AcademicTrack;
+}
+
+export interface ExamSessionLinkRow {
+  id: string;
+  session_id: string;
+  token: string;
+  active: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExamQrCodeRow {
+  id: string;
+  link_id: string;
+  revision: number;
+  content_type: string;
+  rendered_data: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ExamStaffAssignmentRow {
@@ -239,7 +265,7 @@ export interface ExamAttemptRow {
   pace_index: number | null;
   reasoning_index: number | null;
   integrity_score: number | null;
-  assigned_track: string | null;
+  assigned_track: AcademicTrack | null;
   placement_confidence: number | null;
   submission_reason: string;
   rewrite_source_attempt_id: string | null;
