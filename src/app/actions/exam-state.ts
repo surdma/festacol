@@ -6,6 +6,7 @@ import { currentStudent } from "@/lib/auth/current-student";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload, sanitizePaper } from "@/lib/questions";
 import { effectiveStatus, hashText, paperForStudent, paperFromQuestionIds, scoreAttempt } from "@/lib/assessment";
+import type { AcademicTrack } from "@/types/db";
 import type { ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
 export type PaperStatus =
@@ -14,11 +15,11 @@ export type PaperStatus =
   | { status: "unavailable"; error: string };
 
 interface RuntimeState {
-  attempt_id: string;
+  id: string;
   current_index: number;
-  remaining_seconds: number;
+  remaining_seconds: number | null;
   elapsed_active_seconds: number;
-  last_active_at: number;
+  last_active_at: number | null;
   paper_fingerprint: string;
   question_ids: number[];
   updated_at: number;
@@ -56,7 +57,7 @@ async function latestAttempt(sessionId: string): Promise<AttemptRow | null> {
     .from("exam_attempts")
     .select("id,attempt_number,started_at,submitted_at,score")
     .eq("session_id", sessionId.toUpperCase())
-    .eq("student_profile_id", ctx.profile.profile_id)
+    .eq("student_id", ctx.profile.profile_id)
     .order("attempt_number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -94,10 +95,28 @@ function joinResponse(text: unknown, values: unknown): unknown {
   return text;
 }
 
+function serializeAnswer(question: QuestionDTO | undefined): string {
+  const answer = (question as { answer?: unknown } | undefined)?.answer;
+  if (Array.isArray(answer)) return answer.map(String).join(", ");
+  if (answer && typeof answer === "object") return JSON.stringify(answer);
+  return String(answer ?? "");
+}
+
+function placementTrack(value: string | undefined): AcademicTrack | null {
+  if (value === "Science") return "science";
+  if (value === "Arts" || value === "Art") return "art";
+  if (value === "Social Science") return "social_science";
+  return null;
+}
+
 async function stateForAttempt(attemptId: string) {
   const supabase = await createSupabaseServerClient();
   const [{ data: state }, { data: responses }] = await Promise.all([
-    supabase.from("exam_attempt_runtime_states").select("*").eq("attempt_id", attemptId).maybeSingle(),
+    supabase
+      .from("exam_attempts")
+      .select("id,current_index,remaining_seconds,elapsed_active_seconds,last_active_at,paper_fingerprint,question_ids,updated_at")
+      .eq("id", attemptId)
+      .maybeSingle(),
     supabase.from("exam_attempt_responses").select("question_id,response_text,response_values,seconds,flagged").eq("attempt_id", attemptId),
   ]);
   return {
@@ -137,11 +156,12 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   if (!state) return { status: "unavailable", error: "Attempt state is unavailable." };
 
   const now = Date.now();
-  const awaySeconds = Math.max(0, Math.floor((now - Number(state.last_active_at ?? now)) / 1000));
+  const lastActiveAt = Number(state.last_active_at ?? now);
+  const awaySeconds = Math.max(0, Math.floor((now - lastActiveAt) / 1000));
   const remaining = Math.max(0, Number(state.remaining_seconds ?? session.durationSeconds) - awaySeconds);
   if (remaining <= 0) {
     const supabase = await createSupabaseServerClient();
-    await supabase.from("exam_attempt_runtime_states").update({ remaining_seconds: 0, last_active_at: now, updated_at: now }).eq("attempt_id", attemptId);
+    await supabase.from("exam_attempts").update({ remaining_seconds: 0, last_active_at: now, updated_at: now }).eq("id", attemptId);
     const submitted = await submitExamAction(session.id, "time-expired");
     return submitted.ok
       ? { status: "locked", score: submitted.summary?.accuracy ?? null }
@@ -159,13 +179,13 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
     `${session.id}|${attemptId}|${paper.map((question) => `${question.id}:${(question.options ?? []).join("~")}`).join("|")}`,
   );
   const supabase = await createSupabaseServerClient();
-  const { error: stateError } = await supabase.from("exam_attempt_runtime_states").update({
+  const { error: stateError } = await supabase.from("exam_attempts").update({
     remaining_seconds: remaining,
     last_active_at: now,
     paper_fingerprint: fingerprint,
     question_ids: state.question_ids.length ? state.question_ids : paper.map((question) => question.id),
     updated_at: now,
-  }).eq("attempt_id", attemptId);
+  }).eq("id", attemptId);
   if (stateError) return { status: "unavailable", error: "Attempt state could not be saved." };
 
   const responses: Record<string, unknown> = {};
@@ -193,13 +213,13 @@ export async function saveProgressAction(
   if (!attempt || attempt.submitted_at) return;
   const supabase = await createSupabaseServerClient();
   const now = Date.now();
-  const { error: stateError } = await supabase.from("exam_attempt_runtime_states").update({
+  const { error: stateError } = await supabase.from("exam_attempts").update({
     current_index: Math.max(0, patch.currentIndex),
     remaining_seconds: Math.max(0, Math.round(patch.remainingSeconds)),
     elapsed_active_seconds: Math.max(0, patch.elapsedActiveSeconds),
     last_active_at: now,
     updated_at: now,
-  }).eq("attempt_id", attempt.id);
+  }).eq("id", attempt.id);
   if (stateError) return;
 
   const flagged = new Set(patch.flagged);
@@ -212,6 +232,7 @@ export async function saveProgressAction(
       response_values: response.values,
       seconds: Math.max(0, Number(patch.questionTimings[questionId] ?? 0)),
       flagged: flagged.has(questionId),
+      updated_at: now,
     };
   });
   if (rows.length) {
@@ -243,9 +264,11 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
 
   const responses: Record<string, unknown> = {};
   const timings: Record<string, number> = {};
+  const flaggedByQuestion = new Map<number, boolean>();
   for (const response of savedResponses) {
     responses[String(response.question_id)] = joinResponse(response.response_text, response.response_values);
     timings[String(response.question_id)] = Number(response.seconds ?? 0);
+    flaggedByQuestion.set(Number(response.question_id), response.flagged);
   }
   const admin = createSupabaseAdminClient();
   const { data: integrityRows } = await admin.from("exam_integrity_events").select("type,detail,at").eq("attempt_id", attempt.id).order("at");
@@ -278,33 +301,37 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
     pace_index: result.paceIndex,
     reasoning_index: result.reasoningIndex,
     integrity_score: result.integrityScore,
-    assigned_track: result.placement?.assignedTrack ?? null,
+    assigned_track: placementTrack(result.placement?.assignedTrack),
     placement_confidence: result.placement?.confidence ?? null,
     submission_reason: reason.slice(0, 80),
+    updated_at: now,
   }).eq("id", attempt.id)
-    .eq("student_profile_id", ctx.profile.profile_id)
+    .eq("student_id", ctx.profile.profile_id)
     .is("submitted_at", null)
     .select("id")
     .maybeSingle();
   if (updateError) return { ok: false, error: updateError.message };
   if (!updated) return { ok: false, error: "This attempt has already been submitted." };
 
-  await admin.from("exam_attempt_answers").delete().eq("attempt_id", attempt.id);
   if (result.details.length) {
-    const { error: answerError } = await admin.from("exam_attempt_answers").insert(result.details.map((detail) => {
+    const gradedRows = result.details.map((detail) => {
       const response = splitResponse(detail.response);
-      const question = paper.find((item) => item.id === detail.questionId) as (QuestionDTO & { answer?: unknown }) | undefined;
+      const question = paper.find((item) => item.id === detail.questionId);
       return {
         attempt_id: attempt.id,
         question_id: detail.questionId,
-        correct: detail.correct,
         response_text: response.text,
         response_values: response.values,
-        correct_answer: Array.isArray(question?.answer) ? question.answer.join(", ") : String(question?.answer ?? ""),
         seconds: detail.seconds,
+        flagged: flaggedByQuestion.get(detail.questionId) ?? false,
+        correct: detail.correct,
+        correct_answer: serializeAnswer(question),
+        graded_at: now,
+        updated_at: now,
       };
-    }));
-    if (answerError) return { ok: false, error: `Result details could not be saved: ${answerError.message}` };
+    });
+    const { error: gradingError } = await admin.from("exam_attempt_responses").upsert(gradedRows, { onConflict: "attempt_id,question_id" });
+    if (gradingError) return { ok: false, error: `Result details could not be saved: ${gradingError.message}` };
   }
 
   return {
