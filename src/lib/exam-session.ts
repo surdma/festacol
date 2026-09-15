@@ -24,6 +24,13 @@ interface SessionRow {
 
 const CLASS_LEVELS = new Set<ClassLevel>(["SS1", "SS2", "SS3"]);
 
+function displayTrack(value: string): string {
+  if (value === "science") return "Science";
+  if (value === "art") return "Art";
+  if (value === "social_science") return "Social Science";
+  return value;
+}
+
 export async function loadExamRuntimeSession(
   client: SupabaseClient,
   sessionId: string,
@@ -37,14 +44,14 @@ export async function loadExamRuntimeSession(
   if (sessionError || !rawSession) return null;
   const row = rawSession as SessionRow;
 
-  const [{ data: offeringTargets, error: offeringTargetError }, { data: classTargets, error: classTargetError }, { data: placementLinks, error: placementError }] = await Promise.all([
+  const [offeringTargetResult, classTargetResult, placementResult] = await Promise.all([
     client.from("exam_offering_targets").select("offering_id").eq("session_id", id),
     client.from("exam_class_targets").select("class_id").eq("session_id", id),
-    client.from("exam_placement_programmes").select("programme_id").eq("session_id", id),
+    client.from("exam_placement_tracks").select("track").eq("session_id", id),
   ]);
-  if (offeringTargetError || classTargetError || placementError) return null;
+  if (offeringTargetResult.error || classTargetResult.error || placementResult.error) return null;
 
-  const offeringIds = ((offeringTargets ?? []) as { offering_id: string }[]).map((item) => item.offering_id);
+  const offeringIds = ((offeringTargetResult.data ?? []) as { offering_id: string }[]).map((item) => item.offering_id);
   const { data: offeringRows, error: offeringError } = offeringIds.length
     ? await client.from("class_subject_offerings").select("id,class_id,subject_id").in("id", offeringIds)
     : { data: [], error: null };
@@ -52,7 +59,7 @@ export async function loadExamRuntimeSession(
   const offerings = (offeringRows ?? []) as { id: string; class_id: string; subject_id: string }[];
 
   const classIds = [...new Set([
-    ...((classTargets ?? []) as { class_id: string }[]).map((item) => item.class_id),
+    ...((classTargetResult.data ?? []) as { class_id: string }[]).map((item) => item.class_id),
     ...offerings.map((item) => item.class_id),
   ])];
   const { data: classRows, error: classesError } = classIds.length
@@ -60,43 +67,30 @@ export async function loadExamRuntimeSession(
     : { data: [], error: null };
   if (classesError) return null;
   const classes = (classRows ?? []) as { id: string; level_id: string; academic_year_id: string; arm: string }[];
+  if (!classes.length) return null;
 
   const levelIds = [...new Set(classes.map((item) => item.level_id))];
-  const { data: levelRows, error: levelError } = levelIds.length
-    ? await client.from("academic_levels").select("id,name").in("id", levelIds)
-    : { data: [], error: null };
+  const { data: levelRows, error: levelError } = await client.from("academic_levels").select("id,name").in("id", levelIds);
   if (levelError) return null;
-  const levels = (levelRows ?? []) as { id: string; name: string }[];
-  const levelNames = [...new Set(levels.map((item) => item.name))];
+  const levelNames = [...new Set(((levelRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
   if (levelNames.length !== 1 || !CLASS_LEVELS.has(levelNames[0] as ClassLevel)) return null;
   const classLevel = levelNames[0] as ClassLevel;
 
   const academicYearIds = [...new Set(classes.map((item) => item.academic_year_id))];
-  const { data: yearRows, error: yearError } = academicYearIds.length
-    ? await client.from("academic_years").select("id,name").in("id", academicYearIds)
-    : { data: [], error: null };
+  const { data: yearRows, error: yearError } = await client.from("academic_years").select("id,name").in("id", academicYearIds);
   if (yearError) return null;
   const yearNames = [...new Set(((yearRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
 
   let termName = "";
   if (row.academic_term_id) {
-    const { data: term, error: termError } = await client
-      .from("academic_terms")
-      .select("name")
-      .eq("id", row.academic_term_id)
-      .maybeSingle();
+    const { data: term, error: termError } = await client.from("academic_terms").select("name").eq("id", row.academic_term_id).maybeSingle();
     if (termError) return null;
     termName = String((term as { name?: string } | null)?.name ?? "");
   }
 
-  const programmeIds = ((placementLinks ?? []) as { programme_id: string }[]).map((item) => item.programme_id);
-  const { data: programmeRows, error: programmeError } = programmeIds.length
-    ? await client.from("academic_programmes").select("id,name").in("id", programmeIds)
-    : { data: [], error: null };
-  if (programmeError) return null;
-
   const subjectIds = [...new Set(offerings.map((item) => item.subject_id))];
   const classGroup = classes.map((item) => item.arm).filter(Boolean).join(", ");
+  const placementTracks = ((placementResult.data ?? []) as { track: string }[]).map((item) => displayTrack(item.track));
 
   return {
     session: {
@@ -108,7 +102,7 @@ export async function loadExamRuntimeSession(
       term: termName,
       mode: row.mode,
       subjectIds,
-      placementTracks: ((programmeRows ?? []) as { id: string; name: string }[]).map((item) => item.name),
+      placementTracks,
       durationSeconds: Number(row.duration_seconds),
       questionCount: Number(row.question_count),
       status: row.status,
