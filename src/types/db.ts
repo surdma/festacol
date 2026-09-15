@@ -310,7 +310,7 @@ export interface QuestionRow {
   domain: string;
   explanation: string;
   status: RecordStatus;
-  created_by_id: string | null;
+  creator_id: string | null;
   created_at: string | null;
   updated_at: number;
 }
