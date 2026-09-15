@@ -60,12 +60,18 @@ AS $$
   SELECT COALESCE(private.current_member_role() IN ('teacher','administrator'), false);
 $$;
 
-CREATE OR REPLACE FUNCTION public.resolve_student_profile_by_name(
+-- These RPCs are the public PostgREST boundary. Drop the legacy/profile-named
+-- variants first so reapplying this integration file can also rename PostgreSQL
+-- input parameters without CREATE OR REPLACE retaining the old argument names.
+DROP FUNCTION IF EXISTS public.resolve_student_profile_by_name(text,text);
+DROP FUNCTION IF EXISTS public.resolve_student_member_by_name(text,text);
+
+CREATE FUNCTION public.resolve_student_member_by_name(
   p_first_name text,
   p_last_name text
 )
 RETURNS TABLE(
-  profile_id uuid,
+  member_id uuid,
   auth_user_id uuid,
   first_name text,
   last_name text,
@@ -109,8 +115,10 @@ $$;
 
 -- Service-role-only atomic binding between a pre-provisioned student and an
 -- existing Supabase Auth identity. It never creates a domain student record.
-CREATE OR REPLACE FUNCTION public.claim_student_auth_identity(
-  p_profile_id uuid,
+DROP FUNCTION IF EXISTS public.claim_student_auth_identity(uuid,uuid);
+
+CREATE FUNCTION public.claim_student_auth_identity(
+  p_member_id uuid,
   p_auth_user_id uuid
 )
 RETURNS boolean
@@ -124,7 +132,7 @@ DECLARE
 BEGIN
   SELECT * INTO v_member
   FROM public.school_members m
-  WHERE m.id = p_profile_id
+  WHERE m.id = p_member_id
   FOR UPDATE;
 
   IF NOT FOUND OR v_member.role <> 'student' OR v_member.status <> 'active' THEN
@@ -142,14 +150,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.school_members m
     WHERE m.auth_user_id = p_auth_user_id
-      AND m.id <> p_profile_id
+      AND m.id <> p_member_id
   ) THEN
     RETURN false;
   END IF;
 
   UPDATE public.school_members
   SET auth_user_id = p_auth_user_id, updated_at = now()
-  WHERE id = p_profile_id
+  WHERE id = p_member_id
     AND auth_user_id IS NULL;
 
   RETURN FOUND;
@@ -476,7 +484,7 @@ BEGIN
     SELECT 1 FROM public.school_members m
     WHERE m.id=v_student AND m.role='student' AND m.status='active'
   ) THEN
-    RAISE EXCEPTION 'student_profile_required';
+    RAISE EXCEPTION 'student_member_required';
   END IF;
 
   SELECT * INTO v_session
@@ -528,9 +536,11 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.grant_exam_retake(
+DROP FUNCTION IF EXISTS public.grant_exam_retake(text,uuid,integer,text);
+
+CREATE FUNCTION public.grant_exam_retake(
   p_session_id text,
-  p_student_profile_id uuid,
+  p_student_id uuid,
   p_additional_attempts integer DEFAULT 1,
   p_reason text DEFAULT ''
 )
@@ -550,14 +560,14 @@ BEGIN
   IF p_additional_attempts < 1 OR p_additional_attempts > 10 THEN
     RAISE EXCEPTION 'invalid_retake_count';
   END IF;
-  IF NOT private.student_is_targeted_for_exam(upper(p_session_id),p_student_profile_id) THEN
+  IF NOT private.student_is_targeted_for_exam(upper(p_session_id),p_student_id) THEN
     RAISE EXCEPTION 'student_not_eligible';
   END IF;
 
   INSERT INTO public.exam_retake_grants(
     session_id,student_id,additional_attempts,granted_by_id,reason
   ) VALUES (
-    upper(p_session_id),p_student_profile_id,p_additional_attempts,v_staff,left(coalesce(p_reason,''),500)
+    upper(p_session_id),p_student_id,p_additional_attempts,v_staff,left(coalesce(p_reason,''),500)
   ) RETURNING id INTO v_id;
 
   RETURN v_id;
@@ -588,9 +598,9 @@ GRANT EXECUTE ON FUNCTION private.staff_can_access_exam(uuid,text) TO authentica
 GRANT EXECUTE ON FUNCTION private.student_is_targeted_for_exam(text,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION private.student_allowed_attempts(text,uuid) TO authenticated;
 
-REVOKE ALL ON FUNCTION public.resolve_student_profile_by_name(text,text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.resolve_student_profile_by_name(text,text) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.resolve_student_profile_by_name(text,text) TO service_role;
+REVOKE ALL ON FUNCTION public.resolve_student_member_by_name(text,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.resolve_student_member_by_name(text,text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_student_member_by_name(text,text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.claim_student_auth_identity(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.claim_student_auth_identity(uuid,uuid) FROM authenticated;
