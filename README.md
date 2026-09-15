@@ -9,42 +9,66 @@ pnpm install
 pnpm dev
 ```
 
+Copy `.env.example` to `.env` and provide the required Supabase and database credentials. Do not commit `.env`.
+
 ## Database source of truth
 
-The production database is normalized. New environments must start from:
+The production database is normalized. The canonical schema and migration history live in:
 
-1. `supabase/schema.sql` — typed baseline with no JSON/JSONB domain blobs.
-2. `supabase/02-rls-policies.sql` — authenticated role policies.
-3. `supabase/03-realtime-webhooks.sql` — realtime/webhook configuration.
-4. Seed/import data as required by the environment.
+- `prisma/schema.prisma` — application data model and relations.
+- `prisma/migrations/` — ordered Prisma migration history used by `prisma migrate deploy`.
+- `prisma/seed.ts` — canonical academic, class, subject and question fixture seeding.
+- `supabase/auth-rpc.sql` — Supabase authentication/RPC integration applied after Prisma migrations.
+- `supabase/rls.sql` — row-level-security policies and grants applied after Prisma migrations.
 
-`prisma/schema.prisma` mirrors that normalized shape for Prisma Client and future Prisma migrations. After changing the Prisma schema, run:
+The current migration history starts with `20260915190000_initial` and includes the checked-in schema-reconciliation migrations that follow it. Do not recreate removed legacy Supabase schema files or add a second baseline.
+
+After changing the Prisma schema, validate and generate the client before creating or applying migrations:
 
 ```bash
-pnpm db:generate
 pnpm exec prisma validate
+pnpm db:generate
 ```
 
-### Existing prototype databases
+For a deployment target, apply the checked-in history and canonical seed data with:
 
-Older installations created structured application state in JSONB columns. Do **not** recreate those columns in a new environment. Back up the database, then use the legacy upgrade path:
+```bash
+pnpm exec prisma migrate deploy
+pnpm db:seed
+```
 
-1. `supabase/01-schema-delta.sql`
-2. `supabase/04-normalize.sql`
-3. `supabase/05-prisma-alignment.sql`
-4. `supabase/02-rls-policies.sql`
-5. `supabase/03-realtime-webhooks.sql`
+Supabase auth/RPC and RLS integration must then be applied from the two SQL files above. The CI workflow exercises this complete sequence against PostgreSQL before typecheck and build.
 
-`04-normalize.sql` backfills the old JSONB payloads into typed scalar columns, PostgreSQL scalar arrays, and related detail tables before dropping the legacy blob columns. `05-prisma-alignment.sql` then verifies that no JSON/JSONB application columns remain, asserts the `exam_attempts.attempt_hash` primary-key contract, and adds the normalized response-state foreign key expected by Prisma.
+## Academic data model
 
-The files under `prototype/supabase/` document the original prototype bootstrap/migration history. They are not the production baseline for a new Next.js deployment.
+Festacol models curriculum and teaching relationships explicitly rather than duplicating programme/class/subject labels:
+
+- classes reference an academic level, academic year and canonical track;
+- `class_subject_offerings` relate classes to subjects;
+- `teaching_assignments` relate staff to concrete class-subject offerings;
+- `staff_subject_qualifications` describe subject qualifications independently of class assignments;
+- `student_subject_enrollments` record per-student subject participation;
+- exam class/offering targets define the audience for an examination;
+- exam attempts use durable UUID identities and preserve relational context snapshots;
+- candidate share links use persisted opaque `exam_session_links` tokens, with versioned QR payload metadata in `exam_qr_codes`.
+
+## Seed fixtures
+
+Canonical fixtures live under `public/seed/` and are validated before database seeding:
+
+```bash
+pnpm seed:check
+```
+
+The question fixture references canonical subject codes; subject and class definitions are maintained in their own fixture files rather than duplicated inside every question row.
 
 ## Quality checks
 
 ```bash
-pnpm lint
-pnpm exec tsc --noEmit
+pnpm seed:check
 pnpm exec prisma validate
 pnpm db:generate
+pnpm exec tsc --noEmit
 pnpm build
+pnpm lint
 ```
