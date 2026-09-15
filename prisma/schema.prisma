@@ -1,15 +1,6 @@
-// Festacol public application schema.
-//
-// Ownership boundary:
-// - Prisma owns the public application schema and migration history.
-// - Supabase owns auth.users and platform-only capabilities (Auth, RLS,
-//   security-definer RPCs and Realtime/Webhooks).
-// - Supabase auth.users is intentionally NOT modeled as a Prisma User table.
-// - AcademicProfile.authUserId stores the Supabase Auth UUID. The cross-schema
-//   FK to auth.users is installed by Supabase-specific SQL because Prisma does
-//   not own the auth schema.
-// - ExamAttempt.contextSnapshot is intentional immutable audit context. It is
-//   not a second source of truth for live academic entities.
+// Festacol canonical application schema.
+// Prisma owns the public application schema. Supabase owns auth.users, RLS,
+// security-definer RPCs and other platform capabilities.
 
 generator client {
   provider = "prisma-client"
@@ -20,12 +11,12 @@ datasource db {
   provider = "postgresql"
 }
 
-enum AcademicRole {
+enum MemberRole {
   STUDENT       @map("student")
   TEACHER       @map("teacher")
   ADMINISTRATOR @map("administrator")
 
-  @@map("academic_role")
+  @@map("member_role")
 }
 
 enum RecordStatus {
@@ -33,6 +24,16 @@ enum RecordStatus {
   INACTIVE @map("inactive")
 
   @@map("record_status")
+}
+
+enum StudentProgressStatus {
+  ON_TRACK  @map("on-track")
+  PROMOTED  @map("promoted")
+  REPEATING @map("repeating")
+  GRADUATED @map("graduated")
+  WITHDRAWN @map("withdrawn")
+
+  @@map("student_progress_status")
 }
 
 enum AcademicPeriodStatus {
@@ -50,6 +51,13 @@ enum AcademicTrack {
   SOCIAL_SCIENCE @map("social_science")
 
   @@map("academic_track")
+}
+
+enum SubjectKind {
+  CURRICULUM @map("curriculum")
+  QUALIFIER  @map("qualifier")
+
+  @@map("subject_kind")
 }
 
 enum EnrollmentStatus {
@@ -129,60 +137,38 @@ enum QuestionType {
   @@map("question_type")
 }
 
-model AcademicProfile {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  authUserId String?      @unique @map("auth_user_id") @db.Uuid
-  role       AcademicRole
-  status     RecordStatus @default(ACTIVE)
-  firstName  String       @map("first_name")
-  lastName   String       @map("last_name")
-  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+model SchoolMember {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authUserId      String?                @unique @map("auth_user_id") @db.Uuid
+  role            MemberRole
+  status          RecordStatus           @default(ACTIVE)
+  firstName       String                 @map("first_name")
+  lastName        String                 @map("last_name")
+  studentNumber   String?                @unique @map("student_number")
+  guardian        String?
+  phone           String?
+  promotionStatus StudentProgressStatus? @map("promotion_status")
+  staffNumber     String?                @unique @map("staff_number")
+  qualifierAccess Boolean                @default(false) @map("qualifier_access")
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  student StudentAcademicProfile?
-  staff   StaffAcademicProfile?
-
-  @@index([role, status])
-  @@index([firstName, lastName, role, status])
-  @@map("academic_profiles")
-}
-
-model StudentAcademicProfile {
-  profileId       String   @id @map("profile_id") @db.Uuid
-  studentNumber   String?  @unique @map("student_number")
-  guardian        String   @default("")
-  phone           String   @default("")
-  promotionStatus String   @default("on-track") @map("promotion_status")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  profile            AcademicProfile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  classEnrollments   ClassEnrollment[]
-  subjectEnrollments StudentSubjectEnrollment[]
-  examAccess         ExamStudentAccess[]
-  retakeGrants       ExamRetakeGrant[]
-  attempts           ExamAttempt[]
-
-  @@map("student_academic_profiles")
-}
-
-model StaffAcademicProfile {
-  profileId       String   @id @map("profile_id") @db.Uuid
-  staffNumber     String?  @unique @map("staff_number")
-  qualifierAccess Boolean  @default(false) @map("qualifier_access")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  profile             AcademicProfile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  classEnrollments    ClassEnrollment[]
+  subjectEnrollments  StudentSubjectEnrollment[]
   qualifications      StaffSubjectQualification[]
   teachingAssignments TeachingAssignment[]
-  createdExams         ExamSession[]                @relation("ExamCreator")
-  authoredQuestions    Question[]                   @relation("QuestionAuthor")
-  examAssignments      ExamStaffAssignment[]
-  grantedExamAccess    ExamStudentAccess[]          @relation("ExamAccessGrantor")
-  grantedRetakeGrants  ExamRetakeGrant[]            @relation("ExamRetakeGrantor")
+  createdExams        ExamSession[]             @relation("ExamCreator")
+  authoredQuestions   Question[]                @relation("QuestionAuthor")
+  examAssignments     ExamStaffAssignment[]
+  examAccess          ExamStudentAccess[]       @relation("ExamAccessStudent")
+  grantedExamAccess   ExamStudentAccess[]       @relation("ExamAccessGrantor")
+  retakeGrants        ExamRetakeGrant[]         @relation("ExamRetakeStudent")
+  grantedRetakes      ExamRetakeGrant[]         @relation("ExamRetakeGrantor")
+  attempts            ExamAttempt[]
 
-  @@map("staff_academic_profiles")
+  @@index([role, status])
+  @@index([lastName, firstName, role, status])
+  @@map("school_members")
 }
 
 model AcademicYear {
@@ -211,9 +197,8 @@ model AcademicTerm {
   createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  academicYear AcademicYear             @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  offerings   ClassSubjectOffering[]
-  exams       ExamSession[]
+  academicYear AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  exams        ExamSession[]
 
   @@unique([academicYearId, sequence])
   @@unique([academicYearId, name])
@@ -227,145 +212,146 @@ model AcademicLevel {
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  classes       Class[]
-  questionLinks QuestionAcademicLevel[]
+  classes         Class[]
+  curriculumRules SubjectCurriculumRule[]
+  questionLinks   QuestionAcademicLevel[]
 
   @@map("academic_levels")
 }
 
 model Class {
-  id             String         @id
-  levelId        String         @map("level_id") @db.Uuid
-  track          AcademicTrack?
-  academicYearId String         @map("academic_year_id") @db.Uuid
-  arm            String         @default("")
-  capacity       Int            @default(40)
-  room           String         @default("")
-  status         RecordStatus   @default(ACTIVE)
-  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String       @id
+  levelId        String       @map("level_id") @db.Uuid
+  track          AcademicTrack
+  academicYearId String       @map("academic_year_id") @db.Uuid
+  arm            String
+  capacity       Int          @default(40)
+  room           String       @default("")
+  status         RecordStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   level            AcademicLevel          @relation(fields: [levelId], references: [id], onDelete: Restrict)
   academicYear     AcademicYear           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
   enrollments      ClassEnrollment[]
   subjectOfferings ClassSubjectOffering[]
   examTargets      ExamClassTarget[]
-  whatsappGroup    WhatsappGroup?
+  whatsappGroups   WhatsappGroup[]
 
   @@index([academicYearId, levelId, track, status], map: "classes_track_status_idx")
   @@map("classes")
 }
 
 model ClassEnrollment {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  studentProfileId String           @map("student_profile_id") @db.Uuid
-  classId          String           @map("class_id")
-  status           EnrollmentStatus @default(ACTIVE)
-  enrolledAt       DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
-  endedAt          DateTime?        @map("ended_at") @db.Timestamptz(6)
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId  String           @map("student_id") @db.Uuid
+  classId    String           @map("class_id")
+  status     EnrollmentStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  endedAt    DateTime?        @map("ended_at") @db.Timestamptz(6)
 
-  student StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
-  class   Class                  @relation(fields: [classId], references: [id], onDelete: Restrict)
+  student SchoolMember @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class        @relation(fields: [classId], references: [id], onDelete: Restrict)
 
-  @@unique([studentProfileId, classId])
+  @@unique([studentId, classId])
   @@index([classId, status])
   @@map("class_enrollments")
 }
 
 model Subject {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code      String   @unique
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String      @unique
   name      String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  kind      SubjectKind @default(CURRICULUM)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  trackRules     SubjectTrackRule[]
-  offerings      ClassSubjectOffering[]
-  qualifications StaffSubjectQualification[]
-  questions      Question[]
+  curriculumRules SubjectCurriculumRule[]
+  offerings       ClassSubjectOffering[]
+  qualifications  StaffSubjectQualification[]
+  questions       Question[]
 
-  @@index([active, name])
+  @@index([kind, active, name])
   @@map("subjects")
 }
 
-model SubjectTrackRule {
+model SubjectCurriculumRule {
   subjectId     String                @map("subject_id") @db.Uuid
+  levelId       String                @map("level_id") @db.Uuid
   track         AcademicTrack
-  participation OfferingParticipation @default(ELECTIVE)
+  participation OfferingParticipation
   createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subject Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  level   AcademicLevel @relation(fields: [levelId], references: [id], onDelete: Restrict)
 
-  @@id([subjectId, track])
-  @@index([track, participation], map: "subject_track_rules_track_participation_idx")
-  @@map("subject_track_rules")
+  @@id([subjectId, levelId, track])
+  @@index([levelId, track, participation])
+  @@map("subject_curriculum_rules")
 }
 
 model ClassSubjectOffering {
-  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  classId        String                @map("class_id")
-  subjectId      String                @map("subject_id") @db.Uuid
-  academicTermId String?               @map("academic_term_id") @db.Uuid
-  participation  OfferingParticipation @default(REQUIRED)
-  status         OfferingStatus        @default(ACTIVE)
-  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId   String         @map("class_id")
+  subjectId String         @map("subject_id") @db.Uuid
+  status    OfferingStatus @default(ACTIVE)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  class               Class                       @relation(fields: [classId], references: [id], onDelete: Restrict)
+  class               Class                       @relation(fields: [classId], references: [id], onDelete: Cascade)
   subject             Subject                     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  academicTerm        AcademicTerm?               @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
   studentEnrollments  StudentSubjectEnrollment[]
   teachingAssignments TeachingAssignment[]
   examTargets         ExamOfferingTarget[]
 
-  @@index([classId, status])
+  @@unique([classId, subjectId])
   @@index([subjectId, status])
   @@map("class_subject_offerings")
 }
 
 model StudentSubjectEnrollment {
-  studentProfileId String           @map("student_profile_id") @db.Uuid
-  offeringId       String           @map("offering_id") @db.Uuid
-  status           EnrollmentStatus @default(ACTIVE)
-  enrolledAt       DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
-  endedAt          DateTime?        @map("ended_at") @db.Timestamptz(6)
+  studentId  String           @map("student_id") @db.Uuid
+  offeringId String           @map("offering_id") @db.Uuid
+  status     EnrollmentStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  endedAt    DateTime?        @map("ended_at") @db.Timestamptz(6)
 
-  student  StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
-  offering ClassSubjectOffering   @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  student  SchoolMember         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  offering ClassSubjectOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
 
-  @@id([studentProfileId, offeringId])
+  @@id([studentId, offeringId])
   @@index([offeringId, status])
   @@map("student_subject_enrollments")
 }
 
 model StaffSubjectQualification {
-  staffProfileId String   @map("staff_profile_id") @db.Uuid
-  subjectId      String   @map("subject_id") @db.Uuid
-  active         Boolean  @default(true)
-  assignedAt     DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  staffId    String   @map("staff_id") @db.Uuid
+  subjectId  String   @map("subject_id") @db.Uuid
+  active     Boolean  @default(true)
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
 
-  staff   StaffAcademicProfile @relation(fields: [staffProfileId], references: [profileId], onDelete: Cascade)
-  subject Subject              @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  staff   SchoolMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  subject Subject      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
 
-  @@id([staffProfileId, subjectId])
+  @@id([staffId, subjectId])
   @@index([subjectId, active])
   @@map("staff_subject_qualifications")
 }
 
 model TeachingAssignment {
   id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  staffProfileId String                 @map("staff_profile_id") @db.Uuid
+  staffId        String                 @map("staff_id") @db.Uuid
   offeringId     String                 @map("offering_id") @db.Uuid
   assignmentRole TeachingAssignmentRole @default(TEACHER) @map("assignment_role")
   assignedAt     DateTime               @default(now()) @map("assigned_at") @db.Timestamptz(6)
   endedAt        DateTime?              @map("ended_at") @db.Timestamptz(6)
 
-  staff    StaffAcademicProfile @relation(fields: [staffProfileId], references: [profileId], onDelete: Cascade)
+  staff    SchoolMember         @relation(fields: [staffId], references: [id], onDelete: Cascade)
   offering ClassSubjectOffering @relation(fields: [offeringId], references: [id], onDelete: Restrict)
 
-  @@unique([staffProfileId, offeringId])
+  @@unique([staffId, offeringId])
   @@index([offeringId, endedAt])
   @@map("teaching_assignments")
 }
@@ -390,12 +376,12 @@ model ExamSession {
   questionOrder      Boolean    @default(true) @map("question_order")
   optionOrder        Boolean    @default(true) @map("option_order")
   minimizeCollisions Boolean    @default(true) @map("minimize_collisions")
-  createdByProfileId String?    @map("created_by_profile_id") @db.Uuid
-  createdAt          BigInt     @map("created_at")
-  updatedAt          BigInt     @map("updated_at")
+  createdById        String?    @map("created_by_id") @db.Uuid
+  createdAt          BigInt     @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("created_at")
+  updatedAt          BigInt     @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("updated_at")
 
   academicTerm     AcademicTerm?         @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
-  creator          StaffAcademicProfile? @relation("ExamCreator", fields: [createdByProfileId], references: [profileId], onDelete: SetNull)
+  creator          SchoolMember?         @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
   classTargets     ExamClassTarget[]
   offeringTargets  ExamOfferingTarget[]
   placementTracks  ExamPlacementTrack[]
@@ -406,7 +392,7 @@ model ExamSession {
   attempts         ExamAttempt[]
 
   @@index([status, startsAt, endsAt])
-  @@index([createdByProfileId])
+  @@index([createdById])
   @@map("exam_sessions")
 }
 
@@ -442,7 +428,7 @@ model ExamPlacementTrack {
   session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@id([sessionId, track])
-  @@index([track], map: "exam_placement_tracks_track_idx")
+  @@index([track])
   @@map("exam_placement_tracks")
 }
 
@@ -458,7 +444,7 @@ model ExamSessionLink {
   session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   qrCode  ExamQrCode?
 
-  @@index([active, expiresAt], map: "exam_session_links_active_expiry_idx")
+  @@index([active, expiresAt])
   @@map("exam_session_links")
 }
 
@@ -477,67 +463,67 @@ model ExamQrCode {
 }
 
 model ExamStaffAssignment {
-  sessionId      String        @map("session_id")
-  staffProfileId String        @map("staff_profile_id") @db.Uuid
-  role           ExamStaffRole @default(COHOST)
-  assignedAt     DateTime      @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  sessionId  String        @map("session_id")
+  staffId    String        @map("staff_id") @db.Uuid
+  role       ExamStaffRole @default(COHOST)
+  assignedAt DateTime      @default(now()) @map("assigned_at") @db.Timestamptz(6)
 
-  session ExamSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  staff   StaffAcademicProfile @relation(fields: [staffProfileId], references: [profileId], onDelete: Cascade)
+  session ExamSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  staff   SchoolMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
-  @@id([sessionId, staffProfileId])
+  @@id([sessionId, staffId])
   @@map("exam_staff_assignments")
 }
 
 model ExamStudentAccess {
   sessionId           String             @map("session_id")
-  studentProfileId    String             @map("student_profile_id") @db.Uuid
+  studentId           String             @map("student_id") @db.Uuid
   decision            ExamAccessDecision
   maxAttemptsOverride Int?               @map("max_attempts_override")
   validFrom           DateTime?          @map("valid_from") @db.Timestamptz(6)
   validUntil          DateTime?          @map("valid_until") @db.Timestamptz(6)
-  grantedByProfileId  String?            @map("granted_by_profile_id") @db.Uuid
+  grantedById         String?            @map("granted_by_id") @db.Uuid
   reason              String             @default("")
   createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  session   ExamSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student   StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
-  grantedBy StaffAcademicProfile?  @relation("ExamAccessGrantor", fields: [grantedByProfileId], references: [profileId], onDelete: SetNull)
+  session   ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student   SchoolMember  @relation("ExamAccessStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  grantedBy SchoolMember? @relation("ExamAccessGrantor", fields: [grantedById], references: [id], onDelete: SetNull)
 
-  @@id([sessionId, studentProfileId])
+  @@id([sessionId, studentId])
   @@map("exam_student_access")
 }
 
 model ExamRetakeGrant {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sessionId          String    @map("session_id")
-  studentProfileId   String    @map("student_profile_id") @db.Uuid
+  studentId          String    @map("student_id") @db.Uuid
   additionalAttempts Int       @default(1) @map("additional_attempts")
-  grantedByProfileId String    @map("granted_by_profile_id") @db.Uuid
+  grantedById        String    @map("granted_by_id") @db.Uuid
   reason             String    @default("")
   grantedAt          DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
   expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
   revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(6)
 
-  session   ExamSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student   StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
-  grantedBy StaffAcademicProfile   @relation("ExamRetakeGrantor", fields: [grantedByProfileId], references: [profileId], onDelete: Restrict)
+  session   ExamSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student   SchoolMember @relation("ExamRetakeStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  grantedBy SchoolMember @relation("ExamRetakeGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
 
-  @@index([sessionId, studentProfileId, revokedAt, expiresAt])
+  @@index([sessionId, studentId, revokedAt, expiresAt])
   @@map("exam_retake_grants")
 }
 
 model ExamAttempt {
   id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sessionId              String         @map("session_id")
-  studentProfileId       String         @map("student_profile_id") @db.Uuid
+  studentId              String         @map("student_id") @db.Uuid
   attemptNumber          Int            @map("attempt_number")
   contextSnapshot        Json           @default("{}") @map("context_snapshot")
   startedAt              BigInt?        @map("started_at")
   submittedAt            BigInt?        @map("submitted_at")
   score                  Float?
-  correctCount           Float?         @map("correct_count")
+  correctCount           Int?           @map("correct_count")
   completion             Float?
   paceIndex              Float?         @map("pace_index")
   reasoningIndex         Float?         @map("reasoning_index")
@@ -546,36 +532,26 @@ model ExamAttempt {
   placementConfidence    Int?           @map("placement_confidence")
   submissionReason       String         @default("") @map("submission_reason")
   rewriteSourceAttemptId String?        @map("rewrite_source_attempt_id") @db.Uuid
+  currentIndex           Int            @default(0) @map("current_index")
+  remainingSeconds       Float?         @map("remaining_seconds")
+  elapsedActiveSeconds   Float          @default(0) @map("elapsed_active_seconds")
+  lastActiveAt           BigInt?        @map("last_active_at")
+  paperFingerprint       String         @default("") @map("paper_fingerprint")
+  questionIds            BigInt[]       @default([]) @map("question_ids")
   createdAt              BigInt         @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("created_at")
+  updatedAt              BigInt         @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("updated_at")
 
-  session         ExamSession             @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  student         StudentAcademicProfile  @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
-  rewriteSource   ExamAttempt?            @relation("AttemptRewrite", fields: [rewriteSourceAttemptId], references: [id], onDelete: SetNull)
-  rewrites        ExamAttempt[]           @relation("AttemptRewrite")
-  runtimeState    ExamAttemptRuntimeState?
+  session         ExamSession            @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  student         SchoolMember           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  rewriteSource   ExamAttempt?           @relation("AttemptRewrite", fields: [rewriteSourceAttemptId], references: [id], onDelete: SetNull)
+  rewrites        ExamAttempt[]          @relation("AttemptRewrite")
   responses       ExamAttemptResponse[]
-  answers         ExamAttemptAnswer[]
   integrityEvents ExamIntegrityEvent[]
 
-  @@unique([sessionId, studentProfileId, attemptNumber])
-  @@index([studentProfileId, createdAt])
+  @@unique([sessionId, studentId, attemptNumber])
+  @@index([studentId, createdAt])
   @@index([sessionId, createdAt])
   @@map("exam_attempts")
-}
-
-model ExamAttemptRuntimeState {
-  attemptId            String   @id @map("attempt_id") @db.Uuid
-  currentIndex         Int      @default(0) @map("current_index")
-  remainingSeconds     Float    @map("remaining_seconds")
-  elapsedActiveSeconds Float    @default(0) @map("elapsed_active_seconds")
-  lastActiveAt         BigInt   @map("last_active_at")
-  paperFingerprint     String   @map("paper_fingerprint")
-  questionIds          BigInt[] @default([]) @map("question_ids")
-  updatedAt            BigInt   @map("updated_at")
-
-  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-
-  @@map("exam_attempt_runtime_states")
 }
 
 model ExamAttemptResponse {
@@ -585,28 +561,16 @@ model ExamAttemptResponse {
   responseValues String[] @default([]) @map("response_values")
   seconds        Float    @default(0)
   flagged        Boolean  @default(false)
+  correct        Boolean?
+  correctAnswer  String?  @map("correct_answer")
+  gradedAt       BigInt?  @map("graded_at")
+  updatedAt      BigInt   @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("updated_at")
 
   attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question Question    @relation(fields: [questionId], references: [id], onDelete: Restrict)
 
   @@id([attemptId, questionId])
   @@map("exam_attempt_responses")
-}
-
-model ExamAttemptAnswer {
-  attemptId      String   @map("attempt_id") @db.Uuid
-  questionId     BigInt   @map("question_id")
-  correct        Boolean?
-  responseText   String?  @map("response_text")
-  responseValues String[] @default([]) @map("response_values")
-  correctAnswer  String   @default("") @map("correct_answer")
-  seconds        Float    @default(0)
-
-  attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  question Question    @relation(fields: [questionId], references: [id], onDelete: Restrict)
-
-  @@id([attemptId, questionId])
-  @@map("exam_attempt_answers")
 }
 
 model ExamIntegrityEvent {
@@ -623,29 +587,28 @@ model ExamIntegrityEvent {
 }
 
 model Question {
-  id                 BigInt       @id
-  subjectId          String       @map("subject_id") @db.Uuid
-  qtype              QuestionType
-  prompt             String
-  options            String[]     @default([])
-  correctAnswers     String[]     @default([]) @map("correct_answers")
-  fillTemplate       String?      @map("fill_template")
-  instruction        String       @default("")
-  examModes          ExamMode[]   @default([]) @map("exam_modes")
-  difficulty         String       @default("medium")
-  domain             String       @default("")
-  explanation        String       @default("")
-  status             RecordStatus @default(ACTIVE)
-  createdByProfileId String?      @map("created_by_profile_id") @db.Uuid
-  createdAt          DateTime?    @map("created_at") @db.Timestamptz(6)
-  updatedAt          BigInt       @map("updated_at")
+  id             BigInt       @id
+  subjectId      String       @map("subject_id") @db.Uuid
+  qtype          QuestionType
+  prompt         String
+  options        String[]     @default([])
+  correctAnswers String[]     @default([]) @map("correct_answers")
+  fillTemplate   String?      @map("fill_template")
+  instruction    String       @default("")
+  examModes      ExamMode[]   @default([]) @map("exam_modes")
+  difficulty     String       @default("medium")
+  domain         String       @default("")
+  explanation    String       @default("")
+  status         RecordStatus @default(ACTIVE)
+  createdById    String?      @map("created_by_id") @db.Uuid
+  createdAt      DateTime?    @map("created_at") @db.Timestamptz(6)
+  updatedAt      BigInt       @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("updated_at")
 
   subject          Subject                 @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  creator          StaffAcademicProfile?   @relation("QuestionAuthor", fields: [createdByProfileId], references: [profileId], onDelete: SetNull)
+  creator          SchoolMember?           @relation("QuestionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   levels           QuestionAcademicLevel[]
   blanks           QuestionBlank[]
-  runtimeResponses ExamAttemptResponse[]
-  answerRows       ExamAttemptAnswer[]
+  attemptResponses ExamAttemptResponse[]
 
   @@index([subjectId])
   @@map("questions")
@@ -679,7 +642,7 @@ model QuestionBlank {
 
 model WhatsappGroup {
   id        String @id
-  classId   String @unique @map("class_id")
+  classId   String @map("class_id")
   name      String
   inviteUrl String @map("invite_url")
   createdAt BigInt @map("created_at")
@@ -687,5 +650,6 @@ model WhatsappGroup {
 
   class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
 
+  @@index([classId])
   @@map("whatsapp_groups")
 }
