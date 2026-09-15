@@ -18,7 +18,7 @@ import { currentStaff } from "@/lib/auth/staff";
 import { listClasses, listUsers, type DirectoryUserRow } from "@/lib/supabase/queries";
 
 interface AttemptIndexRow {
-  student_profile_id: string;
+  student_id: string;
   score: number | null;
   submitted_at: number | null;
   assigned_track: string | null;
@@ -28,7 +28,7 @@ interface DirectoryRow {
   user: DirectoryUserRow;
   className: string;
   classLevel: string;
-  pathway: string;
+  field: string;
   attempts: number;
   submitted: number;
   averageScore: number | null;
@@ -66,7 +66,7 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
           <thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500">
             <tr>
               <th className="px-4 py-3">Student</th>
-              <th className="px-4 py-3">Class / pathway</th>
+              <th className="px-4 py-3">Class / field</th>
               <th className="px-4 py-3">Attempts</th>
               <th className="px-4 py-3">Average</th>
               <th className="px-4 py-3">Placement</th>
@@ -75,10 +75,10 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {rows.map(({ user, className, classLevel, pathway, attempts, submitted, averageScore, placement, href }) => (
+            {rows.map(({ user, className, classLevel, field, attempts, submitted, averageScore, placement, href }) => (
               <tr key={user.id} className="hover:bg-neutral-50">
-                <td className="px-4 py-3"><Link href={href} className="flex items-center gap-3 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span><span className="min-w-0"><strong className="block truncate text-neutral-950">{user.full_name}</strong><span className="text-xs text-neutral-500">{user.id}</span></span></Link></td>
-                <td className="px-4 py-3"><strong className="block text-sm text-neutral-800">{className}</strong><span className="mt-1 block text-xs text-neutral-500">{classLevel ? `${classLevel} · ${pathway}` : "No current class"}</span></td>
+                <td className="px-4 py-3"><Link href={href} className="flex items-center gap-3 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span><span className="min-w-0"><strong className="block truncate text-neutral-950">{user.full_name}</strong><span className="text-xs text-neutral-500">{user.student_number || user.id}</span></span></Link></td>
+                <td className="px-4 py-3"><strong className="block text-sm text-neutral-800">{className}</strong><span className="mt-1 block text-xs text-neutral-500">{classLevel ? `${classLevel} · ${field}` : "No current class"}</span></td>
                 <td className="px-4 py-3"><strong className="tabular-nums">{attempts}</strong><span className="ml-1 text-xs text-neutral-500">({submitted} submitted)</span></td>
                 <td className="px-4 py-3">{averageScore === null ? <span className="text-neutral-400">—</span> : <StatusBadge tone={averageScore >= 70 ? "emerald" : averageScore >= 50 ? "blue" : "amber"}>{averageScore}%</StatusBadge>}</td>
                 <td className="px-4 py-3 text-neutral-700">{placement ?? "—"}</td>
@@ -91,11 +91,11 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
       </div>
 
       <div className="divide-y divide-neutral-100 md:hidden">
-        {rows.map(({ user, className, pathway, attempts, averageScore, placement, href }) => (
+        {rows.map(({ user, className, field, attempts, averageScore, placement, href }) => (
           <div key={user.id} className="flex items-center gap-3 p-4">
             <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-80">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span>
-              <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{className} · {pathway || "Unassigned"}</span><span className="mt-1 block truncate text-[11px] text-neutral-400">{attempts} attempt{attempts === 1 ? "" : "s"}{averageScore === null ? "" : ` · avg ${averageScore}%`}{placement ? ` · ${placement}` : ""}</span></span>
+              <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{className} · {field || "Unassigned"}</span><span className="mt-1 block truncate text-[11px] text-neutral-400">{attempts} attempt{attempts === 1 ? "" : "s"}{averageScore === null ? "" : ` · avg ${averageScore}%`}{placement ? ` · ${placement}` : ""}</span></span>
               <StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge>
             </Link>
             <Task7StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact />
@@ -109,13 +109,13 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
 export default async function AdminStudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; level?: string; pathway?: string; class?: string; performance?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; level?: string; field?: string; class?: string; performance?: string }>;
 }) {
   const params = await searchParams;
   const q = String(params.q ?? "").trim();
   const status = params.status === "inactive" ? "inactive" : params.status === "active" ? "active" : "all";
   const level = ["SS1", "SS2", "SS3"].includes(String(params.level)) ? String(params.level) : "all";
-  const pathway = String(params.pathway ?? "all");
+  const field = String(params.field ?? "all");
   const classFilter = String(params.class ?? "all");
   const performance = ["high", "mid", "support", "none"].includes(String(params.performance)) ? String(params.performance) : "all";
   const { supabase } = await currentStaff();
@@ -123,15 +123,15 @@ export default async function AdminStudentsPage({
   const [users, classes, attemptsResult, totalResult, activeResult] = await Promise.all([
     listUsers(supabase, "student", q),
     listClasses(supabase),
-    supabase.from("exam_attempts").select("student_profile_id,score,submitted_at,assigned_track").limit(5000),
-    supabase.from("academic_profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
-    supabase.from("academic_profiles").select("id", { count: "exact", head: true }).eq("role", "student").eq("status", "active"),
+    supabase.from("exam_attempts").select("student_id,score,submitted_at,assigned_track").limit(5000),
+    supabase.from("school_members").select("id", { count: "exact", head: true }).eq("role", "student"),
+    supabase.from("school_members").select("id", { count: "exact", head: true }).eq("role", "student").eq("status", "active"),
   ]);
 
   const classById = new Map(classes.map((item) => [item.id, item]));
   const attemptRows = (attemptsResult.data ?? []) as AttemptIndexRow[];
   const attemptsByStudent = new Map<string, AttemptIndexRow[]>();
-  for (const row of attemptRows) attemptsByStudent.set(row.student_profile_id, [...(attemptsByStudent.get(row.student_profile_id) ?? []), row]);
+  for (const row of attemptRows) attemptsByStudent.set(row.student_id, [...(attemptsByStudent.get(row.student_id) ?? []), row]);
 
   const indexed: DirectoryRow[] = users.map((user) => {
     const studentAttempts = attemptsByStudent.get(user.id) ?? [];
@@ -143,7 +143,7 @@ export default async function AdminStudentsPage({
     if (q) hrefParams.set("q", q);
     if (status !== "all") hrefParams.set("status", status);
     if (level !== "all") hrefParams.set("level", level);
-    if (pathway !== "all") hrefParams.set("pathway", pathway);
+    if (field !== "all") hrefParams.set("field", field);
     if (classFilter !== "all") hrefParams.set("class", classFilter);
     if (performance !== "all") hrefParams.set("performance", performance);
     hrefParams.set("modal", "student");
@@ -152,7 +152,7 @@ export default async function AdminStudentsPage({
       user,
       className: classRow?.display_name ?? "Unassigned",
       classLevel: classRow?.level_name ?? "",
-      pathway: classRow?.programme_name ?? "General",
+      field: classRow?.track_name ?? "Unassigned",
       attempts: studentAttempts.length,
       submitted: submittedAttempts.length,
       averageScore: average(scores),
@@ -164,7 +164,7 @@ export default async function AdminStudentsPage({
   const rows = indexed.filter((row) => {
     if (status !== "all" && (status === "active" ? row.user.status !== "active" : row.user.status === "active")) return false;
     if (level !== "all" && row.classLevel !== level) return false;
-    if (pathway !== "all" && row.pathway !== pathway) return false;
+    if (field !== "all" && row.field !== field) return false;
     if (classFilter !== "all" && row.user.class_id !== classFilter) return false;
     if (performance === "none" && row.submitted !== 0) return false;
     if (performance === "high" && (row.averageScore === null || row.averageScore < 70)) return false;
@@ -173,17 +173,17 @@ export default async function AdminStudentsPage({
     return true;
   });
 
-  const programmeOptions = [...new Set(classes.map((item) => item.programme_name ?? "General"))].sort();
-  const filterState = { q, status: status === "all" ? undefined : status, level: level === "all" ? undefined : level, pathway: pathway === "all" ? undefined : pathway, class: classFilter === "all" ? undefined : classFilter, performance: performance === "all" ? undefined : performance };
-  const hasFilters = Boolean(q) || status !== "all" || level !== "all" || pathway !== "all" || classFilter !== "all" || performance !== "all";
+  const fieldOptions = [...new Set(classes.map((item) => item.track_name))].sort();
+  const filterState = { q, status: status === "all" ? undefined : status, level: level === "all" ? undefined : level, field: field === "all" ? undefined : field, class: classFilter === "all" ? undefined : classFilter, performance: performance === "all" ? undefined : performance };
+  const hasFilters = Boolean(q) || status !== "all" || level !== "all" || field !== "all" || classFilter !== "all" || performance !== "all";
 
   return (
     <div>
-      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the academic profile directory, filter by current class/programme and performance, then drill into relational exam history." actions={<Button render={<Link href="/admin/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
+      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the canonical school member directory, filter by current class/field and performance, then drill into relational exam history." actions={<Button render={<Link href="/admin/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
 
       <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-        <AdminSearchForm query={q} placeholder="Search student name" hidden={{ status: filterState.status, level: filterState.level, pathway: filterState.pathway, class: filterState.class, performance: filterState.performance }} />
-        <AdminFilterLinks pathname="/admin/students" param="status" current={status} preserve={{ q, level: filterState.level, pathway: filterState.pathway, class: filterState.class, performance: filterState.performance }} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
+        <AdminSearchForm query={q} placeholder="Search student name" hidden={{ status: filterState.status, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance }} />
+        <AdminFilterLinks pathname="/admin/students" param="status" current={status} preserve={{ q, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance }} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
       </div>
 
       <section className={`${adminSurfaceClass} mb-4 p-4`}>
@@ -191,8 +191,8 @@ export default async function AdminStudentsPage({
           {q ? <input type="hidden" name="q" value={q} /> : null}
           {status !== "all" ? <input type="hidden" name="status" value={status} /> : null}
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Level<NativeSelect name="level" defaultValue={level}><NativeSelectOption value="all">All levels</NativeSelectOption>{["SS1", "SS2", "SS3"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
-          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Programme<NativeSelect name="pathway" defaultValue={pathway}><NativeSelectOption value="all">All programmes</NativeSelectOption>{programmeOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
-          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Class<NativeSelect name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}{item.programme_name ? ` · ${item.programme_name}` : ""}</NativeSelectOption>)}</NativeSelect></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Field<NativeSelect name="field" defaultValue={field}><NativeSelectOption value="all">All fields</NativeSelectOption>{fieldOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Class<NativeSelect name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}</NativeSelectOption>)}</NativeSelect></label>
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Performance<NativeSelect name="performance" defaultValue={performance}><NativeSelectOption value="all">Any performance</NativeSelectOption><NativeSelectOption value="high">70% and above</NativeSelectOption><NativeSelectOption value="mid">50–69%</NativeSelectOption><NativeSelectOption value="support">Below 50%</NativeSelectOption><NativeSelectOption value="none">No submitted exam</NativeSelectOption></NativeSelect></label>
           <div className="flex gap-2"><Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>{hasFilters ? <Button variant="outline" render={<Link href="/admin/students" />} className={adminSecondaryButtonClass}>Reset</Button> : null}</div>
         </form>
