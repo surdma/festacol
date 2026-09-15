@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-qualifier-digital-2026-09",
+  "questions": [
+    {
+      "id": 746,
+      "subjectCode": "q-digital",
+      "domain": "Hardware",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "easy",
+      "label": "Digital Technologies · Hardware",
+      "explanation": "A keyboard is an input device used to enter text and commands into a computer.",
+      "type": "single",
+      "prompt": "Which device is mainly used to enter letters and numbers into a computer?",
+      "options": ["keyboard", "monitor", "speaker", "projector"],
+      "answer": "keyboard"
+    },
+    {
+      "id": 747,
+      "subjectCode": "q-digital",
+      "domain": "Internet",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Digital Technologies · Internet",
+      "explanation": "A web browser is software used to access and view web pages.",
+      "type": "single",
+      "prompt": "Which type of software is used to open and view websites?",
+      "options": ["web browser", "calculator", "file compressor", "media speaker"],
+      "answer": "web browser"
+    },
+    {
+      "id": 748,
+      "subjectCode": "q-digital",
+      "domain": "Digital safety",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Digital Technologies · Digital safety",
+      "explanation": "Two-factor authentication adds a second verification step beyond a password.",
+      "type": "boolean",
+      "prompt": "Two-factor authentication can improve account security by requiring another verification step in addition to a password.",
+      "answer": true
+    },
+    {
+      "id": 749,
+      "subjectCode": "q-digital",
+      "domain": "Data",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Digital Technologies · Data",
+      "explanation": "A row is a horizontal arrangement of cells in a spreadsheet.",
+      "type": "fill",
+      "prompt": "Name the horizontal arrangement of cells in a spreadsheet.",
+      "fillTemplate": [
+        {"text": "A horizontal arrangement of spreadsheet cells is a "},
+        {"blank": "answer", "placeholder": "spreadsheet term"},
+        {"text": "."}
+      ],
+      "acceptedAnswers": ["row"]
+    },
+    {
+      "id": 750,
+      "subjectCode": "q-digital",
+      "domain": "Information literacy",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "hard",
+      "label": "Digital Technologies · Information literacy",
+      "explanation": "Checking the author and corroborating claims with reliable sources are both sound verification practices.",
+      "type": "multi",
+      "prompt": "Select exactly TWO good steps for checking whether online information is trustworthy.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "check who published the information",
+        "compare the claim with other reliable sources",
+        "trust it because it has many capital letters",
+        "forward it before checking so others can decide"
+      ],
+      "answers": [
+        "check who published the information",
+        "compare the claim with other reliable sources"
+      ]
+    }
+  ]
+}
