@@ -1,29 +1,34 @@
 // Hidden exam workspace — NOT in studentNav sidebar.
-// Reachable only via a signed/encoded session payload after relational
-// eligibility has been rechecked server-side.
+// Reachable only through an opaque persisted exam-session link. The token is
+// navigation identity only; relational eligibility is rechecked server-side.
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { currentStudent } from "@/lib/auth/current-student";
-import { decodeSession } from "@/lib/exam-links";
+import { normalizeExamToken } from "@/lib/exam-links";
 import { ExamWorkspace } from "./workspace";
 
 function unavailable(title: string, message: string) {
   return <Card><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{message}</CardContent></Card>;
 }
 
-export default async function HiddenExamPage({ searchParams }: { searchParams: Promise<{ session?: string }> }) {
-  const raw = (await searchParams).session;
-  if (!raw) return unavailable("Invalid exam link", "Missing session payload.");
-  let decoded: { id?: string };
-  try {
-    decoded = decodeSession(raw);
-  } catch {
-    return unavailable("Invalid exam link", "Malformed session.");
-  }
-  const examId = String(decoded.id ?? "").toUpperCase();
-  if (!examId) return unavailable("Invalid exam link", "Missing examination ID.");
+export default async function HiddenExamPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
+  const token = normalizeExamToken((await searchParams).token ?? "");
+  if (!token) return unavailable("Invalid exam link", "Missing or malformed access token.");
 
   const ctx = await currentStudent();
   if (!ctx) return unavailable("Sign in required", "Sign in before opening an examination.");
+
+  const { data: link, error: linkError } = await ctx.supabase
+    .from("exam_session_links")
+    .select("session_id,active,expires_at")
+    .eq("token", token)
+    .eq("active", true)
+    .maybeSingle();
+  if (linkError || !link) return unavailable("Exam unavailable", "This exam link is invalid or is not assigned to you.");
+  if (link.expires_at && new Date(String(link.expires_at)).getTime() <= Date.now()) {
+    return unavailable("Exam unavailable", "This exam link has expired.");
+  }
+
+  const examId = String(link.session_id).toUpperCase();
   const { data: access, error: accessError } = await ctx.supabase.rpc("my_exam_access", { p_session_id: examId });
   if (accessError) return unavailable("Exam unavailable", "Exam eligibility could not be verified.");
   const accessRow = (Array.isArray(access) ? access[0] : access) as { eligible?: boolean; denial_reason?: string | null } | null;
