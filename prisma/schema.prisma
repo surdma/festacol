@@ -1,7 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Prisma schema — Festacol Next.js native port.
+// Source of truth mirrors prototype/supabase/schema.sql.
+// Runtime DB is Supabase Postgres (DATABASE_URL = Supabase pooler/direct).
+// Migrations: `pnpm db:migrate`. App runtime uses Prisma + Supabase Auth.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +10,336 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model Class {
+  id              String   @id
+  classLevel      String   @map("class_level")
+  name            String
+  stream          String   @default("General")
+  grp             String   @default("General") @map("grp")
+  // Arm within the stream, e.g. Science A / Science B / Art C / Commercial D.
+  arm             String   @default("")
+  capacity        Int      @default(40)
+  room            String   @default("")
+  academicSession String   @default("2026/2027") @map("academic_session")
+  status          String   @default("active")
+
+  users          User[]
+  whatsappGroups WhatsappGroup[]
+
+  @@map("classes")
+}
+
+model User {
+  id              String  @id
+  fullName        String  @map("full_name")
+  firstName       String  @default("") @map("first_name")
+  lastName        String  @default("") @map("last_name")
+  classId         String? @map("class_id")
+  role            String  @default("student")
+  status          String  @default("active")
+  guardian        String  @default("")
+  academicSession String  @default("2026/2027") @map("academic_session")
+  promotionStatus String  @default("on-track") @map("promotion_status")
+  joinedAt        BigInt  @map("joined_at")
+  // Identity link: auth.users.id (credentials) ↔ public.users (roster).
+  authUserId      String? @unique @map("auth_user_id")
+  email           String  @default("")
+  // Teacher scoping: subject codes taught + qualifier privilege.
+  subjects        String[] @default([])
+  qualifierAccess Boolean @default(false) @map("qualifier_access")
+
+  class Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  createdQuestions Question[] @relation("CreatedQuestions")
+
+  @@map("users")
+}
+
+model StudentProfile {
+  studentHash     String @id @map("student_hash")
+  candidateHash   String @default("") @map("candidate_hash")
+  firstName       String @default("") @map("first_name")
+  lastName        String @default("") @map("last_name")
+  fullName        String @default("") @map("full_name")
+  phone           String @default("")
+  guardian        String @default("")
+  currentClassId  String @default("") @map("current_class_id")
+  academicSession String @default("2026/2027") @map("academic_session")
+  updatedAt       BigInt @map("updated_at")
+
+  @@map("student_profiles")
+}
+
+model ExamSession {
+  id               String  @id
+  title            String
+  classLevel       String  @map("class_level")
+  classGroup       String  @default("General") @map("class_group")
+  academicSession  String  @default("2026/2027") @map("academic_session")
+  term             String  @default("First term")
+  mode             String
+  subjects         String[] @default([])
+  placementTracks  String[] @default([]) @map("placement_tracks")
+  durationSeconds  Int     @map("duration_seconds")
+  questionCount    Int     @map("question_count")
+  status           String  @default("open")
+  instructions     String  @default("")
+  startsAt         BigInt? @map("starts_at")
+  endsAt           BigInt? @map("ends_at")
+  attemptLimit     Int     @default(1) @map("attempt_limit")
+  focusMonitoring  Boolean @default(true) @map("focus_monitoring")
+  fullscreenPrompt Boolean @default(true) @map("fullscreen_prompt")
+  clipboardGuard   Boolean @default(true) @map("clipboard_guard")
+  warnAfter        Int     @default(2) @map("warn_after")
+  questionOrder    Boolean @default(true) @map("question_order")
+  optionOrder      Boolean @default(true) @map("option_order")
+  minimizeCollisions Boolean @default(true) @map("minimize_collisions")
+  // Cohost staff (public.users ids) — see exams outside their subjects.
+  cohosts          String[] @default([])
+  createdAt        BigInt  @map("created_at")
+  updatedAt        BigInt  @map("updated_at")
+
+  attempts        ExamAttempt[]
+  states          ExamState[]
+  resetMarkers    ExamResetMarker[]
+  backgroundMarks ExamBackgroundMarker[]
+  proctorPolicy   ExamProctorPolicy?
+
+  @@map("exam_sessions")
+}
+
+model ExamAttempt {
+  id                      String  @id
+  attemptHash             String  @unique @map("attempt_hash")
+  candidateHash           String  @map("candidate_hash")
+  studentHash             String  @default("") @map("student_hash")
+  paperFingerprint        String  @default("") @map("paper_fingerprint")
+  sessionId               String? @map("session_id")
+  sessionTitle            String  @default("") @map("session_title")
+  firstName               String  @default("") @map("first_name")
+  lastName                String  @default("") @map("last_name")
+  studentName             String  @default("") @map("student_name")
+  classLevel              String  @default("") @map("class_level")
+  classGroup              String  @default("") @map("class_group")
+  academicSession         String  @default("2026/2027") @map("academic_session")
+  mode                    String  @default("")
+  sessionStatus           String  @default("") @map("session_status")
+  sessionEndsAt           BigInt? @map("session_ends_at")
+  startedAt               BigInt? @map("started_at")
+  submittedAt             BigInt? @map("submitted_at")
+  remainingSeconds        Float?  @map("remaining_seconds")
+  elapsedActiveSeconds    Float   @default(0) @map("elapsed_active_seconds")
+  answered                Int     @default(0)
+  questionCount           Int     @default(0) @map("question_count")
+  score                   Float?
+  correctCount            Float?  @map("correct_count")
+  completion              Float?
+  paceIndex               Float?  @map("pace_index")
+  reasoningIndex          Float?  @map("reasoning_index")
+  integrityScore          Float?  @map("integrity_score")
+  assignedTrack           String? @map("assigned_track")
+  placementConfidence     Int?    @map("placement_confidence")
+  submissionReason        String  @default("") @map("submission_reason")
+  rewriteArchivedAt       BigInt? @map("rewrite_archived_at")
+  rewriteSourceAttemptHash String @default("") @map("rewrite_source_attempt_hash")
+  createdAt               BigInt  @map("created_at")
+
+  session ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  answers ExamAttemptAnswer[]
+  subjectStats ExamAttemptSubjectStat[]
+
+  @@index([sessionId])
+  @@index([sessionId, candidateHash])
+  @@index([studentHash])
+  @@map("exam_attempts")
+}
+
+model ExamAttemptAnswer {
+  id             BigInt  @id @default(autoincrement())
+  attemptHash    String  @map("attempt_hash")
+  sessionId      String? @map("session_id")
+  candidateHash  String  @default("") @map("candidate_hash")
+  questionId     BigInt? @map("question_id")
+  subjectCode    String  @default("") @map("subject_code")
+  subjectName    String  @default("") @map("subject_name")
+  correct        Boolean?
+  responseText   String? @map("response_text")
+  responseValues String[] @default([]) @map("response_values")
+  correctAnswer  String  @default("") @map("correct_answer")
+  seconds        Float   @default(0)
+
+  attempt ExamAttempt @relation(fields: [attemptHash], references: [attemptHash], onDelete: Cascade)
+  question Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@index([attemptHash])
+  @@map("exam_attempt_answers")
+}
+
+model ExamAttemptSubjectStat {
+  attemptHash String @map("attempt_hash")
+  subjectCode String @default("") @map("subject_code")
+  subjectName String @default("") @map("subject_name")
+  total       Int    @default(0)
+  correct     Int    @default(0)
+  seconds     Float  @default(0)
+  percent     Int    @default(0)
+
+  attempt ExamAttempt @relation(fields: [attemptHash], references: [attemptHash], onDelete: Cascade)
+
+  @@id([attemptHash, subjectCode])
+  @@map("exam_attempt_subject_stats")
+}
+
+model ExamIntegrityEvent {
+  id            BigInt  @id @default(autoincrement())
+  sessionId     String  @default("") @map("session_id")
+  candidateHash String  @default("") @map("candidate_hash")
+  attemptHash   String? @map("attempt_hash")
+  type          String  @default("")
+  detail        String  @default("")
+  at            BigInt  @default(0)
+
+  @@index([sessionId, candidateHash])
+  @@map("exam_integrity_events")
+}
+
+model ExamState {
+  sessionId     String @map("session_id")
+  candidateHash String @map("candidate_hash")
+  startedAt     BigInt? @map("started_at")
+  submittedAt   BigInt? @map("submitted_at")
+  currentIndex  Int    @default(0) @map("current_index")
+  remainingSeconds Float @default(0) @map("remaining_seconds")
+  elapsedActiveSeconds Float @default(0) @map("elapsed_active_seconds")
+  lastActiveAt  BigInt? @map("last_active_at")
+  attemptHash   String @default("") @map("attempt_hash")
+  paperFingerprint String @default("") @map("paper_fingerprint")
+  questionIds   BigInt[] @default([]) @map("question_ids")
+  updatedAt     BigInt @map("updated_at")
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  responses ExamResponse[]
+
+  @@id([sessionId, candidateHash])
+  @@map("exam_states")
+}
+
+model ExamResponse {
+  sessionId     String @map("session_id")
+  candidateHash String @map("candidate_hash")
+  questionId    BigInt @map("question_id")
+  responseText  String? @map("response_text")
+  responseValues String[] @default([]) @map("response_values")
+  seconds       Float  @default(0)
+  flagged       Boolean @default(false)
+
+  state ExamState @relation(fields: [sessionId, candidateHash], references: [sessionId, candidateHash], onDelete: Cascade)
+
+  @@id([sessionId, candidateHash, questionId])
+  @@map("exam_responses")
+}
+
+model ExamResetMarker {
+  sessionId     String @map("session_id")
+  candidateHash String @map("candidate_hash")
+  resetAt       BigInt @map("reset_at")
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, candidateHash])
+  @@map("exam_reset_markers")
+}
+
+model ExamBackgroundMarker {
+  sessionId     String @map("session_id")
+  candidateHash String @map("candidate_hash")
+  hiddenAt      BigInt? @map("hidden_at")
+  startedAt     BigInt? @map("started_at")
+  updatedAt     BigInt @map("updated_at")
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, candidateHash])
+  @@map("exam_background_markers")
+}
+
+model ExamProctorPolicy {
+  sessionId      String  @id @map("session_id")
+  cameraRequired Boolean @default(false) @map("camera_required")
+  updatedAt      BigInt  @map("updated_at")
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("exam_proctor_policies")
+}
+
+model WhatsappGroup {
+  id        String @id
+  classId   String @map("class_id")
+  name      String
+  inviteUrl String @map("invite_url")
+  createdAt BigInt @map("created_at")
+  updatedAt BigInt @map("updated_at")
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_groups")
+}
+
+model Question {
+  id             BigInt   @id
+  subjectCode    String   @map("subject_code")
+  subjectName    String   @default("") @map("subject_name")
+  label          String   @default("")
+  qtype          String
+  prompt         String
+  options        String[] @default([])
+  correctAnswers String[] @default([]) @map("correct_answers")
+  fillTemplate   String?  @map("fill_template")
+  instruction    String   @default("")
+  levels         String[] @default([])
+  examModes      String[] @default([]) @map("exam_modes")
+  difficulty     String   @default("medium")
+  domain         String   @default("")
+  explanation    String   @default("")
+  createdBy      String?  @map("created_by")
+  updatedAt      BigInt   @map("updated_at")
+
+  subject Subject @relation(fields: [subjectCode], references: [code])
+  creator User?   @relation("CreatedQuestions", fields: [createdBy], references: [id], onDelete: SetNull)
+  blanks  QuestionBlank[]
+  answers ExamAttemptAnswer[]
+
+  @@index([subjectCode])
+  @@map("questions")
+}
+
+model QuestionBlank {
+  questionId  BigInt @map("question_id")
+  position    Int
+  blankKey    String   @default("") @map("blank_key")
+  placeholder String   @default("")
+  accepted    String[] @default([])
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, position])
+  @@map("question_blanks")
+}
+
+// WAEC-grounded subject catalog (admin-extensible). Codes match the
+// question bank's subject_code values so exams, questions and teacher
+// scopes join without translation tables.
+model Subject {
+  code      String   @id
+  name      String
+  category  String   @default("elective") // core | science | art | commercial | legacy
+  streams   String[] @default([]) // streams taking it, e.g. ["Science","Art"]
+  active    Boolean  @default(true)
+  updatedAt BigInt   @map("updated_at")
+
+  questions Question[]
+
+  @@map("subjects")
 }
