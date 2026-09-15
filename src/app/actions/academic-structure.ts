@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { AcademicTrack, OfferingParticipation, OfferingStatus } from "@/types/db";
+import type { AcademicTrack, OfferingStatus } from "@/types/db";
 
 const TRACKS = new Set<AcademicTrack>(["science", "art", "social_science"]);
 
@@ -18,7 +18,7 @@ async function requireAdmin() {
 export async function upsertClassAction(input: {
   id?: string;
   classLevel: string;
-  track: AcademicTrack | null;
+  track: AcademicTrack;
   arm: string;
   capacity: number;
   room: string;
@@ -27,10 +27,12 @@ export async function upsertClassAction(input: {
     const admin = await requireAdmin();
     const levelName = input.classLevel.trim().toUpperCase();
     if (!["SS1", "SS2", "SS3"].includes(levelName)) return { ok: false, error: "Unsupported academic level." };
-    if (input.track !== null && !TRACKS.has(input.track)) return { ok: false, error: "Unsupported academic track." };
-    if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 500) return { ok: false, error: "Capacity must be between 1 and 500." };
+    if (!TRACKS.has(input.track)) return { ok: false, error: "Choose a supported academic track." };
+    if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 500) {
+      return { ok: false, error: "Capacity must be between 1 and 500." };
+    }
     const arm = input.arm.trim().toUpperCase().slice(0, 4);
-    if (!arm && input.track !== null) return { ok: false, error: "Tracked classes require an arm." };
+    if (!arm) return { ok: false, error: "Class arm is required." };
 
     const [{ data: level }, { data: currentYear }] = await Promise.all([
       admin.from("academic_levels").select("id").eq("name", levelName).eq("active", true).maybeSingle(),
@@ -46,13 +48,18 @@ export async function upsertClassAction(input: {
     }
     if (!academicYearId) return { ok: false, error: "Set an active academic year before creating classes." };
 
-    const identityQuery = admin.from("classes").select("id").eq("academic_year_id", academicYearId).eq("level_id", levelId).eq("arm", arm);
-    const { data: duplicate } = input.track === null
-      ? await identityQuery.is("track", null).neq("id", input.id ?? "")
-      : await identityQuery.eq("track", input.track).neq("id", input.id ?? "");
-    if ((duplicate ?? []).length) return { ok: false, error: "That level, track and arm already exists for the academic year." };
+    const { data: duplicate } = await admin
+      .from("classes")
+      .select("id")
+      .eq("academic_year_id", academicYearId)
+      .eq("level_id", levelId)
+      .eq("track", input.track)
+      .eq("arm", arm);
+    if (((duplicate ?? []) as { id: string }[]).some((row) => row.id !== input.id)) {
+      return { ok: false, error: "That level, track and arm already exists for the academic year." };
+    }
 
-    const id = input.id ?? `${levelName.toLowerCase()}-${input.track ?? "unassigned"}-${arm.toLowerCase()}-${Date.now().toString(36)}`;
+    const id = input.id ?? `${levelName.toLowerCase()}-${input.track}-${arm.toLowerCase()}-${Date.now().toString(36)}`;
     const payload = {
       id,
       level_id: levelId,
@@ -79,53 +86,42 @@ export async function upsertClassOfferingAction(input: {
   id?: string;
   classId: string;
   subjectId: string;
-  academicTermId?: string;
-  participation: OfferingParticipation;
   status: OfferingStatus;
 }): Promise<ActionResult & { id?: string }> {
   try {
     const admin = await requireAdmin();
     const [{ data: classRow }, { data: subject }] = await Promise.all([
-      admin.from("classes").select("id,track").eq("id", input.classId).eq("status", "active").maybeSingle(),
-      admin.from("subjects").select("id").eq("id", input.subjectId).eq("active", true).maybeSingle(),
+      admin.from("classes").select("id,level_id,track,status").eq("id", input.classId).maybeSingle(),
+      admin.from("subjects").select("id,kind,active").eq("id", input.subjectId).maybeSingle(),
     ]);
-    const cls = classRow as { id: string; track: AcademicTrack | null } | null;
-    if (!cls || !subject) return { ok: false, error: "Class or subject is unavailable." };
-
-    if (cls.track) {
-      const { data: rule } = await admin
-        .from("subject_track_rules")
-        .select("participation")
-        .eq("subject_id", input.subjectId)
-        .eq("track", cls.track)
-        .maybeSingle();
-      if (!rule) return { ok: false, error: "This subject is not eligible for the class track." };
+    const cls = classRow as { id: string; level_id: string; track: AcademicTrack; status: string } | null;
+    const subjectRow = subject as { id: string; kind: string; active: boolean } | null;
+    if (!cls || cls.status !== "active" || !subjectRow?.active || subjectRow.kind !== "curriculum") {
+      return { ok: false, error: "Class or curriculum subject is unavailable." };
     }
 
-    if (input.academicTermId) {
-      const { data: term } = await admin.from("academic_terms").select("id").eq("id", input.academicTermId).maybeSingle();
-      if (!term) return { ok: false, error: "Academic term is unavailable." };
-    }
+    const { data: rule } = await admin
+      .from("subject_curriculum_rules")
+      .select("participation")
+      .eq("subject_id", input.subjectId)
+      .eq("level_id", cls.level_id)
+      .eq("track", cls.track)
+      .maybeSingle();
+    if (!rule) return { ok: false, error: "This subject is not part of the class curriculum." };
 
-    let existingQuery = admin
+    const { data: sameIdentity } = await admin
       .from("class_subject_offerings")
       .select("id")
       .eq("class_id", input.classId)
       .eq("subject_id", input.subjectId);
-    existingQuery = input.academicTermId
-      ? existingQuery.eq("academic_term_id", input.academicTermId)
-      : existingQuery.is("academic_term_id", null);
-    const { data: sameIdentity } = await existingQuery;
     const conflicting = ((sameIdentity ?? []) as { id: string }[]).find((row) => row.id !== input.id);
-    if (conflicting) return { ok: false, error: "That subject offering already exists for this class and term." };
+    if (conflicting) return { ok: false, error: "That subject offering already exists for this class." };
 
     const id = input.id ?? randomUUID();
     const payload = {
       id,
       class_id: input.classId,
       subject_id: input.subjectId,
-      academic_term_id: input.academicTermId || null,
-      participation: input.participation,
       status: input.status,
       updated_at: new Date().toISOString(),
     };
