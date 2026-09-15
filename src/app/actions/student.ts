@@ -7,8 +7,8 @@ import {
   claimStudentAuthIdentity,
   legacyStudentCredential,
   resolveExistingStudentIdentity,
-  studentEmailForProfile,
-  studentPasswordForProfile,
+  studentEmailForMember,
+  studentPasswordForMember,
 } from "@/lib/auth/student";
 import { currentStudent } from "@/lib/auth/current-student";
 import { studentLoginSchema } from "@/lib/validation";
@@ -18,57 +18,57 @@ export interface ActionResult {
   error?: string;
 }
 
-async function signInLinkedStudent(profile: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>): Promise<ActionResult> {
+async function signInLinkedStudent(member: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
   const admin = createSupabaseAdminClient();
-  const password = studentPasswordForProfile(profile.profileId);
-  let authUserId = profile.authUserId;
+  const password = studentPasswordForMember(member.memberId);
+  let authUserId = member.authUserId;
   let email = "";
 
   if (authUserId) {
     const { data: existing, error: lookupError } = await admin.auth.admin.getUserById(authUserId);
     if (lookupError || !existing.user) return { ok: false, error: "Student login is linked to a missing Auth account. Contact your school administrator." };
-    email = existing.user.email ?? studentEmailForProfile(profile.profileId);
+    email = existing.user.email ?? studentEmailForMember(member.memberId);
     const { error: updateError } = await admin.auth.admin.updateUserById(authUserId, {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: profile.fullName },
-      app_metadata: { role: "student", school_member_id: profile.profileId },
+      user_metadata: { full_name: member.fullName },
+      app_metadata: { role: "student", school_member_id: member.memberId },
     });
     if (updateError) return { ok: false, error: updateError.message };
   } else {
     // Recover the old Auth wrapper if one already exists. This only happens
     // after the roster member was resolved uniquely, so a free-typed name can
     // never create or select an academic student record.
-    const legacy = await legacyStudentCredential(profile.firstName, profile.lastName);
+    const legacy = await legacyStudentCredential(member.firstName, member.lastName);
     const legacySignIn = await supabase.auth.signInWithPassword({ email: legacy.email, password: legacy.password });
     if (!legacySignIn.error && legacySignIn.data.user) {
       authUserId = legacySignIn.data.user.id;
       email = legacySignIn.data.user.email ?? legacy.email;
-      if (!(await claimStudentAuthIdentity(profile.profileId, authUserId))) {
+      if (!(await claimStudentAuthIdentity(member.memberId, authUserId))) {
         await supabase.auth.signOut();
         return { ok: false, error: "This student record is already linked to another login." };
       }
       const { error: updateError } = await admin.auth.admin.updateUserById(authUserId, {
         password,
-        user_metadata: { full_name: profile.fullName },
-        app_metadata: { role: "student", school_member_id: profile.profileId },
+        user_metadata: { full_name: member.fullName },
+        app_metadata: { role: "student", school_member_id: member.memberId },
       });
       if (updateError) return { ok: false, error: updateError.message };
       await supabase.auth.signOut();
     } else {
-      email = studentEmailForProfile(profile.profileId);
+      email = studentEmailForMember(member.memberId);
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: { full_name: profile.fullName },
-        app_metadata: { role: "student", school_member_id: profile.profileId },
+        user_metadata: { full_name: member.fullName },
+        app_metadata: { role: "student", school_member_id: member.memberId },
       });
       if (createError || !created.user) return { ok: false, error: createError?.message ?? "Student login could not be created." };
       authUserId = created.user.id;
-      const claimed = await claimStudentAuthIdentity(profile.profileId, authUserId);
+      const claimed = await claimStudentAuthIdentity(member.memberId, authUserId);
       if (!claimed) {
         await admin.auth.admin.deleteUser(authUserId);
         return { ok: false, error: "This student record is already linked to another login." };
@@ -88,8 +88,8 @@ export async function signInStudentAction(input: { firstName: string; lastName: 
   const parsed = studentLoginSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Enter first and last name." };
   try {
-    const profile = await resolveExistingStudentIdentity(parsed.data.firstName, parsed.data.lastName);
-    const result = await signInLinkedStudent(profile);
+    const member = await resolveExistingStudentIdentity(parsed.data.firstName, parsed.data.lastName);
+    const result = await signInLinkedStudent(member);
     if (!result.ok) return result;
     revalidatePath("/dashboard");
     return { ok: true };
