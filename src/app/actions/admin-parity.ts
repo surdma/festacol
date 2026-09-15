@@ -12,8 +12,8 @@ import {
 import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listClasses } from "@/lib/supabase/queries";
-import type { QuestionType } from "@/types/exam";
 import type { AcademicTrack } from "@/types/db";
+import type { QuestionType } from "@/types/exam";
 
 export interface SubjectOption {
   id: string;
@@ -26,14 +26,12 @@ export interface OfferingOption {
   classId: string;
   className: string;
   classLevel: string;
-  track: AcademicTrack | null;
+  track: AcademicTrack;
   trackName: string;
   subjectId: string;
   subjectName: string;
   academicYearId: string;
   academicYear: string;
-  academicTermId: string | null;
-  academicTerm: string | null;
   participation: "required" | "elective";
   status: string;
 }
@@ -50,49 +48,62 @@ export async function getSubjectCatalogAction(): Promise<SubjectOption[]> {
   return (data ?? []) as SubjectOption[];
 }
 
+function curriculumKey(subjectId: string, levelId: string, track: string): string {
+  return `${subjectId}:${levelId}:${track}`;
+}
+
 export async function getAdminFormOptionsAction() {
   const { admin, scope } = await staffContext();
-  const [subjects, classes, yearsResult, termsResult, offeringsResult] = await Promise.all([
+  const [subjects, classes, yearsResult, termsResult, offeringsResult, rulesResult] = await Promise.all([
     getSubjectCatalogAction(),
     listClasses(admin),
     admin.from("academic_years").select("id,name,status").order("name", { ascending: false }),
     admin.from("academic_terms").select("id,academic_year_id,name,sequence,status").order("sequence"),
-    admin.from("class_subject_offerings").select("id,class_id,subject_id,academic_term_id,participation,status").in("status", ["active", "draft"]).limit(1000),
+    admin.from("class_subject_offerings").select("id,class_id,subject_id,status").in("status", ["active", "draft"]).limit(1000),
+    admin.from("subject_curriculum_rules").select("subject_id,level_id,track,participation").limit(5000),
   ]);
   const years = (yearsResult.data ?? []) as { id: string; name: string; status: string }[];
   const terms = (termsResult.data ?? []) as { id: string; academic_year_id: string; name: string; sequence: number; status: string }[];
   const classMap = new Map(classes.map((row) => [row.id, row]));
   const subjectMap = new Map(subjects.map((row) => [row.id, row]));
-  const termMap = new Map(terms.map((row) => [row.id, row]));
+  const participationByRule = new Map(
+    ((rulesResult.data ?? []) as { subject_id: string; level_id: string; track: string; participation: "required" | "elective" }[])
+      .map((row) => [curriculumKey(row.subject_id, row.level_id, row.track), row.participation]),
+  );
+
   const offerings: OfferingOption[] = ((offeringsResult.data ?? []) as {
-    id: string; class_id: string; subject_id: string; academic_term_id: string | null; participation: "required" | "elective"; status: string;
+    id: string;
+    class_id: string;
+    subject_id: string;
+    status: string;
   }[]).flatMap((row) => {
     const cls = classMap.get(row.class_id);
     const subject = subjectMap.get(row.subject_id);
     if (!cls || !subject) return [];
-    const term = row.academic_term_id ? termMap.get(row.academic_term_id) : undefined;
+    const participation = participationByRule.get(curriculumKey(row.subject_id, cls.level_id, cls.track));
+    if (!participation) return [];
     return [{
       id: row.id,
       classId: row.class_id,
       className: cls.display_name,
       classLevel: cls.level_name,
       track: cls.track,
-      trackName: cls.track_name ?? "Unassigned",
+      trackName: cls.track_name,
       subjectId: row.subject_id,
       subjectName: subject.name,
       academicYearId: cls.academic_year_id,
       academicYear: cls.academic_year_name,
-      academicTermId: row.academic_term_id,
-      academicTerm: term?.name ?? null,
-      participation: row.participation,
+      participation,
       status: row.status,
     }];
   });
+
   const tracks = [
-    { id: "science" as const, name: "Science" },
-    { id: "art" as const, name: "Art" },
-    { id: "social_science" as const, name: "Social Science" },
+    { id: "science" as AcademicTrack, name: "Science" },
+    { id: "art" as AcademicTrack, name: "Art" },
+    { id: "social_science" as AcademicTrack, name: "Social Science" },
   ];
+
   return {
     subjects,
     classes: classes.map((row) => ({
@@ -286,28 +297,40 @@ export async function getClassDetailAction(classId: string) {
   const { admin } = await staffContext();
   const [classes, { data: enrollments }, { data: offerings }, { data: groups }] = await Promise.all([
     listClasses(admin),
-    admin.from("class_enrollments").select("student_profile_id,status").eq("class_id", classId).eq("status", "active").limit(500),
-    admin.from("class_subject_offerings").select("id,subject_id,academic_term_id,participation,status").eq("class_id", classId).order("status"),
+    admin.from("class_enrollments").select("student_id,status").eq("class_id", classId).eq("status", "active").limit(500),
+    admin.from("class_subject_offerings").select("id,subject_id,status").eq("class_id", classId).order("status"),
     admin.from("whatsapp_groups").select("*").eq("class_id", classId).order("created_at"),
   ]);
   const classRow = classes.find((row) => row.id === classId) ?? null;
-  const enrollmentRows = (enrollments ?? []) as { student_profile_id: string; status: string }[];
-  const profileIds = enrollmentRows.map((row) => row.student_profile_id);
-  const { data: profiles } = profileIds.length
-    ? await admin.from("academic_profiles").select("id,first_name,last_name,status").in("id", profileIds).order("last_name")
+  const enrollmentRows = (enrollments ?? []) as { student_id: string; status: string }[];
+  const memberIds = enrollmentRows.map((row) => row.student_id);
+  const { data: members } = memberIds.length
+    ? await admin.from("school_members").select("id,first_name,last_name,status").in("id", memberIds).order("last_name")
     : { data: [] };
-  const students = ((profiles ?? []) as { id: string; first_name: string; last_name: string; status: string }[]).map((row) => ({
+  const students = ((members ?? []) as { id: string; first_name: string; last_name: string; status: string }[]).map((row) => ({
     ...row,
     full_name: `${row.first_name} ${row.last_name}`.trim(),
   }));
-  const offeringRows = (offerings ?? []) as { id: string; subject_id: string; academic_term_id: string | null; participation: string; status: string }[];
+
+  const offeringRows = (offerings ?? []) as { id: string; subject_id: string; status: string }[];
   const subjectIds = [...new Set(offeringRows.map((row) => row.subject_id))];
-  const { data: subjects } = subjectIds.length ? await admin.from("subjects").select("id,name").in("id", subjectIds) : { data: [] };
+  const [{ data: subjects }, { data: rules }] = await Promise.all([
+    subjectIds.length ? admin.from("subjects").select("id,name").in("id", subjectIds) : Promise.resolve({ data: [] }),
+    classRow && subjectIds.length
+      ? admin.from("subject_curriculum_rules").select("subject_id,participation").eq("level_id", classRow.level_id).eq("track", classRow.track).in("subject_id", subjectIds)
+      : Promise.resolve({ data: [] }),
+  ]);
   const subjectMap = new Map(((subjects ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+  const participationMap = new Map(((rules ?? []) as { subject_id: string; participation: string }[]).map((row) => [row.subject_id, row.participation]));
+
   return {
     classRow,
     students,
-    offerings: offeringRows.map((row) => ({ ...row, subject_name: subjectMap.get(row.subject_id) ?? "Subject" })),
+    offerings: offeringRows.map((row) => ({
+      ...row,
+      subject_name: subjectMap.get(row.subject_id) ?? "Subject",
+      participation: participationMap.get(row.subject_id) ?? null,
+    })),
     groups: groups ?? [],
   };
 }
