@@ -34,12 +34,12 @@ async function signInLinkedStudent(profile: Awaited<ReturnType<typeof resolveExi
       password,
       email_confirm: true,
       user_metadata: { full_name: profile.fullName },
-      app_metadata: { role: "student", academic_profile_id: profile.profileId },
+      app_metadata: { role: "student", school_member_id: profile.profileId },
     });
     if (updateError) return { ok: false, error: updateError.message };
   } else {
     // Recover the old Auth wrapper if one already exists. This only happens
-    // after the roster profile was resolved uniquely, so a free-typed name can
+    // after the roster member was resolved uniquely, so a free-typed name can
     // never create or select an academic student record.
     const legacy = await legacyStudentCredential(profile.firstName, profile.lastName);
     const legacySignIn = await supabase.auth.signInWithPassword({ email: legacy.email, password: legacy.password });
@@ -53,7 +53,7 @@ async function signInLinkedStudent(profile: Awaited<ReturnType<typeof resolveExi
       const { error: updateError } = await admin.auth.admin.updateUserById(authUserId, {
         password,
         user_metadata: { full_name: profile.fullName },
-        app_metadata: { role: "student", academic_profile_id: profile.profileId },
+        app_metadata: { role: "student", school_member_id: profile.profileId },
       });
       if (updateError) return { ok: false, error: updateError.message };
       await supabase.auth.signOut();
@@ -64,7 +64,7 @@ async function signInLinkedStudent(profile: Awaited<ReturnType<typeof resolveExi
         password,
         email_confirm: true,
         user_metadata: { full_name: profile.fullName },
-        app_metadata: { role: "student", academic_profile_id: profile.profileId },
+        app_metadata: { role: "student", school_member_id: profile.profileId },
       });
       if (createError || !created.user) return { ok: false, error: createError?.message ?? "Student login could not be created." };
       authUserId = created.user.id;
@@ -109,13 +109,14 @@ export async function updateProfileAction(input: { phone: string; guardian: stri
   const ctx = await currentStudent();
   if (!ctx) return { ok: false, error: "Sign in required." };
   const { error } = await ctx.supabase
-    .from("student_academic_profiles")
+    .from("school_members")
     .update({
       phone: input.phone.slice(0, 20),
       guardian: input.guardian.slice(0, 80),
       updated_at: new Date().toISOString(),
     })
-    .eq("profile_id", ctx.profile.profile_id);
+    .eq("id", ctx.profile.profile_id)
+    .eq("role", "student");
   if (error) return { ok: false, error: error.message };
   revalidatePath("/dashboard/profile");
   return { ok: true };
