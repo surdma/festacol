@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Prisma, relational migration, types, build & admin lint
+    name: Prisma, relational migration, types, build & lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -98,14 +98,8 @@ jobs:
           create table if not exists auth.users (id uuid primary key);
           create or replace function auth.uid()
           returns uuid language sql stable as $$ select null::uuid $$;
-          do $$ begin
-            create role authenticated;
-          exception when duplicate_object then null;
-          end $$;
-          do $$ begin
-            create role service_role;
-          exception when duplicate_object then null;
-          end $$;
+          do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
+          do $$ begin create role service_role; exception when duplicate_object then null; end $$;
           SQL
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/schema.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-relational-foundation.fixture.sql
@@ -114,16 +108,19 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/08-academic-identity-cutover.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/09-curriculum-subject-offerings.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/10-exam-runtime-authorization.sql
-          # Prove additive migrations are re-runnable before assertions.
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/11-runtime-consumer-cutover.sql
+          # Prove additive/cutover migrations are re-runnable before assertions.
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/06-academic-relational-foundation.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/07-academic-relational-foundation-hardening.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/08-academic-identity-cutover.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/09-curriculum-subject-offerings.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/10-exam-runtime-authorization.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/11-runtime-consumer-cutover.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-relational-foundation.assert.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-identity-cutover.assert.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/curriculum-subject-offerings.assert.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/exam-runtime-authorization.assert.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/runtime-consumer-cutover.assert.sql
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
@@ -131,14 +128,21 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Biome lint admin migration surface
+      - name: Biome lint migration surfaces
         run: >-
           pnpm exec biome lint
           prisma.config.ts
           src/app/layout.tsx
           src/app/admin/layout.tsx
           src/app/actions/admin-parity.ts
+          src/app/actions/exam-state.ts
+          src/app/actions/exams.ts
+          src/app/dashboard/exam/page.tsx
+          src/app/dashboard/exam/workspace.tsx
           src/components/admin/admin-chrome.tsx
           src/components/admin/admin-nav.tsx
+          src/lib/assessment.ts
+          src/lib/questions.ts
           src/lib/nav.ts
           src/types/db.ts
+          src/types/exam.ts

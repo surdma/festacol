@@ -4,69 +4,135 @@ import { revalidatePath } from "next/cache";
 import {
   createExamAction,
   getExamDetailAction,
+  upsertQuestionCore,
   updateExamAction,
   type ExamWizardInput,
 } from "@/app/actions/admin";
 import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
-import { WAEC_SUBJECTS } from "@/lib/subjects-catalog";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { ActionResult } from "@/app/actions/student";
 import type { QuestionType } from "@/types/exam";
 
 export interface SubjectOption {
-  code: string;
+  id: string;
   name: string;
-  streams: string[];
+  category: string;
+}
+
+export interface OfferingOption {
+  id: string;
+  classId: string;
+  className: string;
+  classLevel: string;
+  programmeId: string | null;
+  programmeName: string;
+  subjectId: string;
+  subjectName: string;
+  academicYearId: string;
+  academicYear: string;
+  academicTermId: string | null;
+  academicTerm: string | null;
+  participation: "required" | "elective";
+  status: string;
+}
+
+async function staffContext() {
+  const context = await currentStaff();
+  if (!context.scope.profileId) throw new Error("Staff sign-in required.");
+  return { ...context, admin: createSupabaseAdminClient() };
 }
 
 export async function getSubjectCatalogAction(): Promise<SubjectOption[]> {
-  const { supabase } = await currentStaff();
-  const { data } = await supabase.from("subjects").select("code,name,streams").eq("active", true).order("name");
-  const rows = (data ?? []) as SubjectOption[];
-  if (rows.length) return rows;
-  return WAEC_SUBJECTS.map((subject) => ({ code: subject.code, name: subject.name, streams: subject.streams ?? [] }));
+  const { admin } = await staffContext();
+  const { data } = await admin.from("subjects").select("id,name,category").eq("active", true).order("name");
+  return (data ?? []) as SubjectOption[];
 }
 
 export async function getAdminFormOptionsAction() {
-  const { supabase, scope } = await currentStaff();
-  const [subjects, classesResult] = await Promise.all([
+  const { admin, scope } = await staffContext();
+  const [subjects, classesResult, programmesResult, yearsResult, termsResult, offeringsResult] = await Promise.all([
     getSubjectCatalogAction(),
-    supabase.from("classes").select("id,name,class_level,status").order("class_level").order("name").limit(200),
+    admin.from("classes").select("id,name,class_level,level_id,programme_id,status,academic_session").eq("status", "active").order("class_level").order("name").limit(300),
+    admin.from("academic_programmes").select("id,name").eq("active", true).order("name"),
+    admin.from("academic_years").select("id,name,status").order("name", { ascending: false }),
+    admin.from("academic_terms").select("id,academic_year_id,name,sequence,status").order("sequence"),
+    admin.from("class_subject_offerings").select("id,class_id,subject_id,academic_year_id,academic_term_id,participation,status").in("status", ["active", "draft"]).limit(1000),
   ]);
-  return {
-    subjects,
-    classes: ((classesResult.data ?? []) as { id: string; name: string; class_level: string; status: string }[]).filter((item) => item.status === "active"),
-    scope,
-  };
+  const classes = (classesResult.data ?? []) as { id: string; name: string; class_level: string; level_id: string | null; programme_id: string | null; status: string; academic_session: string }[];
+  const programmes = (programmesResult.data ?? []) as { id: string; name: string }[];
+  const years = (yearsResult.data ?? []) as { id: string; name: string; status: string }[];
+  const terms = (termsResult.data ?? []) as { id: string; academic_year_id: string; name: string; sequence: number; status: string }[];
+  const classMap = new Map(classes.map((row) => [row.id, row]));
+  const subjectMap = new Map(subjects.map((row) => [row.id, row]));
+  const programmeMap = new Map(programmes.map((row) => [row.id, row]));
+  const yearMap = new Map(years.map((row) => [row.id, row]));
+  const termMap = new Map(terms.map((row) => [row.id, row]));
+  const offerings: OfferingOption[] = ((offeringsResult.data ?? []) as {
+    id: string; class_id: string; subject_id: string; academic_year_id: string; academic_term_id: string | null; participation: "required" | "elective"; status: string;
+  }[]).flatMap((row) => {
+    const cls = classMap.get(row.class_id);
+    const subject = subjectMap.get(row.subject_id);
+    const year = yearMap.get(row.academic_year_id);
+    if (!cls || !subject || !year) return [];
+    const term = row.academic_term_id ? termMap.get(row.academic_term_id) : undefined;
+    return [{
+      id: row.id,
+      classId: row.class_id,
+      className: cls.name,
+      classLevel: cls.class_level,
+      programmeId: cls.programme_id,
+      programmeName: cls.programme_id ? programmeMap.get(cls.programme_id)?.name ?? "" : "General",
+      subjectId: row.subject_id,
+      subjectName: subject.name,
+      academicYearId: row.academic_year_id,
+      academicYear: year.name,
+      academicTermId: row.academic_term_id,
+      academicTerm: term?.name ?? null,
+      participation: row.participation,
+      status: row.status,
+    }];
+  });
+  return { subjects, classes, programmes, years, terms, offerings, scope };
 }
 
 function validateExamShape(input: ExamWizardInput): string | null {
-  const title = input.title.trim();
-  if (title.length < 3) return "Enter an exam title of at least 3 characters.";
+  if (input.title.trim().length < 3) return "Enter an exam title of at least 3 characters.";
   if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 30 || input.durationSeconds > 10800) return "Duration must be between 30 seconds and 3 hours.";
   if (!Number.isInteger(input.questionCount) || input.questionCount < 5 || input.questionCount > 150) return "Question count must be between 5 and 150.";
   if (!Number.isInteger(input.warnAfter) || input.warnAfter < 1 || input.warnAfter > 10) return "Integrity warning threshold must be between 1 and 10.";
   if (input.mode === "qualifier" && input.classLevel !== "SS1") return "Qualifier examinations are reserved for SS1.";
   if (input.mode === "waec" && input.classLevel !== "SS3") return "WAEC examinations are configured for SS3.";
-  if (input.mode === "mixed" && (input.subjects.length < 2 || input.subjects.length > 12)) return "Mixed examinations require between 2 and 12 subjects.";
-  if (["single", "waec", "bece", "neco", "jamb"].includes(input.mode) && input.subjects.length !== 1) return "This examination mode requires exactly one subject.";
-  if (input.mode === "qualifier" && input.subjects.some((code) => !code.startsWith("q-"))) return "Qualifier examinations can only target qualifier-domain subjects.";
+  const subjectIds = [...new Set(input.subjectIds)];
+  if (input.mode === "mixed" && (subjectIds.length < 2 || subjectIds.length > 12)) return "Mixed examinations require between 2 and 12 subjects.";
+  if (["single", "waec", "bece", "neco", "jamb"].includes(input.mode) && subjectIds.length !== 1) return "This examination mode requires exactly one subject.";
+  if (subjectIds.length && !input.offeringIds.length) return "Subject examinations require explicit class subject offerings.";
+  if (!subjectIds.length && !input.classIds.length) return "General examinations require at least one class target.";
   return null;
 }
 
 async function eligibleQuestionCount(input: ExamWizardInput): Promise<number> {
-  const { supabase } = await currentStaff();
-  const { data } = await supabase.from("questions").select("subject_code,levels,exam_modes").limit(2500);
-  return ((data ?? []) as { subject_code: string; levels: string[]; exam_modes: string[] }[]).filter((question) => {
-    if (!(question.levels ?? []).includes(input.classLevel)) return false;
-    if (!(question.exam_modes ?? []).includes(input.mode)) return false;
-    if (input.mode === "qualifier") return input.subjects.length === 0 || input.subjects.includes(question.subject_code);
-    return input.subjects.includes(question.subject_code);
-  }).length;
+  const { admin } = await staffContext();
+  let query = admin.from("questions").select("id,subject_id,levels,exam_modes").not("subject_id", "is", null).limit(5000);
+  if (input.subjectIds.length) query = query.in("subject_id", [...new Set(input.subjectIds)]);
+  const { data } = await query;
+  return ((data ?? []) as { id: number; subject_id: string; levels: string[]; exam_modes: string[] }[]).filter((question) =>
+    (question.levels ?? []).includes(input.classLevel)
+      && (question.exam_modes ?? []).includes(input.mode)
+      && (!input.subjectIds.length || input.subjectIds.includes(question.subject_id)),
+  ).length;
 }
 
 export async function getExamCoverageAction(input: ExamWizardInput): Promise<{ ok: boolean; count: number; error?: string }> {
   const shapeError = validateExamShape(input);
   if (shapeError) return { ok: false, count: 0, error: shapeError };
+  const { admin } = await staffContext();
+  if (input.offeringIds.length) {
+    const { data: offerings } = await admin.from("class_subject_offerings").select("id,subject_id,class_id,status").in("id", input.offeringIds);
+    const rows = (offerings ?? []) as { id: string; subject_id: string; class_id: string; status: string }[];
+    if (rows.length !== [...new Set(input.offeringIds)].length || rows.some((row) => row.status !== "active")) return { ok: false, count: 0, error: "One or more subject offerings are unavailable." };
+    const offeredSubjects = new Set(rows.map((row) => row.subject_id));
+    if (input.subjectIds.some((subjectId) => !offeredSubjects.has(subjectId))) return { ok: false, count: 0, error: "Every exam subject needs a selected class subject offering." };
+  }
   const count = await eligibleQuestionCount(input);
   if (count < input.questionCount) return { ok: false, count, error: `Only ${count} eligible questions are available for this paper.` };
   return { ok: true, count };
@@ -76,23 +142,22 @@ export async function createExamParityAction(input: ExamWizardInput): Promise<Ac
   try {
     const shapeError = validateExamShape(input);
     if (shapeError) return { ok: false, error: shapeError };
-    const available = await eligibleQuestionCount(input);
-    if (available < input.questionCount) return { ok: false, error: `Only ${available} eligible questions are available for this paper.` };
-    return createExamAction({ ...input, subjects: [...new Set(input.subjects)] });
+    const coverage = await getExamCoverageAction(input);
+    if (!coverage.ok) return { ok: false, error: coverage.error };
+    return createExamAction({
+      ...input,
+      subjectIds: [...new Set(input.subjectIds)],
+      offeringIds: [...new Set(input.offeringIds)],
+      classIds: [...new Set(input.classIds)],
+    });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Create failed." };
   }
 }
 
 export async function getExamEditorDetailAction(examId: string) {
-  const { supabase } = await currentStaff();
   const detail = await getExamDetailAction(examId);
-  const { data: policy } = await supabase.from("exam_proctor_policies").select("camera_required").eq("session_id", examId).maybeSingle();
-  return {
-    ...detail,
-    cameraRequired: Boolean((policy as { camera_required?: boolean } | null)?.camera_required),
-    structureLocked: detail.attempts.length > 0,
-  };
+  return { ...detail, structureLocked: detail.attempts.length > 0 };
 }
 
 export async function updateExamParityAction(
@@ -106,7 +171,7 @@ export async function updateExamParityAction(
     if (patch.title.trim().length < 3) return { ok: false, error: "Enter an exam title of at least 3 characters." };
     if (!Number.isInteger(patch.warnAfter) || patch.warnAfter < 1 || patch.warnAfter > 10) return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
     if (detail.attempts.length > 0 && (patch.durationSeconds !== Number(session.duration_seconds) || patch.questionCount !== Number(session.question_count))) {
-      return { ok: false, error: "Paper structure is locked after the first candidate attempt. Title, instructions, status and integrity controls may still be updated." };
+      return { ok: false, error: "Paper structure is locked after the first allocated attempt." };
     }
     if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 10800) return { ok: false, error: "Duration must be between 30 seconds and 3 hours." };
     if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 150) return { ok: false, error: "Question count must be between 5 and 150." };
@@ -118,7 +183,7 @@ export async function updateExamParityAction(
 
 export interface QuestionEditorInput {
   id?: number;
-  subjectCode: string;
+  subjectId: string;
   kind: QuestionType;
   prompt: string;
   options: string[];
@@ -131,13 +196,8 @@ export interface QuestionEditorInput {
   explanation?: string;
 }
 
-type ExistingQuestionRow = {
-  subject_code: string;
-  created_by: string | null;
-};
-
 function questionValidation(input: QuestionEditorInput): string | null {
-  if (!input.subjectCode.trim()) return "Choose a subject.";
+  if (!input.subjectId) return "Choose a subject.";
   if (input.prompt.trim().length < 3) return "Enter the question prompt.";
   if (!input.levels.length) return "Choose at least one class level.";
   if (!["single", "multi", "boolean", "fill", "fill-multi"].includes(input.kind)) return "Unsupported question type.";
@@ -154,114 +214,79 @@ function questionValidation(input: QuestionEditorInput): string | null {
     if (!markers) return "Fill questions need at least one ___ blank marker.";
     if ((input.blankAnswers ?? []).length !== markers) return "Provide accepted answers for every blank.";
     if ((input.blankAnswers ?? []).some((answers) => !answers.some((answer) => answer.trim()))) return "Every blank needs at least one accepted answer.";
-    if (input.kind === "fill" && markers !== 1) return "Single-gap fill questions require exactly one blank. Use multi-gap for multiple blanks.";
+    if (input.kind === "fill" && markers !== 1) return "Single-gap fill questions require exactly one blank.";
   }
   return null;
 }
 
 export async function upsertQuestionParityAction(input: QuestionEditorInput): Promise<ActionResult & { id?: number }> {
   try {
-    const validationError = questionValidation(input);
-    if (validationError) return { ok: false, error: validationError };
-    const { supabase, scope } = await currentStaff();
-    if (!questionSubjectVisibleTo(input.subjectCode, scope)) return { ok: false, error: "Outside your subject scope." };
-
-    let existing: ExistingQuestionRow | null = null;
-    if (input.id !== undefined) {
-      const { data } = await supabase.from("questions").select("subject_code,created_by").eq("id", input.id).maybeSingle();
-      existing = data as ExistingQuestionRow | null;
-      if (!existing) return { ok: false, error: "Question not found." };
-      if (!scope.isAdmin && existing.created_by !== scope.staffId) return { ok: false, error: "Teachers can edit only questions they authored." };
-    }
-
-    const { data: subjectRow } = await supabase.from("subjects").select("name").eq("code", input.subjectCode).maybeSingle();
-    const subjectName = (subjectRow as { name?: string } | null)?.name ?? input.subjectCode;
-    let id = input.id;
-    if (id === undefined) {
-      const { data: maxRow } = await supabase.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle();
-      id = Number((maxRow as { id?: number } | null)?.id ?? 0) + 1;
-    }
-
+    const validation = questionValidation(input);
+    if (validation) return { ok: false, error: validation };
+    const current = await currentStaff();
+    if (!current.scope.profileId || !questionSubjectVisibleTo(input.subjectId, current.scope)) return { ok: false, error: "Outside your subject scope." };
     const options = input.kind === "single" || input.kind === "multi" ? [...new Set(input.options.map((value) => value.trim()).filter(Boolean))] : [];
     const correctAnswers = input.kind === "fill" || input.kind === "fill-multi"
       ? []
       : input.kind === "boolean"
         ? [String(input.correctAnswers[0]).toLowerCase()]
         : [...new Set(input.correctAnswers.map((value) => value.trim()).filter(Boolean))];
-
     let fillTemplate: string | null = null;
-    const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
+    const blanks: { position: number; accepted: string[] }[] = [];
     if (input.kind === "fill" || input.kind === "fill-multi") {
       let position = 0;
       fillTemplate = String(input.fillTemplate).replace(/___/g, () => `{{${position++}}}`);
       for (let index = 0; index < (input.blankAnswers ?? []).length; index += 1) {
-        blanks.push({
-          question_id: id,
-          position: index,
-          blank_key: `b${index}`,
-          placeholder: `Answer ${index + 1}`,
-          accepted: [...new Set((input.blankAnswers?.[index] ?? []).map((answer) => answer.trim()).filter(Boolean))],
-        });
+        blanks.push({ position: index, accepted: [...new Set((input.blankAnswers?.[index] ?? []).map((answer) => answer.trim()).filter(Boolean))] });
       }
     }
-
-    const row = {
-      id,
-      subject_code: input.subjectCode,
-      subject_name: subjectName,
-      label: subjectName,
-      qtype: input.kind,
-      prompt: input.prompt.trim(),
+    return upsertQuestionCore({
+      id: input.id,
+      subjectId: input.subjectId,
+      kind: input.kind,
+      prompt: input.prompt,
       options,
-      correct_answers: correctAnswers,
-      fill_template: fillTemplate,
-      instruction: "",
+      correctAnswers,
       levels: [...new Set(input.levels)],
-      exam_modes: ["single", "mixed", "waec", "qualifier", "bece", "neco", "jamb"],
-      difficulty: input.difficulty ?? "medium",
-      domain: input.domain?.trim() ?? "",
-      explanation: input.explanation?.trim() ?? "",
-      created_by: existing?.created_by ?? scope.staffId,
-      updated_at: Date.now(),
-    };
-
-    const write = input.id === undefined
-      ? await supabase.from("questions").insert(row)
-      : await supabase.from("questions").update(row).eq("id", id);
-    if (write.error) return { ok: false, error: write.error.message };
-
-    if (blanks.length) {
-      const { error: blankError } = await supabase.from("question_blanks").upsert(blanks);
-      if (blankError) {
-        if (input.id === undefined) await supabase.from("questions").delete().eq("id", id);
-        return { ok: false, error: blankError.message };
-      }
-      await supabase.from("question_blanks").delete().eq("question_id", id).gte("position", blanks.length);
-    } else {
-      const { error: deleteError } = await supabase.from("question_blanks").delete().eq("question_id", id);
-      if (deleteError) return { ok: false, error: deleteError.message };
-    }
-
-    revalidatePath("/admin/questions");
-    return { ok: true, id };
+      fillTemplate,
+      difficulty: input.difficulty,
+      domain: input.domain?.trim(),
+      explanation: input.explanation?.trim(),
+      blanks,
+    });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
   }
 }
 
 export async function getClassDetailAction(classId: string) {
-  const { supabase } = await currentStaff();
-  const [{ data: classRow }, { data: students }, { data: groups }] = await Promise.all([
-    supabase.from("classes").select("*").eq("id", classId).maybeSingle(),
-    supabase.from("users").select("id,full_name,status").eq("role", "student").eq("class_id", classId).order("full_name").limit(300),
-    supabase.from("whatsapp_groups").select("*").eq("class_id", classId).order("created_at"),
+  const { admin } = await staffContext();
+  const [{ data: classRow }, { data: enrollments }, { data: offerings }, { data: groups }] = await Promise.all([
+    admin.from("classes").select("*").eq("id", classId).maybeSingle(),
+    admin.from("class_enrollments").select("student_profile_id,status").eq("class_id", classId).eq("status", "active").limit(500),
+    admin.from("class_subject_offerings").select("id,subject_id,academic_year_id,academic_term_id,participation,status").eq("class_id", classId).order("status"),
+    admin.from("whatsapp_groups").select("*").eq("class_id", classId).order("created_at"),
   ]);
-  return { classRow, students: students ?? [], groups: groups ?? [] };
+  const enrollmentRows = (enrollments ?? []) as { student_profile_id: string; status: string }[];
+  const profileIds = enrollmentRows.map((row) => row.student_profile_id);
+  const { data: profiles } = profileIds.length
+    ? await admin.from("academic_profiles").select("id,legacy_user_id,full_name,status").in("id", profileIds).order("full_name")
+    : { data: [] };
+  const offeringRows = (offerings ?? []) as { id: string; subject_id: string; academic_year_id: string; academic_term_id: string | null; participation: string; status: string }[];
+  const subjectIds = [...new Set(offeringRows.map((row) => row.subject_id))];
+  const { data: subjects } = subjectIds.length ? await admin.from("subjects").select("id,name").in("id", subjectIds) : { data: [] };
+  const subjectMap = new Map(((subjects ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+  return {
+    classRow,
+    students: profiles ?? [],
+    offerings: offeringRows.map((row) => ({ ...row, subject_name: subjectMap.get(row.subject_id) ?? "Subject" })),
+    groups: groups ?? [],
+  };
 }
 
 export async function getWhatsappDetailAction(groupId: string) {
-  const { supabase, scope } = await currentStaff();
+  const { admin, scope } = await staffContext();
   if (!scope.isAdmin) return null;
-  const { data } = await supabase.from("whatsapp_groups").select("*").eq("id", groupId).maybeSingle();
+  const { data } = await admin.from("whatsapp_groups").select("*").eq("id", groupId).maybeSingle();
   return data;
 }

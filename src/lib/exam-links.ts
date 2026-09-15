@@ -1,8 +1,7 @@
 import type { ExamSessionDTO } from "@/types/exam";
 
-// v2/v3 base64url session-link codec. Keeps prototype QR + Exam-ID compat.
-// Canonical Next.js link: /dashboard/exam?session=<payload>
-
+// Compact navigation payload only. It is not an authorization token: every
+// destination rechecks the current database relationship using the exam ID.
 function b64urlEncode(text: string): string {
   const b64 = typeof Buffer !== "undefined" ? Buffer.from(text, "utf8").toString("base64") : btoa(unescape(encodeURIComponent(text)));
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -15,28 +14,15 @@ function b64urlDecode(payload: string): string {
   return decodeURIComponent(escape(atob(padded)));
 }
 
-export function encodeSession(session: ExamSessionDTO, version: "v2" | "v3" = "v3"): string {
-  const body = {
-    v: version,
-    id: session.id,
-    title: session.title,
-    classLevel: session.classLevel,
-    mode: session.mode,
-    subjects: session.subjects,
-    durationSeconds: session.durationSeconds,
-    questionCount: session.questionCount,
-    status: session.status,
-    startsAt: session.startsAt,
-    endsAt: session.endsAt,
-  };
-  return b64urlEncode(JSON.stringify(body));
+export function encodeSession(session: Pick<ExamSessionDTO, "id" | "title">, version: "v4" = "v4"): string {
+  return b64urlEncode(JSON.stringify({ v: version, id: session.id, title: session.title }));
 }
 
 export function decodeSession(payload: string): Partial<ExamSessionDTO> & { v?: string } {
   return JSON.parse(b64urlDecode(payload));
 }
 
-export function getExamLink(session: ExamSessionDTO, base = "/dashboard/exam"): string {
+export function getExamLink(session: Pick<ExamSessionDTO, "id" | "title">, base = "/dashboard/exam"): string {
   return `${base}?session=${encodeURIComponent(encodeSession(session))}`;
 }
 

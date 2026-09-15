@@ -1,90 +1,70 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { studentHashFor, candidateHashFor } from "@/lib/assessment";
-import { questionSubjectVisibleTo } from "@/lib/auth/staff";
+import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
-
-async function requireAdmin() {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  const role =
-    (data.user?.app_metadata?.role as string | undefined) ??
-    (data.user?.user_metadata?.role as string | undefined);
-  if (!data.user || role !== "administrator") throw new Error("Administrator sign-in required.");
-  return supabase;
-}
+import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/auth/staff";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 interface StaffContext {
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  isAdmin: boolean;
-  staffId: string | null;
-  subjects: string[];
-  qualifierAccess: boolean;
+  supabase: Awaited<ReturnType<typeof currentStaff>>["supabase"];
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  scope: StaffScope;
 }
 
-// Teachers act within their subjects; admins everywhere. Mutations below use
-// this instead of requireAdmin except for admin-only operations
-// (staff provisioning, classes, bank sync, cohosts).
 async function requireStaff(): Promise<StaffContext> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  const role =
-    (data.user?.app_metadata?.role as string | undefined) ??
-    (data.user?.user_metadata?.role as string | undefined);
-  if (!data.user || (role !== "administrator" && role !== "teacher")) {
+  const current = await currentStaff();
+  if (!current.scope.profileId || (!current.scope.isAdmin && !current.scope.isTeacher)) {
     throw new Error("Staff sign-in required.");
   }
-  const staffId =
-    (data.user?.app_metadata?.staff_id as string | undefined) ??
-    (data.user?.user_metadata?.staff_id as string | undefined) ??
-    null;
-  let subjects: string[] = [];
-  let qualifierAccess = role === "administrator";
-  if (role === "teacher" && staffId) {
-    const { data: row } = await supabase.from("users").select("subjects,qualifier_access").eq("id", staffId).maybeSingle();
-    const r = row as { subjects: string[]; qualifier_access: boolean } | null;
-    subjects = r?.subjects ?? [];
-    qualifierAccess = r?.qualifier_access ?? false;
-  }
-  return { supabase, isAdmin: role === "administrator", staffId, subjects, qualifierAccess };
+  return { supabase: current.supabase, admin: createSupabaseAdminClient(), scope: current.scope };
 }
 
-// May this staff member touch an exam with these subjects/mode?
-function inExamScope(ctx: StaffContext, subjects: string[], mode: string): boolean {
-  if (ctx.isAdmin) return true;
-  if (mode === "qualifier") return ctx.qualifierAccess;
-  if (!subjects.length) return true;
-  const mine = new Set(ctx.subjects);
-  return subjects.some((s) => mine.has(s));
+async function requireAdmin(): Promise<StaffContext> {
+  const current = await requireStaff();
+  if (!current.scope.isAdmin) throw new Error("Administrator sign-in required.");
+  return current;
 }
 
 async function scopedSession(ctx: StaffContext, id: string) {
-  const { data } = await ctx.supabase.from("exam_sessions").select("*").eq("id", id).maybeSingle();
-  const s = data as { subjects: string[]; mode: string } | null;
-  if (!s) return null;
-  if (!inExamScope(ctx, s.subjects ?? [], s.mode)) return null;
-  return data;
+  const { data } = await ctx.supabase.from("exam_sessions").select("*").eq("id", id.toUpperCase()).maybeSingle();
+  return data as Record<string, unknown> | null;
 }
 
 function examId(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let suffix = "";
   const bytes = crypto.getRandomValues(new Uint8Array(6));
-  for (const b of bytes) suffix += chars[b % chars.length];
+  for (const byte of bytes) suffix += chars[byte % chars.length];
   return `FST-${suffix}`;
+}
+
+async function subjectCompatibilityCode(admin: ReturnType<typeof createSupabaseAdminClient>, subjectId: string) {
+  const { data } = await admin.from("subjects").select("code,name").eq("id", subjectId).maybeSingle();
+  return data as { code: string; name: string } | null;
+}
+
+async function teacherMayManageClass(ctx: StaffContext, classId: string): Promise<boolean> {
+  if (ctx.scope.isAdmin) return true;
+  const { count } = await ctx.supabase
+    .from("teaching_assignments")
+    .select("id", { count: "exact", head: true })
+    .eq("staff_profile_id", ctx.scope.profileId!)
+    .eq("class_id", classId)
+    .eq("status", "active");
+  return (count ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------- exams
 export interface ExamWizardInput {
   title: string;
   classLevel: "SS1" | "SS2" | "SS3";
-  classGroup: string;
   mode: "qualifier" | "bece" | "waec" | "neco" | "jamb" | "mixed" | "single";
-  subjects: string[];
+  subjectIds: string[];
+  offeringIds: string[];
+  classIds: string[];
   durationSeconds: number;
   questionCount: number;
   status: "open" | "draft" | "closed";
@@ -96,21 +76,56 @@ export interface ExamWizardInput {
 export async function createExamAction(input: ExamWizardInput): Promise<ActionResult & { id?: string }> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!inExamScope(ctx, input.subjects, input.mode)) {
-      return { ok: false, error: "Outside your subject scope." };
+    const subjectIds = [...new Set(input.subjectIds.filter(Boolean))];
+    const offeringIds = [...new Set(input.offeringIds.filter(Boolean))];
+    const classIds = [...new Set(input.classIds.filter(Boolean))];
+    if (!offeringIds.length && !classIds.length) return { ok: false, error: "Choose at least one class or subject offering." };
+    if (subjectIds.some((subjectId) => !questionSubjectVisibleTo(subjectId, ctx.scope))) {
+      return { ok: false, error: "One or more subjects are outside your qualification scope." };
     }
+
+    const { data: offerings, error: offeringError } = offeringIds.length
+      ? await ctx.admin.from("class_subject_offerings").select("id,class_id,subject_id,academic_year_id,academic_term_id,status").in("id", offeringIds)
+      : { data: [], error: null };
+    if (offeringError) return { ok: false, error: offeringError.message };
+    const offeringRows = (offerings ?? []) as { id: string; class_id: string; subject_id: string; academic_year_id: string; academic_term_id: string | null; status: string }[];
+    if (offeringRows.length !== offeringIds.length || offeringRows.some((row) => row.status !== "active")) {
+      return { ok: false, error: "Every selected subject offering must be active." };
+    }
+    if (subjectIds.length && offeringRows.some((row) => !subjectIds.includes(row.subject_id))) {
+      return { ok: false, error: "Exam subjects and subject offerings do not match." };
+    }
+    if (!ctx.scope.isAdmin) {
+      const { data: assignments } = offeringIds.length
+        ? await ctx.supabase.from("teaching_assignments").select("offering_id").eq("staff_profile_id", ctx.scope.profileId!).eq("status", "active").in("offering_id", offeringIds)
+        : { data: [] };
+      const assigned = new Set(((assignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id));
+      if (offeringIds.some((offeringId) => !assigned.has(offeringId))) return { ok: false, error: "You may create exams only for subject offerings you teach." };
+    }
+
+    const allClassIds = [...new Set([...classIds, ...offeringRows.map((row) => row.class_id)])];
+    const { data: classes } = await ctx.admin.from("classes").select("id,class_level,stream,academic_session").in("id", allClassIds);
+    const classRows = (classes ?? []) as { id: string; class_level: string; stream: string; academic_session: string }[];
+    if (classRows.length !== allClassIds.length) return { ok: false, error: "One or more target classes no longer exist." };
+    if (classRows.some((row) => row.class_level !== input.classLevel)) return { ok: false, error: "All target classes must match the selected academic level." };
+    const academicSessions = [...new Set(classRows.map((row) => row.academic_session))];
+    if (academicSessions.length !== 1) return { ok: false, error: "All target classes must belong to the same academic year." };
+
+    const subjectRows = await Promise.all(subjectIds.map((subjectId) => subjectCompatibilityCode(ctx.admin, subjectId)));
+    if (subjectRows.some((row) => !row)) return { ok: false, error: "One or more subjects are unavailable." };
     const now = Date.now();
     const id = examId();
-    const { error } = await supabase.from("exam_sessions").insert({
+    const groupSnapshot = [...new Set(classRows.map((row) => row.stream).filter(Boolean))].join(", ") || "General";
+    const legacyCodes = subjectRows.map((row) => row!.code);
+    const { error: sessionError } = await ctx.admin.from("exam_sessions").insert({
       id,
       title: input.title.trim().slice(0, 72),
       class_level: input.classLevel,
-      class_group: input.classGroup || "General",
-      academic_session: "2026/2027",
-      term: "First term",
+      class_group: groupSnapshot.slice(0, 80),
+      academic_session: academicSessions[0] ?? "",
+      term: "",
       mode: input.mode,
-      subjects: input.subjects,
+      subjects: legacyCodes,
       placement_tracks: [],
       cohosts: [],
       duration_seconds: Math.min(10800, Math.max(30, input.durationSeconds)),
@@ -127,15 +142,41 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       question_order: true,
       option_order: true,
       minimize_collisions: true,
+      created_by_profile_id: ctx.scope.profileId,
+      academic_term_id: offeringRows.length && offeringRows.every((row) => row.academic_term_id === offeringRows[0].academic_term_id) ? offeringRows[0].academic_term_id : null,
       created_at: now,
       updated_at: now,
     });
-    if (error) return { ok: false, error: error.message };
-    await supabase.from("exam_proctor_policies").upsert({ session_id: id, camera_required: input.cameraRequired, updated_at: now });
+    if (sessionError) return { ok: false, error: sessionError.message };
+
+    try {
+      if (subjectIds.length) {
+        const { error } = await ctx.admin.from("exam_subjects").insert(subjectIds.map((subjectId, position) => ({
+          session_id: id,
+          subject_id: subjectId,
+          subject_code: subjectRows[position]!.code,
+          position,
+        })));
+        if (error) throw error;
+      }
+      if (allClassIds.length) {
+        const { error } = await ctx.admin.from("exam_class_targets").insert(allClassIds.map((classId) => ({ session_id: id, class_id: classId })));
+        if (error) throw error;
+      }
+      if (offeringIds.length) {
+        const { error } = await ctx.admin.from("exam_offering_targets").insert(offeringIds.map((offeringId) => ({ session_id: id, offering_id: offeringId })));
+        if (error) throw error;
+      }
+      await ctx.admin.from("exam_staff_assignments").insert({ session_id: id, staff_profile_id: ctx.scope.profileId, role: "owner" });
+      await ctx.admin.from("exam_proctor_policies").upsert({ session_id: id, camera_required: input.cameraRequired, updated_at: now });
+    } catch (error) {
+      await ctx.admin.from("exam_sessions").delete().eq("id", id);
+      return { ok: false, error: error instanceof Error ? error.message : "Exam relationships could not be saved." };
+    }
     revalidatePath("/admin/exams");
     return { ok: true, id };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Create failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Create failed." };
   }
 }
 
@@ -145,142 +186,220 @@ export async function updateExamAction(
 ): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Outside your subject scope." };
-    const { error } = await supabase
-      .from("exam_sessions")
-      .update({
-        title: patch.title.trim().slice(0, 72),
-        duration_seconds: patch.durationSeconds,
-        question_count: patch.questionCount,
-        instructions: patch.instructions.slice(0, 140),
-        status: patch.status,
-        warn_after: patch.warnAfter,
-        updated_at: Date.now(),
-      })
-      .eq("id", id);
+    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
+    if (patch.status === "open") {
+      const [{ count: subjects }, { count: offerings }] = await Promise.all([
+        ctx.admin.from("exam_subjects").select("subject_id", { count: "exact", head: true }).eq("session_id", id).not("subject_id", "is", null),
+        ctx.admin.from("exam_offering_targets").select("offering_id", { count: "exact", head: true }).eq("session_id", id),
+      ]);
+      if ((subjects ?? 0) > 0 && (offerings ?? 0) === 0) return { ok: false, error: "Subject exams require at least one explicit class subject offering before opening." };
+    }
+    const now = Date.now();
+    const { error } = await ctx.admin.from("exam_sessions").update({
+      title: patch.title.trim().slice(0, 72),
+      duration_seconds: patch.durationSeconds,
+      question_count: patch.questionCount,
+      instructions: patch.instructions.slice(0, 140),
+      status: patch.status,
+      warn_after: patch.warnAfter,
+      updated_at: now,
+    }).eq("id", id);
     if (error) return { ok: false, error: error.message };
-    await supabase.from("exam_proctor_policies").upsert({ session_id: id, camera_required: patch.cameraRequired, updated_at: Date.now() });
+    await ctx.admin.from("exam_proctor_policies").upsert({ session_id: id, camera_required: patch.cameraRequired, updated_at: now });
     revalidatePath("/admin/exams");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
   }
 }
 
 export async function setExamStatusAction(id: string, status: "open" | "draft" | "closed"): Promise<ActionResult> {
-  try {
-    const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Outside your subject scope." };
-    const { error } = await supabase.from("exam_sessions").update({ status, updated_at: Date.now() }).eq("id", id);
-    if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
-  }
+  const detail = await getExamDetailAction(id);
+  const session = detail.session as { title?: string; duration_seconds?: number; question_count?: number; instructions?: string; warn_after?: number } | null;
+  if (!session) return { ok: false, error: "Exam not found or outside your scope." };
+  return updateExamAction(id, {
+    title: String(session.title ?? "Exam"),
+    durationSeconds: Number(session.duration_seconds ?? 3600),
+    questionCount: Number(session.question_count ?? 50),
+    instructions: String(session.instructions ?? ""),
+    status,
+    cameraRequired: detail.cameraRequired ?? false,
+    warnAfter: Number(session.warn_after ?? 2),
+  });
 }
 
 export async function duplicateExamAction(id: string): Promise<ActionResult & { id?: string }> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    const src = await scopedSession(ctx, id);
-    if (!src) return { ok: false, error: "Exam not found or outside your scope." };
-    const now = Date.now();
-    const nextId = examId();
-    const row = src as Record<string, unknown>;
-    const { error } = await supabase.from("exam_sessions").insert({ ...row, id: nextId, title: `${String(row.title)} (copy)`.slice(0, 72), status: "draft", created_at: now, updated_at: now });
-    if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
-    return { ok: true, id: nextId };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Duplicate failed." };
+    const source = await scopedSession(ctx, id);
+    if (!source) return { ok: false, error: "Exam not found or outside your scope." };
+    const [{ data: subjects }, { data: offerings }, { data: classes }, { data: policy }] = await Promise.all([
+      ctx.admin.from("exam_subjects").select("subject_id").eq("session_id", id).not("subject_id", "is", null).order("position"),
+      ctx.admin.from("exam_offering_targets").select("offering_id").eq("session_id", id),
+      ctx.admin.from("exam_class_targets").select("class_id").eq("session_id", id),
+      ctx.admin.from("exam_proctor_policies").select("camera_required").eq("session_id", id).maybeSingle(),
+    ]);
+    const row = source as Record<string, unknown>;
+    return createExamAction({
+      title: `${String(row.title)} (copy)`.slice(0, 72),
+      classLevel: row.class_level as ExamWizardInput["classLevel"],
+      mode: row.mode as ExamWizardInput["mode"],
+      subjectIds: ((subjects ?? []) as { subject_id: string }[]).map((item) => item.subject_id),
+      offeringIds: ((offerings ?? []) as { offering_id: string }[]).map((item) => item.offering_id),
+      classIds: ((classes ?? []) as { class_id: string }[]).map((item) => item.class_id),
+      durationSeconds: Number(row.duration_seconds),
+      questionCount: Number(row.question_count),
+      status: "draft",
+      instructions: String(row.instructions ?? ""),
+      cameraRequired: Boolean((policy as { camera_required?: boolean } | null)?.camera_required),
+      warnAfter: Number(row.warn_after ?? 2),
+    });
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Duplicate failed." };
   }
 }
 
 export async function deleteExamAction(id: string): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Outside your subject scope." };
-    const { error } = await supabase.from("exam_sessions").delete().eq("id", id);
+    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
+    const { error } = await ctx.admin.from("exam_sessions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/exams");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Delete failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
   }
 }
 
-// ---------------------------------------------------------------- users
+// ---------------------------------------------------------------- students
 export async function upsertUserAction(input: { id?: string; fullName: string; role: string; classId?: string; guardian?: string }): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    // Teachers manage students only — never staff.
-    const role = ctx.isAdmin ? input.role : "student";
-    if (!ctx.isAdmin && input.id) {
-      const { data: existing } = await supabase.from("users").select("role").eq("id", input.id).maybeSingle();
-      if ((existing as { role: string } | null)?.role !== "student") return { ok: false, error: "Teachers manage students only." };
-    }
+    if (input.role !== "student") return { ok: false, error: "Staff accounts are provisioned from Staff management." };
+    if (input.classId && !(await teacherMayManageClass(ctx, input.classId))) return { ok: false, error: "You are not assigned to this class." };
     const parts = input.fullName.trim().split(/\s+/);
-    const first = parts[0] ?? "";
-    const last = parts.slice(1).join(" ") || first;
-    if (first.length < 2) return { ok: false, error: "Enter a valid name." };
-    const row = {
+    const firstName = parts[0] ?? "";
+    const lastName = parts.slice(1).join(" ") || firstName;
+    if (firstName.length < 2) return { ok: false, error: "Enter a valid name." };
+
+    let legacyId = input.id ?? `ST-${Date.now().toString(36).toUpperCase()}`;
+    let profileId: string | null = null;
+    if (input.id) {
+      const { data: profile } = await ctx.admin.from("academic_profiles").select("id").eq("legacy_user_id", input.id).eq("role", "student").maybeSingle();
+      profileId = (profile as { id?: string } | null)?.id ?? null;
+      if (!profileId) return { ok: false, error: "Student academic profile was not found." };
+    }
+    if (!profileId) profileId = randomUUID();
+
+    const legacyRow = {
+      id: legacyId,
       full_name: input.fullName.trim(),
-      first_name: first,
-      last_name: last,
-      role,
+      first_name: firstName,
+      last_name: lastName,
+      role: "student",
       class_id: input.classId || null,
       guardian: input.guardian ?? "",
       academic_session: "2026/2027",
       joined_at: Date.now(),
+      status: "active",
+      promotion_status: "on-track",
     };
-    const { error } = input.id
-      ? await supabase.from("users").update(row).eq("id", input.id)
-      : await supabase.from("users").insert({ ...row, id: `ST-${Date.now().toString(36).toUpperCase()}`, status: "active", promotion_status: "on-track" });
-    if (error) return { ok: false, error: error.message };
+    const legacyWrite = input.id
+      ? await ctx.admin.from("users").update(legacyRow).eq("id", legacyId)
+      : await ctx.admin.from("users").insert(legacyRow);
+    if (legacyWrite.error) return { ok: false, error: legacyWrite.error.message };
+
+    const { error: profileError } = await ctx.admin.from("academic_profiles").upsert({
+      id: profileId,
+      legacy_user_id: legacyId,
+      role: "student",
+      status: "active",
+      full_name: input.fullName.trim(),
+      first_name: firstName,
+      last_name: lastName,
+      updated_at: new Date().toISOString(),
+    });
+    if (profileError) return { ok: false, error: profileError.message };
+    const { error: studentError } = await ctx.admin.from("student_academic_profiles").upsert({
+      profile_id: profileId,
+      guardian: input.guardian ?? "",
+      updated_at: new Date().toISOString(),
+    });
+    if (studentError) return { ok: false, error: studentError.message };
+
+    if (input.classId) {
+      const { data: classRow } = await ctx.admin.from("classes").select("academic_session").eq("id", input.classId).maybeSingle();
+      const yearName = (classRow as { academic_session?: string } | null)?.academic_session;
+      const { data: year } = yearName ? await ctx.admin.from("academic_years").select("id").eq("name", yearName).maybeSingle() : { data: null };
+      const yearId = (year as { id?: string } | null)?.id;
+      if (!yearId) return { ok: false, error: "Class academic year is not configured." };
+      await ctx.admin.from("class_enrollments").update({ status: "ended", ended_at: new Date().toISOString() }).eq("student_profile_id", profileId).eq("status", "active").neq("class_id", input.classId);
+      const { error: enrollmentError } = await ctx.admin.from("class_enrollments").upsert({
+        student_profile_id: profileId,
+        class_id: input.classId,
+        academic_year_id: yearId,
+        status: "active",
+        ended_at: null,
+      }, { onConflict: "student_profile_id,class_id,academic_year_id" });
+      if (enrollmentError) return { ok: false, error: enrollmentError.message };
+    }
     revalidatePath("/admin/students");
-    revalidatePath("/admin/staff");
+    revalidatePath("/admin/classes");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
   }
 }
 
 export async function toggleUserAction(id: string, active: boolean): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!ctx.isAdmin) {
-      const { data: existing } = await supabase.from("users").select("role").eq("id", id).maybeSingle();
-      if ((existing as { role: string } | null)?.role !== "student") return { ok: false, error: "Teachers manage students only." };
+    const { data: profile } = await ctx.admin.from("academic_profiles").select("id,role").eq("legacy_user_id", id).maybeSingle();
+    const row = profile as { id: string; role: string } | null;
+    if (!row || row.role !== "student") return { ok: false, error: "Student not found." };
+    if (!ctx.scope.isAdmin) {
+      const { data: enrollment } = await ctx.admin.from("class_enrollments").select("class_id").eq("student_profile_id", row.id).eq("status", "active").limit(1).maybeSingle();
+      const classId = (enrollment as { class_id?: string } | null)?.class_id;
+      if (!classId || !(await teacherMayManageClass(ctx, classId))) return { ok: false, error: "Student is outside your assigned classes." };
     }
-    const { error } = await supabase.from("users").update({ status: active ? "active" : "inactive" }).eq("id", id);
-    if (error) return { ok: false, error: error.message };
+    const status = active ? "active" : "inactive";
+    const [{ error: profileError }, { error: legacyError }] = await Promise.all([
+      ctx.admin.from("academic_profiles").update({ status, updated_at: new Date().toISOString() }).eq("id", row.id),
+      ctx.admin.from("users").update({ status }).eq("id", id),
+    ]);
+    if (profileError || legacyError) return { ok: false, error: profileError?.message ?? legacyError?.message };
     revalidatePath("/admin/students");
-    revalidatePath("/admin/staff");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
   }
 }
 
-// ---------------------------------------------------------------- classes + whatsapp
-export async function upsertClassAction(input: { id?: string; classLevel: string; stream: string; arm: string; capacity: number; room: string }): Promise<ActionResult> {
+// --------------------------------------------------------- classes/offerings
+export async function upsertClassAction(input: { id?: string; classLevel: string; programmeId?: string; stream?: string; arm: string; capacity: number; room: string }): Promise<ActionResult> {
   try {
-    const supabase = await requireAdmin();
+    const ctx = await requireAdmin();
     const arm = input.arm.trim().toUpperCase().slice(0, 4) || "A";
-    const id = input.id ?? `${input.classLevel.toLowerCase()}-${input.stream.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${arm.toLowerCase()}-${Date.now().toString(36)}`;
-    const { error } = await supabase.from("classes").upsert({
+    const { data: level } = await ctx.admin.from("academic_levels").select("id,name").eq("name", input.classLevel).eq("active", true).maybeSingle();
+    const levelRow = level as { id: string; name: string } | null;
+    if (!levelRow) return { ok: false, error: "Academic level is not configured." };
+    let programme: { id: string; name: string } | null = null;
+    if (input.programmeId) {
+      const { data } = await ctx.admin.from("academic_programmes").select("id,name").eq("id", input.programmeId).eq("active", true).maybeSingle();
+      programme = data as { id: string; name: string } | null;
+      if (!programme) return { ok: false, error: "Programme is unavailable." };
+    }
+    const id = input.id ?? `${input.classLevel.toLowerCase()}-${arm.toLowerCase()}-${Date.now().toString(36)}`;
+    const programmeName = programme?.name ?? "General";
+    const { error } = await ctx.admin.from("classes").upsert({
       id,
       class_level: input.classLevel,
-      name: `${input.classLevel} ${input.stream} ${arm}`,
-      stream: input.stream,
-      grp: input.stream,
+      level_id: levelRow.id,
+      programme_id: programme?.id ?? null,
+      name: `${input.classLevel} ${arm}`,
+      stream: programmeName,
+      grp: programmeName,
       arm,
       capacity: input.capacity,
       room: input.room,
@@ -290,402 +409,449 @@ export async function upsertClassAction(input: { id?: string; classLevel: string
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/classes");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
+  }
+}
+
+export async function upsertClassOfferingAction(input: { id?: string; classId: string; subjectId: string; academicYearId: string; academicTermId?: string; participation: "required" | "elective"; status: "draft" | "active" | "ended" }): Promise<ActionResult & { id?: string }> {
+  try {
+    const ctx = await requireAdmin();
+    const id = input.id ?? randomUUID();
+    const { error } = await ctx.admin.from("class_subject_offerings").upsert({
+      id,
+      class_id: input.classId,
+      subject_id: input.subjectId,
+      academic_year_id: input.academicYearId,
+      academic_term_id: input.academicTermId || null,
+      participation: input.participation,
+      status: input.status,
+      source: "explicit",
+      updated_at: new Date().toISOString(),
+    });
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/admin/classes");
+    return { ok: true, id };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Offering save failed." };
+  }
+}
+
+export async function deleteClassOfferingAction(id: string): Promise<ActionResult> {
+  try {
+    const ctx = await requireAdmin();
+    const { count } = await ctx.admin.from("exam_offering_targets").select("session_id", { count: "exact", head: true }).eq("offering_id", id);
+    if ((count ?? 0) > 0) return { ok: false, error: "This offering is used by an examination. End it instead of deleting it." };
+    const { error } = await ctx.admin.from("class_subject_offerings").delete().eq("id", id);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/admin/classes");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Offering delete failed." };
   }
 }
 
 export async function deleteClassAction(id: string): Promise<ActionResult> {
   try {
-    const supabase = await requireAdmin();
-    const { error } = await supabase.from("classes").delete().eq("id", id);
+    const ctx = await requireAdmin();
+    const { count } = await ctx.admin.from("class_enrollments").select("id", { count: "exact", head: true }).eq("class_id", id).eq("status", "active");
+    if ((count ?? 0) > 0) return { ok: false, error: "Move active students before deleting this class." };
+    const { error } = await ctx.admin.from("classes").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/classes");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Delete failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
   }
 }
 
+// --------------------------------------------------------------- WhatsApp
 export async function upsertWhatsappAction(input: { id?: string; classId: string; name: string; inviteUrl: string }): Promise<ActionResult> {
   try {
-    const supabase = await requireAdmin();
-    if (!/^https:\/\/(chat\.whatsapp\.com|www\.whatsapp\.com)\//.test(input.inviteUrl)) {
-      return { ok: false, error: "Enter a valid WhatsApp invite link." };
-    }
+    const ctx = await requireAdmin();
+    if (!/^https:\/\/(chat\.whatsapp\.com|www\.whatsapp\.com)\//.test(input.inviteUrl)) return { ok: false, error: "Enter a valid WhatsApp invite link." };
     const now = Date.now();
-    const { error } = input.id
-      ? await supabase.from("whatsapp_groups").update({ class_id: input.classId, name: input.name, invite_url: input.inviteUrl, updated_at: now }).eq("id", input.id)
-      : await supabase.from("whatsapp_groups").insert({ id: `WA-${Date.now().toString(36).toUpperCase()}`, class_id: input.classId, name: input.name, invite_url: input.inviteUrl, created_at: now, updated_at: now });
-    if (error) return { ok: false, error: error.message };
+    const write = input.id
+      ? await ctx.admin.from("whatsapp_groups").update({ class_id: input.classId, name: input.name, invite_url: input.inviteUrl, updated_at: now }).eq("id", input.id)
+      : await ctx.admin.from("whatsapp_groups").insert({ id: `WA-${Date.now().toString(36).toUpperCase()}`, class_id: input.classId, name: input.name, invite_url: input.inviteUrl, created_at: now, updated_at: now });
+    if (write.error) return { ok: false, error: write.error.message };
     revalidatePath("/admin/classes");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
   }
 }
 
 export async function deleteWhatsappAction(id: string): Promise<ActionResult> {
   try {
-    const supabase = await requireAdmin();
-    const { error } = await supabase.from("whatsapp_groups").delete().eq("id", id);
+    const ctx = await requireAdmin();
+    const { error } = await ctx.admin.from("whatsapp_groups").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/classes");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Delete failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
   }
 }
 
-// ---------------------------------------------------------------- questions
-export async function upsertQuestionAction(input: { subject: string; subjectCode: string; kind: string; prompt: string; options: string[]; correct: string; levels: string[] }): Promise<ActionResult> {
-  try {
-    const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!questionSubjectVisibleTo(input.subjectCode, ctx)) {
-      return { ok: false, error: "Outside your subject scope." };
-    }
-    if (!input.prompt.trim()) return { ok: false, error: "Enter the question prompt." };
-    const { data: maxRow } = await supabase.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle();
-    const nextId = Number((maxRow as { id: number } | null)?.id ?? 0) + 1;
-    const { data: subject } = await supabase.from("subjects").select("name").eq("code", input.subjectCode).maybeSingle();
-    const { error } = await supabase.from("questions").insert({
-      id: nextId,
-      subject_code: input.subjectCode,
-      subject_name: (subject as { name: string } | null)?.name ?? input.subject,
-      label: input.subject || input.subjectCode,
-      qtype: "single",
-      prompt: input.prompt,
-      options: input.options.filter(Boolean),
-      correct_answers: [input.correct],
-      levels: input.levels.length ? input.levels : ["SS1", "SS2", "SS3"],
-      exam_modes: ["single", "mixed", "waec", "qualifier", "bece", "neco", "jamb"],
-      difficulty: "medium",
-      created_by: ctx.isAdmin ? null : ctx.staffId,
-      updated_at: Date.now(),
-    });
-    if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/questions");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+// --------------------------------------------------------------- questions
+export async function upsertQuestionAction(input: { subject: string; subjectId: string; kind: string; prompt: string; options: string[]; correct: string; levels: string[] }): Promise<ActionResult> {
+  const result = await upsertQuestionCore({ subjectId: input.subjectId, kind: input.kind, prompt: input.prompt, options: input.options, correctAnswers: [input.correct], levels: input.levels });
+  return result;
+}
+
+async function upsertQuestionCore(input: { id?: number; subjectId: string; kind: string; prompt: string; options: string[]; correctAnswers: string[]; levels: string[]; fillTemplate?: string | null; difficulty?: string; domain?: string; explanation?: string; blanks?: { position: number; accepted: string[] }[] }): Promise<ActionResult & { id?: number }> {
+  const ctx = await requireStaff();
+  if (!questionSubjectVisibleTo(input.subjectId, ctx.scope)) return { ok: false, error: "Outside your subject scope." };
+  const subject = await subjectCompatibilityCode(ctx.admin, input.subjectId);
+  if (!subject) return { ok: false, error: "Subject not found." };
+  let existing: { created_by_profile_id: string | null } | null = null;
+  if (input.id !== undefined) {
+    const { data } = await ctx.admin.from("questions").select("created_by_profile_id").eq("id", input.id).maybeSingle();
+    existing = data as { created_by_profile_id: string | null } | null;
+    if (!existing) return { ok: false, error: "Question not found." };
+    if (!ctx.scope.isAdmin && existing.created_by_profile_id !== ctx.scope.profileId) return { ok: false, error: "Teachers can edit only questions they authored." };
   }
+  const id = input.id ?? Number((await ctx.admin.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle()).data?.id ?? 0) + 1;
+  const row = {
+    id,
+    subject_id: input.subjectId,
+    subject_code: subject.code,
+    subject_name: subject.name,
+    label: subject.name,
+    qtype: input.kind,
+    prompt: input.prompt.trim(),
+    options: input.options.filter(Boolean),
+    correct_answers: input.correctAnswers,
+    fill_template: input.fillTemplate ?? null,
+    instruction: "",
+    levels: input.levels.length ? input.levels : ["SS1", "SS2", "SS3"],
+    exam_modes: ["single", "mixed", "waec", "qualifier", "bece", "neco", "jamb"],
+    difficulty: input.difficulty ?? "medium",
+    domain: input.domain ?? "",
+    explanation: input.explanation ?? "",
+    created_by_profile_id: existing?.created_by_profile_id ?? ctx.scope.profileId,
+    created_by: ctx.scope.staffId,
+    created_at: input.id === undefined ? new Date().toISOString() : undefined,
+    updated_at: Date.now(),
+  };
+  const write = input.id === undefined ? await ctx.admin.from("questions").insert(row) : await ctx.admin.from("questions").update(row).eq("id", id);
+  if (write.error) return { ok: false, error: write.error.message };
+  if (input.blanks) {
+    await ctx.admin.from("question_blanks").delete().eq("question_id", id);
+    if (input.blanks.length) {
+      const { error } = await ctx.admin.from("question_blanks").insert(input.blanks.map((blank) => ({ question_id: id, position: blank.position, blank_key: `b${blank.position}`, placeholder: `Answer ${blank.position + 1}`, accepted: blank.accepted })));
+      if (error) return { ok: false, error: error.message };
+    }
+  }
+  revalidatePath("/admin/questions");
+  return { ok: true, id };
 }
 
 export async function deleteQuestionAction(id: number): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    const { data } = await supabase.from("questions").select("subject_code,created_by").eq("id", id).maybeSingle();
-    const q = data as { subject_code: string; created_by: string | null } | null;
-    if (!q) return { ok: false, error: "Question not found." };
-    // Bank-seeded rows (created_by null) are admin-managed; teachers remove
-    // only rows they created — replaces the old origin flag.
-    if (!ctx.isAdmin && q.created_by !== ctx.staffId) return { ok: false, error: "Only your own questions can be deleted." };
-    if (!questionSubjectVisibleTo(q.subject_code, ctx)) return { ok: false, error: "Outside your subject scope." };
-    const { error } = await supabase.from("questions").delete().eq("id", id);
+    const { data } = await ctx.admin.from("questions").select("subject_id,created_by_profile_id").eq("id", id).maybeSingle();
+    const question = data as { subject_id: string | null; created_by_profile_id: string | null } | null;
+    if (!question?.subject_id) return { ok: false, error: "Question not found." };
+    if (!questionSubjectVisibleTo(question.subject_id, ctx.scope)) return { ok: false, error: "Outside your subject scope." };
+    if (!ctx.scope.isAdmin && question.created_by_profile_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
+    const { error } = await ctx.admin.from("questions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/questions");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Delete failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
   }
 }
 
 export async function syncQuestionBankAction(): Promise<ActionResult & { count?: number }> {
-  // Insert-only sync: new seed rows are added, locally edited rows are never
-  // overwritten (replaces the old override-patch system).
   try {
-    const supabase = await requireAdmin();
+    const ctx = await requireAdmin();
     const file = await readFile(path.join(process.cwd(), "public", "seed", "questions.json"), "utf8");
     const parsed = JSON.parse(file) as { questions?: unknown[] } | unknown[];
     const list = (Array.isArray(parsed) ? parsed : parsed.questions ?? []) as Record<string, unknown>[];
     if (!list.length) return { ok: false, error: "Seed file has no questions." };
-    const { data: existing } = await supabase.from("questions").select("id");
-    const have = new Set(((existing ?? []) as { id: number }[]).map((r) => Number(r.id)));
-    const fresh = list.filter((q) => !have.has(Number(q.id)));
-    const toRow = (q: Record<string, unknown>) => {
-      const type = String(q.type ?? "single");
-      const answer = q.answer as unknown;
-      const answers = q.answers as unknown;
-      const correct = type === "boolean"
-        ? [String(answer)]
-        : Array.isArray(answers) ? answers.map(String)
-        : Array.isArray(answer) ? answer.map(String)
-        : answer !== undefined ? [String(answer)] : [];
-      const levels = Array.isArray(q.levels) ? (q.levels as unknown[]).map(String) : ["SS1", "SS2", "SS3"];
-      const modes = Array.isArray(q.examModes) ? (q.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
-      const template = q.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
-      let bi = 0;
-      const templateParts = (template ?? []).map((p) => {
-        if (p.blank === undefined) return { text: p.text ?? "" };
-        const out = { blank: p.blank, placeholder: p.placeholder ?? "", pos: bi };
-        bi += 1;
-        return out;
+    const aliases = [...new Set(list.map((item) => String(item.subjectCode ?? "")).filter(Boolean))];
+    const { data: aliasRows } = await ctx.admin.from("subject_legacy_aliases").select("alias,subject_id").in("alias", aliases);
+    const aliasMap = new Map(((aliasRows ?? []) as { alias: string; subject_id: string }[]).map((row) => [row.alias, row.subject_id]));
+    const unresolved = aliases.filter((alias) => !aliasMap.has(alias));
+    if (unresolved.length) return { ok: false, error: `Resolve legacy subject aliases before syncing: ${unresolved.join(", ")}.` };
+    const { data: subjectRows } = await ctx.admin.from("subjects").select("id,code,name").in("id", [...new Set(aliasMap.values())]);
+    const subjects = new Map(((subjectRows ?? []) as { id: string; code: string; name: string }[]).map((row) => [row.id, row]));
+    const { data: existing } = await ctx.admin.from("questions").select("id");
+    const have = new Set(((existing ?? []) as { id: number }[]).map((row) => Number(row.id)));
+    const fresh = list.filter((question) => !have.has(Number(question.id)));
+    const rows: Record<string, unknown>[] = [];
+    const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
+    for (const question of fresh) {
+      const alias = String(question.subjectCode ?? "");
+      const subjectId = aliasMap.get(alias)!;
+      const subject = subjects.get(subjectId);
+      if (!subject) return { ok: false, error: `Subject for alias ${alias} is unavailable.` };
+      const type = String(question.type ?? "single");
+      const rawAnswer = question.answer as unknown;
+      const rawAnswers = question.answers as unknown;
+      const correct = type === "boolean" ? [String(rawAnswer)] : Array.isArray(rawAnswers) ? rawAnswers.map(String) : Array.isArray(rawAnswer) ? rawAnswer.map(String) : rawAnswer !== undefined ? [String(rawAnswer)] : [];
+      const levels = Array.isArray(question.levels) ? (question.levels as unknown[]).map(String) : ["SS1", "SS2", "SS3"];
+      const modes = Array.isArray(question.examModes) ? (question.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
+      const template = question.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
+      let position = 0;
+      let fillTemplate: string | null = null;
+      if (template) {
+        fillTemplate = template.map((part) => {
+          if (part.blank === undefined) return part.text ?? "";
+          const marker = `{{${position}}}`;
+          const source = Array.isArray(question.acceptedAnswers) ? (question.acceptedAnswers as unknown[])[position] : undefined;
+          blanks.push({ question_id: Number(question.id), position, blank_key: String(part.blank || `b${position}`), placeholder: String(part.placeholder ?? ""), accepted: Array.isArray(source) ? source.map(String) : source !== undefined ? [String(source)] : [] });
+          position += 1;
+          return marker;
+        }).join("");
+      }
+      rows.push({
+        id: Number(question.id), subject_id: subjectId, subject_code: subject.code, subject_name: subject.name,
+        label: String(question.label ?? subject.name), qtype: type, prompt: String(question.prompt ?? ""),
+        options: Array.isArray(question.options) ? (question.options as unknown[]).map(String) : [],
+        correct_answers: type === "fill" || type === "fill-multi" ? [] : correct, fill_template: fillTemplate,
+        instruction: String(question.instruction ?? ""), levels, exam_modes: modes,
+        difficulty: String(question.difficulty ?? "medium"), domain: String(question.domain ?? ""), explanation: String(question.explanation ?? ""),
+        created_by: null, created_by_profile_id: null, updated_at: Date.now(),
       });
-      return {
-        id: Number(q.id),
-        subject_code: String(q.subjectCode ?? ""),
-        subject_name: String(q.subject ?? ""),
-        label: String(q.label ?? ""),
-        qtype: type,
-        prompt: String(q.prompt ?? ""),
-        options: Array.isArray(q.options) ? (q.options as unknown[]).map(String) : [],
-        correct_answers: type === "fill" || type === "fill-multi" ? [] : correct,
-        fill_template: template ? templateParts.map((p) => ("pos" in p ? `{{${p.pos}}}` : (p.text ?? ""))).join("") : null,
-        instruction: String(q.instruction ?? ""),
-        levels, exam_modes: modes,
-        difficulty: String(q.difficulty ?? "medium"),
-        domain: String(q.domain ?? ""),
-        explanation: String(q.explanation ?? ""),
-        created_by: null,
-        updated_at: Date.now(),
-        _template: templateParts.filter((p) => "pos" in p) as { blank: string; placeholder: string; pos: number }[],
-      };
-    };
-    const rows = fresh.map(toRow);
-    const rowById = new Map(rows.map((r) => [r.id, r]));
-    for (let i = 0; i < rows.length; i += 200) {
-      const chunk = rows.slice(i, i + 200).map(({ _template, ...r }) => r);
-      const { error } = await supabase.from("questions").insert(chunk);
+    }
+    for (let index = 0; index < rows.length; index += 200) {
+      const { error } = await ctx.admin.from("questions").insert(rows.slice(index, index + 200));
       if (error) return { ok: false, error: error.message };
     }
-    // Blanks for new fill questions: acceptedAnswers indexed by blank order
-    // (flat strings for fill, arrays per blank for fill-multi).
-    const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
-    for (const q of fresh) {
-      const row = rowById.get(Number(q.id));
-      const t = row?._template;
-      if (!row || !t) continue;
-      const source = q.acceptedAnswers as unknown;
-      const perBlank = Array.isArray(source) ? (source as unknown[]) : [];
-      let pos = 0;
-      for (const part of t) {
-        const raw = perBlank[pos];
-        const list = Array.isArray(raw) ? raw.map(String) : raw !== undefined ? [String(raw)] : [];
-        blanks.push({ question_id: row.id, position: pos, blank_key: String(part.blank), placeholder: String(part.placeholder ?? ""), accepted: list });
-        pos += 1;
-      }
-    }
-    for (let i = 0; i < blanks.length; i += 200) {
-      const { error } = await supabase.from("question_blanks").insert(blanks.slice(i, i + 200));
+    for (let index = 0; index < blanks.length; index += 200) {
+      const { error } = await ctx.admin.from("question_blanks").insert(blanks.slice(index, index + 200));
       if (error) return { ok: false, error: error.message };
     }
     revalidatePath("/admin/questions");
     return { ok: true, count: rows.length };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Sync failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Sync failed." };
   }
 }
 
-// ---------------------------------------------------------------- attempts
-async function scopedAttempt(ctx: StaffContext, attemptHash: string) {
-  const { data } = await ctx.supabase.from("exam_attempts").select("session_id").eq("attempt_hash", attemptHash).maybeSingle();
-  const sid = (data as { session_id: string | null } | null)?.session_id;
-  if (!sid) return null;
-  return scopedSession(ctx, sid);
+// --------------------------------------------------------------- attempts
+export async function resetUnfinishedAttemptAction(): Promise<ActionResult> {
+  return { ok: false, error: "Attempt reset has been removed. Preserve the attempt and use an explicit retake grant when another attempt is required." };
 }
 
-export async function resetUnfinishedAttemptAction(sessionId: string, candidateHash: string): Promise<ActionResult> {
+export async function authorizeRewriteAction(attemptKey: string): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!(await scopedSession(ctx, sessionId))) return { ok: false, error: "Outside your subject scope." };
-    const { error } = await supabase.from("exam_states").delete().eq("session_id", sessionId).eq("candidate_hash", candidateHash);
+    const { data } = await ctx.supabase.from("exam_attempts").select("attempt_uuid,session_id,student_profile_id").or(`attempt_uuid.eq.${attemptKey},attempt_hash.eq.${attemptKey}`).maybeSingle();
+    const attempt = data as { attempt_uuid: string; session_id: string | null; student_profile_id: string | null } | null;
+    if (!attempt?.session_id || !attempt.student_profile_id) return { ok: false, error: "Attempt not found or outside your scope." };
+    const { error } = await ctx.supabase.rpc("grant_exam_retake", {
+      p_session_id: attempt.session_id,
+      p_student_profile_id: attempt.student_profile_id,
+      p_additional_attempts: 1,
+      p_reason: "Authorized from attempt review",
+    });
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/exams");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Reset failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Retake authorization failed." };
   }
 }
 
-export async function authorizeRewriteAction(attemptHash: string): Promise<ActionResult> {
-  try {
-    const ctx = await requireStaff();
-    const supabase = ctx.supabase;
-    if (!(await scopedAttempt(ctx, attemptHash))) return { ok: false, error: "Outside your subject scope." };
-    const { data } = await supabase.from("exam_attempts").select("session_id,candidate_hash").eq("attempt_hash", attemptHash).maybeSingle();
-    const row = data as { session_id: string | null; candidate_hash: string } | null;
-    if (!row?.session_id) return { ok: false, error: "Attempt not found." };
-    const now = Date.now();
-    const { error } = await supabase.from("exam_attempts").update({ rewrite_archived_at: now }).eq("attempt_hash", attemptHash);
-    if (error) return { ok: false, error: error.message };
-    await supabase.from("exam_states").delete().eq("session_id", row.session_id).eq("candidate_hash", row.candidate_hash);
-    await supabase.from("exam_reset_markers").upsert({ session_id: row.session_id, candidate_hash: row.candidate_hash, reset_at: now });
-    revalidatePath("/admin/exams");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Authorize failed." };
-  }
-}
-
-// ---------------------------------------------------------------- detail reads
-export async function getExamDetailAction(examId: string) {
+// ------------------------------------------------------------- detail reads
+export async function getExamDetailAction(examIdValue: string) {
   const ctx = await requireStaff();
-  const supabase = ctx.supabase;
-  if (!(await scopedSession(ctx, examId))) return { session: null, attempts: [] };
-  const [{ data: session }, { data: attempts }] = await Promise.all([
-    supabase.from("exam_sessions").select("*").eq("id", examId).maybeSingle(),
-    supabase.from("exam_attempts").select("attempt_hash,student_name,score,submitted_at,started_at").eq("session_id", examId).order("created_at", { ascending: false }).limit(100),
+  const examIdValueNormalized = examIdValue.toUpperCase();
+  const session = await scopedSession(ctx, examIdValueNormalized);
+  if (!session) return { session: null, attempts: [], cameraRequired: false };
+  const [{ data: attempts }, { data: subjects }, { data: offerings }, { data: classes }, { data: policy }] = await Promise.all([
+    ctx.supabase.from("exam_attempts").select("attempt_uuid,attempt_hash,student_profile_id,student_name,score,submitted_at,started_at,attempt_number").eq("session_id", examIdValueNormalized).order("created_at", { ascending: false }).limit(100),
+    ctx.supabase.from("exam_subjects").select("subject_id,position").eq("session_id", examIdValueNormalized).not("subject_id", "is", null).order("position"),
+    ctx.supabase.from("exam_offering_targets").select("offering_id").eq("session_id", examIdValueNormalized),
+    ctx.supabase.from("exam_class_targets").select("class_id").eq("session_id", examIdValueNormalized),
+    ctx.supabase.from("exam_proctor_policies").select("camera_required").eq("session_id", examIdValueNormalized).maybeSingle(),
   ]);
-  return { session, attempts: attempts ?? [] };
+  return { session, attempts: attempts ?? [], subjects: subjects ?? [], offerings: offerings ?? [], classes: classes ?? [], cameraRequired: Boolean((policy as { camera_required?: boolean } | null)?.camera_required) };
 }
 
 export async function getUserDetailAction(userId: string) {
   const ctx = await requireStaff();
-  const supabase = ctx.supabase;
-  const { data: user } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
-  if (!ctx.isAdmin && (user as { role: string } | null)?.role !== "student") {
-    return { user: null, attempts: [] };
-  }
-  const u = user as { first_name: string; last_name: string } | null;
-  let attempts: unknown[] = [];
-  if (u) {
-    const sHash = await studentHashFor(u.first_name, u.last_name);
-    const { data } = await supabase.from("exam_attempts").select("attempt_hash,session_title,score,integrity_score,submitted_at").eq("student_hash", sHash).order("created_at", { ascending: false }).limit(50);
-    attempts = data ?? [];
-  }
-  return { user, attempts };
+  const { data: profile } = await ctx.admin.from("academic_profiles").select("id,legacy_user_id,role,status,full_name,first_name,last_name,email").eq("legacy_user_id", userId).maybeSingle();
+  const person = profile as { id: string; legacy_user_id: string | null; role: string; status: string; full_name: string; first_name: string; last_name: string; email: string } | null;
+  if (!person) return { user: null, attempts: [] };
+  if (!ctx.scope.isAdmin && person.role !== "student") return { user: null, attempts: [] };
+  const [{ data: legacy }, { data: student }, { data: enrollment }, { data: attempts }] = await Promise.all([
+    person.legacy_user_id ? ctx.admin.from("users").select("*").eq("id", person.legacy_user_id).maybeSingle() : Promise.resolve({ data: null }),
+    person.role === "student" ? ctx.admin.from("student_academic_profiles").select("guardian,phone,promotion_status").eq("profile_id", person.id).maybeSingle() : Promise.resolve({ data: null }),
+    person.role === "student" ? ctx.admin.from("class_enrollments").select("class_id").eq("student_profile_id", person.id).eq("status", "active").limit(1).maybeSingle() : Promise.resolve({ data: null }),
+    person.role === "student" ? ctx.admin.from("exam_attempts").select("attempt_uuid,attempt_hash,session_title,score,integrity_score,submitted_at").eq("student_profile_id", person.id).order("created_at", { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
+  ]);
+  return {
+    user: { ...(legacy ?? {}), ...person, guardian: (student as { guardian?: string } | null)?.guardian ?? "", class_id: (enrollment as { class_id?: string } | null)?.class_id ?? null },
+    attempts: attempts ?? [],
+  };
 }
 
-export async function getAttemptDetailAction(attemptHash: string) {
+export async function getAttemptDetailAction(attemptKey: string) {
   const ctx = await requireStaff();
-  if (!(await scopedAttempt(ctx, attemptHash))) return { attempt: null, answers: [], stats: [], events: [] };
-  const supabase = ctx.supabase;
-  const [{ data: attempt }, { data: answers }, { data: stats }, { data: events }] = await Promise.all([
-    supabase.from("exam_attempts").select("*").eq("attempt_hash", attemptHash).maybeSingle(),
-    supabase.from("exam_attempt_answers").select("*").eq("attempt_hash", attemptHash).order("id"),
-    supabase.from("exam_attempt_subject_stats").select("*").eq("attempt_hash", attemptHash),
-    supabase.from("exam_integrity_events").select("type,detail,at").eq("attempt_hash", attemptHash).order("at"),
+  const { data: attempt } = await ctx.supabase.from("exam_attempts").select("*").or(`attempt_uuid.eq.${attemptKey},attempt_hash.eq.${attemptKey}`).maybeSingle();
+  const row = attempt as { attempt_uuid: string } | null;
+  if (!row) return { attempt: null, answers: [], stats: [], events: [] };
+  const [{ data: answers }, { data: stats }, { data: events }] = await Promise.all([
+    ctx.supabase.from("exam_attempt_answers").select("*").eq("attempt_uuid", row.attempt_uuid).order("id"),
+    ctx.supabase.from("exam_attempt_subject_stats").select("*").eq("attempt_uuid", row.attempt_uuid),
+    ctx.supabase.from("exam_integrity_events_v2").select("type,detail,at").eq("attempt_uuid", row.attempt_uuid).order("at"),
   ]);
   return { attempt, answers: answers ?? [], stats: stats ?? [], events: events ?? [] };
 }
 
 export async function getQuestionDetailAction(id: number) {
   const ctx = await requireStaff();
-  const supabase = ctx.supabase;
   const [{ data: question }, { data: blanks }] = await Promise.all([
-    supabase.from("questions").select("*").eq("id", id).maybeSingle(),
-    supabase.from("question_blanks").select("*").eq("question_id", id).order("position"),
+    ctx.admin.from("questions").select("*").eq("id", id).maybeSingle(),
+    ctx.admin.from("question_blanks").select("*").eq("question_id", id).order("position"),
   ]);
-  const q = question as { subject_code: string } | null;
-  if (q && !questionSubjectVisibleTo(q.subject_code, ctx)) return { question: null, blanks: [] };
+  const row = question as { subject_id: string | null } | null;
+  if (row?.subject_id && !questionSubjectVisibleTo(row.subject_id, ctx.scope)) return { question: null, blanks: [] };
   return { question, blanks: blanks ?? [] };
 }
 
 export async function isAdminAction(): Promise<boolean> {
-  try {
-    await requireAdmin();
-    return true;
-  } catch {
-    return false;
-  }
+  const current = await currentStaff();
+  return current.scope.isAdmin;
 }
 
-export async function getStaffListAction(): Promise<{ id: string; full_name: string; subjects: string[] }[]> {
-  const supabase = await requireAdmin();
-  const { data } = await supabase.from("users").select("id,full_name,subjects").in("role", ["teacher", "administrator"]).order("full_name").limit(200);
-  return ((data ?? []) as { id: string; full_name: string; subjects: string[] }[]).map((u) => ({ ...u, subjects: u.subjects ?? [] }));
+export async function getStaffListAction(): Promise<{ id: string; profile_id: string; full_name: string; subjectIds: string[] }[]> {
+  const ctx = await requireAdmin();
+  const { data: profiles } = await ctx.admin.from("academic_profiles").select("id,legacy_user_id,full_name").in("role", ["teacher", "administrator"]).eq("status", "active").order("full_name").limit(200);
+  const rows = (profiles ?? []) as { id: string; legacy_user_id: string | null; full_name: string }[];
+  const ids = rows.map((row) => row.id);
+  const { data: qualifications } = ids.length ? await ctx.admin.from("staff_subject_qualifications").select("staff_profile_id,subject_id").in("staff_profile_id", ids).eq("active", true).not("subject_id", "is", null) : { data: [] };
+  const byStaff = new Map<string, string[]>();
+  for (const item of ((qualifications ?? []) as { staff_profile_id: string; subject_id: string }[])) byStaff.set(item.staff_profile_id, [...(byStaff.get(item.staff_profile_id) ?? []), item.subject_id]);
+  return rows.map((row) => ({ id: row.legacy_user_id ?? row.id, profile_id: row.id, full_name: row.full_name, subjectIds: byStaff.get(row.id) ?? [] }));
 }
 
-export async function updateCohostsAction(examId: string, cohosts: string[]): Promise<ActionResult> {
+export async function updateCohostsAction(examIdValue: string, cohosts: string[]): Promise<ActionResult> {
   try {
-    const supabase = await requireAdmin();
-    const { error } = await supabase.from("exam_sessions").update({ cohosts, updated_at: Date.now() }).eq("id", examId);
-    if (error) return { ok: false, error: error.message };
+    const ctx = await requireAdmin();
+    const unique = [...new Set(cohosts.filter(Boolean))];
+    const { data: profiles } = unique.length ? await ctx.admin.from("academic_profiles").select("id,legacy_user_id").or(`id.in.(${unique.join(",")}),legacy_user_id.in.(${unique.join(",")})`) : { data: [] };
+    const profileIds = [...new Set(((profiles ?? []) as { id: string }[]).map((row) => row.id))];
+    await ctx.admin.from("exam_staff_assignments").delete().eq("session_id", examIdValue).eq("role", "cohost");
+    if (profileIds.length) {
+      const { error } = await ctx.admin.from("exam_staff_assignments").insert(profileIds.map((profileId) => ({ session_id: examIdValue, staff_profile_id: profileId, role: "cohost" })));
+      if (error) return { ok: false, error: error.message };
+    }
     revalidatePath("/admin/exams");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
   }
 }
 
 export async function getSubjectsAction(): Promise<string[]> {
-  // Legacy name kept for compatibility; catalog now lives in subjects.
-  const rows = await getActiveSubjectsAction();
-  return rows.map((r) => r.code);
+  return (await getActiveSubjectsAction()).map((row) => row.id);
 }
 
 export async function getSessionOptionsAction() {
   const ctx = await requireStaff();
-  const supabase = ctx.supabase;
-  const [{ data: classes }] = await Promise.all([supabase.from("classes").select("id,name,class_level").limit(100)]);
-  return { classes: (classes ?? []) as { id: string; name: string; class_level: string }[] };
+  const { data: classes } = await ctx.admin.from("classes").select("id,name,class_level,level_id,programme_id").eq("status", "active").limit(200);
+  return { classes: classes ?? [] };
 }
 
-// Teacher self-service: choose your major subject(s) after the admin creates
-// your account. qualifier_access stays admin-only (staff endpoint).
-export async function updateMySubjectsAction(subjects: string[]): Promise<ActionResult> {
+export async function updateMySubjectsAction(subjectIds: string[]): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    if (ctx.isAdmin || !ctx.staffId) return { ok: false, error: "Teachers only." };
-    const clean = [...new Set(subjects.map((s) => String(s).trim()).filter(Boolean))].slice(0, 12);
+    if (ctx.scope.isAdmin || !ctx.scope.profileId) return { ok: false, error: "Teachers only." };
+    const clean = [...new Set(subjectIds.filter(Boolean))].slice(0, 24);
     if (!clean.length) return { ok: false, error: "Choose at least one subject." };
-    const { error } = await ctx.supabase.from("users").update({ subjects: clean }).eq("id", ctx.staffId);
+    const valid = await ctx.admin.from("subjects").select("id,code").in("id", clean).eq("active", true);
+    const rows = (valid.data ?? []) as { id: string; code: string }[];
+    if (rows.length !== clean.length) return { ok: false, error: "One or more subjects are unavailable." };
+    await ctx.admin.from("staff_subject_qualifications").update({ active: false }).eq("staff_profile_id", ctx.scope.profileId);
+    const { error } = await ctx.admin.from("staff_subject_qualifications").upsert(rows.map((subject) => ({
+      staff_profile_id: ctx.scope.profileId,
+      subject_id: subject.id,
+      subject_code: subject.code,
+      active: true,
+    })), { onConflict: "staff_profile_id,subject_code" });
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin");
+    revalidatePath("/admin/staff");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
   }
 }
 
-export async function getMyScopeAction(): Promise<{ isAdmin: boolean; subjects: string[]; qualifierAccess: boolean }> {
-  const ctx = await requireStaff();
-  return { isAdmin: ctx.isAdmin, subjects: ctx.subjects, qualifierAccess: ctx.qualifierAccess };
+export async function getMyScopeAction(): Promise<{ isAdmin: boolean; subjectIds: string[]; qualifierAccess: boolean }> {
+  const current = await requireStaff();
+  return { isAdmin: current.scope.isAdmin, subjectIds: current.scope.subjectIds, qualifierAccess: current.scope.qualifierAccess };
 }
 
-// ------------------------------------------------------------ subjects
-export async function getActiveSubjectsAction(): Promise<{ code: string; name: string; streams: string[] }[]> {
+// --------------------------------------------------------------- subjects
+export async function getActiveSubjectsAction(): Promise<{ id: string; name: string; category: string }[]> {
   const ctx = await requireStaff();
-  const { data } = await ctx.supabase.from("subjects").select("code,name,streams").eq("active", true).order("name");
-  const rows = (data ?? []) as { code: string; name: string; streams: string[] }[];
-  if (rows.length) return rows;
-  // Fallback until the catalog is seeded: bank catalog + distinct codes.
-  const catalog = await getSubjectsAction();
-  return catalog.map((c) => ({ code: c, name: c, streams: [] }));
+  const { data } = await ctx.admin.from("subjects").select("id,name,category").eq("active", true).order("name");
+  return (data ?? []) as { id: string; name: string; category: string }[];
 }
 
 export async function seedSubjectsAction(): Promise<ActionResult & { count?: number }> {
   try {
-    const supabase = await requireAdmin();
+    const ctx = await requireAdmin();
     const { WAEC_SUBJECTS } = await import("@/lib/subjects-catalog");
     const now = Date.now();
-    const rows = WAEC_SUBJECTS.map((s) => ({ code: s.code, name: s.name, category: s.category, streams: s.streams, active: true, updated_at: now }));
-    const { error } = await supabase.from("subjects").upsert(rows);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, count: rows.length };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Seed failed." };
+    let count = 0;
+    for (const subject of WAEC_SUBJECTS) {
+      const normalized = subject.name.replace(/\s*\(legacy bank\)\s*/i, "").trim().toLocaleLowerCase("en");
+      const { data: existing } = await ctx.admin.from("subjects").select("id").eq("normalized_name", normalized).limit(1).maybeSingle();
+      if (existing) {
+        await ctx.admin.from("subject_legacy_aliases").upsert({ alias: subject.code, subject_id: (existing as { id: string }).id, source: "seed-alias" });
+        continue;
+      }
+      const id = randomUUID();
+      const compatibilityCode = `v2-${id}`;
+      const { error } = await ctx.admin.from("subjects").insert({ id, code: compatibilityCode, name: subject.name.replace(/\s*\(legacy bank\)\s*/i, "").trim(), normalized_name: normalized, category: subject.category, streams: [], active: true, updated_at: now });
+      if (error) return { ok: false, error: error.message };
+      await ctx.admin.from("subject_legacy_aliases").upsert({ alias: subject.code, subject_id: id, source: "seed-alias" });
+      count += 1;
+    }
+    revalidatePath("/admin/settings");
+    return { ok: true, count };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Seed failed." };
   }
 }
 
-export async function upsertSubjectAction(input: { code: string; name: string; category: string; streams: string[] }): Promise<ActionResult> {
+export async function upsertSubjectAction(input: { id?: string; name: string; category: string }): Promise<ActionResult & { id?: string }> {
   try {
-    const supabase = await requireAdmin();
-    const code = input.code.trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20);
-    if (!code || !input.name.trim()) return { ok: false, error: "Code and name are required." };
-    const { error } = await supabase.from("subjects").upsert({
-      code, name: input.name.trim(), category: input.category,
-      streams: [...new Set(input.streams)].slice(0, 8), active: true, updated_at: Date.now(),
-    });
-    if (error) return { ok: false, error: error.message };
+    const ctx = await requireAdmin();
+    const name = input.name.trim();
+    if (!name) return { ok: false, error: "Subject name is required." };
+    const normalized = name.toLocaleLowerCase("en").replace(/\s+/g, " ");
+    const id = input.id ?? randomUUID();
+    const row: Record<string, unknown> = { id, name, normalized_name: normalized, category: input.category || "elective", active: true, updated_at_v2: new Date().toISOString(), updated_at: Date.now() };
+    if (!input.id) Object.assign(row, { code: `v2-${id}`, streams: [] });
+    const write = input.id ? await ctx.admin.from("subjects").update(row).eq("id", id) : await ctx.admin.from("subjects").insert(row);
+    if (write.error) return { ok: false, error: write.error.message };
     revalidatePath("/admin/settings");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Save failed." };
+    return { ok: true, id };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
   }
 }
 
-export async function toggleSubjectAction(code: string, active: boolean): Promise<ActionResult> {
+export async function toggleSubjectAction(subjectId: string, active: boolean): Promise<ActionResult> {
   try {
-    const supabase = await requireAdmin();
-    const { error } = await supabase.from("subjects").update({ active, updated_at: Date.now() }).eq("code", code);
+    const ctx = await requireAdmin();
+    const { error } = await ctx.admin.from("subjects").update({ active, updated_at_v2: new Date().toISOString(), updated_at: Date.now() }).eq("id", subjectId);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/settings");
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
   }
 }
+
+export { upsertQuestionCore };

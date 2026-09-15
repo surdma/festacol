@@ -12,7 +12,7 @@ export interface ExamSessionDTO {
   academicSession: string;
   term: string;
   mode: ExamMode;
-  subjects: string[];
+  subjectIds: string[];
   placementTracks: string[];
   durationSeconds: number;
   questionCount: number;
@@ -35,7 +35,7 @@ export interface ExamSessionDTO {
 
 export interface QuestionDTO {
   id: number;
-  subjectCode: string;
+  subjectId: string;
   subject: string;
   type: QuestionType;
   prompt: string;
@@ -53,8 +53,7 @@ export interface IntegrityEvent {
 }
 
 export interface ExamStateDTO {
-  candidateHash: string;
-  studentHash: string;
+  attemptUuid: string;
   startedAt: number;
   submittedAt: number | null;
   currentIndex: number;
@@ -65,12 +64,11 @@ export interface ExamStateDTO {
   elapsedActiveSeconds: number;
   integrityEvents: IntegrityEvent[];
   questionIds: number[];
-  attemptHash?: string;
   paperFingerprint?: string;
 }
 
 export interface AttemptSummary {
-  attemptHash: string;
+  attemptUuid: string;
   sessionId: string | null;
   sessionTitle: string;
   score: number | null;

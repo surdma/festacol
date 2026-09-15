@@ -1,14 +1,14 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { QuestionDTO } from "@/types/exam";
 
 interface BankPayload {
   questions: QuestionDTO[];
-  catalog: string[];
+  subjectIds: string[];
 }
 
 interface QuestionRow {
   id: number;
-  subject_code: string;
+  subject_id: string;
   subject_name: string;
   label: string;
   qtype: string;
@@ -32,32 +32,40 @@ interface BlankRow {
   accepted: string[];
 }
 
-// Server-side question loader: typed columns + blanks. No jsonb, no origin,
-// no override patches — seed rows are edited in place, teacher rows carry
-// created_by. Rebuilds the stable QuestionDTO shape the engine consumes.
+// Server-only bank loader. Correct answers never rely on an authenticated
+// student's table privileges; the service role reads them only inside trusted
+// Server Actions and sanitizePaper removes them before browser delivery.
 export async function loadQuestionPayload(): Promise<BankPayload> {
-  const supabase = await createSupabaseServerClient();
-  const [{ data: questions }, { data: blanks }] = await Promise.all([
-    supabase.from("questions").select("*"),
-    supabase.from("question_blanks").select("*").order("position"),
+  const admin = createSupabaseAdminClient();
+  const [{ data: questions, error: questionError }, { data: blanks, error: blankError }, { data: subjects, error: subjectError }] = await Promise.all([
+    admin.from("questions").select("id,subject_id,subject_name,label,qtype,prompt,options,correct_answers,fill_template,instruction,levels,exam_modes,difficulty,domain,explanation").not("subject_id", "is", null),
+    admin.from("question_blanks").select("question_id,position,blank_key,placeholder,accepted").order("position"),
+    admin.from("subjects").select("id,name").eq("active", true),
   ]);
-  const blanksByQ = new Map<number, BlankRow[]>();
-  for (const b of ((blanks ?? []) as BlankRow[])) {
-    blanksByQ.set(b.question_id, [...(blanksByQ.get(b.question_id) ?? []), b]);
+  if (questionError) throw new Error(`Question bank read failed: ${questionError.message}`);
+  if (blankError) throw new Error(`Question blank read failed: ${blankError.message}`);
+  if (subjectError) throw new Error(`Subject catalog read failed: ${subjectError.message}`);
+
+  const names = new Map(((subjects ?? []) as { id: string; name: string }[]).map((subject) => [subject.id, subject.name]));
+  const blanksByQuestion = new Map<number, BlankRow[]>();
+  for (const blank of ((blanks ?? []) as BlankRow[])) {
+    blanksByQuestion.set(blank.question_id, [...(blanksByQuestion.get(blank.question_id) ?? []), blank]);
   }
-  const merged = ((questions ?? []) as QuestionRow[]).map((row) => toDTO(row, blanksByQ.get(row.id) ?? []));
+  const merged = ((questions ?? []) as QuestionRow[]).map((row) =>
+    toDTO(row, names.get(row.subject_id) ?? row.subject_name, blanksByQuestion.get(row.id) ?? []),
+  );
   return {
     questions: merged,
-    catalog: [...new Set(merged.map((q) => q.subjectCode).filter(Boolean))],
+    subjectIds: [...new Set(merged.map((question) => question.subjectId))],
   };
 }
 
-function toDTO(row: QuestionRow, blanks: BlankRow[]): QuestionDTO {
+function toDTO(row: QuestionRow, subjectName: string, blanks: BlankRow[]): QuestionDTO {
   const type = row.qtype as QuestionDTO["type"];
   const dto: QuestionDTO = {
     id: row.id,
-    subjectCode: row.subject_code,
-    subject: row.subject_name,
+    subjectId: row.subject_id,
+    subject: subjectName,
     type,
     prompt: row.prompt,
     options: row.options ?? [],
@@ -68,10 +76,10 @@ function toDTO(row: QuestionRow, blanks: BlankRow[]): QuestionDTO {
     dto.fillTemplate = parseTemplate(row.fill_template, blanks);
     const answer: Record<string, string> = {};
     const scoringBlanks: { key: string; accepted: string[] }[] = [];
-    for (const b of blanks) {
-      const key = b.blank_key || `b${b.position}`;
-      answer[key] = b.accepted[0] ?? "";
-      scoringBlanks.push({ key, accepted: b.accepted });
+    for (const blank of blanks) {
+      const key = blank.blank_key || `b${blank.position}`;
+      answer[key] = blank.accepted[0] ?? "";
+      scoringBlanks.push({ key, accepted: blank.accepted });
     }
     dto.answer = answer;
     (dto as QuestionDTO & { blanks?: { key: string; accepted: string[] }[] }).blanks = scoringBlanks;
@@ -85,49 +93,45 @@ function toDTO(row: QuestionRow, blanks: BlankRow[]): QuestionDTO {
   return dto;
 }
 
-// Template markers {{n}} → ordered text/blank parts.
 export function parseTemplate(template: string, blanks: BlankRow[]): NonNullable<QuestionDTO["fillTemplate"]> {
   const parts: NonNullable<QuestionDTO["fillTemplate"]> = [];
   const re = /\{\{(\d+)\}\}/g;
   let last = 0;
-  let m: RegExpExecArray | null;
-  const byPos = new Map(blanks.map((b) => [b.position, b]));
-  let pos = 0;
-  while ((m = re.exec(template)) !== null) {
-    if (m.index > last) parts.push({ text: template.slice(last, m.index) });
-    const b = byPos.get(Number(m[1]));
-    const key = b?.blank_key || `b${Number(m[1])}`;
-    parts.push({ blank: true, placeholder: b?.placeholder || key, key });
-    pos = Number(m[1]) + 1;
-    last = m.index + m[0].length;
+  let match: RegExpExecArray | null;
+  const byPosition = new Map(blanks.map((blank) => [blank.position, blank]));
+  while ((match = re.exec(template)) !== null) {
+    if (match.index > last) parts.push({ text: template.slice(last, match.index) });
+    const blank = byPosition.get(Number(match[1]));
+    const key = blank?.blank_key || `b${Number(match[1])}`;
+    parts.push({ blank: true, placeholder: blank?.placeholder || key, key });
+    last = match.index + match[0].length;
   }
   if (last < template.length) parts.push({ text: template.slice(last) });
-  void pos;
   return parts;
 }
 
-// Serialize UI fill parts back to a {{n}} template + blank rows.
 export function buildTemplate(parts: { text?: string; blank?: boolean; key?: string; placeholder?: string }[]): {
-  template: string; blanks: { position: number; blank_key: string; placeholder: string }[];
+  template: string;
+  blanks: { position: number; blank_key: string; placeholder: string }[];
 } {
   let template = "";
   const blanks: { position: number; blank_key: string; placeholder: string }[] = [];
-  let pos = 0;
-  for (const p of parts) {
-    if (p.blank) {
-      template += `{{${pos}}}`;
-      blanks.push({ position: pos, blank_key: p.key || `b${pos}`, placeholder: p.placeholder || "Answer" });
-      pos += 1;
+  let position = 0;
+  for (const part of parts) {
+    if (part.blank) {
+      template += `{{${position}}}`;
+      blanks.push({ position, blank_key: part.key || `b${position}`, placeholder: part.placeholder || "Answer" });
+      position += 1;
     } else {
-      template += p.text ?? "";
+      template += part.text ?? "";
     }
   }
   return { template, blanks };
 }
 
 export function sanitizePaper(questions: QuestionDTO[]): Omit<QuestionDTO, "answer">[] {
-  return questions.map((q) => {
-    const { answer: _answer, ...rest } = q as QuestionDTO & { answer?: unknown };
+  return questions.map((question) => {
+    const { answer: _answer, ...rest } = question as QuestionDTO & { answer?: unknown };
     void _answer;
     return rest;
   });

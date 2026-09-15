@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import type { QuestionDTO } from "@/types/exam";
 
 type Q = Omit<QuestionDTO, "answer">;
-type Phase = "briefing" | "loading" | "exam" | "review" | "submitted" | "locked" | "done";
+type Phase = "briefing" | "loading" | "exam" | "review" | "submitted" | "locked";
 
 export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId: string; title: string; durationSeconds: number }) {
   const router = useRouter();
@@ -38,10 +38,14 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
   stateRef.current = { responses, index, flagged };
 
   const persist = useCallback(async (rem: number) => {
-    const s = stateRef.current;
+    const state = stateRef.current;
     await saveProgressAction(sessionId, {
-      responses: s.responses, currentIndex: s.index, questionTimings: timingsRef.current,
-      remainingSeconds: Math.max(0, Math.round(rem)), elapsedActiveSeconds: elapsedRef.current, flagged: s.flagged,
+      responses: state.responses,
+      currentIndex: state.index,
+      questionTimings: timingsRef.current,
+      remainingSeconds: Math.max(0, Math.round(rem)),
+      elapsedActiveSeconds: elapsedRef.current,
+      flagged: state.flagged,
     });
   }, [sessionId]);
 
@@ -68,20 +72,15 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
         setCameraRequired(result.cameraRequired);
         activeRef.current = { qid: String(result.paper[result.currentIndex]?.id ?? ""), since: Date.now() };
         setPhase("exam");
-      } else if (result.status === "locked") {
+        return;
+      }
+      if (result.status === "locked") {
         setLockedScore(result.score);
         setPhase("locked");
-      } else if (result.status === "reset") {
-        setError("Your attempt was reset by an administrator. Starting fresh…");
-        const retry = await getExamPaperAction(sessionId);
-        if (retry.status === "ready") {
-          setPaper(retry.paper); setRemaining(retry.remainingSeconds); setResponses({}); setFlagged([]); setIndex(0);
-          setPhase("exam");
-        } else setPhase("briefing");
-      } else {
-        setError(result.error);
-        setPhase("briefing");
+        return;
       }
+      setError(result.error);
+      setPhase("briefing");
     });
   }
 
@@ -105,22 +104,21 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
   useIntegrityRecorder(timerActive ? sessionId : "");
   useEffect(() => { elapsedRef.current += 1; }, [timer.remaining]);
 
-  // Autosave every 10s while in the exam.
   useEffect(() => {
     if (phase !== "exam" && phase !== "review") return;
-    const t = setInterval(() => void persist(timer.remaining), 10000);
-    return () => clearInterval(t);
+    const timerId = setInterval(() => void persist(timer.remaining), 10000);
+    return () => clearInterval(timerId);
   }, [phase, persist, timer.remaining]);
 
-  function go(i: number) {
-    flushTiming(String(paper[i]?.id ?? ""));
-    setIndex(i);
+  function go(nextIndex: number) {
+    flushTiming(String(paper[nextIndex]?.id ?? ""));
+    setIndex(nextIndex);
   }
 
   async function enableCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setCameraOk(true);
     } catch {
       setError("Camera access was denied. Enable it to continue.");
@@ -151,6 +149,7 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
       <Card className="mx-auto max-w-xl"><CardHeader><CardTitle>Attempt complete</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
           {lockedScore !== null ? <p className="text-2xl font-semibold">{lockedScore}%</p> : null}
+          <p className="text-muted-foreground">A further attempt requires an explicit retake authorization.</p>
           <Button onClick={() => router.push("/dashboard/analytics")}>Open result & analytics</Button>
         </CardContent></Card>
     );
@@ -169,7 +168,7 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
     );
   }
 
-  const q = paper[index];
+  const question = paper[index];
   return (
     <FadeUp className="mx-auto flex w-full max-w-7xl flex-col gap-4">
       <ExamStatusWatch sessionId={sessionId} />
@@ -188,27 +187,27 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
         <CardContent className="flex flex-col gap-3">
           <Progress value={Math.max(0, (timer.remaining / Math.max(1, remaining)) * 100)} />
           <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
-            {paper.map((item, i) => {
-              const st = responseStatus(item, responses[String(item.id)]);
+            {paper.map((item, itemIndex) => {
+              const status = responseStatus(item, responses[String(item.id)]);
               return (
-                <button key={item.id} type="button" onClick={() => go(i)} aria-label={`Question ${i + 1}: ${st}`}
+                <button key={item.id} type="button" onClick={() => go(itemIndex)} aria-label={`Question ${itemIndex + 1}: ${status}`}
                   className={cn("flex size-9 items-center justify-center rounded-md border text-xs tabular-nums",
-                    i === index && "ring-2 ring-primary",
-                    st === "answered" ? "bg-emerald-600 text-white" : st === "incomplete" ? "bg-amber-400" : "bg-muted",
+                    itemIndex === index && "ring-2 ring-primary",
+                    status === "answered" ? "bg-emerald-600 text-white" : status === "incomplete" ? "bg-amber-400" : "bg-muted",
                     flagged.includes(String(item.id)) && "outline-2 outline-amber-500")}>
-                  {i + 1}
+                  {itemIndex + 1}
                 </button>
               );
             })}
           </div>
         </CardContent>
       </Card>
-      {phase === "exam" && q ? (
+      {phase === "exam" && question ? (
         <>
-          <QuestionCard q={q} index={index} total={paper.length} response={responses[String(q.id)]}
-            flagged={flagged.includes(String(q.id))}
-            onChange={(v) => setResponses((r) => ({ ...r, [String(q.id)]: v }))}
-            onToggleFlag={() => setFlagged((f) => f.includes(String(q.id)) ? f.filter((x) => x !== String(q.id)) : [...f, String(q.id)])} />
+          <QuestionCard q={question} index={index} total={paper.length} response={responses[String(question.id)]}
+            flagged={flagged.includes(String(question.id))}
+            onChange={(value) => setResponses((current) => ({ ...current, [String(question.id)]: value }))}
+            onToggleFlag={() => setFlagged((current) => current.includes(String(question.id)) ? current.filter((item) => item !== String(question.id)) : [...current, String(question.id)])} />
           <div className="flex gap-2">
             <Button variant="outline" disabled={index === 0} onClick={() => go(index - 1)}>Previous</Button>
             {index < paper.length - 1
