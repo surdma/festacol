@@ -34,7 +34,7 @@ function Host() {
   const staffId = params.get("staff");
   const classId = params.get("class");
   const questionId = params.get("question");
-  const attemptHash = params.get("attempt");
+  const attemptId = params.get("attempt");
   const groupId = params.get("group");
   const newUserRole = params.get("role") ?? "student";
 
@@ -46,7 +46,7 @@ function Host() {
       {modal === "student" && studentId ? <StudentAcademicRecordDialog userId={studentId} onClose={close} /> : null}
       {modal === "staff" && staffId ? <UserDetailDialog userId={staffId} onClose={close} /> : null}
       {modal === "staff-edit" && staffId ? <StaffScopeDialog staffId={staffId} onClose={close} /> : null}
-      {modal === "attempt" && attemptHash ? <AttemptDetailDialog attemptHash={attemptHash} onClose={close} /> : null}
+      {modal === "attempt" && attemptId ? <AttemptDetailDialog attemptId={attemptId} onClose={close} /> : null}
       {modal === "question" && questionId ? <QuestionDetailDialog questionId={Number(questionId)} onClose={close} /> : null}
       {modal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
       {modal === "user-new" ? newUserRole === "student" ? <Task7StudentFormDialog open onClose={close} /> : <UserFormDialog open presetRole={newUserRole} onClose={close} /> : null}
