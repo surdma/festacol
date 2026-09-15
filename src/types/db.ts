@@ -1,42 +1,32 @@
 // PostgREST transport row contracts for the Prisma-owned public schema.
-// Prisma is the database source of truth; these interfaces only describe the
-// snake_case rows returned by Supabase/PostgREST. Supabase auth.users is not an
-// application table and is intentionally absent here.
+// Prisma is the database source of truth; these interfaces describe the
+// snake_case rows returned by Supabase/PostgREST only.
 
-export type AcademicRole = "student" | "teacher" | "administrator";
+export type MemberRole = "student" | "teacher" | "administrator";
 export type RecordStatus = "active" | "inactive";
+export type StudentProgressStatus = "on-track" | "promoted" | "repeating" | "graduated" | "withdrawn";
 export type AcademicPeriodStatus = "planned" | "active" | "closed" | "archived";
 export type AcademicTrack = "science" | "art" | "social_science";
+export type SubjectKind = "curriculum" | "qualifier";
 export type EnrollmentStatus = "active" | "completed" | "withdrawn" | "transferred" | "ended";
 export type OfferingParticipation = "required" | "elective";
 export type OfferingStatus = "draft" | "active" | "ended";
+export type TeachingAssignmentRole = "teacher" | "head_teacher" | "assistant";
 export type ExamMode = "qualifier" | "bece" | "waec" | "neco" | "jamb" | "mixed" | "single";
 export type ExamStatus = "draft" | "open" | "closed";
 export type QuestionType = "single" | "multi" | "boolean" | "fill" | "fill-multi";
 
-export interface AcademicProfileRow {
+export interface SchoolMemberRow {
   id: string;
   auth_user_id: string | null;
-  role: AcademicRole;
+  role: MemberRole;
   status: RecordStatus;
   first_name: string;
   last_name: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StudentAcademicProfileRow {
-  profile_id: string;
   student_number: string | null;
-  guardian: string;
-  phone: string;
-  promotion_status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StaffAcademicProfileRow {
-  profile_id: string;
+  guardian: string | null;
+  phone: string | null;
+  promotion_status: StudentProgressStatus | null;
   staff_number: string | null;
   qualifier_access: boolean;
   created_at: string;
@@ -76,7 +66,7 @@ export interface AcademicLevelRow {
 export interface ClassRow {
   id: string;
   level_id: string;
-  track: AcademicTrack | null;
+  track: AcademicTrack;
   academic_year_id: string;
   arm: string;
   capacity: number;
@@ -88,7 +78,7 @@ export interface ClassRow {
 
 export interface ClassEnrollmentRow {
   id: string;
-  student_profile_id: string;
+  student_id: string;
   class_id: string;
   status: EnrollmentStatus;
   enrolled_at: string;
@@ -99,13 +89,15 @@ export interface SubjectRow {
   id: string;
   code: string;
   name: string;
+  kind: SubjectKind;
   active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface SubjectTrackRuleRow {
+export interface SubjectCurriculumRuleRow {
   subject_id: string;
+  level_id: string;
   track: AcademicTrack;
   participation: OfferingParticipation;
   created_at: string;
@@ -116,15 +108,13 @@ export interface ClassSubjectOfferingRow {
   id: string;
   class_id: string;
   subject_id: string;
-  academic_term_id: string | null;
-  participation: OfferingParticipation;
   status: OfferingStatus;
   created_at: string;
   updated_at: string;
 }
 
 export interface StudentSubjectEnrollmentRow {
-  student_profile_id: string;
+  student_id: string;
   offering_id: string;
   status: EnrollmentStatus;
   enrolled_at: string;
@@ -132,7 +122,7 @@ export interface StudentSubjectEnrollmentRow {
 }
 
 export interface StaffSubjectQualificationRow {
-  staff_profile_id: string;
+  staff_id: string;
   subject_id: string;
   active: boolean;
   assigned_at: string;
@@ -140,9 +130,9 @@ export interface StaffSubjectQualificationRow {
 
 export interface TeachingAssignmentRow {
   id: string;
-  staff_profile_id: string;
+  staff_id: string;
   offering_id: string;
-  assignment_role: "teacher" | "head_teacher" | "assistant";
+  assignment_role: TeachingAssignmentRole;
   assigned_at: string;
   ended_at: string | null;
 }
@@ -167,7 +157,7 @@ export interface ExamSessionRow {
   question_order: boolean;
   option_order: boolean;
   minimize_collisions: boolean;
-  created_by_profile_id: string | null;
+  created_by_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -211,19 +201,19 @@ export interface ExamQrCodeRow {
 
 export interface ExamStaffAssignmentRow {
   session_id: string;
-  staff_profile_id: string;
+  staff_id: string;
   role: "cohost" | "proctor";
   assigned_at: string;
 }
 
 export interface ExamStudentAccessRow {
   session_id: string;
-  student_profile_id: string;
+  student_id: string;
   decision: "allow" | "deny";
   max_attempts_override: number | null;
   valid_from: string | null;
   valid_until: string | null;
-  granted_by_profile_id: string | null;
+  granted_by_id: string | null;
   reason: string;
   created_at: string;
   updated_at: string;
@@ -232,9 +222,9 @@ export interface ExamStudentAccessRow {
 export interface ExamRetakeGrantRow {
   id: string;
   session_id: string;
-  student_profile_id: string;
+  student_id: string;
   additional_attempts: number;
-  granted_by_profile_id: string;
+  granted_by_id: string;
   reason: string;
   granted_at: string;
   expires_at: string | null;
@@ -242,19 +232,19 @@ export interface ExamRetakeGrantRow {
 }
 
 export interface ExamAttemptContextSnapshot {
-  sessionTitle: string;
-  studentName: string;
-  className: string | null;
-  academicYear: string | null;
-  academicTerm: string | null;
-  mode: ExamMode;
-  subjectNames: string[];
+  sessionTitle?: string;
+  studentName?: string;
+  className?: string | null;
+  academicYear?: string | null;
+  academicTerm?: string | null;
+  mode?: ExamMode;
+  subjectNames?: string[];
 }
 
 export interface ExamAttemptRow {
   id: string;
   session_id: string;
-  student_profile_id: string;
+  student_id: string;
   attempt_number: number;
   context_snapshot: ExamAttemptContextSnapshot;
   started_at: number | null;
@@ -269,17 +259,13 @@ export interface ExamAttemptRow {
   placement_confidence: number | null;
   submission_reason: string;
   rewrite_source_attempt_id: string | null;
-  created_at: number;
-}
-
-export interface ExamAttemptRuntimeStateRow {
-  attempt_id: string;
   current_index: number;
-  remaining_seconds: number;
+  remaining_seconds: number | null;
   elapsed_active_seconds: number;
-  last_active_at: number;
+  last_active_at: number | null;
   paper_fingerprint: string;
   question_ids: number[];
+  created_at: number;
   updated_at: number;
 }
 
@@ -290,16 +276,10 @@ export interface ExamAttemptResponseRow {
   response_values: string[];
   seconds: number;
   flagged: boolean;
-}
-
-export interface ExamAttemptAnswerRow {
-  attempt_id: string;
-  question_id: number;
   correct: boolean | null;
-  response_text: string | null;
-  response_values: string[];
-  correct_answer: string;
-  seconds: number;
+  correct_answer: string | null;
+  graded_at: number | null;
+  updated_at: number;
 }
 
 export interface ExamIntegrityEventRow {
@@ -329,7 +309,8 @@ export interface QuestionRow {
   difficulty: string;
   domain: string;
   explanation: string;
-  created_by_profile_id: string | null;
+  status: RecordStatus;
+  created_by_id: string | null;
   created_at: string | null;
   updated_at: number;
 }
