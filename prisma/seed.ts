@@ -67,6 +67,9 @@ const STATUS_DB: Record<PeriodStatus, string> = {
 const VALID_TRACKS = new Set<Track>(["SCIENCE", "HUMANITIES", "BUSINESS"]);
 const VALID_MODES = new Set(["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"]);
 const VALID_TYPES = new Set(["single", "multi", "boolean", "fill", "fill-multi"]);
+const VALID_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+const MINIMUM_QUESTION_COUNT = 720;
+const QUESTION_FIXTURE_SCHEMA_VERSION = 4;
 
 async function loadJson<T>(name: string): Promise<T> {
   return JSON.parse(await readFile(path.join(process.cwd(), "public", "seed", name), "utf8")) as T;
@@ -85,13 +88,84 @@ function unique(values: string[], label: string) {
   }
 }
 
+function normalizedPrompt(value: unknown): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+}
+
+function questionBlankCount(question: Record<string, unknown>): number {
+  const template = question.fillTemplate;
+  if (!Array.isArray(template)) return 0;
+  return template.filter((raw) => {
+    const part = raw as { blank?: unknown };
+    return part.blank !== undefined;
+  }).length;
+}
+
+function validateAnswerMetadata(question: Record<string, unknown>, id: number, type: string) {
+  if (type === "single") {
+    const options = Array.isArray(question.options) ? question.options.map(String) : [];
+    const answer = question.answer === undefined ? "" : String(question.answer);
+    assert(options.length >= 2, `Question ${id} single-choice item needs at least two options.`);
+    unique(options.map((value) => value.trim()), `options for question ${id}`);
+    assert(answer.length > 0 && options.includes(answer), `Question ${id} answer must match one supplied option.`);
+    return;
+  }
+
+  if (type === "multi") {
+    const options = Array.isArray(question.options) ? question.options.map(String) : [];
+    const answers = Array.isArray(question.answers) ? question.answers.map(String) : [];
+    const requiredSelections = Number(question.requiredSelections);
+    assert(options.length >= 2, `Question ${id} multi-choice item needs at least two options.`);
+    unique(options.map((value) => value.trim()), `options for question ${id}`);
+    unique(answers.map((value) => value.trim()), `answers for question ${id}`);
+    assert(Number.isInteger(requiredSelections) && requiredSelections > 0, `Question ${id} has invalid requiredSelections.`);
+    assert(answers.length === requiredSelections, `Question ${id} answers must match requiredSelections.`);
+    assert(answers.every((answer) => options.includes(answer)), `Question ${id} contains an answer that is not an option.`);
+    return;
+  }
+
+  if (type === "boolean") {
+    assert(typeof question.answer === "boolean", `Question ${id} boolean answer must be true or false.`);
+    return;
+  }
+
+  const blankCount = questionBlankCount(question);
+  const accepted = question.acceptedAnswers;
+  assert(blankCount > 0, `Question ${id} fill item has no blank in fillTemplate.`);
+  assert(Array.isArray(accepted) && accepted.length > 0, `Question ${id} fill item has no accepted answers.`);
+
+  if (type === "fill") {
+    assert(blankCount === 1, `Question ${id} single fill item must have exactly one blank.`);
+    assert(
+      (accepted as unknown[]).every((value) => !Array.isArray(value) && String(value).trim().length > 0),
+      `Question ${id} single fill accepted answers must be non-empty strings.`,
+    );
+    return;
+  }
+
+  assert(type === "fill-multi", `Question ${id} has unsupported fill type ${type}.`);
+  assert(blankCount >= 2, `Question ${id} multi-fill item must have at least two blanks.`);
+  assert(accepted.length === blankCount, `Question ${id} needs one accepted-answer list per blank.`);
+  assert(
+    (accepted as unknown[]).every(
+      (value) => Array.isArray(value) && value.length > 0 && value.every((answer) => String(answer).trim().length > 0),
+    ),
+    `Question ${id} multi-fill accepted answers must be non-empty lists.`,
+  );
+}
+
 function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, questions: QuestionFixture) {
   assert(subjects.schemaVersion === 5, "subjects.json must use schemaVersion 5.");
   assert(classes.schemaVersion === 5, "classes.json must use schemaVersion 5.");
-  assert(questions.schemaVersion === 5, "questions.json must use schemaVersion 5.");
+  // Question schema v4 is the answer-aware question format. The academic
+  // structure moved to v5 independently; questions reference it by stable code.
+  assert(
+    questions.schemaVersion === QUESTION_FIXTURE_SCHEMA_VERSION,
+    `questions.json must use schemaVersion ${QUESTION_FIXTURE_SCHEMA_VERSION}.`,
+  );
   assert(subjects.subjects.length > 0, "subjects.json has no subjects.");
   assert(classes.classes.length > 0, "classes.json has no classes.");
-  assert(questions.questions.length > 0, "questions.json has no questions.");
+  assert(questions.questions.length >= MINIMUM_QUESTION_COUNT, `questions.json must contain at least ${MINIMUM_QUESTION_COUNT} questions.`);
 
   unique(subjects.subjects.map((subject) => subject.code), "subject codes");
   unique(classes.levels.map((level) => level.name), "academic levels");
@@ -136,6 +210,7 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
   assert(chemistry, "Chemistry is missing from the subject catalog.");
   assert(chemistry.curriculum.every((rule) => rule.track === "SCIENCE"), "Chemistry must be Science-only.");
 
+  const offeredSlices = new Set<string>();
   for (const item of classes.classes) {
     assert(levelNames.has(item.level), `Class ${item.id} references unknown level ${item.level}.`);
     assert(VALID_TRACKS.has(item.track), `Class ${item.id} has invalid track ${item.track}.`);
@@ -149,25 +224,72 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
         subject.curriculum.some((rule) => rule.level === item.level && rule.track === item.track),
         `Subject ${code} is not allowed for ${item.level} ${item.track}.`,
       );
+      offeredSlices.add(`${code}:${item.level}`);
     }
   }
 
   const questionIds = questions.questions.map((question) => String(question.id ?? ""));
   unique(questionIds, "question ids");
+  const promptKeys = new Set<string>();
+  const responseTypes = new Set<string>();
+  const coveredSeniorSlices = new Set<string>();
+  const coveredQualifierSubjects = new Set<string>();
+  let qualifierQuestionCount = 0;
+
   for (const question of questions.questions) {
     const id = Number(question.id);
     assert(Number.isSafeInteger(id) && id > 0, `Question ${String(question.id)} has an invalid id.`);
     const code = String(question.subjectCode ?? "");
-    assert(subjectByCode.has(code), `Question ${id} references unknown subject ${code}.`);
+    const subject = subjectByCode.get(code);
+    assert(subject, `Question ${id} references unknown subject ${code}.`);
+
     const qLevels = Array.isArray(question.levels) ? question.levels.map(String) : [];
     assert(qLevels.length > 0, `Question ${id} has no academic levels.`);
+    unique(qLevels, `academic levels for question ${id}`);
     for (const level of qLevels) assert(levelNames.has(level), `Question ${id} references unknown level ${level}.`);
+
     const modes = Array.isArray(question.examModes) ? question.examModes.map(String) : [];
     assert(modes.length > 0, `Question ${id} has no exam modes.`);
+    unique(modes, `exam modes for question ${id}`);
     for (const mode of modes) assert(VALID_MODES.has(mode), `Question ${id} has invalid exam mode ${mode}.`);
+
     const type = String(question.type ?? "");
     assert(VALID_TYPES.has(type), `Question ${id} has invalid type ${type}.`);
-    assert(String(question.prompt ?? "").trim().length > 0, `Question ${id} has no prompt.`);
+    responseTypes.add(type);
+
+    const prompt = String(question.prompt ?? "").trim();
+    assert(prompt.length > 0, `Question ${id} has no prompt.`);
+    assert(String(question.domain ?? "").trim().length > 0, `Question ${id} has no domain.`);
+    assert(String(question.label ?? "").trim().length > 0, `Question ${id} has no label.`);
+    assert(String(question.explanation ?? "").trim().length > 0, `Question ${id} has no explanation.`);
+    assert(VALID_DIFFICULTIES.has(String(question.difficulty ?? "")), `Question ${id} has invalid difficulty.`);
+
+    const promptKey = `${code}:${normalizedPrompt(prompt)}`;
+    assert(!promptKeys.has(promptKey), `Question ${id} duplicates another prompt in subject ${code}.`);
+    promptKeys.add(promptKey);
+
+    validateAnswerMetadata(question, id, type);
+
+    if (subject.kind === "QUALIFIER") {
+      assert(modes.every((mode) => mode === "qualifier"), `Qualifier question ${id} may only use qualifier mode.`);
+      assert(qLevels.every((level) => level === "SS1"), `Qualifier question ${id} must target incoming SS1.`);
+      coveredQualifierSubjects.add(code);
+      qualifierQuestionCount += 1;
+    } else {
+      assert(!modes.includes("qualifier"), `Curriculum question ${id} cannot use qualifier mode.`);
+      for (const level of qLevels) coveredSeniorSlices.add(`${code}:${level}`);
+    }
+  }
+
+  for (const type of VALID_TYPES) {
+    assert(responseTypes.has(type), `Question bank has no ${type} questions.`);
+  }
+  for (const subject of subjects.subjects.filter((item) => item.kind === "QUALIFIER" && item.active)) {
+    assert(coveredQualifierSubjects.has(subject.code), `Qualifier subject ${subject.code} has no questions.`);
+  }
+  assert(qualifierQuestionCount >= 150, "Qualifier bank must contain at least 150 eligible questions for a full-size paper.");
+  for (const slice of offeredSlices) {
+    assert(coveredSeniorSlices.has(slice), `Class offering slice ${slice} has zero senior questions.`);
   }
 }
 
