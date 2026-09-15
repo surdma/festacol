@@ -7,13 +7,13 @@ async function count(client: SupabaseClient, table: string): Promise<number> {
 }
 
 export async function getAdminCounts(client: SupabaseClient) {
-  const [sessions, attempts, profiles, classes] = await Promise.all([
+  const [sessions, attempts, members, classes] = await Promise.all([
     count(client, "exam_sessions"),
     count(client, "exam_attempts"),
-    count(client, "academic_profiles"),
+    count(client, "school_members"),
     count(client, "classes"),
   ]);
-  return { sessions, attempts, users: profiles, classes };
+  return { sessions, attempts, users: members, classes };
 }
 
 export interface DirectoryUserRow {
@@ -36,7 +36,7 @@ export interface DirectoryUserRow {
 
 export interface ClassDirectoryRow extends ClassRow {
   level_name: string;
-  track_name: string | null;
+  track_name: string;
   academic_year_name: string;
   display_name: string;
 }
@@ -52,93 +52,83 @@ export async function listUsers(
   role: "student" | "staff",
   q = "",
 ): Promise<DirectoryUserRow[]> {
-  let profileQuery = client
-    .from("academic_profiles")
-    .select("id,first_name,last_name,role,status")
+  let memberQuery = client
+    .from("school_members")
+    .select("id,first_name,last_name,role,status,student_number,staff_number,phone,guardian,promotion_status,qualifier_access")
     .order("last_name")
     .order("first_name")
     .limit(200);
-  profileQuery = role === "student" ? profileQuery.eq("role", "student") : profileQuery.in("role", ["teacher", "administrator"]);
+  memberQuery = role === "student" ? memberQuery.eq("role", "student") : memberQuery.in("role", ["teacher", "administrator"]);
   if (q) {
     const escaped = q.replaceAll(",", " ");
-    profileQuery = profileQuery.or(`first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%`);
+    memberQuery = memberQuery.or(`first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%`);
   }
-  const { data: profileData } = await profileQuery;
-  const profiles = (profileData ?? []) as {
+  const { data: memberData } = await memberQuery;
+  const members = (memberData ?? []) as {
     id: string;
     first_name: string;
     last_name: string;
     role: "student" | "teacher" | "administrator";
     status: string;
+    student_number: string | null;
+    staff_number: string | null;
+    phone: string | null;
+    guardian: string | null;
+    promotion_status: string | null;
+    qualifier_access: boolean;
   }[];
-  if (!profiles.length) return [];
+  if (!members.length) return [];
 
-  const profileIds = profiles.map((profile) => profile.id);
-  const [studentExtResult, staffExtResult, enrollmentResult, qualificationResult, subjectResult, assignmentResult, offeringResult] = await Promise.all([
+  const memberIds = members.map((member) => member.id);
+  const [enrollmentResult, qualificationResult, subjectResult, assignmentResult, offeringResult] = await Promise.all([
     role === "student"
-      ? client.from("student_academic_profiles").select("profile_id,student_number,phone,guardian,promotion_status").in("profile_id", profileIds)
+      ? client.from("class_enrollments").select("student_id,class_id,enrolled_at").in("student_id", memberIds).eq("status", "active").is("ended_at", null)
       : Promise.resolve({ data: [] }),
     role === "staff"
-      ? client.from("staff_academic_profiles").select("profile_id,staff_number,qualifier_access").in("profile_id", profileIds)
-      : Promise.resolve({ data: [] }),
-    role === "student"
-      ? client.from("class_enrollments").select("student_profile_id,class_id,enrolled_at").in("student_profile_id", profileIds).is("ended_at", null)
-      : Promise.resolve({ data: [] }),
-    role === "staff"
-      ? client.from("staff_subject_qualifications").select("staff_profile_id,subject_id").in("staff_profile_id", profileIds).eq("active", true)
+      ? client.from("staff_subject_qualifications").select("staff_id,subject_id").in("staff_id", memberIds).eq("active", true)
       : Promise.resolve({ data: [] }),
     client.from("subjects").select("id,name").eq("active", true),
     role === "staff"
-      ? client.from("teaching_assignments").select("staff_profile_id,offering_id,assigned_at").in("staff_profile_id", profileIds).is("ended_at", null)
+      ? client.from("teaching_assignments").select("staff_id,offering_id,assigned_at").in("staff_id", memberIds).is("ended_at", null)
       : Promise.resolve({ data: [] }),
     client.from("class_subject_offerings").select("id,class_id"),
   ]);
 
-  const studentExt = new Map(
-    ((studentExtResult.data ?? []) as { profile_id: string; student_number: string | null; phone: string; guardian: string; promotion_status: string }[])
-      .map((row) => [row.profile_id, row]),
-  );
-  const staffExt = new Map(
-    ((staffExtResult.data ?? []) as { profile_id: string; staff_number: string | null; qualifier_access: boolean }[])
-      .map((row) => [row.profile_id, row]),
-  );
   const enrollments = new Map<string, { class_id: string; enrolled_at: string }>();
-  for (const row of ((enrollmentResult.data ?? []) as { student_profile_id: string; class_id: string; enrolled_at: string }[])) {
-    const current = enrollments.get(row.student_profile_id);
-    if (!current || row.enrolled_at > current.enrolled_at) enrollments.set(row.student_profile_id, { class_id: row.class_id, enrolled_at: row.enrolled_at });
+  for (const row of ((enrollmentResult.data ?? []) as { student_id: string; class_id: string; enrolled_at: string }[])) {
+    const current = enrollments.get(row.student_id);
+    if (!current || row.enrolled_at > current.enrolled_at) enrollments.set(row.student_id, { class_id: row.class_id, enrolled_at: row.enrolled_at });
   }
   const subjectNames = new Map(((subjectResult.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
   const subjectIdsByStaff = new Map<string, string[]>();
-  for (const row of ((qualificationResult.data ?? []) as { staff_profile_id: string; subject_id: string }[])) {
-    subjectIdsByStaff.set(row.staff_profile_id, [...(subjectIdsByStaff.get(row.staff_profile_id) ?? []), row.subject_id]);
+  for (const row of ((qualificationResult.data ?? []) as { staff_id: string; subject_id: string }[])) {
+    subjectIdsByStaff.set(row.staff_id, [...(subjectIdsByStaff.get(row.staff_id) ?? []), row.subject_id]);
   }
   const offeringClass = new Map(((offeringResult.data ?? []) as { id: string; class_id: string }[]).map((row) => [row.id, row.class_id]));
   const staffClass = new Map<string, string>();
-  for (const row of ((assignmentResult.data ?? []) as { staff_profile_id: string; offering_id: string; assigned_at: string }[])) {
+  for (const row of ((assignmentResult.data ?? []) as { staff_id: string; offering_id: string; assigned_at: string }[])) {
     const classId = offeringClass.get(row.offering_id);
-    if (classId && !staffClass.has(row.staff_profile_id)) staffClass.set(row.staff_profile_id, classId);
+    if (classId && !staffClass.has(row.staff_id)) staffClass.set(row.staff_id, classId);
   }
 
-  return profiles.map((profile) => {
-    const student = studentExt.get(profile.id);
-    const staff = staffExt.get(profile.id);
-    const subjectIds = subjectIdsByStaff.get(profile.id) ?? [];
+  return members.map((member) => {
+    const subjectIds = subjectIdsByStaff.get(member.id) ?? [];
     return {
-      id: profile.id,
-      first_name: profile.first_name,
-      last_name: profile.last_name,
-      full_name: `${profile.first_name} ${profile.last_name}`.trim(),
-      role: profile.role,
-      status: profile.status,
-      student_number: student?.student_number ?? null,
-      staff_number: staff?.staff_number ?? null,
-      phone: student?.phone ?? "",
-      guardian: student?.guardian ?? "",
-      promotion_status: student?.promotion_status ?? "",
-      class_id: role === "student" ? enrollments.get(profile.id)?.class_id ?? null : staffClass.get(profile.id) ?? null,
+      id: member.id,
+      first_name: member.first_name,
+      last_name: member.last_name,
+      full_name: `${member.first_name} ${member.last_name}`.trim(),
+      role: member.role,
+      status: member.status,
+      student_number: member.student_number,
+      staff_number: member.staff_number,
+      phone: member.phone ?? "",
+      guardian: member.guardian ?? "",
+      promotion_status: member.promotion_status ?? "",
+      class_id: role === "student" ? enrollments.get(member.id)?.class_id ?? null : staffClass.get(member.id) ?? null,
       subject_ids: subjectIds,
       subjects: subjectIds.map((id) => subjectNames.get(id) ?? id),
-      qualifier_access: Boolean(staff?.qualifier_access),
+      qualifier_access: member.qualifier_access,
     };
   });
 }
@@ -197,13 +187,13 @@ export async function listClasses(client: SupabaseClient): Promise<ClassDirector
   ]);
   return ((classData ?? []) as ClassRow[]).map((row) => {
     const levelName = levelNames.get(row.level_id) ?? "Class";
-    const trackName = row.track ? trackNames.get(row.track) ?? row.track : null;
+    const trackName = trackNames.get(row.track) ?? row.track;
     return {
       ...row,
       level_name: levelName,
       track_name: trackName,
       academic_year_name: yearNames.get(row.academic_year_id) ?? "",
-      display_name: `${levelName} ${trackName ?? ""} ${row.arm}`.replace(/\s+/g, " ").trim(),
+      display_name: `${levelName} ${trackName} ${row.arm}`.replace(/\s+/g, " ").trim(),
     };
   });
 }
@@ -218,11 +208,11 @@ export async function listActiveSubjects(client: SupabaseClient): Promise<Subjec
   return (data ?? []) as SubjectRow[];
 }
 
-export async function attemptsForStudent(client: SupabaseClient, studentProfileId: string): Promise<ExamAttemptRow[]> {
+export async function attemptsForStudent(client: SupabaseClient, studentId: string): Promise<ExamAttemptRow[]> {
   const { data } = await client
     .from("exam_attempts")
     .select("*")
-    .eq("student_profile_id", studentProfileId)
+    .eq("student_id", studentId)
     .order("created_at", { ascending: false });
   return (data ?? []) as ExamAttemptRow[];
 }
