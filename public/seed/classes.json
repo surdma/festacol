@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 4,
+  "fixtureId": "festacol-classes-2026-2027",
+  "academicYear": "2026/2027",
+  "classes": [
+    {
+      "id": "ss1-qualifier",
+      "level": "SS1",
+      "track": null,
+      "arm": "",
+      "capacity": 240,
+      "room": "Admissions",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss1-science-a",
+      "level": "SS1",
+      "track": "SCIENCE",
+      "arm": "A",
+      "capacity": 60,
+      "room": "Science Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss1-science-b",
+      "level": "SS1",
+      "track": "SCIENCE",
+      "arm": "B",
+      "capacity": 60,
+      "room": "Science Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss1-art-c",
+      "level": "SS1",
+      "track": "ART",
+      "arm": "C",
+      "capacity": 55,
+      "room": "Humanities Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss1-commercial-d",
+      "level": "SS1",
+      "track": "SOCIAL_SCIENCE",
+      "arm": "D",
+      "capacity": 60,
+      "room": "Commerce Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss2-science-a",
+      "level": "SS2",
+      "track": "SCIENCE",
+      "arm": "A",
+      "capacity": 55,
+      "room": "Science Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss2-science-b",
+      "level": "SS2",
+      "track": "SCIENCE",
+      "arm": "B",
+      "capacity": 55,
+      "room": "Science Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss2-art-a",
+      "level": "SS2",
+      "track": "ART",
+      "arm": "A",
+      "capacity": 50,
+      "room": "Humanities Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss2-commercial-a",
+      "level": "SS2",
+      "track": "SOCIAL_SCIENCE",
+      "arm": "A",
+      "capacity": 55,
+      "room": "Commerce Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss3-science-a",
+      "level": "SS3",
+      "track": "SCIENCE",
+      "arm": "A",
+      "capacity": 52,
+      "room": "Science Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss3-art-a",
+      "level": "SS3",
+      "track": "ART",
+      "arm": "A",
+      "capacity": 48,
+      "room": "Humanities Wing",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ss3-commercial-a",
+      "level": "SS3",
+      "track": "SOCIAL_SCIENCE",
+      "arm": "A",
+      "capacity": 50,
+      "room": "Commerce Wing",
+      "status": "ACTIVE"
+    }
+  ]
+}
