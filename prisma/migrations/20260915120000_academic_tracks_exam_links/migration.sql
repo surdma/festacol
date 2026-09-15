@@ -7,6 +7,8 @@
 -- finite track directly. It also restores a stable subject import code and
 -- persists exam-session links/QR representations.
 
+BEGIN;
+
 DO $$
 BEGIN
   CREATE TYPE public.academic_track AS ENUM ('science', 'art', 'social_science');
@@ -27,7 +29,7 @@ BEGIN
        SELECT 1
        FROM public.classes c
        JOIN public.academic_programmes p ON p.id = c.programme_id
-       WHERE lower(regexp_replace(btrim(p.name), '[^a-z]+', ' ', 'g'))
+       WHERE lower(regexp_replace(btrim(p.name), '[^A-Za-z]+', ' ', 'g'))
              NOT IN (
                'science',
                'art', 'arts', 'humanities',
@@ -48,7 +50,7 @@ SET track = CASE
   ELSE NULL
 END
 FROM (
-  SELECT id, lower(regexp_replace(btrim(name), '[^a-z]+', ' ', 'g')) AS normalized_name
+  SELECT id, lower(regexp_replace(btrim(name), '[^A-Za-z]+', ' ', 'g')) AS normalized_name
   FROM public.academic_programmes
 ) n
 WHERE c.programme_id = n.id
@@ -100,7 +102,7 @@ UPDATE public.subjects s
 SET code = c.code
 FROM canonical c
 WHERE s.code IS NULL
-  AND lower(regexp_replace(btrim(s.name), '[^a-z0-9]+', ' ', 'g')) = c.normalized_name;
+  AND lower(regexp_replace(btrim(s.name), '[^A-Za-z0-9]+', ' ', 'g')) = c.normalized_name;
 
 -- Prefer the question-bank code for General Mathematics only when a canonical
 -- Mathematics row does not already own it.
@@ -109,12 +111,12 @@ SET code = CASE
   WHEN EXISTS (
     SELECT 1 FROM public.subjects m
     WHERE m.id <> s.id
-      AND lower(regexp_replace(btrim(m.name), '[^a-z0-9]+', ' ', 'g')) = 'mathematics'
+      AND lower(regexp_replace(btrim(m.name), '[^A-Za-z0-9]+', ' ', 'g')) = 'mathematics'
   ) THEN 'gmat'
   ELSE 'mat'
 END
 WHERE s.code IS NULL
-  AND lower(regexp_replace(btrim(s.name), '[^a-z0-9]+', ' ', 'g')) = 'general mathematics';
+  AND lower(regexp_replace(btrim(s.name), '[^A-Za-z0-9]+', ' ', 'g')) = 'general mathematics';
 
 -- Preserve old bank-only subject rows without conflating them with the current
 -- canonical qualifier subjects.
@@ -131,7 +133,7 @@ UPDATE public.subjects s
 SET code = l.code
 FROM legacy l
 WHERE s.code IS NULL
-  AND lower(regexp_replace(btrim(s.name), '[^a-z0-9]+', ' ', 'g')) = l.normalized_name;
+  AND lower(regexp_replace(btrim(s.name), '[^A-Za-z0-9]+', ' ', 'g')) = l.normalized_name;
 
 UPDATE public.subjects
 SET code = 'subject-' || substr(replace(id::text, '-', ''), 1, 12)
@@ -206,7 +208,7 @@ BEGIN
        SELECT 1
        FROM public.exam_placement_programmes ep
        JOIN public.academic_programmes p ON p.id = ep.programme_id
-       WHERE lower(regexp_replace(btrim(p.name), '[^a-z]+', ' ', 'g'))
+       WHERE lower(regexp_replace(btrim(p.name), '[^A-Za-z]+', ' ', 'g'))
              NOT IN (
                'science',
                'art', 'arts', 'humanities',
@@ -230,7 +232,7 @@ SELECT
   END
 FROM public.exam_placement_programmes ep
 JOIN (
-  SELECT id, lower(regexp_replace(btrim(name), '[^a-z]+', ' ', 'g')) AS normalized_name
+  SELECT id, lower(regexp_replace(btrim(name), '[^A-Za-z]+', ' ', 'g')) AS normalized_name
   FROM public.academic_programmes
 ) n ON n.id = ep.programme_id
 WHERE n.normalized_name NOT IN ('qualifier', 'pre placement', 'preplacement', 'general')
@@ -248,7 +250,7 @@ BEGIN
     FROM public.exam_attempts
     WHERE assigned_track IS NOT NULL
       AND nullif(btrim(assigned_track), '') IS NOT NULL
-      AND lower(regexp_replace(btrim(assigned_track), '[^a-z]+', ' ', 'g'))
+      AND lower(regexp_replace(btrim(assigned_track), '[^A-Za-z]+', ' ', 'g'))
           NOT IN (
             'science',
             'art', 'arts', 'humanities',
@@ -262,8 +264,8 @@ END $$;
 UPDATE public.exam_attempts
 SET assigned_track = CASE
   WHEN assigned_track IS NULL OR nullif(btrim(assigned_track), '') IS NULL THEN NULL
-  WHEN lower(regexp_replace(btrim(assigned_track), '[^a-z]+', ' ', 'g')) = 'science' THEN 'science'
-  WHEN lower(regexp_replace(btrim(assigned_track), '[^a-z]+', ' ', 'g')) IN ('art', 'arts', 'humanities') THEN 'art'
+  WHEN lower(regexp_replace(btrim(assigned_track), '[^A-Za-z]+', ' ', 'g')) = 'science' THEN 'science'
+  WHEN lower(regexp_replace(btrim(assigned_track), '[^A-Za-z]+', ' ', 'g')) IN ('art', 'arts', 'humanities') THEN 'art'
   ELSE 'social_science'
 END;
 
@@ -339,3 +341,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS classes_section_identity_idx
     coalesce(track::text, ''),
     lower(btrim(arm))
   );
+
+COMMIT;
