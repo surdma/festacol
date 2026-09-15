@@ -10,6 +10,7 @@ import {
   adminSecondaryButtonClass,
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
+import { Task7StudentStatusButton } from "@/components/admin/task7-student-status-button";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -73,7 +74,7 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
               <th className="px-4 py-3">Average</th>
               <th className="px-4 py-3">Placement</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3"><span className="sr-only">Open</span></th>
+              <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
@@ -85,7 +86,7 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
                 <td className="px-4 py-3">{averageScore === null ? <span className="text-neutral-400">—</span> : <StatusBadge tone={averageScore >= 70 ? "emerald" : averageScore >= 50 ? "blue" : "amber"}>{averageScore}%</StatusBadge>}</td>
                 <td className="px-4 py-3 text-neutral-700">{placement ?? "—"}</td>
                 <td className="px-4 py-3"><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></td>
-                <td className="px-4 py-3 text-right"><Button size="icon" variant="outline" render={<Link href={href} />} className={adminIconButtonClass} aria-label={`Open ${user.full_name}`}><MoreHorizontal /></Button></td>
+                <td className="px-4 py-3"><div className="flex justify-end gap-2"><Task7StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact /><Button size="icon" variant="outline" render={<Link href={href} />} className={adminIconButtonClass} aria-label={`Open ${user.full_name}`}><MoreHorizontal /></Button></div></td>
               </tr>
             ))}
           </tbody>
@@ -94,11 +95,14 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
 
       <div className="divide-y divide-neutral-100 md:hidden">
         {rows.map(({ user, className, pathway, attempts, averageScore, placement, href }) => (
-          <Link key={user.id} href={href} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-neutral-50">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span>
-            <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{className} · {pathway || "Unassigned"}</span><span className="mt-1 block truncate text-[11px] text-neutral-400">{attempts} attempt{attempts === 1 ? "" : "s"}{averageScore === null ? "" : ` · avg ${averageScore}%`}{placement ? ` · ${placement}` : ""}</span></span>
-            <StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge>
-          </Link>
+          <div key={user.id} className="flex items-center gap-3 p-4">
+            <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-80">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span>
+              <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{className} · {pathway || "Unassigned"}</span><span className="mt-1 block truncate text-[11px] text-neutral-400">{attempts} attempt{attempts === 1 ? "" : "s"}{averageScore === null ? "" : ` · avg ${averageScore}%`}{placement ? ` · ${placement}` : ""}</span></span>
+              <StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge>
+            </Link>
+            <Task7StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact />
+          </div>
         ))}
       </div>
     </section>
