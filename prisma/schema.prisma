@@ -46,9 +46,9 @@ enum AcademicPeriodStatus {
 }
 
 enum AcademicTrack {
-  SCIENCE        @map("science")
-  ART            @map("art")
-  SOCIAL_SCIENCE @map("social_science")
+  SCIENCE    @map("science")
+  HUMANITIES @map("humanities")
+  BUSINESS   @map("business")
 
   @@map("academic_track")
 }
