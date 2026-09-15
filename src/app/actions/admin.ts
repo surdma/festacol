@@ -180,8 +180,8 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       if (input.mode === "qualifier") {
         const { error } = await ctx.admin.from("exam_placement_tracks").insert([
           { session_id: id, track: "science" },
-          { session_id: id, track: "art" },
-          { session_id: id, track: "social_science" },
+          { session_id: id, track: "humanities" },
+          { session_id: id, track: "business" },
         ]);
         if (error) throw error;
       }
@@ -459,12 +459,12 @@ async function upsertQuestionCore(input: {
   const { data: subject } = await ctx.admin.from("subjects").select("id").eq("id", input.subjectId).eq("active", true).maybeSingle();
   if (!subject) return { ok: false, error: "Subject not found." };
 
-  let existing: { created_by_id: string | null; created_at: string | null } | null = null;
+  let existing: { creator_id: string | null; created_at: string | null } | null = null;
   if (input.id !== undefined) {
-    const { data } = await ctx.admin.from("questions").select("created_by_id,created_at").eq("id", input.id).maybeSingle();
-    existing = data as { created_by_id: string | null; created_at: string | null } | null;
+    const { data } = await ctx.admin.from("questions").select("creator_id,created_at").eq("id", input.id).maybeSingle();
+    existing = data as { creator_id: string | null; created_at: string | null } | null;
     if (!existing) return { ok: false, error: "Question not found." };
-    if (!ctx.scope.isAdmin && existing.created_by_id !== ctx.scope.profileId) return { ok: false, error: "Teachers can edit only questions they authored." };
+    if (!ctx.scope.isAdmin && existing.creator_id !== ctx.scope.profileId) return { ok: false, error: "Teachers can edit only questions they authored." };
   }
 
   const id = input.id ?? Number((await ctx.admin.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle()).data?.id ?? 0) + 1;
@@ -482,7 +482,7 @@ async function upsertQuestionCore(input: {
     domain: input.domain ?? "",
     explanation: input.explanation ?? "",
     status: "active",
-    created_by_id: existing?.created_by_id ?? ctx.scope.profileId,
+    creator_id: existing?.creator_id ?? ctx.scope.profileId,
     created_at: existing?.created_at ?? new Date().toISOString(),
     updated_at: Date.now(),
   };
@@ -520,11 +520,11 @@ async function upsertQuestionCore(input: {
 export async function deleteQuestionAction(id: number): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const { data } = await ctx.admin.from("questions").select("subject_id,created_by_id").eq("id", id).maybeSingle();
-    const question = data as { subject_id: string | null; created_by_id: string | null } | null;
+    const { data } = await ctx.admin.from("questions").select("subject_id,creator_id").eq("id", id).maybeSingle();
+    const question = data as { subject_id: string | null; creator_id: string | null } | null;
     if (!question?.subject_id) return { ok: false, error: "Question not found." };
     if (!questionSubjectVisibleTo(question.subject_id, ctx.scope)) return { ok: false, error: "Outside your subject scope." };
-    if (!ctx.scope.isAdmin && question.created_by_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
+    if (!ctx.scope.isAdmin && question.creator_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
     const { error } = await ctx.admin.from("questions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/questions");
@@ -551,7 +551,7 @@ export async function authorizeRewriteAction(attemptId: string): Promise<ActionR
     if (!attempt) return { ok: false, error: "Attempt not found or outside your scope." };
     const { error } = await ctx.supabase.rpc("grant_exam_retake", {
       p_session_id: attempt.session_id,
-      p_student_profile_id: attempt.student_id,
+      p_student_id: attempt.student_id,
       p_additional_attempts: 1,
       p_reason: "Authorized from attempt review",
     });
