@@ -39,6 +39,16 @@ const TRACK_DB: Record<FixtureCurriculumRule["track"], AcademicTrack> = {
 };
 const PARTICIPATION_DB = { REQUIRED: "required", ELECTIVE: "elective" } as const;
 const KIND_DB = { CURRICULUM: "curriculum", QUALIFIER: "qualifier" } as const;
+const QUESTION_FIXTURE_SCHEMA_VERSION = 4;
+const QUESTION_FIXTURE_FILES = [
+  "questions.json",
+  "questions/qualifier-english.json",
+  "questions/qualifier-mathematics.json",
+  "questions/qualifier-basic-science.json",
+  "questions/qualifier-humanities.json",
+  "questions/qualifier-business.json",
+  "questions/qualifier-digital.json",
+] as const;
 
 async function requireAdmin() {
   const current = await currentStaff();
@@ -48,6 +58,21 @@ async function requireAdmin() {
 
 async function loadJson<T>(name: string): Promise<T> {
   return JSON.parse(await readFile(path.join(process.cwd(), "public", "seed", name), "utf8")) as T;
+}
+
+async function loadQuestionBankFixture(): Promise<QuestionFixture> {
+  const fixtures = await Promise.all(
+    QUESTION_FIXTURE_FILES.map((name) => loadJson<QuestionFixture>(name)),
+  );
+  for (const [index, fixture] of fixtures.entries()) {
+    if (fixture.schemaVersion !== QUESTION_FIXTURE_SCHEMA_VERSION || !Array.isArray(fixture.questions)) {
+      throw new Error(`Unsupported question fixture ${QUESTION_FIXTURE_FILES[index]}.`);
+    }
+  }
+  return {
+    schemaVersion: QUESTION_FIXTURE_SCHEMA_VERSION,
+    questions: fixtures.flatMap((fixture) => fixture.questions),
+  };
 }
 
 export async function seedSubjectCatalogFromFixtureAction(): Promise<ActionResult & { count?: number }> {
@@ -125,18 +150,24 @@ function normalizeQuestion(question: Record<string, unknown>, subjectId: string)
           : [];
   const modes = Array.isArray(question.examModes) ? (question.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
   const template = question.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
+  const acceptedSource = Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers as unknown[] : [];
+  const nestedAcceptedAnswers = acceptedSource.length > 0 && Array.isArray(acceptedSource[0]);
   const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
   let position = 0;
   const fillTemplate = template
     ? template.map((part) => {
         if (part.blank === undefined) return part.text ?? "";
-        const source = Array.isArray(question.acceptedAnswers) ? (question.acceptedAnswers as unknown[])[position] : undefined;
+        const accepted = nestedAcceptedAnswers
+          ? ((acceptedSource[position] ?? []) as unknown[]).map(String)
+          : position === 0
+            ? acceptedSource.map(String)
+            : [];
         blanks.push({
           question_id: id,
           position,
           blank_key: String(part.blank || `b${position}`),
           placeholder: String(part.placeholder ?? ""),
-          accepted: Array.isArray(source) ? source.map(String) : source !== undefined ? [String(source)] : [],
+          accepted,
         });
         return `{{${position++}}}`;
       }).join("")
@@ -169,8 +200,13 @@ function normalizeQuestion(question: Record<string, unknown>, subjectId: string)
 export async function syncQuestionBankFromFixtureAction(): Promise<ActionResult & { count?: number }> {
   try {
     const admin = await requireAdmin();
-    const fixture = await loadJson<QuestionFixture>("questions.json");
-    if (fixture.schemaVersion !== 5 || !fixture.questions.length) return { ok: false, error: "Unsupported question fixture." };
+    const fixture = await loadQuestionBankFixture();
+    if (!fixture.questions.length) return { ok: false, error: "Question bank fixture is empty." };
+
+    const ids = fixture.questions.map((question) => Number(question.id));
+    if (ids.some((id) => !Number.isSafeInteger(id)) || new Set(ids).size !== ids.length) {
+      return { ok: false, error: "Question bank fixture contains invalid or duplicate question ids." };
+    }
 
     const subjectCodes = [...new Set(fixture.questions.map((question) => String(question.subjectCode ?? "")).filter(Boolean))];
     const [{ data: subjectRows, error: subjectError }, { data: academicLevels, error: levelError }, { data: existingRows, error: existingError }] = await Promise.all([
