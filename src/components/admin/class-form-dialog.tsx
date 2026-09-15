@@ -65,7 +65,7 @@ export function ClassFormDialog({ open, onClose, classId }: { open: boolean; onC
 
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{classId ? "Edit class" : "Add class"}</DialogTitle>
           <DialogDescription>Classes are current student cohorts. Placement qualifiers remain examination workflows and are not created as normal class records.</DialogDescription>

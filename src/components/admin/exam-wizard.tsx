@@ -204,7 +204,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
 
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto rounded-2xl border-neutral-200 bg-white shadow-2xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-4xl overflow-y-auto rounded-2xl border-neutral-200 bg-white shadow-2xl">
         <DialogHeader>
           <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Create examination</p>
           <DialogTitle className="font-display text-xl font-extrabold text-neutral-950">{STEPS[step]}</DialogTitle>

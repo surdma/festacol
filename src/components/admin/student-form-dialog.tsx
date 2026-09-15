@@ -59,7 +59,7 @@ export function StudentFormDialog({ open, onClose, userId }: { open: boolean; on
 
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="mb-2 grid size-10 place-items-center rounded-xl bg-foreground text-background">{userId ? <ArrowRightLeft /> : <UserRoundPlus />}</div>
           <DialogTitle>{userId ? "Edit student" : "Add student"}</DialogTitle>

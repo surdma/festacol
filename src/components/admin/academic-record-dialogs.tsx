@@ -140,7 +140,7 @@ export function StudentAcademicRecordDialog({ userId, onClose }: { userId: strin
 
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl overflow-y-auto p-0">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-6xl overflow-y-auto p-0">
         <DialogHeader className="border-b bg-neutral-950 px-5 py-5 text-white sm:px-7 sm:py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
@@ -264,7 +264,7 @@ export function ClassAcademicRecordDialog({ classId, onClose }: { classId: strin
 
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl overflow-y-auto p-0">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-6xl overflow-y-auto p-0">
         <DialogHeader className="border-b px-5 py-5 sm:px-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div><DialogDescription>Class academic record</DialogDescription><DialogTitle className="mt-1 font-display text-2xl font-extrabold">{String(classRow?.display_name ?? "Class record")}</DialogTitle><p className="mt-2 text-sm text-muted-foreground">{String(classRow?.level_name ?? "")} · {String(classRow?.track_name ?? "")} · {String(classRow?.room || "Room not assigned")}</p></div>

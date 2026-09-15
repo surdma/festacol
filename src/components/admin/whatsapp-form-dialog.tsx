@@ -84,7 +84,7 @@ export function WhatsappFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="mb-2 grid size-10 place-items-center rounded-xl bg-foreground text-background"><MessageCircle /></div>
           <DialogTitle>{groupId ? "Edit class WhatsApp group" : "Connect class WhatsApp"}</DialogTitle>
