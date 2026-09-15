@@ -104,8 +104,8 @@ function serializeAnswer(question: QuestionDTO | undefined): string {
 
 function placementTrack(value: string | undefined): AcademicTrack | null {
   if (value === "Science") return "science";
-  if (value === "Arts" || value === "Art") return "art";
-  if (value === "Social Science") return "social_science";
+  if (value === "Humanities") return "humanities";
+  if (value === "Business") return "business";
   return null;
 }
 
