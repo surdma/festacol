@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
-import { studentHashFor } from "@/lib/assessment";
 import { currentStaff } from "@/lib/auth/staff";
+import { listClasses } from "@/lib/supabase/queries";
+import type { ExamAttemptContextSnapshot } from "@/types/db";
 
 async function requireTask7Admin() {
   const context = await currentStaff();
@@ -14,17 +15,24 @@ async function requireTask7Admin() {
 export async function deleteClassSafelyAction(classId: string): Promise<ActionResult> {
   try {
     const supabase = await requireTask7Admin();
-    const { count, error: countError } = await supabase
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "student")
-      .eq("class_id", classId);
-    if (countError) return { ok: false, error: countError.message };
-    if ((count ?? 0) > 0) {
+    const [{ count: activeCount, error: activeError }, { count: totalCount, error: totalError }] = await Promise.all([
+      supabase
+        .from("class_enrollments")
+        .select("id", { count: "exact", head: true })
+        .eq("class_id", classId)
+        .eq("status", "active")
+        .is("ended_at", null),
+      supabase.from("class_enrollments").select("id", { count: "exact", head: true }).eq("class_id", classId),
+    ]);
+    if (activeError || totalError) return { ok: false, error: activeError?.message ?? totalError?.message ?? "Class enrollment history could not be checked." };
+    if ((activeCount ?? 0) > 0) {
       return {
         ok: false,
-        error: `Move the ${count} assigned student${count === 1 ? "" : "s"} to another class before deleting this class.`,
+        error: `Move the ${activeCount} actively enrolled student${activeCount === 1 ? "" : "s"} to another class before deleting this class.`,
       };
+    }
+    if ((totalCount ?? 0) > 0) {
+      return { ok: false, error: "This class has historical enrolment records and must be preserved for audit history. Mark it inactive instead of deleting it." };
     }
 
     const { error } = await supabase.from("classes").delete().eq("id", classId);
@@ -56,9 +64,7 @@ export async function upsertSingleClassWhatsappAction(input: {
     const supabase = await requireTask7Admin();
     if (!input.classId) return { ok: false, error: "Choose a class." };
     if (!input.name.trim()) return { ok: false, error: "Enter a group name." };
-    if (!validWhatsappInvite(input.inviteUrl)) {
-      return { ok: false, error: "Use an official https://chat.whatsapp.com/ invite link." };
-    }
+    if (!validWhatsappInvite(input.inviteUrl)) return { ok: false, error: "Use an official https://chat.whatsapp.com/ invite link." };
 
     const { data: conflicts, error: conflictError } = await supabase
       .from("whatsapp_groups")
@@ -67,9 +73,7 @@ export async function upsertSingleClassWhatsappAction(input: {
       .limit(2);
     if (conflictError) return { ok: false, error: conflictError.message };
     const conflict = ((conflicts ?? []) as { id: string; class_id: string }[]).find((group) => group.id !== input.id);
-    if (conflict) {
-      return { ok: false, error: "This class already has a WhatsApp group. Edit the existing class mapping instead." };
-    }
+    if (conflict) return { ok: false, error: "This class already has a WhatsApp group. Edit the existing class mapping instead." };
 
     const now = Date.now();
     const id = input.id ?? `WA-${now.toString(36).toUpperCase()}`;
@@ -90,76 +94,182 @@ export async function upsertSingleClassWhatsappAction(input: {
   }
 }
 
+interface AcademicAttemptRow {
+  id: string;
+  session_id: string;
+  student_id: string;
+  attempt_number: number;
+  context_snapshot: ExamAttemptContextSnapshot;
+  score: number | null;
+  integrity_score: number | null;
+  assigned_track: string | null;
+  placement_confidence: number | null;
+  started_at: number | null;
+  submitted_at: number | null;
+  created_at: number;
+}
+
+interface ResponseStatRow {
+  attempt_id: string;
+  question_id: number;
+  correct: boolean | null;
+  seconds: number;
+}
+
+function buildSubjectStats(
+  responses: ResponseStatRow[],
+  questionSubject: Map<string, string>,
+  subjectName: Map<string, string>,
+) {
+  const buckets = new Map<string, { attemptId: string; subjectId: string; total: number; correct: number; seconds: number }>();
+  for (const response of responses) {
+    if (response.correct == null) continue;
+    const subjectId = questionSubject.get(String(response.question_id));
+    if (!subjectId) continue;
+    const key = `${response.attempt_id}:${subjectId}`;
+    const bucket = buckets.get(key) ?? { attemptId: response.attempt_id, subjectId, total: 0, correct: 0, seconds: 0 };
+    bucket.total += 1;
+    if (response.correct) bucket.correct += 1;
+    bucket.seconds += Number(response.seconds ?? 0);
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()].map((bucket) => ({
+    attempt_id: bucket.attemptId,
+    subject_id: bucket.subjectId,
+    subject_name: subjectName.get(bucket.subjectId) ?? "Subject",
+    total: bucket.total,
+    correct: bucket.correct,
+    seconds: bucket.seconds,
+    percent: bucket.total ? Math.round((bucket.correct / bucket.total) * 100) : 0,
+  }));
+}
+
 export async function getStudentAcademicRecordAction(userId: string) {
-  const { supabase, scope } = await currentStaff();
-  const { data: user } = await supabase.from("users").select("*").eq("id", userId).eq("role", "student").maybeSingle();
-  const student = user as {
+  const { supabase } = await currentStaff();
+  const { data: member } = await supabase
+    .from("school_members")
+    .select("id,role,status,first_name,last_name,student_number,guardian,phone,promotion_status")
+    .eq("id", userId)
+    .eq("role", "student")
+    .maybeSingle();
+  const student = member as {
     id: string;
+    role: string;
+    status: string;
     first_name: string;
     last_name: string;
-    class_id: string | null;
+    student_number: string | null;
+    guardian: string | null;
+    phone: string | null;
+    promotion_status: string | null;
   } | null;
   if (!student) return { user: null, classRow: null, whatsappGroup: null, attempts: [], stats: [], events: [] };
 
-  const studentHash = await studentHashFor(student.first_name, student.last_name);
-  const [{ data: classRow }, { data: whatsapp }, { data: attempts }] = await Promise.all([
-    student.class_id
-      ? supabase.from("classes").select("*").eq("id", student.class_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    student.class_id
-      ? supabase.from("whatsapp_groups").select("id,class_id,name,invite_url,updated_at").eq("class_id", student.class_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+  const [{ data: enrollment }, classes, { data: attempts }] = await Promise.all([
+    supabase
+      .from("class_enrollments")
+      .select("class_id")
+      .eq("student_id", userId)
+      .eq("status", "active")
+      .is("ended_at", null)
+      .limit(1)
+      .maybeSingle(),
+    listClasses(supabase),
     supabase
       .from("exam_attempts")
-      .select("attempt_hash,session_id,session_title,class_level,class_group,mode,score,integrity_score,assigned_track,placement_confidence,started_at,submitted_at,rewrite_archived_at,rewrite_source_attempt_hash,created_at")
-      .eq("student_hash", studentHash)
+      .select("id,session_id,student_id,attempt_number,context_snapshot,score,integrity_score,assigned_track,placement_confidence,started_at,submitted_at,created_at")
+      .eq("student_id", userId)
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
 
-  const attemptRows = (attempts ?? []) as { attempt_hash: string; session_id: string | null }[];
-  const hashes = attemptRows.map((attempt) => attempt.attempt_hash);
-  const sessionIds = [...new Set(attemptRows.map((attempt) => attempt.session_id).filter((value): value is string => Boolean(value)))];
-  const [{ data: stats }, { data: events }, { data: sessions }] = await Promise.all([
-    hashes.length
-      ? supabase.from("exam_attempt_subject_stats").select("attempt_hash,subject_code,subject_name,total,correct,seconds,percent").in("attempt_hash", hashes)
-      : Promise.resolve({ data: [] }),
-    hashes.length
-      ? supabase.from("exam_integrity_events").select("attempt_hash,session_id,type,detail,at").in("attempt_hash", hashes).order("at", { ascending: false })
-      : Promise.resolve({ data: [] }),
-    sessionIds.length
-      ? supabase.from("exam_sessions").select("id,title,class_level,class_group,mode,subjects,status").in("id", sessionIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const classId = (enrollment as { class_id?: string } | null)?.class_id ?? null;
+  const classRow = classes.find((row) => row.id === classId) ?? null;
+  const { data: whatsapp } = classId
+    ? await supabase.from("whatsapp_groups").select("id,class_id,name,invite_url,updated_at").eq("class_id", classId).maybeSingle()
+    : { data: null };
 
-  // Teachers may inspect student records, but downstream exam detail routes still
-  // enforce their own subject/cohost scope. Do not broaden those contracts here.
-  void scope;
+  const attemptRows = (attempts ?? []) as AcademicAttemptRow[];
+  const attemptIds = attemptRows.map((attempt) => attempt.id);
+  const [{ data: responses }, { data: events }] = attemptIds.length
+    ? await Promise.all([
+      supabase.from("exam_attempt_responses").select("attempt_id,question_id,correct,seconds").in("attempt_id", attemptIds),
+      supabase.from("exam_integrity_events").select("attempt_id,type,detail,at").in("attempt_id", attemptIds).order("at", { ascending: false }),
+    ])
+    : [{ data: [] }, { data: [] }];
+
+  const responseRows = (responses ?? []) as ResponseStatRow[];
+  const questionIds = [...new Set(responseRows.map((row) => Number(row.question_id)))];
+  const { data: questions } = questionIds.length
+    ? await supabase.from("questions").select("id,subject_id").in("id", questionIds)
+    : { data: [] };
+  const questionRows = (questions ?? []) as { id: number; subject_id: string }[];
+  const subjectIds = [...new Set(questionRows.map((row) => row.subject_id))];
+  const { data: subjects } = subjectIds.length
+    ? await supabase.from("subjects").select("id,name").in("id", subjectIds)
+    : { data: [] };
+  const questionSubject = new Map(questionRows.map((row) => [String(row.id), row.subject_id]));
+  const subjectName = new Map(((subjects ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+
   return {
-    user,
+    user: { ...student, full_name: `${student.first_name} ${student.last_name}`.trim(), class_id: classId },
     classRow,
     whatsappGroup: whatsapp,
-    attempts: attempts ?? [],
-    stats: stats ?? [],
+    attempts: attemptRows,
+    stats: buildSubjectStats(responseRows, questionSubject, subjectName),
     events: events ?? [],
-    sessions: sessions ?? [],
   };
 }
 
 export async function getClassAcademicRecordAction(classId: string) {
   const { supabase } = await currentStaff();
-  const { data: classRow } = await supabase.from("classes").select("*").eq("id", classId).maybeSingle();
-  const cls = classRow as { id: string; class_level: string; stream: string; capacity: number } | null;
-  if (!cls) return { classRow: null, students: [], whatsappGroup: null, sessions: [], attempts: [] };
+  const classes = await listClasses(supabase);
+  const classRow = classes.find((row) => row.id === classId) ?? null;
+  if (!classRow) return { classRow: null, students: [], whatsappGroup: null, sessions: [], attempts: [] };
 
-  const [{ data: students }, { data: whatsapp }, { data: sessions }] = await Promise.all([
-    supabase.from("users").select("id,full_name,first_name,last_name,status,class_id").eq("role", "student").eq("class_id", classId).order("full_name").limit(500),
+  const [{ data: enrollments }, { data: whatsapp }, { data: offerings }, { data: classTargets }] = await Promise.all([
+    supabase
+      .from("class_enrollments")
+      .select("student_id")
+      .eq("class_id", classId)
+      .eq("status", "active")
+      .is("ended_at", null)
+      .limit(500),
     supabase.from("whatsapp_groups").select("id,class_id,name,invite_url,updated_at").eq("class_id", classId).maybeSingle(),
-    supabase.from("exam_sessions").select("id,title,class_level,class_group,mode,status,question_count,created_at").eq("class_level", cls.class_level).eq("class_group", cls.stream).order("created_at", { ascending: false }).limit(100),
+    supabase.from("class_subject_offerings").select("id").eq("class_id", classId).in("status", ["active", "draft"]),
+    supabase.from("exam_class_targets").select("session_id").eq("class_id", classId),
   ]);
-  const sessionIds = ((sessions ?? []) as { id: string }[]).map((session) => session.id);
-  const { data: attempts } = sessionIds.length
-    ? await supabase.from("exam_attempts").select("attempt_hash,session_id,student_hash,student_name,score,integrity_score,submitted_at,rewrite_archived_at").in("session_id", sessionIds).limit(2000)
+
+  const studentIds = ((enrollments ?? []) as { student_id: string }[]).map((row) => row.student_id);
+  const { data: members } = studentIds.length
+    ? await supabase.from("school_members").select("id,first_name,last_name,status").in("id", studentIds).order("last_name")
     : { data: [] };
-  return { classRow, students: students ?? [], whatsappGroup: whatsapp, sessions: sessions ?? [], attempts: attempts ?? [] };
+  const students = ((members ?? []) as { id: string; first_name: string; last_name: string; status: string }[]).map((member) => ({
+    ...member,
+    full_name: `${member.first_name} ${member.last_name}`.trim(),
+    class_id: classId,
+  }));
+
+  const offeringIds = ((offerings ?? []) as { id: string }[]).map((row) => row.id);
+  const { data: offeringTargets } = offeringIds.length
+    ? await supabase.from("exam_offering_targets").select("session_id").in("offering_id", offeringIds)
+    : { data: [] };
+  const sessionIds = [...new Set([
+    ...((classTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
+    ...((offeringTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
+  ])];
+  const { data: sessions } = sessionIds.length
+    ? await supabase.from("exam_sessions").select("id,title,mode,status,question_count,created_at").in("id", sessionIds).order("created_at", { ascending: false })
+    : { data: [] };
+  const { data: attempts } = sessionIds.length && studentIds.length
+    ? await supabase
+      .from("exam_attempts")
+      .select("id,session_id,student_id,attempt_number,context_snapshot,score,integrity_score,submitted_at,created_at")
+      .in("session_id", sessionIds)
+      .in("student_id", studentIds)
+      .order("created_at", { ascending: false })
+      .limit(2000)
+    : { data: [] };
+
+  return { classRow, students, whatsappGroup: whatsapp, sessions: sessions ?? [], attempts: attempts ?? [] };
 }
