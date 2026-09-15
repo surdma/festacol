@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { updateSession } from "@/lib/supabase/middleware";
 
 // Next.js 16 proxy: refresh the Supabase session, then authorize staff routes
-// through the database-owned academic profile rather than JWT role metadata.
+// through the canonical school member rather than JWT role metadata.
 export default async function proxy(request: NextRequest) {
   const response = await updateSession(request);
   const path = request.nextUrl.pathname;
@@ -26,14 +26,14 @@ export default async function proxy(request: NextRequest) {
       login.searchParams.set("next", path);
       return NextResponse.redirect(login);
     }
-    const { data: profile } = await supabase
-      .from("academic_profiles")
+    const { data: member } = await supabase
+      .from("school_members")
       .select("role,status")
       .eq("auth_user_id", user.id)
       .eq("status", "active")
       .in("role", ["teacher", "administrator"])
       .maybeSingle();
-    if (!profile) {
+    if (!member) {
       const login = new URL("/admin/login", request.url);
       login.searchParams.set("next", path);
       return NextResponse.redirect(login);
