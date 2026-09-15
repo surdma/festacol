@@ -86,7 +86,7 @@ export default async function AdminClassesPage() {
       <AdminPageHeader
         eyebrow="Academic structure"
         title="Classes & communication"
-        description="A class section belongs to an academic level and optional programme. Subject participation is configured independently through class subject offerings."
+        description="Each class belongs to an academic level and an optional Science, Art or Social Science track. Subject participation is configured independently through class subject offerings."
         actions={scope.isAdmin ? <>
           <Button render={<Link href="/admin/classes?modal=class-new" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New class</Button>
           <Button render={<Link href="/admin/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><QrCode data-icon="inline-start" />Connect WhatsApp</Button>
@@ -103,7 +103,7 @@ export default async function AdminClassesPage() {
 
         <div className="space-y-6">
           {levelOrder.map((level) => {
-            const levelClasses = active.filter((item) => item.level_name === level).sort((a, b) => (a.programme_name ?? "").localeCompare(b.programme_name ?? "") || a.arm.localeCompare(b.arm));
+            const levelClasses = active.filter((item) => item.level_name === level).sort((a, b) => (a.track_name ?? "").localeCompare(b.track_name ?? "") || a.arm.localeCompare(b.arm));
             if (!levelClasses.length) return null;
             return (
               <section key={level} className={`${adminSurfaceClass} overflow-hidden`}>
@@ -122,7 +122,7 @@ export default async function AdminClassesPage() {
                     const recordHref = `/admin/classes?modal=class&class=${encodeURIComponent(item.id)}`;
                     return (
                       <article key={item.id} className="grid gap-4 p-5 transition hover:bg-neutral-50/60 lg:grid-cols-[minmax(220px,1.25fr)_minmax(190px,.9fr)_minmax(170px,.8fr)_minmax(190px,.9fr)] lg:items-center">
-                        <div className="min-w-0"><Link href={recordHref} className="group inline-flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white"><School /></span><span className="min-w-0"><strong className="block truncate font-display text-base font-extrabold text-neutral-950 group-hover:underline">{item.display_name}</strong><span className="mt-1 block text-xs text-neutral-500">{item.programme_name ?? "General"} · {item.room || "Room not assigned"}</span></span></Link></div>
+                        <div className="min-w-0"><Link href={recordHref} className="group inline-flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white"><School /></span><span className="min-w-0"><strong className="block truncate font-display text-base font-extrabold text-neutral-950 group-hover:underline">{item.display_name}</strong><span className="mt-1 block text-xs text-neutral-500">{item.track_name ?? "Unassigned track"} · {item.room || "Room not assigned"}</span></span></Link></div>
                         <div><div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-neutral-700">{count}/{capacity || "—"}</span><span className="text-neutral-500">{remaining} remaining</span></div><Progress value={utilization} /></div>
                         <div><strong className="block text-sm text-neutral-900">{matchedSessions.length} matched exam{matchedSessions.length === 1 ? "" : "s"}</strong><span className="mt-1 block text-xs text-neutral-500">{classAverage === null ? "No submitted scores" : `${classAverage}% average`}</span></div>
                         <div><strong className="block text-sm text-neutral-900">{group ? group.name : "Not connected"}</strong><span className="mt-1 block text-xs text-neutral-500">{group ? "WhatsApp group linked" : "Add a group from this class record"}</span></div>
