@@ -1,7 +1,9 @@
 // Prisma schema — Festacol production data model.
-// Source of truth aligns with supabase/schema.sql (normalized typed columns).
-// Runtime DB is Supabase Postgres. Legacy JSONB installations are upgraded by
-// supabase/04-normalize.sql before Prisma migration workflows are used.
+//
+// Supabase auth.users is the authentication authority. `academic_profiles`
+// stores only application/academic identity and links to auth.users by UUID.
+// Legacy tables/columns remain during the v2 expand-and-migrate sequence and
+// are removed only after all runtime consumers use the relational graph.
 
 generator client {
   provider = "prisma-client"
@@ -24,12 +26,17 @@ model Class {
   academicSession String   @default("2026/2027") @map("academic_session")
   status          String   @default("active")
 
-  users          User[]
-  whatsappGroups WhatsappGroup[]
+  users               User[]
+  whatsappGroups      WhatsappGroup[]
+  enrollments         ClassEnrollment[]
+  teachingAssignments TeachingAssignment[]
+  examTargets         ExamClassTarget[]
 
   @@map("classes")
 }
 
+// LEGACY roster row. Runtime migration keeps this model temporarily so old
+// consumers keep working. New identity and relationships use AcademicProfile.
 model User {
   id              String   @id
   fullName        String   @map("full_name")
@@ -47,12 +54,35 @@ model User {
   subjects        String[] @default([])
   qualifierAccess Boolean  @default(false) @map("qualifier_access")
 
-  class            Class?     @relation(fields: [classId], references: [id], onDelete: SetNull)
-  createdQuestions Question[] @relation("CreatedQuestions")
+  class            Class?           @relation(fields: [classId], references: [id], onDelete: SetNull)
+  createdQuestions Question[]       @relation("LegacyCreatedQuestions")
+  academicProfile  AcademicProfile?
 
   @@map("users")
 }
 
+model AcademicProfile {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authUserId   String?  @unique @map("auth_user_id") @db.Uuid
+  legacyUserId String?  @unique @map("legacy_user_id")
+  role         String
+  status       String   @default("active")
+  fullName     String   @map("full_name")
+  firstName    String   @default("") @map("first_name")
+  lastName     String   @default("") @map("last_name")
+  email        String   @default("")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  legacyUser User?                   @relation(fields: [legacyUserId], references: [id], onDelete: SetNull)
+  student    StudentAcademicProfile?
+  staff      StaffAcademicProfile?
+
+  @@index([role, status])
+  @@map("academic_profiles")
+}
+
+// LEGACY name-hash profile retained until student-auth cutover.
 model StudentProfile {
   studentHash     String @id @map("student_hash")
   candidateHash   String @default("") @map("candidate_hash")
@@ -65,7 +95,134 @@ model StudentProfile {
   academicSession String @default("2026/2027") @map("academic_session")
   updatedAt       BigInt @map("updated_at")
 
+  identityLink LegacyStudentIdentityLink?
+
   @@map("student_profiles")
+}
+
+model StudentAcademicProfile {
+  profileId       String   @id @map("profile_id") @db.Uuid
+  studentNumber   String?  @unique @map("student_number")
+  guardian        String   @default("")
+  phone           String   @default("")
+  promotionStatus String   @default("on-track") @map("promotion_status")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile            AcademicProfile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  enrollments        ClassEnrollment[]
+  examAccess         ExamStudentAccess[]
+  retakeGrants       ExamRetakeGrant[]
+  attempts           ExamAttempt[]
+  legacyIdentityLink LegacyStudentIdentityLink?
+
+  @@map("student_academic_profiles")
+}
+
+model StaffAcademicProfile {
+  profileId       String   @id @map("profile_id") @db.Uuid
+  staffNumber     String?  @unique @map("staff_number")
+  qualifierAccess Boolean  @default(false) @map("qualifier_access")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile             AcademicProfile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  qualifications      StaffSubjectQualification[]
+  teachingAssignments TeachingAssignment[]
+  createdExams        ExamSession[]
+  examAssignments     ExamStaffAssignment[]
+  authoredQuestions   Question[]                   @relation("ProfileCreatedQuestions")
+  grantedExamAccess   ExamStudentAccess[]
+  grantedRetakes      ExamRetakeGrant[]
+
+  @@map("staff_academic_profiles")
+}
+
+model AcademicYear {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @unique
+  startsOn  DateTime? @map("starts_on") @db.Date
+  endsOn    DateTime? @map("ends_on") @db.Date
+  status    String    @default("active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  terms               AcademicTerm[]
+  enrollments         ClassEnrollment[]
+  teachingAssignments TeachingAssignment[]
+
+  @@map("academic_years")
+}
+
+model AcademicTerm {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  name           String
+  sequence       Int
+  startsOn       DateTime? @map("starts_on") @db.Date
+  endsOn         DateTime? @map("ends_on") @db.Date
+  status         String    @default("active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  teachingAssignments TeachingAssignment[]
+  exams               ExamSession[]
+
+  @@unique([academicYearId, name])
+  @@unique([academicYearId, sequence])
+  @@map("academic_terms")
+}
+
+model ClassEnrollment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  classId          String    @map("class_id")
+  academicYearId   String    @map("academic_year_id") @db.Uuid
+  status           String    @default("active")
+  enrolledAt       DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  endedAt          DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  studentProfile StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
+  class          Class                  @relation(fields: [classId], references: [id], onDelete: Restrict)
+  academicYear   AcademicYear           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  @@unique([studentProfileId, classId, academicYearId])
+  @@index([classId, academicYearId, status])
+  @@map("class_enrollments")
+}
+
+model StaffSubjectQualification {
+  staffProfileId String   @map("staff_profile_id") @db.Uuid
+  subjectCode    String   @map("subject_code")
+  active         Boolean  @default(true)
+  assignedAt     DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+
+  staffProfile StaffAcademicProfile @relation(fields: [staffProfileId], references: [profileId], onDelete: Cascade)
+  subject      Subject              @relation(fields: [subjectCode], references: [code], onDelete: Restrict)
+
+  @@id([staffProfileId, subjectCode])
+  @@map("staff_subject_qualifications")
+}
+
+model TeachingAssignment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffProfileId   String    @map("staff_profile_id") @db.Uuid
+  classId          String    @map("class_id")
+  subjectCode      String    @map("subject_code")
+  academicYearId   String    @map("academic_year_id") @db.Uuid
+  academicTermId   String?   @map("academic_term_id") @db.Uuid
+  assignmentRole   String    @default("teacher") @map("assignment_role")
+  status           String    @default("active")
+  assignedAt       DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  endedAt          DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  staffProfile StaffAcademicProfile @relation(fields: [staffProfileId], references: [profileId], onDelete: Cascade)
+  class        Class                @relation(fields: [classId], references: [id], onDelete: Restrict)
+  subject      Subject              @relation(fields: [subjectCode], references: [code], onDelete: Restrict)
+  academicYear AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  academicTerm AcademicTerm?        @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+
+  @@index([classId, subjectCode, academicYearId, status])
+  @@map("teaching_assignments")
 }
 
 model ExamSession {
@@ -95,19 +252,108 @@ model ExamSession {
   cohosts            String[] @default([])
   createdAt          BigInt   @map("created_at")
   updatedAt          BigInt   @map("updated_at")
+  createdByProfileId String?  @map("created_by_profile_id") @db.Uuid
+  academicTermId     String?  @map("academic_term_id") @db.Uuid
 
-  attempts        ExamAttempt[]
-  states          ExamState[]
-  resetMarkers    ExamResetMarker[]
-  backgroundMarks ExamBackgroundMarker[]
-  proctorPolicy   ExamProctorPolicy?
+  creator          StaffAcademicProfile? @relation(fields: [createdByProfileId], references: [profileId], onDelete: SetNull)
+  academicTerm     AcademicTerm?         @relation(fields: [academicTermId], references: [id], onDelete: SetNull)
+  examSubjects     ExamSubject[]
+  classTargets     ExamClassTarget[]
+  staffAssignments ExamStaffAssignment[]
+  studentAccess    ExamStudentAccess[]
+  retakeGrants     ExamRetakeGrant[]
+  attempts         ExamAttempt[]
+  states           ExamState[]
+  resetMarkers     ExamResetMarker[]
+  backgroundMarks  ExamBackgroundMarker[]
+  proctorPolicy    ExamProctorPolicy?
 
   @@map("exam_sessions")
+}
+
+model ExamSubject {
+  sessionId   String @map("session_id")
+  subjectCode String @map("subject_code")
+  position    Int    @default(0)
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subject Subject     @relation(fields: [subjectCode], references: [code], onDelete: Restrict)
+
+  @@id([sessionId, subjectCode])
+  @@map("exam_subjects")
+}
+
+model ExamClassTarget {
+  sessionId String   @map("session_id")
+  classId   String   @map("class_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  class   Class       @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@id([sessionId, classId])
+  @@map("exam_class_targets")
+}
+
+model ExamStaffAssignment {
+  sessionId      String   @map("session_id")
+  staffProfileId String   @map("staff_profile_id") @db.Uuid
+  role           String
+  assignedAt     DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+
+  session      ExamSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  staffProfile StaffAcademicProfile @relation(fields: [staffProfileId], references: [profileId], onDelete: Cascade)
+
+  @@id([sessionId, staffProfileId, role])
+  @@index([staffProfileId, role, sessionId])
+  @@map("exam_staff_assignments")
+}
+
+model ExamStudentAccess {
+  sessionId           String    @map("session_id")
+  studentProfileId    String    @map("student_profile_id") @db.Uuid
+  decision            String
+  maxAttemptsOverride Int?      @map("max_attempts_override")
+  validFrom           DateTime? @map("valid_from") @db.Timestamptz(6)
+  validUntil          DateTime? @map("valid_until") @db.Timestamptz(6)
+  grantedByProfileId  String?   @map("granted_by_profile_id") @db.Uuid
+  reason              String    @default("")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  session        ExamSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentProfile StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
+  grantedBy      StaffAcademicProfile?  @relation(fields: [grantedByProfileId], references: [profileId], onDelete: SetNull)
+
+  @@id([sessionId, studentProfileId])
+  @@map("exam_student_access")
+}
+
+model ExamRetakeGrant {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId          String    @map("session_id")
+  studentProfileId   String    @map("student_profile_id") @db.Uuid
+  additionalAttempts Int       @map("additional_attempts")
+  grantedByProfileId String    @map("granted_by_profile_id") @db.Uuid
+  reason             String
+  grantedAt          DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  session        ExamSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentProfile StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
+  grantedBy      StaffAcademicProfile   @relation(fields: [grantedByProfileId], references: [profileId], onDelete: Restrict)
+
+  @@index([sessionId, studentProfileId, revokedAt, expiresAt])
+  @@map("exam_retake_grants")
 }
 
 model ExamAttempt {
   id                       String
   attemptHash              String  @id @map("attempt_hash")
+  attemptUuid              String  @unique @default(dbgenerated("gen_random_uuid()")) @map("attempt_uuid") @db.Uuid
+  studentProfileId         String? @map("student_profile_id") @db.Uuid
+  attemptNumber            Int?    @map("attempt_number")
   candidateHash            String  @map("candidate_hash")
   studentHash              String  @default("") @map("student_hash")
   paperFingerprint         String  @default("") @map("paper_fingerprint")
@@ -141,9 +387,10 @@ model ExamAttempt {
   rewriteSourceAttemptHash String  @default("") @map("rewrite_source_attempt_hash")
   createdAt                BigInt  @map("created_at")
 
-  session      ExamSession?             @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  answers      ExamAttemptAnswer[]
-  subjectStats ExamAttemptSubjectStat[]
+  session        ExamSession?            @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  studentProfile StudentAcademicProfile? @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
+  answers        ExamAttemptAnswer[]
+  subjectStats   ExamAttemptSubjectStat[]
 
   @@index([sessionId])
   @@index([sessionId, candidateHash])
@@ -284,28 +531,31 @@ model WhatsappGroup {
 }
 
 model Question {
-  id             BigInt   @id
-  subjectCode    String   @map("subject_code")
-  subjectName    String   @default("") @map("subject_name")
-  label          String   @default("")
-  qtype          String
-  prompt         String
-  options        String[] @default([])
-  correctAnswers String[] @default([]) @map("correct_answers")
-  fillTemplate   String?  @map("fill_template")
-  instruction    String   @default("")
-  levels         String[] @default([])
-  examModes      String[] @default([]) @map("exam_modes")
-  difficulty     String   @default("medium")
-  domain         String   @default("")
-  explanation    String   @default("")
-  createdBy      String?  @map("created_by")
-  updatedAt      BigInt   @map("updated_at")
+  id                 BigInt    @id
+  subjectCode        String    @map("subject_code")
+  subjectName        String    @default("") @map("subject_name")
+  label              String    @default("")
+  qtype              String
+  prompt             String
+  options            String[]  @default([])
+  correctAnswers     String[]  @default([]) @map("correct_answers")
+  fillTemplate       String?   @map("fill_template")
+  instruction        String    @default("")
+  levels             String[]  @default([])
+  examModes          String[]  @default([]) @map("exam_modes")
+  difficulty         String    @default("medium")
+  domain             String    @default("")
+  explanation        String    @default("")
+  createdBy          String?   @map("created_by")
+  createdByProfileId String?   @map("created_by_profile_id") @db.Uuid
+  createdAt          DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt          BigInt    @map("updated_at")
 
-  subject Subject         @relation(fields: [subjectCode], references: [code])
-  creator User?           @relation("CreatedQuestions", fields: [createdBy], references: [id], onDelete: SetNull)
-  blanks  QuestionBlank[]
-  answers ExamAttemptAnswer[]
+  subject        Subject               @relation(fields: [subjectCode], references: [code])
+  legacyCreator  User?                 @relation("LegacyCreatedQuestions", fields: [createdBy], references: [id], onDelete: SetNull)
+  creatorProfile StaffAcademicProfile? @relation("ProfileCreatedQuestions", fields: [createdByProfileId], references: [profileId], onDelete: SetNull)
+  blanks         QuestionBlank[]
+  answers        ExamAttemptAnswer[]
 
   @@index([subjectCode])
   @@map("questions")
@@ -332,7 +582,36 @@ model Subject {
   active    Boolean  @default(true)
   updatedAt BigInt   @map("updated_at")
 
-  questions Question[]
+  questions           Question[]
+  staffQualifications StaffSubjectQualification[]
+  teachingAssignments TeachingAssignment[]
+  examSubjects        ExamSubject[]
 
   @@map("subjects")
+}
+
+model LegacyStudentIdentityLink {
+  studentHash      String   @id @map("student_hash")
+  studentProfileId String   @unique @map("student_profile_id") @db.Uuid
+  linkMethod       String   @map("link_method")
+  linkedAt         DateTime @default(now()) @map("linked_at") @db.Timestamptz(6)
+
+  legacyProfile  StudentProfile         @relation(fields: [studentHash], references: [studentHash], onDelete: Cascade)
+  studentProfile StudentAcademicProfile @relation(fields: [studentProfileId], references: [profileId], onDelete: Cascade)
+
+  @@map("legacy_student_identity_links")
+}
+
+model SchemaMigrationIssue {
+  id         BigInt    @id @default(autoincrement())
+  issueKey   String    @unique @map("issue_key")
+  entityType String    @map("entity_type")
+  entityKey  String    @map("entity_key")
+  issueType  String    @map("issue_type")
+  detail     String
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([issueType, entityType])
+  @@map("schema_migration_issues")
 }
