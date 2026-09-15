@@ -10,18 +10,18 @@ import { FadeUp } from "@/components/motion";
 export default async function HistoryPage() {
   const ctx = await currentStudent();
   if (!ctx) redirect("/");
-  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.student_hash);
+  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.profile_id);
   return (
     <FadeUp className="flex flex-col gap-4">
       <div><h1 className="text-2xl font-semibold">Exam history</h1></div>
       {attempts.length === 0 ? <EmptyState title="No history yet" /> : (
         <Card><CardContent className="p-0"><Table>
           <TableHeader><TableRow><TableHead>Exam</TableHead><TableHead>Status</TableHead><TableHead>Score</TableHead></TableRow></TableHeader>
-          <TableBody>{attempts.map((a) => (
-            <TableRow key={a.attempt_hash}>
-              <TableCell>{a.session_title}</TableCell>
-              <TableCell>{a.submitted_at ? "Submitted" : "In progress"}</TableCell>
-              <TableCell className="tabular-nums">{a.submitted_at ? `${a.score ?? "—"}%` : "—"}</TableCell>
+          <TableBody>{attempts.map((attempt) => (
+            <TableRow key={attempt.attempt_hash}>
+              <TableCell>{attempt.session_title}</TableCell>
+              <TableCell>{attempt.submitted_at ? "Submitted" : "In progress"}</TableCell>
+              <TableCell className="tabular-nums">{attempt.submitted_at ? `${attempt.score ?? "—"}%` : "—"}</TableCell>
             </TableRow>))}
           </TableBody>
         </Table></CardContent></Card>

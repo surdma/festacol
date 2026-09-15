@@ -13,8 +13,8 @@ import { BarChart3, ClipboardList, Gauge, ShieldCheck } from "lucide-react";
 export default async function AnalyticsPage() {
   const ctx = await currentStudent();
   if (!ctx) redirect("/");
-  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.student_hash);
-  const latest = attempts.find((a) => a.submitted_at);
+  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.profile_id);
+  const latest = attempts.find((attempt) => attempt.submitted_at);
   if (!latest) {
     return (
       <FadeUp className="flex flex-col gap-4">
@@ -28,15 +28,17 @@ export default async function AnalyticsPage() {
     ctx.supabase.from("exam_attempt_subject_stats").select("*").eq("attempt_hash", latest.attempt_hash),
     ctx.supabase.from("exam_attempt_answers").select("question_id,correct,correct_answer").eq("attempt_hash", latest.attempt_hash).order("id"),
   ]);
-  const subjectStats = ((stats ?? []) as { subject_name: string; percent: number }[]).map((s) => ({ subject: s.subject_name, percent: s.percent }));
-  const details = ((answers ?? []) as { question_id: number; correct: boolean | null; correct_answer: string }[]).map((d) => ({
-    questionId: d.question_id, correct: d.correct, correctAnswer: d.correct_answer,
+  const subjectStats = ((stats ?? []) as { subject_name: string; percent: number }[]).map((stat) => ({ subject: stat.subject_name, percent: stat.percent }));
+  const details = ((answers ?? []) as { question_id: number; correct: boolean | null; correct_answer: string }[]).map((detail) => ({
+    questionId: detail.question_id,
+    correct: detail.correct,
+    correctAnswer: detail.correct_answer,
   }));
   let revealed = false;
   if (latest.session_id) {
     const { data } = await ctx.supabase.from("exam_sessions").select("status,ends_at").eq("id", latest.session_id).maybeSingle();
-    const s = data as { status: string; ends_at: number | null } | null;
-    revealed = answersMayBeRevealed({ endsAt: s?.ends_at ?? null } as never, (s?.status ?? undefined) as "open" | "draft" | "closed" | undefined);
+    const session = data as { status: string; ends_at: number | null } | null;
+    revealed = answersMayBeRevealed({ endsAt: session?.ends_at ?? null } as never, (session?.status ?? undefined) as "open" | "draft" | "closed" | undefined);
   } else {
     revealed = true;
   }
@@ -45,17 +47,17 @@ export default async function AnalyticsPage() {
       <div><h1 className="text-2xl font-semibold">Analytics</h1><p className="text-muted-foreground">{latest.session_title}</p></div>
       <Stagger className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <MetricCard label="Score" value={`${latest.score ?? 0}%`} icon={BarChart3} />
-        <MetricCard label="Completion" value={`${(latest as unknown as { completion: number }).completion ?? 0}%`} icon={ClipboardList} />
-        <MetricCard label="Pace" value={String((latest as unknown as { pace_index: number }).pace_index ?? 0)} icon={Gauge} />
+        <MetricCard label="Completion" value={`${latest.completion ?? 0}%`} icon={ClipboardList} />
+        <MetricCard label="Pace" value={String(latest.pace_index ?? 0)} icon={Gauge} />
         <MetricCard label="Integrity" value={`${latest.integrity_score ?? 100}%`} icon={ShieldCheck} />
       </Stagger>
       <Card>
         <CardHeader><CardTitle>Subject performance</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {subjectStats.map((s) => (
-            <div key={s.subject} className="flex flex-col gap-1">
-              <p className="flex justify-between text-sm"><span>{s.subject}</span><span className="tabular-nums">{s.percent}%</span></p>
-              <Progress value={s.percent} />
+          {subjectStats.map((stat) => (
+            <div key={stat.subject} className="flex flex-col gap-1">
+              <p className="flex justify-between text-sm"><span>{stat.subject}</span><span className="tabular-nums">{stat.percent}%</span></p>
+              <Progress value={stat.percent} />
             </div>
           ))}
         </CardContent>
@@ -65,8 +67,8 @@ export default async function AnalyticsPage() {
           <CardDescription>{revealed ? "Review unlocked." : "Answers remain locked until the session closes."}</CardDescription></CardHeader>
         {revealed ? (
           <CardContent className="flex flex-col gap-2">
-            {details.map((d, i) => (
-              <p key={d.questionId} className="border-b py-1 text-sm">Question {i + 1}: {d.correct ? "Correct" : "Incorrect"} — answer: {d.correctAnswer}</p>
+            {details.map((detail, index) => (
+              <p key={detail.questionId} className="border-b py-1 text-sm">Question {index + 1}: {detail.correct ? "Correct" : "Incorrect"} — answer: {detail.correctAnswer}</p>
             ))}
           </CardContent>
         ) : null}

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { attemptsForStudent } from "@/lib/supabase/queries";
+import { currentStudent } from "@/lib/auth/current-student";
 import { MetricCard } from "@/components/metric-card";
 import { ExamIdDialog } from "@/components/exam-id-dialog";
 import { LiveExamNotice } from "@/components/live-exam-notice";
@@ -9,16 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList, BarChart3, ShieldCheck, CalendarDays } from "lucide-react";
 
 export default async function DashboardHome() {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  const sHash = data.user?.user_metadata?.student_hash as string | undefined;
-  if (!sHash) redirect("/");
-
-  const attempts = await attemptsForStudent(supabase, sHash);
-  const submitted = attempts.filter((a) => a.submitted_at);
-  const avg = submitted.length ? Math.round(submitted.reduce((s, a) => s + (a.score ?? 0), 0) / submitted.length) : null;
-  const integrity = submitted.length ? Math.round(submitted.reduce((s, a) => s + (a.integrity_score ?? 100), 0) / submitted.length) : null;
-  const active = attempts.find((a) => a.started_at && !a.submitted_at);
+  const ctx = await currentStudent();
+  if (!ctx) redirect("/");
+  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.profile_id);
+  const submitted = attempts.filter((attempt) => attempt.submitted_at);
+  const avg = submitted.length ? Math.round(submitted.reduce((sum, attempt) => sum + (attempt.score ?? 0), 0) / submitted.length) : null;
+  const integrity = submitted.length ? Math.round(submitted.reduce((sum, attempt) => sum + (attempt.integrity_score ?? 100), 0) / submitted.length) : null;
+  const active = attempts.find((attempt) => attempt.started_at && !attempt.submitted_at);
 
   return (
     <div className="flex flex-col gap-6">

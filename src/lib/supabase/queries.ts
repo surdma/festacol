@@ -51,11 +51,17 @@ export async function listActiveSubjects(client: SupabaseClient): Promise<Subjec
   return (data ?? []) as SubjectRow[];
 }
 
-export async function attemptsForStudent(client: SupabaseClient, studentHash: string): Promise<ExamAttemptRow[]> {
-  const { data } = await client.from("exam_attempts").select("*").eq("student_hash", studentHash).order("created_at", { ascending: false });
+// Student attempt ownership is relational. Hashes are no longer identity.
+export async function attemptsForStudent(client: SupabaseClient, studentProfileId: string): Promise<ExamAttemptRow[]> {
+  const { data } = await client
+    .from("exam_attempts")
+    .select("*")
+    .eq("student_profile_id", studentProfileId)
+    .order("created_at", { ascending: false });
   return (data ?? []) as ExamAttemptRow[];
 }
 
+/** @deprecated Legacy migration lookup only. Runtime identity uses academic_profiles. */
 export async function getStudentProfile(client: SupabaseClient, studentHash: string): Promise<StudentProfileRow | null> {
   const { data } = await client.from("student_profiles").select("*").eq("student_hash", studentHash).maybeSingle();
   return (data ?? null) as StudentProfileRow | null;
@@ -112,7 +118,7 @@ export async function saveExamProgress(
   );
   if (responses.length) {
     await client.from("exam_responses").upsert(
-      responses.map((r) => ({ session_id: sessionId, candidate_hash: candidateHash, ...r })),
+      responses.map((response) => ({ session_id: sessionId, candidate_hash: candidateHash, ...response })),
       { onConflict: "session_id,candidate_hash,question_id" },
     );
   }
@@ -137,9 +143,12 @@ export async function recordIntegrityEvent(
   detail?: string,
 ): Promise<void> {
   await client.from("exam_integrity_events").insert({
-    session_id: sessionId, candidate_hash: candidateHash, type, detail: detail ?? "", at: Date.now(),
+    session_id: sessionId,
+    candidate_hash: candidateHash,
+    type,
+    detail: detail ?? "",
+    at: Date.now(),
   });
-  // Cap at 100 per candidate (keeps scoring math stable).
   const { data } = await client
     .from("exam_integrity_events")
     .select("id")
@@ -149,6 +158,6 @@ export async function recordIntegrityEvent(
     .range(100, 500);
   const overflow = (data ?? []) as { id: number }[];
   if (overflow.length) {
-    await client.from("exam_integrity_events").delete().in("id", overflow.map((r) => r.id));
+    await client.from("exam_integrity_events").delete().in("id", overflow.map((row) => row.id));
   }
 }

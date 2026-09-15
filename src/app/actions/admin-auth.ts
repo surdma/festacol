@@ -5,9 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/app/actions/student";
 
-// Admin sign-in: email + password Supabase Auth. The account must carry
-// app_metadata.role === "administrator" (set in Dashboard → Auth → Users).
-// The proxy guard enforces this on every /admin/* request.
+// Staff login is authenticated by Supabase Auth, then authorized by the linked
+// academic profile. JWT metadata is never the source of role authorization.
 export async function signInAdminAction(input: { email: string; password: string; next?: string }): Promise<ActionResult & { next?: string }> {
   const email = input.email.trim().toLowerCase();
   if (!email || !input.password) return { ok: false, error: "Enter email and password." };
@@ -15,12 +14,18 @@ export async function signInAdminAction(input: { email: string; password: string
   const { error } = await supabase.auth.signInWithPassword({ email, password: input.password });
   if (error) return { ok: false, error: error.message };
   const { data } = await supabase.auth.getUser();
-  const role =
-    (data.user?.app_metadata?.role as string | undefined) ??
-    (data.user?.user_metadata?.role as string | undefined);
-  if (role !== "administrator") {
+  const user = data.user;
+  if (!user) return { ok: false, error: "Authentication failed." };
+  const { data: profile } = await supabase
+    .from("academic_profiles")
+    .select("id,role,status")
+    .eq("auth_user_id", user.id)
+    .eq("status", "active")
+    .in("role", ["teacher", "administrator"])
+    .maybeSingle();
+  if (!profile) {
     await supabase.auth.signOut();
-    return { ok: false, error: "This account is not an administrator." };
+    return { ok: false, error: "This Auth account is not linked to an active staff profile." };
   }
   revalidatePath("/admin");
   return { ok: true, next: input.next && input.next.startsWith("/admin") ? input.next : "/admin" };

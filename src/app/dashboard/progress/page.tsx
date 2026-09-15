@@ -8,16 +8,16 @@ import { FadeUp } from "@/components/motion";
 export default async function ProgressPage() {
   const ctx = await currentStudent();
   if (!ctx) redirect("/");
-  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.student_hash);
-  const qualifier = attempts.find((a) => a.submitted_at && (a as unknown as { mode: string }).mode === "qualifier");
-  const assignedTrack = (qualifier as unknown as { assigned_track: string | null } | undefined)?.assigned_track;
-  const confidence = (qualifier as unknown as { placement_confidence: number | null } | undefined)?.placement_confidence;
+  const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.profile_id);
+  const qualifier = attempts.find((attempt) => attempt.submitted_at && attempt.mode === "qualifier");
+  const assignedTrack = qualifier?.assigned_track;
+  const confidence = qualifier?.placement_confidence;
   return (
     <FadeUp className="flex flex-col gap-4">
       <div><h1 className="text-2xl font-semibold">Progress & promotion</h1></div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card><CardHeader><CardTitle>Academic session</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Student: {ctx.profile.full_name} · {attempts.filter((a) => a.submitted_at).length} exams completed</CardContent></Card>
+          <CardContent className="text-sm text-muted-foreground">Student: {ctx.profile.full_name} · {attempts.filter((attempt) => attempt.submitted_at).length} exams completed</CardContent></Card>
         <Card><CardHeader><CardTitle>Placement</CardTitle></CardHeader>
           <CardContent className="text-sm">
             {assignedTrack ? (

@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation";
 import { signOutStudentAction } from "@/app/actions/student";
 
 interface Student {
+  profileId: string;
   firstName: string;
   lastName: string;
   fullName: string;
-  studentHash: string;
 }
 
 const StudentContext = createContext<{
   student: Student | null;
-  setStudent: (s: Student | null) => void;
+  setStudent: (student: Student | null) => void;
   signOut: () => void;
 } | null>(null);
 

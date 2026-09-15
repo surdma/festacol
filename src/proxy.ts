@@ -1,10 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
+import { updateSession } from "@/lib/supabase/middleware";
 
-// Next.js 16: `proxy.ts` replaces `middleware.ts`.
-// Refreshes the session, then guards /admin/* (except /admin/login):
-// only Supabase users with app_metadata.role === "administrator" pass.
+// Next.js 16 proxy: refresh the Supabase session, then authorize staff routes
+// through the database-owned academic profile rather than JWT role metadata.
 export default async function proxy(request: NextRequest) {
   const response = await updateSession(request);
   const path = request.nextUrl.pathname;
@@ -21,10 +20,20 @@ export default async function proxy(request: NextRequest) {
       },
     );
     const { data } = await supabase.auth.getUser();
-    const role =
-      (data.user?.app_metadata?.role as string | undefined) ??
-      (data.user?.user_metadata?.role as string | undefined);
-    if (!data.user || (role !== "administrator" && role !== "teacher")) {
+    const user = data.user;
+    if (!user) {
+      const login = new URL("/admin/login", request.url);
+      login.searchParams.set("next", path);
+      return NextResponse.redirect(login);
+    }
+    const { data: profile } = await supabase
+      .from("academic_profiles")
+      .select("role,status")
+      .eq("auth_user_id", user.id)
+      .eq("status", "active")
+      .in("role", ["teacher", "administrator"])
+      .maybeSingle();
+    if (!profile) {
       const login = new URL("/admin/login", request.url);
       login.searchParams.set("next", path);
       return NextResponse.redirect(login);

@@ -2,26 +2,18 @@ import Link from "next/link";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { StudentProvider } from "@/hooks/use-student";
 import { studentNav } from "@/lib/nav";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStudentProfile } from "@/lib/supabase/queries";
-
-async function currentStudent() {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  const user = data.user;
-  if (!user) return null;
-  const sHash =
-    (user.app_metadata?.student_hash as string | undefined) ??
-    (user.user_metadata?.student_hash as string | undefined) ??
-    null;
-  if (!sHash) return null;
-  const profile = await getStudentProfile(supabase, sHash);
-  if (!profile) return null;
-  return { firstName: profile.first_name, lastName: profile.last_name, fullName: profile.full_name, studentHash: profile.student_hash };
-}
+import { currentStudent } from "@/lib/auth/current-student";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const student = await currentStudent();
+  const context = await currentStudent();
+  const student = context
+    ? {
+        profileId: context.profile.profile_id,
+        firstName: context.profile.first_name,
+        lastName: context.profile.last_name,
+        fullName: context.profile.full_name,
+      }
+    : null;
   return (
     <StudentProvider initial={student}>
       <SidebarProvider className="bg-background">

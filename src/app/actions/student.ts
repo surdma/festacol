@@ -3,49 +3,100 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { ensureStudentProfile, studentEmailFor } from "@/lib/auth/student";
+import {
+  claimStudentAuthIdentity,
+  legacyStudentCredential,
+  resolveExistingStudentIdentity,
+  studentEmailForProfile,
+  studentPasswordForProfile,
+} from "@/lib/auth/student";
+import { currentStudent } from "@/lib/auth/current-student";
 import { studentLoginSchema } from "@/lib/validation";
-import { candidateCredentials } from "@/lib/assessment";
 
 export interface ActionResult {
   ok: boolean;
   error?: string;
 }
 
-// Student sign-in: firstname + lastname only (prototype UX preserved).
-// Runs entirely on the server: no Supabase keys, emails, or password
-// derivation ever reach the browser. Auth identity is stored in
-// app_metadata (server-writable only) — never user_metadata, which the
-// user can edit and must not drive authorization.
-export async function signInStudentAction(input: { firstName: string; lastName: string }): Promise<ActionResult> {
-  const parsed = studentLoginSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Enter first and last name." };
-
-  const id = candidateCredentials(parsed.data.firstName, parsed.data.lastName);
-  const { profile, studentHash } = await ensureStudentProfile({ firstName: id.firstName, lastName: id.lastName });
-  const email = studentEmailFor(id.firstName, id.lastName);
-  const password = `fst:${studentHash}`;
+async function signInLinkedStudent(profile: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
+  const password = studentPasswordForProfile(profile.profileId);
+  let authUserId = profile.authUserId;
+  let email = "";
 
-  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-  if (signInError) {
-    // Provision via service-role so email is pre-confirmed and app_metadata
-    // is set authoritatively (anon signUp could neither).
-    const admin = createSupabaseAdminClient();
-    const { error: createError } = await admin.auth.admin.createUser({
+  if (authUserId) {
+    const { data: existing, error: lookupError } = await admin.auth.admin.getUserById(authUserId);
+    if (lookupError || !existing.user) return { ok: false, error: "Student login is linked to a missing Auth account. Contact your school administrator." };
+    email = existing.user.email ?? studentEmailForProfile(profile.profileId);
+    const { error: updateError } = await admin.auth.admin.updateUserById(authUserId, {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: profile.full_name },
-      app_metadata: { student_hash: studentHash, role: "student" },
+      user_metadata: { full_name: profile.fullName },
+      app_metadata: { role: "student", academic_profile_id: profile.profileId },
     });
-    if (createError) return { ok: false, error: createError.message };
-    const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
-    if (retryError) return { ok: false, error: retryError.message };
+    if (updateError) return { ok: false, error: updateError.message };
+  } else {
+    // Recover the old Auth wrapper if one already exists. This only happens
+    // after the roster profile was resolved uniquely, so a free-typed name can
+    // never create or select an academic student record.
+    const legacy = await legacyStudentCredential(profile.firstName, profile.lastName);
+    const legacySignIn = await supabase.auth.signInWithPassword({ email: legacy.email, password: legacy.password });
+    if (!legacySignIn.error && legacySignIn.data.user) {
+      authUserId = legacySignIn.data.user.id;
+      email = legacySignIn.data.user.email ?? legacy.email;
+      if (!(await claimStudentAuthIdentity(profile.profileId, authUserId))) {
+        await supabase.auth.signOut();
+        return { ok: false, error: "This student record is already linked to another login." };
+      }
+      const { error: updateError } = await admin.auth.admin.updateUserById(authUserId, {
+        password,
+        user_metadata: { full_name: profile.fullName },
+        app_metadata: { role: "student", academic_profile_id: profile.profileId },
+      });
+      if (updateError) return { ok: false, error: updateError.message };
+      await supabase.auth.signOut();
+    } else {
+      email = studentEmailForProfile(profile.profileId);
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: profile.fullName },
+        app_metadata: { role: "student", academic_profile_id: profile.profileId },
+      });
+      if (createError || !created.user) return { ok: false, error: createError?.message ?? "Student login could not be created." };
+      authUserId = created.user.id;
+      const claimed = await claimStudentAuthIdentity(profile.profileId, authUserId);
+      if (!claimed) {
+        await admin.auth.admin.deleteUser(authUserId);
+        return { ok: false, error: "This student record is already linked to another login." };
+      }
+    }
   }
 
-  revalidatePath("/dashboard");
+  if (!authUserId || !email) return { ok: false, error: "Student login could not be resolved." };
+  await admin.from("academic_profiles").update({ email, updated_at: new Date().toISOString() }).eq("id", profile.profileId);
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInError) return { ok: false, error: signInError.message };
   return { ok: true };
+}
+
+// Name-based UX remains for compatibility, but it can authenticate only a
+// single EXISTING active roster student. It never provisions an academic row.
+export async function signInStudentAction(input: { firstName: string; lastName: string }): Promise<ActionResult> {
+  const parsed = studentLoginSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Enter first and last name." };
+  try {
+    const profile = await resolveExistingStudentIdentity(parsed.data.firstName, parsed.data.lastName);
+    const result = await signInLinkedStudent(profile);
+    if (!result.ok) return result;
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Student sign-in failed." };
+  }
 }
 
 export async function signOutStudentAction(): Promise<ActionResult> {
@@ -56,16 +107,16 @@ export async function signOutStudentAction(): Promise<ActionResult> {
 }
 
 export async function updateProfileAction(input: { phone: string; guardian: string }): Promise<ActionResult> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  const studentHash =
-    (data.user?.app_metadata?.student_hash as string | undefined) ??
-    (data.user?.user_metadata?.student_hash as string | undefined);
-  if (!studentHash) return { ok: false, error: "Sign in required." };
-  const { error } = await supabase
-    .from("student_profiles")
-    .update({ phone: input.phone.slice(0, 20), guardian: input.guardian.slice(0, 80), updated_at: Date.now() })
-    .eq("student_hash", studentHash);
+  const ctx = await currentStudent();
+  if (!ctx) return { ok: false, error: "Sign in required." };
+  const { error } = await ctx.supabase
+    .from("student_academic_profiles")
+    .update({
+      phone: input.phone.slice(0, 20),
+      guardian: input.guardian.slice(0, 80),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", ctx.profile.profile_id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/dashboard/profile");
   return { ok: true };
