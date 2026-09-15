@@ -600,17 +600,18 @@ model Question {
   domain         String       @default("")
   explanation    String       @default("")
   status         RecordStatus @default(ACTIVE)
-  createdById    String?      @map("created_by_id") @db.Uuid
+  creatorId      String?      @map("creator_id") @db.Uuid
   createdAt      DateTime?    @map("created_at") @db.Timestamptz(6)
   updatedAt      BigInt       @default(dbgenerated("(EXTRACT(epoch FROM now()) * 1000)::bigint")) @map("updated_at")
 
   subject          Subject                 @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  creator          SchoolMember?           @relation("QuestionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  creator          SchoolMember?           @relation("QuestionAuthor", fields: [creatorId], references: [id], onDelete: SetNull)
   levels           QuestionAcademicLevel[]
   blanks           QuestionBlank[]
   attemptResponses ExamAttemptResponse[]
 
   @@index([subjectId])
+  @@index([creatorId], map: "questions_creator_idx")
   @@map("questions")
 }
 
