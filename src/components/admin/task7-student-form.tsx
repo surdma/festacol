@@ -63,7 +63,7 @@ export function Task7StudentFormDialog({ open, onClose, userId }: { open: boolea
         <DialogHeader>
           <div className="mb-2 grid size-10 place-items-center rounded-xl bg-foreground text-background">{userId ? <ArrowRightLeft /> : <UserRoundPlus />}</div>
           <DialogTitle>{userId ? "Edit student" : "Add student"}</DialogTitle>
-          <DialogDescription>{userId ? "A student has one current class. Changing the class below moves the student; examination, integrity and rewrite history remain attached to the student identity." : "Create the student identity and assign one current class. Examination history will accumulate against this identity."}</DialogDescription>
+          <DialogDescription>{userId ? "A student has one current class. Changing the class below moves the student; examination, integrity and retake history remain attached to the durable student identity." : "Create the student identity and assign one current class. Examination history will accumulate against this identity."}</DialogDescription>
         </DialogHeader>
 
         <FieldGroup>
@@ -77,9 +77,9 @@ export function Task7StudentFormDialog({ open, onClose, userId }: { open: boolea
               <NativeSelectOption value="">Unassigned</NativeSelectOption>
               {classes.map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.name}</NativeSelectOption>)}
             </NativeSelect>
-            <FieldDescription>Only one current class is stored. Use the student record to inspect historical examination context after a move.</FieldDescription>
+            <FieldDescription>Only one current class is active at a time. Historical class enrolments and examination attempts remain preserved after a move.</FieldDescription>
           </Field>
-          {movingClass ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><div className="flex items-start gap-3"><ArrowRightLeft className="mt-0.5 size-4 shrink-0" /><div><strong className="block">Move student to a new class</strong><p className="mt-1 text-xs leading-5 text-amber-800">{originalClassId ? className.get(originalClassId) ?? originalClassId : "Unassigned"} → {classId ? className.get(classId) ?? classId : "Unassigned"}. Existing attempt hashes, scores and integrity logs are not reassigned or deleted.</p></div></div></div> : null}
+          {movingClass ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><div className="flex items-start gap-3"><ArrowRightLeft className="mt-0.5 size-4 shrink-0" /><div><strong className="block">Move student to a new class</strong><p className="mt-1 text-xs leading-5 text-amber-800">{originalClassId ? className.get(originalClassId) ?? originalClassId : "Unassigned"} → {classId ? className.get(classId) ?? classId : "Unassigned"}. Existing attempt UUIDs, scores and integrity logs are not reassigned or deleted.</p></div></div></div> : null}
           <Field>
             <FieldLabel htmlFor="task7-student-guardian">Guardian / parent</FieldLabel>
             <Input id="task7-student-guardian" value={guardian} onChange={(event) => setGuardian(event.target.value)} maxLength={80} />
