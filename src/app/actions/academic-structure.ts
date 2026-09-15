@@ -7,7 +7,7 @@ import { currentStaff } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack, OfferingStatus } from "@/types/db";
 
-const TRACKS = new Set<AcademicTrack>(["science", "art", "social_science"]);
+const TRACKS = new Set<AcademicTrack>(["science", "humanities", "business"]);
 
 async function requireAdmin() {
   const current = await currentStaff();
