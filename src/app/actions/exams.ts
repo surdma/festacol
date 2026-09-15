@@ -47,7 +47,7 @@ async function currentOpenAttempt(sessionId: string): Promise<string | null> {
     .from("exam_attempts")
     .select("id")
     .eq("session_id", sessionId.toUpperCase())
-    .eq("student_profile_id", ctx.profile.profile_id)
+    .eq("student_id", ctx.profile.profile_id)
     .is("submitted_at", null)
     .order("attempt_number", { ascending: false })
     .limit(1)
