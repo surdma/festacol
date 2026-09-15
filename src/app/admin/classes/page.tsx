@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageCircle, MoreHorizontal, Plus, QrCode, School } from "lucide-react";
+import { BookOpenCheck, MessageCircle, MoreHorizontal, Plus, QrCode, School, Users } from "lucide-react";
 import {
   AdminEmptyState,
   AdminPageHeader,
@@ -8,103 +8,142 @@ import {
   adminSecondaryButtonClass,
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { currentStaff } from "@/lib/auth/staff";
 import { listClasses } from "@/lib/supabase/queries";
-import { cn } from "@/lib/utils";
 
 interface GroupRow { id: string; class_id: string; name: string; invite_url: string; updated_at?: number | string | null }
 interface StudentClassRow { class_id: string | null; status: string }
+interface SessionRow { id: string; title: string; class_level: string; class_group: string; status: string }
+interface AttemptRow { session_id: string; score: number | null; submitted_at: number | null; rewrite_archived_at: number | null }
 
-function formatUpdated(value: number | string | null | undefined) {
-  if (!value) return "—";
-  const date = new Date(typeof value === "number" ? value : value);
-  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(date);
+function average(values: number[]) {
+  return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+}
+
+function groupUpdated(value: number | string | null | undefined) {
+  if (!value) return 0;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric;
+  const parsed = Date.parse(String(value));
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export default async function AdminClassesPage() {
   const { supabase, scope } = await currentStaff();
-  const [classes, groupsResult, studentsResult] = await Promise.all([
+  const [classes, groupsResult, studentsResult, sessionsResult, attemptsResult] = await Promise.all([
     listClasses(supabase),
-    supabase.from("whatsapp_groups").select("id,class_id,name,invite_url,updated_at").limit(300),
-    supabase.from("users").select("class_id,status").eq("role", "student").limit(1000),
+    supabase.from("whatsapp_groups").select("id,class_id,name,invite_url,updated_at").limit(500),
+    supabase.from("users").select("class_id,status").eq("role", "student").limit(3000),
+    supabase.from("exam_sessions").select("id,title,class_level,class_group,status").limit(1000),
+    supabase.from("exam_attempts").select("session_id,score,submitted_at,rewrite_archived_at").limit(5000),
   ]);
+
   const groups = (groupsResult.data ?? []) as GroupRow[];
   const students = (studentsResult.data ?? []) as StudentClassRow[];
+  const sessions = (sessionsResult.data ?? []) as SessionRow[];
+  const attempts = (attemptsResult.data ?? []) as AttemptRow[];
+  const active = classes.filter((item) => item.status === "active");
+
   const occupancy = new Map<string, number>();
   for (const student of students.filter((item) => item.status === "active" && item.class_id)) {
     occupancy.set(student.class_id!, (occupancy.get(student.class_id!) ?? 0) + 1);
   }
-  const groupByClass = new Map(groups.map((group) => [group.class_id, group]));
-  const classById = new Map(classes.map((item) => [item.id, item]));
-  const active = classes.filter((item) => item.status === "active");
+
+  const groupsByClass = new Map<string, GroupRow[]>();
+  for (const group of groups) {
+    const list = groupsByClass.get(group.class_id) ?? [];
+    list.push(group);
+    groupsByClass.set(group.class_id, list);
+  }
+  for (const list of groupsByClass.values()) list.sort((a, b) => groupUpdated(b.updated_at) - groupUpdated(a.updated_at));
+
+  const sessionsByAudience = new Map<string, SessionRow[]>();
+  for (const session of sessions) {
+    const key = `${session.class_level}::${session.class_group}`;
+    const list = sessionsByAudience.get(key) ?? [];
+    list.push(session);
+    sessionsByAudience.set(key, list);
+  }
+  const attemptsBySession = new Map<string, AttemptRow[]>();
+  for (const attempt of attempts) {
+    const list = attemptsBySession.get(attempt.session_id) ?? [];
+    list.push(attempt);
+    attemptsBySession.set(attempt.session_id, list);
+  }
+
+  const levelOrder = ["SS1", "SS2", "SS3"];
+  const activeStudents = active.reduce((total, item) => total + (occupancy.get(item.id) ?? 0), 0);
+  const totalCapacity = active.reduce((total, item) => total + Number(item.capacity || 0), 0);
+  const missingCommunication = active.filter((item) => !(groupsByClass.get(item.id)?.length)).length;
+  const duplicateMappings = active.filter((item) => (groupsByClass.get(item.id)?.length ?? 0) > 1).length;
 
   return (
     <div>
       <AdminPageHeader
         eyebrow="Academic structure"
         title="Classes & communication"
-        description="Manage class groups and attach one parent/student WhatsApp group to the intended class."
+        description="Classes are organized by SS level and pathway. Capacity, roster, examination activity, performance and WhatsApp communication stay attached to the same class record."
         actions={scope.isAdmin ? <>
-          <Button render={<Link href="/admin/classes?modal=class-new" />} className={adminPrimaryButtonClass}><Plus className="size-4" />New class</Button>
-          <Button render={<Link href="/admin/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><QrCode className="size-4" />Add WhatsApp group</Button>
+          <Button render={<Link href="/admin/classes?modal=class-new" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New class</Button>
+          <Button render={<Link href="/admin/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><QrCode data-icon="inline-start" />Connect WhatsApp</Button>
         </> : null}
       />
 
-      {active.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {active.map((item) => {
-            const count = occupancy.get(item.id) ?? 0;
-            const group = groupByClass.get(item.id);
+      {active.length ? <>
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className={`${adminSurfaceClass} p-4`}><span className="grid size-9 place-items-center rounded-xl bg-neutral-950 text-white"><School /></span><strong className="mt-4 block font-display text-2xl font-extrabold">{active.length}</strong><span className="mt-1 block text-xs font-semibold text-neutral-600">Active classes</span></div>
+          <div className={`${adminSurfaceClass} p-4`}><span className="grid size-9 place-items-center rounded-xl bg-neutral-950 text-white"><Users /></span><strong className="mt-4 block font-display text-2xl font-extrabold">{activeStudents}/{totalCapacity || "—"}</strong><span className="mt-1 block text-xs font-semibold text-neutral-600">Students / capacity</span></div>
+          <div className={`${adminSurfaceClass} p-4`}><span className="grid size-9 place-items-center rounded-xl bg-neutral-950 text-white"><MessageCircle /></span><strong className="mt-4 block font-display text-2xl font-extrabold">{active.length - missingCommunication}/{active.length}</strong><span className="mt-1 block text-xs font-semibold text-neutral-600">Classes with WhatsApp</span></div>
+          <div className={`${adminSurfaceClass} p-4`}><span className="grid size-9 place-items-center rounded-xl bg-neutral-950 text-white"><BookOpenCheck /></span><strong className="mt-4 block font-display text-2xl font-extrabold">{sessions.length}</strong><span className="mt-1 block text-xs font-semibold text-neutral-600">Examination sessions</span></div>
+        </div>
+
+        <div className="space-y-6">
+          {levelOrder.map((level) => {
+            const levelClasses = active.filter((item) => item.class_level === level).sort((a, b) => a.stream.localeCompare(b.stream) || a.name.localeCompare(b.name));
+            if (!levelClasses.length) return null;
             return (
-              <article key={item.id} className={cn(adminSurfaceClass, "p-5 transition motion-safe:duration-200 hover:-translate-y-0.5 hover:shadow-md")}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <span className="text-xs font-bold uppercase tracking-[.12em] text-neutral-500">{item.class_level} · {item.stream}</span>
-                    <h2 className="mt-2 font-display text-lg font-extrabold text-neutral-950">{item.name}</h2>
-                    <p className="mt-1 text-xs text-neutral-500">{item.room || "Room not assigned"}</p>
-                  </div>
-                  <Button size="icon" variant="outline" render={<Link href={`/admin/classes?modal=class&class=${encodeURIComponent(item.id)}`} />} className={adminIconButtonClass} aria-label={`Manage ${item.name}`}><MoreHorizontal className="size-5" /></Button>
+              <section key={level} className={`${adminSurfaceClass} overflow-hidden`}>
+                <div className="flex items-end justify-between gap-3 border-b border-neutral-200 bg-neutral-50/70 px-5 py-4">
+                  <div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Secondary school level</p><h2 className="mt-1 font-display text-xl font-extrabold text-neutral-950">{level}</h2></div>
+                  <span className="text-xs font-semibold text-neutral-500">{levelClasses.length} class{levelClasses.length === 1 ? "" : "es"}</span>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <div className="rounded-xl bg-neutral-50 p-3"><span className="text-xs text-neutral-500">Students</span><strong className="mt-1 block text-neutral-950">{count}/{item.capacity}</strong></div>
-                  <div className="rounded-xl bg-neutral-50 p-3"><span className="text-xs text-neutral-500">WhatsApp</span><strong className="mt-1 block text-sm text-neutral-950">{group ? "Connected" : "Not set"}</strong></div>
+                <div className="hidden border-b border-neutral-100 bg-white px-5 py-2.5 text-[10px] font-bold uppercase tracking-[.1em] text-neutral-400 lg:grid lg:grid-cols-[minmax(220px,1.25fr)_minmax(190px,.9fr)_minmax(170px,.8fr)_minmax(190px,.9fr)_auto] lg:gap-4"><span>Class / pathway</span><span>Capacity</span><span>Exams / performance</span><span>Communication</span><span>Open</span></div>
+                <div className="divide-y divide-neutral-100">
+                  {levelClasses.map((item) => {
+                    const count = occupancy.get(item.id) ?? 0;
+                    const capacity = Number(item.capacity || 0);
+                    const remaining = Math.max(0, capacity - count);
+                    const utilization = capacity ? Math.min(100, Math.round((count / capacity) * 100)) : 0;
+                    const classGroups = groupsByClass.get(item.id) ?? [];
+                    const group = classGroups[0];
+                    const matchedSessions = sessionsByAudience.get(`${item.class_level}::${item.stream}`) ?? [];
+                    const submittedAttempts = matchedSessions.flatMap((session) => attemptsBySession.get(session.id) ?? []).filter((attempt) => attempt.submitted_at && !attempt.rewrite_archived_at);
+                    const scores = submittedAttempts.map((attempt) => Number(attempt.score)).filter(Number.isFinite);
+                    const classAverage = average(scores);
+                    const recordHref = `/admin/classes?modal=class&class=${encodeURIComponent(item.id)}`;
+                    return (
+                      <article key={item.id} className="grid gap-4 p-5 transition hover:bg-neutral-50/60 lg:grid-cols-[minmax(220px,1.25fr)_minmax(190px,.9fr)_minmax(170px,.8fr)_minmax(190px,.9fr)_auto] lg:items-center">
+                        <div className="min-w-0"><Link href={recordHref} className="group inline-flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white"><School /></span><span className="min-w-0"><strong className="block truncate font-display text-base font-extrabold text-neutral-950 group-hover:underline">{item.name}</strong><span className="mt-1 block text-xs text-neutral-500">{item.stream} · {item.room || "Room not assigned"}</span></span></Link></div>
+                        <div><div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-neutral-700">{count}/{capacity || "—"}</span><span className="text-neutral-500">{remaining} remaining</span></div><Progress value={utilization} /></div>
+                        <div><strong className="block text-sm text-neutral-900">{matchedSessions.length} matched exam{matchedSessions.length === 1 ? "" : "s"}</strong><span className="mt-1 block text-xs text-neutral-500">{classAverage === null ? "No submitted class-matched score" : `${submittedAttempts.length} submissions · avg ${classAverage}%`}</span></div>
+                        <div>{group ? <div className="flex flex-col gap-2"><div className="flex items-center gap-2"><StatusBadge tone="emerald">Connected</StatusBadge>{classGroups.length > 1 ? <StatusBadge tone="amber">{classGroups.length} legacy mappings</StatusBadge> : null}</div><span className="truncate text-xs font-medium text-neutral-700">{group.name}</span>{scope.isAdmin ? <Button size="sm" variant="outline" render={<Link href={`/admin/classes?modal=whatsapp-edit&class=${encodeURIComponent(item.id)}&group=${encodeURIComponent(group.id)}`} />} className="w-fit rounded-lg"><QrCode data-icon="inline-start" />Manage</Button> : <Button size="sm" variant="outline" render={<a href={group.invite_url} target="_blank" rel="noopener noreferrer" />} className="w-fit rounded-lg"><QrCode data-icon="inline-start" />Open</Button>}</div> : <div className="flex flex-col gap-2"><StatusBadge tone="neutral">Not configured</StatusBadge>{scope.isAdmin ? <Button size="sm" variant="outline" render={<Link href={`/admin/classes?modal=whatsapp-new&class=${encodeURIComponent(item.id)}`} />} className="w-fit rounded-lg"><MessageCircle data-icon="inline-start" />Connect</Button> : null}</div>}</div>
+                        <div className="flex justify-end"><Button size="icon" variant="outline" render={<Link href={recordHref} />} className={adminIconButtonClass} aria-label={`Open ${item.name}`}><MoreHorizontal /></Button></div>
+                      </article>
+                    );
+                  })}
                 </div>
-                {group ? (
-                  scope.isAdmin ? (
-                    <Button render={<Link href={`/admin/classes?modal=whatsapp-edit&class=${encodeURIComponent(item.id)}&group=${encodeURIComponent(group.id)}`} />} variant="outline" className="mt-4 min-h-11 w-full justify-start rounded-xl border-neutral-200 bg-white px-3 text-left text-xs font-semibold text-neutral-900 hover:bg-neutral-50"><QrCode className="size-4" />{group.name}</Button>
-                  ) : (
-                    <Button render={<a href={group.invite_url} target="_blank" rel="noreferrer" />} variant="outline" className="mt-4 min-h-11 w-full justify-start rounded-xl border-neutral-200 bg-white px-3 text-left text-xs font-semibold text-neutral-900 hover:bg-neutral-50"><QrCode className="size-4" />{group.name}</Button>
-                  )
-                ) : scope.isAdmin ? (
-                  <Button render={<Link href={`/admin/classes?modal=whatsapp-new&class=${encodeURIComponent(item.id)}`} />} variant="outline" className="mt-4 min-h-11 w-full justify-start rounded-xl border-neutral-200 bg-white px-3 text-xs font-semibold"><MessageCircle className="size-4" />Add WhatsApp group</Button>
-                ) : null}
-              </article>
+              </section>
             );
           })}
         </div>
-      ) : (
-        <section className={adminSurfaceClass}><AdminEmptyState title="No classes configured" description="Create the academic structure before assigning students." action={scope.isAdmin ? <Button render={<Link href="/admin/classes?modal=class-new" />} className={adminPrimaryButtonClass}><School className="size-4" />New class</Button> : undefined} /></section>
-      )}
 
-      <section className={cn(adminSurfaceClass, "mt-6 overflow-hidden")}>
-        <div className="flex items-center justify-between gap-3 border-b border-neutral-200 p-5">
-          <div><p className="text-xs font-bold uppercase tracking-[.12em] text-neutral-500">WhatsApp group management</p><h2 className="mt-1 font-display text-lg font-extrabold text-neutral-950">Class group QR board</h2></div>
-          {scope.isAdmin ? <Button render={<Link href="/admin/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><Plus className="size-4" />Add group</Button> : null}
-        </div>
-        {groups.length ? <>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Group</th><th className="px-4 py-3">Class</th><th className="px-4 py-3">Updated</th><th className="px-4 py-3"><span className="sr-only">Open</span></th></tr></thead>
-              <tbody className="divide-y divide-neutral-100">{groups.map((group) => {
-                const cls = classById.get(group.class_id);
-                return <tr key={group.id} className="hover:bg-neutral-50"><td className="px-4 py-3"><strong>{group.name}</strong></td><td className="px-4 py-3">{cls?.name ?? "Unassigned"}</td><td className="px-4 py-3 text-xs text-neutral-500">{formatUpdated(group.updated_at)}</td><td className="px-4 py-3 text-right">{scope.isAdmin ? <Button size="icon" variant="outline" render={<Link href={`/admin/classes?modal=whatsapp-edit&class=${encodeURIComponent(group.class_id)}&group=${encodeURIComponent(group.id)}`} />} className={adminIconButtonClass} aria-label={`Manage ${group.name}`}><QrCode className="size-4" /></Button> : <Button size="icon" variant="outline" render={<a href={group.invite_url} target="_blank" rel="noreferrer" />} className={adminIconButtonClass} aria-label={`Open ${group.name}`}><QrCode className="size-4" /></Button>}</td></tr>;
-              })}</tbody>
-            </table>
-          </div>
-          <div className="divide-y divide-neutral-100 md:hidden">{groups.map((group) => scope.isAdmin ? <Link key={group.id} href={`/admin/classes?modal=whatsapp-edit&class=${encodeURIComponent(group.class_id)}&group=${encodeURIComponent(group.id)}`} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-neutral-50"><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{group.name}</strong><span className="text-xs text-neutral-500">{classById.get(group.class_id)?.name ?? "Unassigned"}</span></span><QrCode className="size-4 text-neutral-500" /></Link> : <a key={group.id} href={group.invite_url} target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-neutral-50"><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{group.name}</strong><span className="text-xs text-neutral-500">{classById.get(group.class_id)?.name ?? "Unassigned"}</span></span><QrCode className="size-4 text-neutral-500" /></a>)}</div>
-        </> : <AdminEmptyState title="No WhatsApp groups yet" description="Add a group invite link and associate it with a class. Festacol will keep the class communication relationship in production storage." />}
-      </section>
+        {(missingCommunication > 0 || duplicateMappings > 0) ? <section className={`${adminSurfaceClass} mt-6 p-5`}><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Relationship health</p><h2 className="mt-1 font-display text-lg font-extrabold">Communication exceptions</h2><p className="mt-1 text-sm text-neutral-500">Task 7 treats WhatsApp as a class-owned relationship. Resolve missing or legacy duplicate mappings from the class rows above.</p></div><div className="flex flex-wrap gap-2"><StatusBadge tone={missingCommunication ? "amber" : "emerald"}>{missingCommunication} missing</StatusBadge><StatusBadge tone={duplicateMappings ? "amber" : "emerald"}>{duplicateMappings} duplicate</StatusBadge></div></div></section> : null}
+      </> : (
+        <section className={adminSurfaceClass}><AdminEmptyState title="No classes configured" description="Create the academic structure before assigning students." action={scope.isAdmin ? <Button render={<Link href="/admin/classes?modal=class-new" />} className={adminPrimaryButtonClass}><School data-icon="inline-start" />New class</Button> : undefined} /></section>
+      )}
     </div>
   );
 }
