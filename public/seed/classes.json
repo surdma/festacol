@@ -1,115 +1,110 @@
 {
-  "schemaVersion": 4,
-  "fixtureId": "festacol-classes-2026-2027",
-  "academicYear": "2026/2027",
+  "schemaVersion": 5,
+  "fixtureId": "festacol-academic-structure-2026-2027",
+  "academicYear": {
+    "name": "2026/2027",
+    "status": "ACTIVE"
+  },
+  "terms": [
+    { "name": "First Term", "sequence": 1, "status": "ACTIVE" },
+    { "name": "Second Term", "sequence": 2, "status": "PLANNED" },
+    { "name": "Third Term", "sequence": 3, "status": "PLANNED" }
+  ],
+  "levels": [
+    { "name": "SS1", "ordinal": 1 },
+    { "name": "SS2", "ordinal": 2 },
+    { "name": "SS3", "ordinal": 3 }
+  ],
   "classes": [
-    {
-      "id": "ss1-qualifier",
-      "level": "SS1",
-      "track": null,
-      "arm": "",
-      "capacity": 240,
-      "room": "Admissions",
-      "status": "ACTIVE"
-    },
     {
       "id": "ss1-science-a",
       "level": "SS1",
       "track": "SCIENCE",
       "arm": "A",
-      "capacity": 60,
-      "room": "Science Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss1-science-b",
-      "level": "SS1",
-      "track": "SCIENCE",
-      "arm": "B",
-      "capacity": 60,
-      "room": "Science Wing",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "ss1-art-c",
+      "id": "ss1-art-a",
       "level": "SS1",
       "track": "ART",
-      "arm": "C",
-      "capacity": 55,
-      "room": "Humanities Wing",
-      "status": "ACTIVE"
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss1-commercial-d",
+      "id": "ss1-social-science-a",
       "level": "SS1",
       "track": "SOCIAL_SCIENCE",
-      "arm": "D",
-      "capacity": 60,
-      "room": "Commerce Wing",
-      "status": "ACTIVE"
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "acct", "commerce", "marketing", "eco", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
       "id": "ss2-science-a",
       "level": "SS2",
       "track": "SCIENCE",
       "arm": "A",
-      "capacity": 55,
-      "room": "Science Wing",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "ss2-science-b",
-      "level": "SS2",
-      "track": "SCIENCE",
-      "arm": "B",
-      "capacity": 55,
-      "room": "Science Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
       "id": "ss2-art-a",
       "level": "SS2",
       "track": "ART",
       "arm": "A",
-      "capacity": 50,
-      "room": "Humanities Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss2-commercial-a",
+      "id": "ss2-social-science-a",
       "level": "SS2",
       "track": "SOCIAL_SCIENCE",
       "arm": "A",
-      "capacity": 55,
-      "room": "Commerce Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "acct", "commerce", "marketing", "eco", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
       "id": "ss3-science-a",
       "level": "SS3",
       "track": "SCIENCE",
       "arm": "A",
-      "capacity": 52,
-      "room": "Science Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
       "id": "ss3-art-a",
       "level": "SS3",
       "track": "ART",
       "arm": "A",
-      "capacity": 48,
-      "room": "Humanities Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss3-commercial-a",
+      "id": "ss3-social-science-a",
       "level": "SS3",
       "track": "SOCIAL_SCIENCE",
       "arm": "A",
-      "capacity": 50,
-      "room": "Commerce Wing",
-      "status": "ACTIVE"
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "acct", "commerce", "marketing", "eco", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     }
   ]
 }
