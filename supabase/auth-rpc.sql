@@ -124,13 +124,13 @@ begin
 end;
 $$;
 
--- Atomically attach a pre-existing academic student to a Supabase Auth UUID.
--- No domain student is ever created by this function.
+-- Preserve the deployed boolean RPC contract. This is service-role only and
+-- atomically attaches an existing academic student to an existing Auth user.
 create or replace function public.claim_student_auth_identity(
   p_profile_id uuid,
   p_auth_user_id uuid
 )
-returns uuid
+returns boolean
 language plpgsql
 volatile
 security definer
@@ -145,26 +145,31 @@ begin
   for update;
 
   if not found or v_profile.role <> 'student' or v_profile.status <> 'active' then
-    raise exception 'student_profile_required';
+    return false;
   end if;
 
   if not exists (select 1 from auth.users u where u.id = p_auth_user_id) then
-    raise exception 'auth_user_not_found';
+    return false;
   end if;
 
-  if v_profile.auth_user_id is null then
-    begin
-      update public.academic_profiles
-      set auth_user_id = p_auth_user_id, updated_at = now()
-      where id = p_profile_id;
-    exception when unique_violation then
-      raise exception 'auth_identity_already_claimed';
-    end;
-  elsif v_profile.auth_user_id <> p_auth_user_id then
-    raise exception 'student_identity_already_linked';
+  if v_profile.auth_user_id is not null then
+    return v_profile.auth_user_id = p_auth_user_id;
   end if;
 
-  return p_profile_id;
+  if exists (
+    select 1 from public.academic_profiles p
+    where p.auth_user_id = p_auth_user_id
+      and p.id <> p_profile_id
+  ) then
+    return false;
+  end if;
+
+  update public.academic_profiles
+  set auth_user_id = p_auth_user_id, updated_at = now()
+  where id = p_profile_id
+    and auth_user_id is null;
+
+  return found;
 end;
 $$;
 
