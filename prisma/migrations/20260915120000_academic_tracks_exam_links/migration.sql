@@ -338,8 +338,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS classes_section_identity_idx
   ON public.classes(
     academic_year_id,
     level_id,
-    coalesce(track::text, ''),
+    track,
     lower(btrim(arm))
-  );
+  ) NULLS NOT DISTINCT;
 
 COMMIT;
