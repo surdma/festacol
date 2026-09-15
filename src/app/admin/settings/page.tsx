@@ -5,6 +5,7 @@ import { MajorPicker } from "@/components/admin/major-picker";
 import { Button } from "@/components/ui/button";
 import { currentStaff } from "@/lib/auth/staff";
 import { SubjectsManager } from "./subjects-manager";
+import { Task7DataControls } from "./task7-data-controls";
 
 export default async function AdminSettingsPage() {
   const { supabase, scope } = await currentStaff();
@@ -44,13 +45,14 @@ export default async function AdminSettingsPage() {
 
   return (
     <div>
-      <AdminPageHeader eyebrow="Workspace" title="Settings" description="Manage the shared academic catalog that feeds examinations, question authoring and teacher subject scopes." />
+      <AdminPageHeader eyebrow="Workspace" title="Settings" description="Manage the shared academic catalog, staff authentication context and explicitly scoped production data controls." />
       <section className="grid gap-3 sm:grid-cols-3">
         <AdminMetricCard label="Subject catalog" value={String(subjects.length)} detail={`${activeCount} active subjects`} icon={BookOpenCheck} />
         <AdminMetricCard label="Authentication" value="Supabase" detail="staff roles and staff IDs enforced server-side" icon={ShieldCheck} />
         <AdminMetricCard label="Persistence" value="Postgres" detail="typed production records, not prototype local storage" icon={Database} />
       </section>
       <div className="mt-5"><SubjectsManager initial={subjects} /></div>
+      <div className="mt-5"><Task7DataControls /></div>
       {sessionPanel}
     </div>
   );
