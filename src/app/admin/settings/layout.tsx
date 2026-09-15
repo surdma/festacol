@@ -1,8 +1,10 @@
+import { redirect } from "next/navigation";
 import { SettingsNav } from "@/components/admin/settings/settings-nav";
 import { currentStaff } from "@/lib/auth/staff";
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const { scope } = await currentStaff();
+  if (!scope.profileId || (!scope.isAdmin && !scope.isTeacher)) redirect("/admin/login");
 
   return (
     <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
