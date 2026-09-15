@@ -1,7 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import { extname, join, relative, resolve } from "node:path";
 
-const ROOT = new URL("../src/", import.meta.url);
+const ROOT = fileURLToPath(new URL("../src/", import.meta.url));
+const REPOSITORY_ROOT = resolve(ROOT, "..");
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 const BANNED_SOURCE_TOKENS = [
   "task7",
@@ -35,7 +37,7 @@ async function walk(directory) {
       continue;
     }
     if (!SOURCE_EXTENSIONS.has(extname(entry.name))) continue;
-    const sourcePath = relative(new URL("..", ROOT).pathname, path);
+    const sourcePath = relative(REPOSITORY_ROOT, path);
     if (/task\d+/iu.test(entry.name)) {
       violations.push(`${sourcePath}: task-number filename is not a production domain name`);
     }
