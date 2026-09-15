@@ -42,8 +42,8 @@ interface AttemptRow {
 }
 
 type AllocationResult =
-  | { row: { attempt_id: string; attempt_number: number; resumed: boolean }; error?: never }
-  | { row?: never; error: string };
+  | { ok: true; row: { attempt_id: string; attempt_number: number; resumed: boolean } }
+  | { ok: false; error: string };
 
 async function sessionDTO(id: string): Promise<{ session: ExamSessionDTO; cameraRequired: boolean } | null> {
   const supabase = await createSupabaseServerClient();
@@ -67,9 +67,9 @@ async function latestAttempt(sessionId: string): Promise<AttemptRow | null> {
 async function allocateAttempt(sessionId: string): Promise<AllocationResult> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("allocate_my_exam_attempt", { p_session_id: sessionId.toUpperCase() });
-  if (error) return { error: error.message };
+  if (error) return { ok: false, error: error.message };
   const row = (Array.isArray(data) ? data[0] : data) as { attempt_id: string; attempt_number: number; resumed: boolean } | null;
-  return row ? { row } : { error: "Attempt could not be allocated." };
+  return row ? { ok: true, row } : { ok: false, error: "Attempt could not be allocated." };
 }
 
 function splitResponse(value: unknown): { text: string | null; values: string[] } {
@@ -143,7 +143,7 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   if (status !== "open") return { status: "unavailable", error: `Session unavailable: ${status}.` };
 
   const allocation = await allocateAttempt(session.id);
-  if (allocation.error) {
+  if (!allocation.ok) {
     if (allocation.error.includes("attempt_limit_reached")) {
       const previous = await latestAttempt(session.id);
       return { status: "locked", score: previous?.score ?? null };
