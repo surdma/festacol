@@ -36,7 +36,7 @@ export interface DirectoryUserRow {
 
 export interface ClassDirectoryRow extends ClassRow {
   level_name: string;
-  programme_name: string | null;
+  track_name: string | null;
   academic_year_name: string;
   display_name: string;
 }
@@ -183,24 +183,27 @@ export async function findSessionById(client: SupabaseClient, rawId: string): Pr
 }
 
 export async function listClasses(client: SupabaseClient): Promise<ClassDirectoryRow[]> {
-  const [{ data: classData }, { data: levels }, { data: programmes }, { data: years }] = await Promise.all([
+  const [{ data: classData }, { data: levels }, { data: years }] = await Promise.all([
     client.from("classes").select("*").limit(300),
     client.from("academic_levels").select("id,name"),
-    client.from("academic_programmes").select("id,name"),
     client.from("academic_years").select("id,name"),
   ]);
   const levelNames = new Map(((levels ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
-  const programmeNames = new Map(((programmes ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
   const yearNames = new Map(((years ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+  const trackNames = new Map([
+    ["science", "Science"],
+    ["art", "Art"],
+    ["social_science", "Social Science"],
+  ]);
   return ((classData ?? []) as ClassRow[]).map((row) => {
     const levelName = levelNames.get(row.level_id) ?? "Class";
-    const programmeName = row.programme_id ? programmeNames.get(row.programme_id) ?? null : null;
+    const trackName = row.track ? trackNames.get(row.track) ?? row.track : null;
     return {
       ...row,
       level_name: levelName,
-      programme_name: programmeName,
+      track_name: trackName,
       academic_year_name: yearNames.get(row.academic_year_id) ?? "",
-      display_name: `${levelName} ${row.arm}`.trim(),
+      display_name: `${levelName} ${trackName ?? ""} ${row.arm}`.replace(/\s+/g, " ").trim(),
     };
   });
 }
