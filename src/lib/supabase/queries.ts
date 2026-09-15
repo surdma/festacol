@@ -182,8 +182,8 @@ export async function listClasses(client: SupabaseClient): Promise<ClassDirector
   const yearNames = new Map(((years ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
   const trackNames = new Map([
     ["science", "Science"],
-    ["art", "Art"],
-    ["social_science", "Social Science"],
+    ["humanities", "Humanities"],
+    ["business", "Business"],
   ]);
   return ((classData ?? []) as ClassRow[]).map((row) => {
     const levelName = levelNames.get(row.level_id) ?? "Class";
