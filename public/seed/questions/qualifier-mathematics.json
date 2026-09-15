@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-qualifier-mathematics-2026-09",
+  "questions": [
+    {
+      "id": 726,
+      "subjectCode": "q-math",
+      "domain": "Number",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "easy",
+      "label": "Mathematics Aptitude · Number",
+      "explanation": "Fifteen percent of 200 is 0.15 × 200 = 30.",
+      "type": "single",
+      "prompt": "What is 15% of 200?",
+      "options": ["15", "20", "30", "45"],
+      "answer": "30"
+    },
+    {
+      "id": 727,
+      "subjectCode": "q-math",
+      "domain": "Algebra",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Mathematics Aptitude · Algebra",
+      "explanation": "Subtracting 5 gives 2x = 14, then dividing by 2 gives x = 7.",
+      "type": "single",
+      "prompt": "Solve 2x + 5 = 19.",
+      "options": ["5", "6", "7", "12"],
+      "answer": "7"
+    },
+    {
+      "id": 728,
+      "subjectCode": "q-math",
+      "domain": "Fractions",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Mathematics Aptitude · Fractions",
+      "explanation": "One half equals two fourths, so 1/2 + 1/4 = 3/4.",
+      "type": "boolean",
+      "prompt": "The sum of 1/2 and 1/4 is 3/4.",
+      "answer": true
+    },
+    {
+      "id": 729,
+      "subjectCode": "q-math",
+      "domain": "Geometry",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Mathematics Aptitude · Geometry",
+      "explanation": "The perimeter of a square is four times its side length: 4 × 6 = 24 cm.",
+      "type": "fill",
+      "prompt": "Find the perimeter of a square whose side is 6 cm.",
+      "fillTemplate": [
+        {"text": "Perimeter = "},
+        {"blank": "answer", "placeholder": "number and unit"}
+      ],
+      "acceptedAnswers": ["24 cm", "24cm"]
+    },
+    {
+      "id": 730,
+      "subjectCode": "q-math",
+      "domain": "Statistics",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "hard",
+      "label": "Mathematics Aptitude · Statistics",
+      "explanation": "For 3, 5, 5, 7, 10, the mode is 5 and the median is also 5.",
+      "type": "multi",
+      "prompt": "For the data set 3, 5, 5, 7, 10, select exactly TWO true statements.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "The mode is 5.",
+        "The median is 5.",
+        "The range is 5.",
+        "The mean is 5."
+      ],
+      "answers": ["The mode is 5.", "The median is 5."]
+    }
+  ]
+}
