@@ -1,0 +1,49 @@
+name: TypeScript Diagnostics
+
+on:
+  push:
+    branches:
+      - 'work/academic-relational-schema-v2-validation'
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?schema=public
+  DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?schema=public
+  NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - name: Capture TypeScript diagnostics
+        run: |
+          set +e
+          pnpm exec tsc --noEmit > typecheck.log 2>&1
+          status=$?
+          cat typecheck.log
+          echo "$status" > typecheck.exit
+          exit 0
+      - name: Upload TypeScript diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics
+          path: |
+            typecheck.log
+            typecheck.exit
+      - name: Fail when TypeScript failed
+        run: test "$(cat typecheck.exit)" = "0"
