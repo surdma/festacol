@@ -148,8 +148,33 @@ jobs:
       - name: Assert exam runtime authorization
         run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/exam-runtime-authorization.assert.sql
 
-      - name: Assert runtime consumer cutover
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/runtime-consumer-cutover.assert.sql
+      - name: Assert runtime result FK columns
+        run: |
+          awk -v target=1 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert runtime result FK backfill
+        run: |
+          awk -v target=2 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert question answer secrecy
+        run: |
+          awk -v target=3 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert attempt answer-detail secrecy
+        run: |
+          awk -v target=4 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert attempt mutation boundary
+        run: |
+          awk -v target=5 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert relational exam metadata policies
+        run: |
+          awk -v target=6 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert relational admin policy
+        run: |
+          awk -v target=7 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
