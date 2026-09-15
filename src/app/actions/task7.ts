@@ -116,6 +116,23 @@ interface ResponseStatRow {
   seconds: number;
 }
 
+function recordAttempt(attempt: AcademicAttemptRow): Record<string, unknown> {
+  return {
+    id: attempt.id,
+    session_id: attempt.session_id,
+    student_id: attempt.student_id,
+    attempt_number: attempt.attempt_number,
+    context_snapshot: attempt.context_snapshot,
+    score: attempt.score,
+    integrity_score: attempt.integrity_score,
+    assigned_track: attempt.assigned_track,
+    placement_confidence: attempt.placement_confidence,
+    started_at: attempt.started_at,
+    submitted_at: attempt.submitted_at,
+    created_at: attempt.created_at,
+  };
+}
+
 function buildSubjectStats(
   responses: ResponseStatRow[],
   questionSubject: Map<string, string>,
@@ -215,7 +232,7 @@ export async function getStudentAcademicRecordAction(userId: string) {
     user: { ...student, full_name: `${student.first_name} ${student.last_name}`.trim(), class_id: classId },
     classRow,
     whatsappGroup: whatsapp,
-    attempts: attemptRows,
+    attempts: attemptRows.map(recordAttempt),
     stats: buildSubjectStats(responseRows, questionSubject, subjectName),
     events: events ?? [],
   };
@@ -271,5 +288,5 @@ export async function getClassAcademicRecordAction(classId: string) {
       .limit(2000)
     : { data: [] };
 
-  return { classRow, students, whatsappGroup: whatsapp, sessions: sessions ?? [], attempts: attempts ?? [] };
+  return { classRow, students, whatsappGroup: whatsapp, sessions: sessions ?? [], attempts: (attempts ?? []) as Record<string, unknown>[] };
 }
