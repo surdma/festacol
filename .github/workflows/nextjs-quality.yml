@@ -184,6 +184,9 @@ jobs:
         run: |
           awk -v target=8 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
+      - name: Establish Prisma legacy baseline
+        run: pnpm exec prisma migrate resolve --applied 20260915100000_legacy_supabase_baseline
+
       - name: Apply Prisma migration history
         run: pnpm exec prisma migrate deploy
 
