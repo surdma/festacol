@@ -12,8 +12,8 @@ async function requireAdmin() {
   return context.supabase;
 }
 
-async function deleteAllByStringKey(supabase: Awaited<ReturnType<typeof requireAdmin>>, table: string, key: string) {
-  const { error } = await supabase.from(table).delete().neq(key, "");
+async function deleteAll(supabase: Awaited<ReturnType<typeof requireAdmin>>, table: string, key = "id") {
+  const { error } = await supabase.from(table).delete().not(key, "is", null);
   if (error) throw new Error(error.message);
 }
 
@@ -22,9 +22,10 @@ export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<
     const supabase = await requireAdmin();
 
     if (scope === "sessions") {
-      // ExamAttempt.sessionId uses ON DELETE SET NULL, so submitted audit records
-      // survive while live states, proctor policy and session-owned markers cascade.
-      await deleteAllByStringKey(supabase, "exam_sessions", "id");
+      // Attempts reference sessions with RESTRICT. Removing attempts first also
+      // cascades their canonical responses and integrity events.
+      await deleteAll(supabase, "exam_attempts");
+      await deleteAll(supabase, "exam_sessions");
       revalidatePath("/admin/exams");
       revalidatePath("/admin/reports");
       revalidatePath("/admin/settings");
@@ -32,14 +33,9 @@ export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<
     }
 
     if (scope === "activity") {
-      // Integrity events do not carry a database FK to ExamAttempt. Clear them
-      // explicitly before deleting attempts so no event is left orphaned.
-      const { error: integrityError } = await supabase.from("exam_integrity_events").delete().gt("id", 0);
-      if (integrityError) throw new Error(integrityError.message);
-      await deleteAllByStringKey(supabase, "exam_states", "session_id");
-      await deleteAllByStringKey(supabase, "exam_reset_markers", "session_id");
-      await deleteAllByStringKey(supabase, "exam_background_markers", "session_id");
-      await deleteAllByStringKey(supabase, "exam_attempts", "attempt_hash");
+      // Runtime state, responses and integrity events are normalized under
+      // exam_attempts. Deleting attempts cascades dependent runtime records.
+      await deleteAll(supabase, "exam_attempts");
       revalidatePath("/admin/students");
       revalidatePath("/admin/classes");
       revalidatePath("/admin/exams");
@@ -49,17 +45,16 @@ export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<
     }
 
     if (scope === "whatsapp") {
-      await deleteAllByStringKey(supabase, "whatsapp_groups", "id");
+      await deleteAll(supabase, "whatsapp_groups");
       revalidatePath("/admin/classes");
       revalidatePath("/admin/settings");
       return { ok: true };
     }
 
     if (scope === "custom-questions") {
-      // Bank questions are seeded with created_by = null. Preserve them and
-      // delete only staff/admin-authored records; attempt answer question FKs
-      // become NULL and historical answer text remains intact.
-      const { error } = await supabase.from("questions").delete().not("created_by", "is", null);
+      // Seeded bank questions are system-owned (creator_id = NULL). Preserve
+      // them and delete only staff/admin-authored questions.
+      const { error } = await supabase.from("questions").delete().not("creator_id", "is", null);
       if (error) throw new Error(error.message);
       revalidatePath("/admin/questions");
       revalidatePath("/admin/settings");
