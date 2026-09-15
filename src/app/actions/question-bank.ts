@@ -8,7 +8,8 @@ import { currentStaff } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
 
-interface FixtureTrackRule {
+interface FixtureCurriculumRule {
+  level: "SS1" | "SS2" | "SS3";
   track: "SCIENCE" | "ART" | "SOCIAL_SCIENCE";
   participation: "REQUIRED" | "ELECTIVE";
 }
@@ -16,10 +17,9 @@ interface FixtureTrackRule {
 interface FixtureSubject {
   code: string;
   name: string;
+  kind: "CURRICULUM" | "QUALIFIER";
   active: boolean;
-  levels: string[];
-  modes: string[];
-  trackRules: FixtureTrackRule[];
+  curriculum: FixtureCurriculumRule[];
 }
 
 interface SubjectFixture {
@@ -32,12 +32,13 @@ interface QuestionFixture {
   questions: Record<string, unknown>[];
 }
 
-const TRACK_DB: Record<FixtureTrackRule["track"], AcademicTrack> = {
+const TRACK_DB: Record<FixtureCurriculumRule["track"], AcademicTrack> = {
   SCIENCE: "science",
   ART: "art",
   SOCIAL_SCIENCE: "social_science",
 };
 const PARTICIPATION_DB = { REQUIRED: "required", ELECTIVE: "elective" } as const;
+const KIND_DB = { CURRICULUM: "curriculum", QUALIFIER: "qualifier" } as const;
 
 async function requireAdmin() {
   const current = await currentStaff();
@@ -53,36 +54,51 @@ export async function seedSubjectCatalogFromFixtureAction(): Promise<ActionResul
   try {
     const admin = await requireAdmin();
     const fixture = await loadJson<SubjectFixture>("subjects.json");
-    if (fixture.schemaVersion !== 4 || !fixture.subjects.length) return { ok: false, error: "Unsupported subject fixture." };
-    const codes = fixture.subjects.map((subject) => subject.code);
+    if (fixture.schemaVersion !== 5 || !fixture.subjects.length) return { ok: false, error: "Unsupported subject fixture." };
+    const codes = fixture.subjects.map((subject) => subject.code.trim());
     if (new Set(codes).size !== codes.length) return { ok: false, error: "Subject fixture contains duplicate codes." };
-    const now = new Date().toISOString();
 
+    const now = new Date().toISOString();
     const { error: subjectError } = await admin.from("subjects").upsert(
-      fixture.subjects.map((subject) => ({ code: subject.code, name: subject.name, active: subject.active, updated_at: now })),
+      fixture.subjects.map((subject) => ({
+        code: subject.code,
+        name: subject.name,
+        kind: KIND_DB[subject.kind],
+        active: subject.active,
+        updated_at: now,
+      })),
       { onConflict: "code" },
     );
     if (subjectError) return { ok: false, error: subjectError.message };
 
-    const { data: rows, error: lookupError } = await admin.from("subjects").select("id,code").in("code", codes);
-    if (lookupError) return { ok: false, error: lookupError.message };
-    const idByCode = new Map(((rows ?? []) as { id: string; code: string }[]).map((row) => [row.code, row.id]));
+    const [{ data: subjectRows, error: lookupError }, { data: levels, error: levelError }] = await Promise.all([
+      admin.from("subjects").select("id,code").in("code", codes),
+      admin.from("academic_levels").select("id,name").eq("active", true),
+    ]);
+    if (lookupError || levelError) return { ok: false, error: lookupError?.message ?? levelError?.message ?? "Fixture references could not be resolved." };
+    const idByCode = new Map(((subjectRows ?? []) as { id: string; code: string }[]).map((row) => [row.code, row.id]));
+    const levelIdByName = new Map(((levels ?? []) as { id: string; name: string }[]).map((row) => [row.name, row.id]));
     if (idByCode.size !== fixture.subjects.length) return { ok: false, error: "Not every fixture subject resolved to a canonical subject row." };
 
-    const ids = [...idByCode.values()];
-    if (ids.length) {
-      const { error } = await admin.from("subject_track_rules").delete().in("subject_id", ids);
-      if (error) return { ok: false, error: error.message };
-    }
-    const rules = fixture.subjects.flatMap((subject) => subject.trackRules.map((rule) => ({
-      subject_id: idByCode.get(subject.code)!,
-      track: TRACK_DB[rule.track],
-      participation: PARTICIPATION_DB[rule.participation],
-      updated_at: now,
-    })));
-    if (rules.length) {
-      const { error } = await admin.from("subject_track_rules").upsert(rules, { onConflict: "subject_id,track" });
-      if (error) return { ok: false, error: error.message };
+    for (const subject of fixture.subjects) {
+      const subjectId = idByCode.get(subject.code)!;
+      const desired = subject.curriculum.map((rule) => {
+        const levelId = levelIdByName.get(rule.level);
+        if (!levelId) throw new Error(`Academic level ${rule.level} is unavailable.`);
+        return {
+          subject_id: subjectId,
+          level_id: levelId,
+          track: TRACK_DB[rule.track],
+          participation: PARTICIPATION_DB[rule.participation],
+          updated_at: now,
+        };
+      });
+      const { error: clearError } = await admin.from("subject_curriculum_rules").delete().eq("subject_id", subjectId);
+      if (clearError) return { ok: false, error: clearError.message };
+      if (desired.length) {
+        const { error } = await admin.from("subject_curriculum_rules").insert(desired);
+        if (error) return { ok: false, error: error.message };
+      }
     }
 
     revalidatePath("/admin/settings");
@@ -93,118 +109,119 @@ export async function seedSubjectCatalogFromFixtureAction(): Promise<ActionResul
   }
 }
 
+function normalizeQuestion(question: Record<string, unknown>, subjectId: string) {
+  const id = Number(question.id);
+  const type = String(question.type ?? "single");
+  const rawAnswer = question.answer as unknown;
+  const rawAnswers = question.answers as unknown;
+  const correct = type === "boolean"
+    ? [String(rawAnswer)]
+    : Array.isArray(rawAnswers)
+      ? rawAnswers.map(String)
+      : Array.isArray(rawAnswer)
+        ? rawAnswer.map(String)
+        : rawAnswer !== undefined
+          ? [String(rawAnswer)]
+          : [];
+  const modes = Array.isArray(question.examModes) ? (question.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
+  const template = question.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
+  const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
+  let position = 0;
+  const fillTemplate = template
+    ? template.map((part) => {
+        if (part.blank === undefined) return part.text ?? "";
+        const source = Array.isArray(question.acceptedAnswers) ? (question.acceptedAnswers as unknown[])[position] : undefined;
+        blanks.push({
+          question_id: id,
+          position,
+          blank_key: String(part.blank || `b${position}`),
+          placeholder: String(part.placeholder ?? ""),
+          accepted: Array.isArray(source) ? source.map(String) : source !== undefined ? [String(source)] : [],
+        });
+        return `{{${position++}}}`;
+      }).join("")
+    : null;
+
+  return {
+    row: {
+      id,
+      subject_id: subjectId,
+      qtype: type,
+      prompt: String(question.prompt ?? ""),
+      options: Array.isArray(question.options) ? (question.options as unknown[]).map(String) : [],
+      correct_answers: type === "fill" || type === "fill-multi" ? [] : correct,
+      fill_template: fillTemplate,
+      instruction: String(question.instruction ?? ""),
+      exam_modes: modes,
+      difficulty: String(question.difficulty ?? "medium"),
+      domain: String(question.domain ?? ""),
+      explanation: String(question.explanation ?? ""),
+      status: "active",
+      created_by_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: Date.now(),
+    },
+    levels: Array.isArray(question.levels) ? (question.levels as unknown[]).map(String) : [],
+    blanks,
+  };
+}
+
 export async function syncQuestionBankFromFixtureAction(): Promise<ActionResult & { count?: number }> {
   try {
     const admin = await requireAdmin();
     const fixture = await loadJson<QuestionFixture>("questions.json");
-    if (fixture.schemaVersion !== 4 || !fixture.questions.length) return { ok: false, error: "Unsupported question fixture." };
+    if (fixture.schemaVersion !== 5 || !fixture.questions.length) return { ok: false, error: "Unsupported question fixture." };
 
     const subjectCodes = [...new Set(fixture.questions.map((question) => String(question.subjectCode ?? "")).filter(Boolean))];
-    const { data: subjectRows, error: subjectError } = await admin.from("subjects").select("id,code").in("code", subjectCodes).eq("active", true);
-    if (subjectError) return { ok: false, error: subjectError.message };
+    const [{ data: subjectRows, error: subjectError }, { data: academicLevels, error: levelError }, { data: existingRows, error: existingError }] = await Promise.all([
+      admin.from("subjects").select("id,code").in("code", subjectCodes).eq("active", true),
+      admin.from("academic_levels").select("id,name").eq("active", true),
+      admin.from("questions").select("id,created_by_id"),
+    ]);
+    if (subjectError || levelError || existingError) return { ok: false, error: subjectError?.message ?? levelError?.message ?? existingError?.message ?? "Question fixture references could not be resolved." };
+
     const subjectIdByCode = new Map(((subjectRows ?? []) as { id: string; code: string }[]).map((row) => [row.code, row.id]));
     const unresolved = subjectCodes.filter((code) => !subjectIdByCode.has(code));
     if (unresolved.length) return { ok: false, error: `Seed these subject codes before syncing questions: ${unresolved.join(", ")}.` };
-
-    const { data: existingRows, error: existingError } = await admin.from("questions").select("id,created_by_profile_id");
-    if (existingError) return { ok: false, error: existingError.message };
-    const existing = new Map(((existingRows ?? []) as { id: number; created_by_profile_id: string | null }[]).map((row) => [Number(row.id), row.created_by_profile_id]));
-    const conflicting = fixture.questions.find((question) => {
-      const owner = existing.get(Number(question.id));
-      return owner !== undefined && owner !== null;
-    });
-    if (conflicting) return { ok: false, error: `Question id ${String(conflicting.id)} belongs to an authored question and cannot be replaced by the bank fixture.` };
-
-    const fresh = fixture.questions.filter((question) => !existing.has(Number(question.id)));
-    if (!fresh.length) return { ok: true, count: 0 };
-
-    const { data: academicLevels, error: levelError } = await admin.from("academic_levels").select("id,name").eq("active", true);
-    if (levelError) return { ok: false, error: levelError.message };
     const levelIdByName = new Map(((academicLevels ?? []) as { id: string; name: string }[]).map((row) => [row.name, row.id]));
+    const existing = new Map(((existingRows ?? []) as { id: number; created_by_id: string | null }[]).map((row) => [Number(row.id), row.created_by_id]));
+    const protectedQuestion = fixture.questions.find((question) => existing.get(Number(question.id)) !== undefined && existing.get(Number(question.id)) !== null);
+    if (protectedQuestion) return { ok: false, error: `Question id ${String(protectedQuestion.id)} belongs to a staff-authored question and cannot be replaced by the bank fixture.` };
 
-    const now = Date.now();
-    const questionRows: Record<string, unknown>[] = [];
-    const levelLinks: { question_id: number; level_id: string }[] = [];
-    const blankRows: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
-
-    for (const question of fresh) {
+    let count = 0;
+    for (const question of fixture.questions) {
       const id = Number(question.id);
-      const code = String(question.subjectCode ?? "");
-      const subjectId = subjectIdByCode.get(code);
+      const subjectId = subjectIdByCode.get(String(question.subjectCode ?? ""));
       if (!Number.isSafeInteger(id) || !subjectId) return { ok: false, error: `Question ${String(question.id)} has invalid identity metadata.` };
-      const type = String(question.type ?? "single");
-      const rawAnswer = question.answer as unknown;
-      const rawAnswers = question.answers as unknown;
-      const correct = type === "boolean"
-        ? [String(rawAnswer)]
-        : Array.isArray(rawAnswers)
-          ? rawAnswers.map(String)
-          : Array.isArray(rawAnswer)
-            ? rawAnswer.map(String)
-            : rawAnswer !== undefined
-              ? [String(rawAnswer)]
-              : [];
-      const levels = Array.isArray(question.levels) ? (question.levels as unknown[]).map(String) : [];
-      for (const levelName of levels) {
+      const normalized = normalizeQuestion(question, subjectId);
+      if (!normalized.levels.length) return { ok: false, error: `Question ${id} does not declare an academic level.` };
+      const levelLinks = normalized.levels.map((levelName) => {
         const levelId = levelIdByName.get(levelName);
-        if (!levelId) return { ok: false, error: `Question ${id} references unavailable level ${levelName}.` };
-        levelLinks.push({ question_id: id, level_id: levelId });
-      }
-
-      const modes = Array.isArray(question.examModes) ? (question.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
-      const template = question.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
-      let position = 0;
-      let fillTemplate: string | null = null;
-      if (template) {
-        fillTemplate = template.map((part) => {
-          if (part.blank === undefined) return part.text ?? "";
-          const source = Array.isArray(question.acceptedAnswers) ? (question.acceptedAnswers as unknown[])[position] : undefined;
-          blankRows.push({
-            question_id: id,
-            position,
-            blank_key: String(part.blank || `b${position}`),
-            placeholder: String(part.placeholder ?? ""),
-            accepted: Array.isArray(source) ? source.map(String) : source !== undefined ? [String(source)] : [],
-          });
-          return `{{${position++}}}`;
-        }).join("");
-      }
-
-      questionRows.push({
-        id,
-        subject_id: subjectId,
-        qtype: type,
-        prompt: String(question.prompt ?? ""),
-        options: Array.isArray(question.options) ? (question.options as unknown[]).map(String) : [],
-        correct_answers: type === "fill" || type === "fill-multi" ? [] : correct,
-        fill_template: fillTemplate,
-        instruction: String(question.instruction ?? ""),
-        exam_modes: modes,
-        difficulty: String(question.difficulty ?? "medium"),
-        domain: String(question.domain ?? ""),
-        explanation: String(question.explanation ?? ""),
-        status: "active",
-        created_by_profile_id: null,
-        created_at: new Date().toISOString(),
-        updated_at: now,
+        if (!levelId) throw new Error(`Question ${id} references unavailable level ${levelName}.`);
+        return { question_id: id, level_id: levelId };
       });
-    }
 
-    for (let index = 0; index < questionRows.length; index += 200) {
-      const { error } = await admin.from("questions").insert(questionRows.slice(index, index + 200));
-      if (error) return { ok: false, error: error.message };
-    }
-    for (let index = 0; index < levelLinks.length; index += 500) {
-      const { error } = await admin.from("question_academic_levels").insert(levelLinks.slice(index, index + 500));
-      if (error) return { ok: false, error: error.message };
-    }
-    for (let index = 0; index < blankRows.length; index += 200) {
-      const { error } = await admin.from("question_blanks").insert(blankRows.slice(index, index + 200));
-      if (error) return { ok: false, error: error.message };
+      const { error: questionError } = existing.has(id)
+        ? await admin.from("questions").update(normalized.row).eq("id", id).is("created_by_id", null)
+        : await admin.from("questions").insert(normalized.row);
+      if (questionError) return { ok: false, error: questionError.message };
+
+      const { error: levelDeleteError } = await admin.from("question_academic_levels").delete().eq("question_id", id);
+      if (levelDeleteError) return { ok: false, error: levelDeleteError.message };
+      const { error: levelInsertError } = await admin.from("question_academic_levels").insert(levelLinks);
+      if (levelInsertError) return { ok: false, error: levelInsertError.message };
+
+      const { error: blankDeleteError } = await admin.from("question_blanks").delete().eq("question_id", id);
+      if (blankDeleteError) return { ok: false, error: blankDeleteError.message };
+      if (normalized.blanks.length) {
+        const { error: blankInsertError } = await admin.from("question_blanks").insert(normalized.blanks);
+        if (blankInsertError) return { ok: false, error: blankInsertError.message };
+      }
+      count += 1;
     }
 
     revalidatePath("/admin/questions");
-    return { ok: true, count: questionRows.length };
+    return { ok: true, count };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Question fixture sync failed." };
   }
