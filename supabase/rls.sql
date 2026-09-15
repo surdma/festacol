@@ -1,428 +1,379 @@
--- Festacol Supabase platform integration: Row Level Security and Data API grants.
---
--- Prisma owns table/column/index/enum creation. Apply this file only AFTER
--- `prisma migrate deploy` and `supabase/auth-rpc.sql`.
+-- Festacol Row Level Security for the canonical Prisma schema.
+-- Apply after prisma migration and supabase/auth-rpc.sql.
 
-begin;
+BEGIN;
 
--- --------------------------------------------------------------------- RLS on
-alter table public.academic_profiles enable row level security;
-alter table public.student_academic_profiles enable row level security;
-alter table public.staff_academic_profiles enable row level security;
-alter table public.academic_years enable row level security;
-alter table public.academic_terms enable row level security;
-alter table public.academic_levels enable row level security;
-alter table public.classes enable row level security;
-alter table public.class_enrollments enable row level security;
-alter table public.subjects enable row level security;
-alter table public.subject_track_rules enable row level security;
-alter table public.class_subject_offerings enable row level security;
-alter table public.student_subject_enrollments enable row level security;
-alter table public.staff_subject_qualifications enable row level security;
-alter table public.teaching_assignments enable row level security;
-alter table public.exam_sessions enable row level security;
-alter table public.exam_class_targets enable row level security;
-alter table public.exam_offering_targets enable row level security;
-alter table public.exam_placement_tracks enable row level security;
-alter table public.exam_staff_assignments enable row level security;
-alter table public.exam_student_access enable row level security;
-alter table public.exam_retake_grants enable row level security;
-alter table public.exam_session_links enable row level security;
-alter table public.exam_qr_codes enable row level security;
-alter table public.exam_attempts enable row level security;
-alter table public.exam_attempt_runtime_states enable row level security;
-alter table public.exam_attempt_responses enable row level security;
-alter table public.exam_attempt_answers enable row level security;
-alter table public.exam_integrity_events enable row level security;
-alter table public.questions enable row level security;
-alter table public.question_academic_levels enable row level security;
-alter table public.question_blanks enable row level security;
-alter table public.whatsapp_groups enable row level security;
+ALTER TABLE public.school_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_terms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_levels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subject_curriculum_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_subject_offerings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_subject_enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.staff_subject_qualifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teaching_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_class_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_offering_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_placement_tracks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_session_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_qr_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_staff_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_student_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_retake_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_attempt_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_integrity_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.question_academic_levels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.question_blanks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.whatsapp_groups ENABLE ROW LEVEL SECURITY;
 
--- Drop every existing policy on canonical tables so this file is idempotent and
--- cannot leave an obsolete policy active after a contract change.
-do $$
-declare r record;
-begin
-  for r in
-    select schemaname,tablename,policyname
-    from pg_policies
-    where schemaname='public'
-      and tablename = any(array[
-        'academic_profiles','student_academic_profiles','staff_academic_profiles',
-        'academic_years','academic_terms','academic_levels',
-        'classes','class_enrollments','subjects','subject_track_rules','class_subject_offerings',
+-- Make this integration file idempotent and ensure stale policies cannot survive
+-- a contract change.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT schemaname,tablename,policyname
+    FROM pg_policies
+    WHERE schemaname='public'
+      AND tablename = ANY(ARRAY[
+        'school_members','academic_years','academic_terms','academic_levels','classes',
+        'class_enrollments','subjects','subject_curriculum_rules','class_subject_offerings',
         'student_subject_enrollments','staff_subject_qualifications','teaching_assignments',
         'exam_sessions','exam_class_targets','exam_offering_targets','exam_placement_tracks',
-        'exam_staff_assignments','exam_student_access','exam_retake_grants','exam_session_links',
-        'exam_qr_codes','exam_attempts','exam_attempt_runtime_states','exam_attempt_responses',
-        'exam_attempt_answers','exam_integrity_events','questions','question_academic_levels',
-        'question_blanks','whatsapp_groups'
+        'exam_session_links','exam_qr_codes','exam_staff_assignments','exam_student_access',
+        'exam_retake_grants','exam_attempts','exam_attempt_responses','exam_integrity_events',
+        'questions','question_academic_levels','question_blanks','whatsapp_groups'
       ])
-  loop
-    execute format('drop policy if exists %I on %I.%I',r.policyname,r.schemaname,r.tablename);
-  end loop;
-end $$;
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',r.policyname,r.schemaname,r.tablename);
+  END LOOP;
+END $$;
 
--- ------------------------------------------------------------- Data API grants
--- Reads/writes granted here are still constrained by RLS. Privileged server
--- mutations use the Supabase server secret/service role and bypass RLS.
-grant usage on schema public to authenticated;
+GRANT USAGE ON SCHEMA public TO authenticated;
 
-grant select on public.academic_profiles to authenticated;
-grant update(first_name,last_name,updated_at) on public.academic_profiles to authenticated;
-grant select on public.student_academic_profiles to authenticated;
-grant update(guardian,phone,updated_at) on public.student_academic_profiles to authenticated;
-grant select on public.staff_academic_profiles to authenticated;
+-- Self identity. No authenticated client can alter role, status, identifiers or
+-- auth binding through the Data API.
+GRANT SELECT ON public.school_members TO authenticated;
+GRANT UPDATE(first_name,last_name,guardian,phone,updated_at)
+  ON public.school_members TO authenticated;
 
-grant select on public.academic_years,public.academic_terms,public.academic_levels,
-  public.classes,public.subjects,public.subject_track_rules to authenticated;
-
-grant select on public.class_enrollments,public.class_subject_offerings,
+-- Read-only academic catalog and relationships.
+GRANT SELECT ON public.academic_years,public.academic_terms,public.academic_levels,
+  public.classes,public.subjects,public.subject_curriculum_rules,
+  public.class_enrollments,public.class_subject_offerings,
   public.student_subject_enrollments,public.staff_subject_qualifications,
-  public.teaching_assignments to authenticated;
+  public.teaching_assignments TO authenticated;
 
-grant select on public.exam_sessions,public.exam_class_targets,public.exam_offering_targets,
-  public.exam_placement_tracks,public.exam_staff_assignments,public.exam_student_access,
-  public.exam_retake_grants,public.exam_session_links,public.exam_qr_codes,
-  public.exam_attempts to authenticated;
+GRANT SELECT ON public.exam_sessions,public.exam_class_targets,public.exam_offering_targets,
+  public.exam_placement_tracks,public.exam_session_links,public.exam_qr_codes,
+  public.exam_staff_assignments,public.exam_student_access,public.exam_retake_grants,
+  public.exam_attempts TO authenticated;
 
-grant select,update on public.exam_attempt_runtime_states to authenticated;
-grant select,insert,update,delete on public.exam_attempt_responses to authenticated;
-grant select,insert on public.exam_integrity_events to authenticated;
-grant usage,select on sequence public.exam_integrity_events_id_seq to authenticated;
+-- Candidate runtime state lives directly on exam_attempts. Students can update
+-- only transient runtime columns while an attempt is open.
+GRANT UPDATE(
+  current_index,remaining_seconds,elapsed_active_seconds,last_active_at,
+  paper_fingerprint,question_ids,updated_at
+) ON public.exam_attempts TO authenticated;
 
-grant select on public.questions,public.question_academic_levels,public.question_blanks to authenticated;
-grant select on public.exam_attempt_answers to authenticated;
-grant select on public.whatsapp_groups to authenticated;
+-- Students never receive write privilege for grading fields. After submission,
+-- the row-level student SELECT policy also stops exposing response rows so
+-- correct_answer cannot leak after server-side grading.
+GRANT SELECT ON public.exam_attempt_responses TO authenticated;
+GRANT INSERT(attempt_id,question_id,response_text,response_values,seconds,flagged,updated_at)
+  ON public.exam_attempt_responses TO authenticated;
+GRANT UPDATE(response_text,response_values,seconds,flagged,updated_at)
+  ON public.exam_attempt_responses TO authenticated;
 
--- service_role/secret-key clients are the trusted server mutation boundary.
-grant all privileges on all tables in schema public to service_role;
-grant all privileges on all sequences in schema public to service_role;
+GRANT SELECT,INSERT ON public.exam_integrity_events TO authenticated;
+GRANT USAGE,SELECT ON SEQUENCE public.exam_integrity_events_id_seq TO authenticated;
 
--- --------------------------------------------------------------- self identity
-create policy academic_profiles_self_read on public.academic_profiles
-  for select to authenticated
-  using (id = private.current_academic_profile_id());
-create policy academic_profiles_self_update on public.academic_profiles
-  for update to authenticated
-  using (id = private.current_academic_profile_id())
-  with check (id = private.current_academic_profile_id());
+-- Question rows contain answer keys, so only staff policies below can expose
+-- them. There is deliberately no student question policy.
+GRANT SELECT ON public.questions,public.question_academic_levels,public.question_blanks
+  TO authenticated;
+GRANT SELECT ON public.whatsapp_groups TO authenticated;
 
-create policy student_profile_self_read on public.student_academic_profiles
-  for select to authenticated
-  using (profile_id = private.current_academic_profile_id());
-create policy student_profile_self_update on public.student_academic_profiles
-  for update to authenticated
-  using (profile_id = private.current_academic_profile_id())
-  with check (profile_id = private.current_academic_profile_id());
+-- Trusted server mutations use service_role.
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
-create policy staff_profile_self_read on public.staff_academic_profiles
-  for select to authenticated
-  using (profile_id = private.current_academic_profile_id());
+-- ---------------------------------------------------------------- self member
+CREATE POLICY school_members_self_read ON public.school_members
+  FOR SELECT TO authenticated
+  USING (id = private.current_school_member_id());
+CREATE POLICY school_members_self_update ON public.school_members
+  FOR UPDATE TO authenticated
+  USING (id = private.current_school_member_id())
+  WITH CHECK (id = private.current_school_member_id());
 
--- ------------------------------------------------------------- public catalog
-create policy academic_years_authenticated_read on public.academic_years
-  for select to authenticated using (true);
-create policy academic_terms_authenticated_read on public.academic_terms
-  for select to authenticated using (true);
-create policy academic_levels_authenticated_read on public.academic_levels
-  for select to authenticated using (true);
-create policy classes_authenticated_read on public.classes
-  for select to authenticated using (true);
-create policy subjects_authenticated_read on public.subjects
-  for select to authenticated using (true);
-create policy subject_track_rules_authenticated_read on public.subject_track_rules
-  for select to authenticated using (true);
+-- --------------------------------------------------------------- catalog read
+CREATE POLICY academic_years_read ON public.academic_years
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY academic_terms_read ON public.academic_terms
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY academic_levels_read ON public.academic_levels
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY classes_read ON public.classes
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY subjects_read ON public.subjects
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY subject_curriculum_rules_read ON public.subject_curriculum_rules
+  FOR SELECT TO authenticated USING (true);
 
 -- ---------------------------------------------------------- academic relations
-create policy class_enrollments_student_read on public.class_enrollments
-  for select to authenticated
-  using (student_profile_id = private.current_academic_profile_id());
-create policy class_enrollments_staff_read on public.class_enrollments
-  for select to authenticated
-  using (private.staff_can_access_class(private.current_academic_profile_id(),class_id));
+CREATE POLICY class_enrollments_student_read ON public.class_enrollments
+  FOR SELECT TO authenticated
+  USING (student_id = private.current_school_member_id());
+CREATE POLICY class_enrollments_staff_read ON public.class_enrollments
+  FOR SELECT TO authenticated
+  USING (private.staff_can_access_class(private.current_school_member_id(),class_id));
 
-create policy class_offerings_student_read on public.class_subject_offerings
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.class_enrollments ce
-      where ce.class_id=class_subject_offerings.class_id
-        and ce.student_profile_id=private.current_academic_profile_id()
-        and ce.status='active'
+CREATE POLICY class_offerings_student_read ON public.class_subject_offerings
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.class_enrollments ce
+      WHERE ce.class_id = class_subject_offerings.class_id
+        AND ce.student_id = private.current_school_member_id()
+        AND ce.status='active'
+        AND ce.ended_at IS NULL
     )
   );
-create policy class_offerings_staff_read on public.class_subject_offerings
-  for select to authenticated
-  using (private.staff_can_access_class(private.current_academic_profile_id(),class_id));
+CREATE POLICY class_offerings_staff_read ON public.class_subject_offerings
+  FOR SELECT TO authenticated
+  USING (private.staff_can_access_class(private.current_school_member_id(),class_id));
 
-create policy subject_enrollments_student_read on public.student_subject_enrollments
-  for select to authenticated
-  using (student_profile_id = private.current_academic_profile_id());
-create policy subject_enrollments_staff_read on public.student_subject_enrollments
-  for select to authenticated
-  using (
-    private.teacher_is_assigned_to_offering(private.current_academic_profile_id(),offering_id)
-    or private.is_admin()
+CREATE POLICY student_subject_enrollments_student_read ON public.student_subject_enrollments
+  FOR SELECT TO authenticated
+  USING (student_id = private.current_school_member_id());
+CREATE POLICY student_subject_enrollments_staff_read ON public.student_subject_enrollments
+  FOR SELECT TO authenticated
+  USING (
+    private.is_admin()
+    OR private.teacher_is_assigned_to_offering(private.current_school_member_id(),offering_id)
   );
 
-create policy staff_qualifications_self_read on public.staff_subject_qualifications
-  for select to authenticated
-  using (staff_profile_id = private.current_academic_profile_id() or private.is_admin());
-
-create policy teaching_assignments_self_read on public.teaching_assignments
-  for select to authenticated
-  using (staff_profile_id = private.current_academic_profile_id() or private.is_admin());
+CREATE POLICY staff_qualifications_self_read ON public.staff_subject_qualifications
+  FOR SELECT TO authenticated
+  USING (staff_id = private.current_school_member_id() OR private.is_admin());
+CREATE POLICY teaching_assignments_self_read ON public.teaching_assignments
+  FOR SELECT TO authenticated
+  USING (staff_id = private.current_school_member_id() OR private.is_admin());
 
 -- --------------------------------------------------------------- exam metadata
-create policy exam_sessions_student_read on public.exam_sessions
-  for select to authenticated
-  using (private.student_is_targeted_for_exam(id,private.current_academic_profile_id()));
-create policy exam_sessions_staff_read on public.exam_sessions
-  for select to authenticated
-  using (private.staff_can_access_exam(private.current_academic_profile_id(),id));
+CREATE POLICY exam_sessions_student_read ON public.exam_sessions
+  FOR SELECT TO authenticated
+  USING (private.student_is_targeted_for_exam(id,private.current_school_member_id()));
+CREATE POLICY exam_sessions_staff_read ON public.exam_sessions
+  FOR SELECT TO authenticated
+  USING (private.staff_can_access_exam(private.current_school_member_id(),id));
 
-create policy exam_class_targets_access_read on public.exam_class_targets
-  for select to authenticated
-  using (
-    private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+CREATE POLICY exam_class_targets_access_read ON public.exam_class_targets
+  FOR SELECT TO authenticated
+  USING (
+    private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_offering_targets_access_read on public.exam_offering_targets
-  for select to authenticated
-  using (
-    private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+CREATE POLICY exam_offering_targets_access_read ON public.exam_offering_targets
+  FOR SELECT TO authenticated
+  USING (
+    private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_placement_tracks_access_read on public.exam_placement_tracks
-  for select to authenticated
-  using (
-    private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+CREATE POLICY exam_placement_tracks_access_read ON public.exam_placement_tracks
+  FOR SELECT TO authenticated
+  USING (
+    private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_staff_assignments_access_read on public.exam_staff_assignments
-  for select to authenticated
-  using (
-    staff_profile_id=private.current_academic_profile_id()
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+CREATE POLICY exam_staff_assignments_access_read ON public.exam_staff_assignments
+  FOR SELECT TO authenticated
+  USING (
+    staff_id = private.current_school_member_id()
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_student_access_self_read on public.exam_student_access
-  for select to authenticated
-  using (
-    student_profile_id=private.current_academic_profile_id()
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+CREATE POLICY exam_student_access_access_read ON public.exam_student_access
+  FOR SELECT TO authenticated
+  USING (
+    student_id = private.current_school_member_id()
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_retake_grants_self_read on public.exam_retake_grants
-  for select to authenticated
-  using (
-    student_profile_id=private.current_academic_profile_id()
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+CREATE POLICY exam_retake_grants_access_read ON public.exam_retake_grants
+  FOR SELECT TO authenticated
+  USING (
+    student_id = private.current_school_member_id()
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_session_links_access_read on public.exam_session_links
-  for select to authenticated
-  using (
-    private.student_is_targeted_for_exam(session_id,private.current_academic_profile_id())
-    or private.staff_can_access_exam(private.current_academic_profile_id(),session_id)
+
+CREATE POLICY exam_session_links_access_read ON public.exam_session_links
+  FOR SELECT TO authenticated
+  USING (
+    private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
-create policy exam_qr_codes_access_read on public.exam_qr_codes
-  for select to authenticated
-  using (
-    exists (
-      select 1
-      from public.exam_session_links l
-      where l.id=exam_qr_codes.link_id
-        and (
-          private.student_is_targeted_for_exam(l.session_id,private.current_academic_profile_id())
-          or private.staff_can_access_exam(private.current_academic_profile_id(),l.session_id)
+CREATE POLICY exam_qr_codes_access_read ON public.exam_qr_codes
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exam_session_links l
+      WHERE l.id = exam_qr_codes.link_id
+        AND (
+          private.student_is_targeted_for_exam(l.session_id,private.current_school_member_id())
+          OR private.staff_can_access_exam(private.current_school_member_id(),l.session_id)
         )
     )
   );
 
 -- ------------------------------------------------------------ attempt boundary
-create policy exam_attempts_student_read on public.exam_attempts
-  for select to authenticated
-  using (student_profile_id = private.current_academic_profile_id());
-create policy exam_attempts_staff_read on public.exam_attempts
-  for select to authenticated
-  using (private.staff_can_access_exam(private.current_academic_profile_id(),session_id));
+CREATE POLICY exam_attempts_student_read ON public.exam_attempts
+  FOR SELECT TO authenticated
+  USING (student_id = private.current_school_member_id());
+CREATE POLICY exam_attempts_student_runtime_update ON public.exam_attempts
+  FOR UPDATE TO authenticated
+  USING (
+    student_id = private.current_school_member_id()
+    AND submitted_at IS NULL
+  )
+  WITH CHECK (
+    student_id = private.current_school_member_id()
+    AND submitted_at IS NULL
+  );
+CREATE POLICY exam_attempts_staff_read ON public.exam_attempts
+  FOR SELECT TO authenticated
+  USING (private.staff_can_access_exam(private.current_school_member_id(),session_id));
 
-create policy attempt_runtime_student_read on public.exam_attempt_runtime_states
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_runtime_states.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
+CREATE POLICY attempt_responses_student_read_open ON public.exam_attempt_responses
+  FOR SELECT TO authenticated
+  USING (
+    graded_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_attempt_responses.attempt_id
+        AND a.student_id = private.current_school_member_id()
+        AND a.submitted_at IS NULL
     )
   );
-create policy attempt_runtime_student_update on public.exam_attempt_runtime_states
-  for update to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_runtime_states.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
+CREATE POLICY attempt_responses_student_insert_open ON public.exam_attempt_responses
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    correct IS NULL
+    AND correct_answer IS NULL
+    AND graded_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_attempt_responses.attempt_id
+        AND a.student_id = private.current_school_member_id()
+        AND a.submitted_at IS NULL
+    )
+  );
+CREATE POLICY attempt_responses_student_update_open ON public.exam_attempt_responses
+  FOR UPDATE TO authenticated
+  USING (
+    graded_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_attempt_responses.attempt_id
+        AND a.student_id = private.current_school_member_id()
+        AND a.submitted_at IS NULL
     )
   )
-  with check (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_runtime_states.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
+  WITH CHECK (
+    correct IS NULL
+    AND correct_answer IS NULL
+    AND graded_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_attempt_responses.attempt_id
+        AND a.student_id = private.current_school_member_id()
+        AND a.submitted_at IS NULL
     )
   );
-create policy attempt_runtime_staff_read on public.exam_attempt_runtime_states
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_runtime_states.attempt_id
-        and private.staff_can_access_exam(private.current_academic_profile_id(),a.session_id)
-    )
-  );
-
-create policy attempt_responses_student_read on public.exam_attempt_responses
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_responses.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-    )
-  );
-create policy attempt_responses_student_insert on public.exam_attempt_responses
-  for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_responses.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
-    )
-  );
-create policy attempt_responses_student_update on public.exam_attempt_responses
-  for update to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_responses.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_responses.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
-    )
-  );
-create policy attempt_responses_student_delete on public.exam_attempt_responses
-  for delete to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_responses.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
-    )
-  );
-create policy attempt_responses_staff_read on public.exam_attempt_responses
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_responses.attempt_id
-        and private.staff_can_access_exam(private.current_academic_profile_id(),a.session_id)
+CREATE POLICY attempt_responses_staff_read ON public.exam_attempt_responses
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_attempt_responses.attempt_id
+        AND private.staff_can_access_exam(private.current_school_member_id(),a.session_id)
     )
   );
 
--- Graded answer detail deliberately has NO student policy because it carries
--- correct_answer. Students receive result summaries through server actions.
-create policy attempt_answers_staff_read on public.exam_attempt_answers
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_attempt_answers.attempt_id
-        and private.staff_can_access_exam(private.current_academic_profile_id(),a.session_id)
+CREATE POLICY integrity_student_read ON public.exam_integrity_events
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_integrity_events.attempt_id
+        AND a.student_id = private.current_school_member_id()
     )
   );
-
-create policy integrity_student_read on public.exam_integrity_events
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_integrity_events.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
+CREATE POLICY integrity_student_insert ON public.exam_integrity_events
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_integrity_events.attempt_id
+        AND a.student_id = private.current_school_member_id()
+        AND a.submitted_at IS NULL
     )
   );
-create policy integrity_student_insert on public.exam_integrity_events
-  for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_integrity_events.attempt_id
-        and a.student_profile_id=private.current_academic_profile_id()
-        and a.submitted_at is null
-    )
-  );
-create policy integrity_staff_read on public.exam_integrity_events
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.exam_attempts a
-      where a.id=exam_integrity_events.attempt_id
-        and private.staff_can_access_exam(private.current_academic_profile_id(),a.session_id)
+CREATE POLICY integrity_staff_read ON public.exam_integrity_events
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exam_attempts a
+      WHERE a.id = exam_integrity_events.attempt_id
+        AND private.staff_can_access_exam(private.current_school_member_id(),a.session_id)
     )
   );
 
 -- ------------------------------------------------------------- question bank
--- No student SELECT policy exists on questions because the table contains
--- correct_answers. Paper delivery is server-only through the secret key.
-create policy questions_staff_read on public.questions
-  for select to authenticated
-  using (
+CREATE POLICY questions_staff_read ON public.questions
+  FOR SELECT TO authenticated
+  USING (
     status='active'
-    and private.staff_can_access_subject(private.current_academic_profile_id(),subject_id)
+    AND private.staff_can_access_subject(private.current_school_member_id(),subject_id)
   );
-create policy question_levels_staff_read on public.question_academic_levels
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.questions q
-      where q.id=question_academic_levels.question_id
-        and private.staff_can_access_subject(private.current_academic_profile_id(),q.subject_id)
+CREATE POLICY question_levels_staff_read ON public.question_academic_levels
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.questions q
+      WHERE q.id = question_academic_levels.question_id
+        AND private.staff_can_access_subject(private.current_school_member_id(),q.subject_id)
     )
   );
-create policy question_blanks_staff_read on public.question_blanks
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.questions q
-      where q.id=question_blanks.question_id
-        and private.staff_can_access_subject(private.current_academic_profile_id(),q.subject_id)
+CREATE POLICY question_blanks_staff_read ON public.question_blanks
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.questions q
+      WHERE q.id = question_blanks.question_id
+        AND private.staff_can_access_subject(private.current_school_member_id(),q.subject_id)
     )
   );
 
 -- --------------------------------------------------------------- communication
-create policy whatsapp_student_read on public.whatsapp_groups
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.class_enrollments ce
-      where ce.class_id=whatsapp_groups.class_id
-        and ce.student_profile_id=private.current_academic_profile_id()
-        and ce.status='active'
+CREATE POLICY whatsapp_student_read ON public.whatsapp_groups
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.class_enrollments ce
+      WHERE ce.class_id = whatsapp_groups.class_id
+        AND ce.student_id = private.current_school_member_id()
+        AND ce.status='active'
+        AND ce.ended_at IS NULL
     )
   );
-create policy whatsapp_staff_read on public.whatsapp_groups
-  for select to authenticated
-  using (private.staff_can_access_class(private.current_academic_profile_id(),class_id));
+CREATE POLICY whatsapp_staff_read ON public.whatsapp_groups
+  FOR SELECT TO authenticated
+  USING (private.staff_can_access_class(private.current_school_member_id(),class_id));
 
-commit;
+COMMIT;

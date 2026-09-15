@@ -44,7 +44,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Prisma, relational migration, types, build & lint
+    name: Canonical schema, seed graph, types, build & lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -89,8 +89,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate normalized seed fixtures
+      - name: Validate fixture contract
         run: pnpm seed:check
+
+      - name: Assert single canonical migration
+        run: |
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
+          test -f prisma/migrations/20260915190000_initial/migration.sql
+          test ! -e supabase/schema.sql
+          test "$(find supabase -maxdepth 1 -type f -name '[0-9][0-9]-*.sql' | wc -l)" -eq 0
+          test "$(find scripts -maxdepth 1 -type f \( -name '*.chunk*' -o -name '.sandbox*' -o -name '.pr13-*' \) | wc -l)" -eq 0
 
       - name: Validate Prisma schema
         run: pnpm exec prisma validate
@@ -98,7 +106,16 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
-      - name: Initialize relational migration database
+      - name: Apply initial Prisma migration
+        run: pnpm exec prisma migrate deploy
+
+      - name: Seed canonical relational fixtures
+        run: pnpm db:seed
+
+      - name: Assert canonical seed graph
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f prisma/tests/seed-relations.sql
+
+      - name: Initialize Supabase platform stubs
         run: |
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           create schema if not exists auth;
@@ -108,95 +125,23 @@ jobs:
           do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
           do $$ begin create role service_role; exception when duplicate_object then null; end $$;
           SQL
-          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/schema.sql
-          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-relational-foundation.fixture.sql
 
-      - name: Apply relational migrations first pass
-        run: |
-          for migration in \
-            supabase/06-academic-relational-foundation.sql \
-            supabase/07-academic-relational-foundation-hardening.sql \
-            supabase/08-academic-identity-cutover.sql \
-            supabase/09-curriculum-subject-offerings.sql \
-            supabase/10-exam-runtime-authorization.sql \
-            supabase/11-runtime-consumer-cutover.sql
-          do
-            echo "Applying ${migration}"
-            psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "${migration}"
-          done
-
-      - name: Reapply migration 06
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/06-academic-relational-foundation.sql
-
-      - name: Reapply migration 07
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/07-academic-relational-foundation-hardening.sql
-
-      - name: Reapply migration 08
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/08-academic-identity-cutover.sql
-
-      - name: Reapply migration 09
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/09-curriculum-subject-offerings.sql
-
-      - name: Reapply migration 10
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/10-exam-runtime-authorization.sql
-
-      - name: Reapply migration 11
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/11-runtime-consumer-cutover.sql
-
-      - name: Assert relational foundation
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-relational-foundation.assert.sql
-
-      - name: Assert identity cutover
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-identity-cutover.assert.sql
-
-      - name: Assert curriculum offerings
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/curriculum-subject-offerings.assert.sql
-
-      - name: Assert exam runtime authorization
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/exam-runtime-authorization.assert.sql
-
-      - name: Assert runtime result FK columns
-        run: |
-          awk -v target=1 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert runtime result FK backfill
-        run: |
-          awk -v target=2 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert question answer secrecy
-        run: |
-          awk -v target=3 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert no student answer-detail policy
-        run: |
-          awk -v target=4 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert staff answer-detail policy
-        run: |
-          awk -v target=5 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert attempt mutation boundary
-        run: |
-          awk -v target=6 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert relational exam metadata policies
-        run: |
-          awk -v target=7 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Assert relational admin policy
-        run: |
-          awk -v target=8 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
-
-      - name: Establish Prisma legacy baseline
-        run: pnpm exec prisma migrate resolve --applied 20260915100000_legacy_supabase_baseline
-
-      - name: Apply Prisma migration history
-        run: pnpm exec prisma migrate deploy
-
-      - name: Apply post-Prisma Supabase integration
+      - name: Apply Supabase auth and RLS integration
         run: |
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/auth-rpc.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rls.sql
+
+      - name: Assert platform integration
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regprocedure('public.my_exam_access(text)') is null then raise exception 'my_exam_access_missing'; end if;
+            if to_regprocedure('public.allocate_my_exam_attempt(text)') is null then raise exception 'attempt_allocator_missing'; end if;
+            if to_regprocedure('public.grant_exam_retake(text,uuid,integer,text)') is null then raise exception 'retake_rpc_missing'; end if;
+            if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_responses') then raise exception 'attempt_response_rls_missing'; end if;
+          end $$;
+          SQL
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
@@ -204,25 +149,14 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Biome lint migration surfaces
+      - name: Biome lint canonical migration surfaces
         run: >-
           pnpm exec biome lint
           prisma.config.ts
-          src/app/layout.tsx
-          src/app/admin/layout.tsx
-          src/app/actions/academic-structure.ts
-          src/app/actions/admin-parity.ts
-          src/app/actions/exam-state.ts
-          src/app/actions/exams.ts
-          src/app/actions/question-bank.ts
-          src/app/dashboard/exam/page.tsx
-          src/app/dashboard/exam/workspace.tsx
-          src/components/admin/admin-chrome.tsx
-          src/components/admin/admin-nav.tsx
-          src/components/admin/entity-forms.tsx
-          src/lib/assessment.ts
-          src/lib/questions.ts
-          src/lib/nav.ts
+          prisma/seed.ts
+          src/app/actions
+          src/app/api/admin
+          src/lib/auth
+          src/lib/exam-session.ts
           src/lib/supabase/queries.ts
           src/types/db.ts
-          src/types/exam.ts

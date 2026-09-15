@@ -1,421 +1,608 @@
--- Festacol Supabase platform integration: Auth-linked helpers and RPCs.
---
--- IMPORTANT: This file does NOT own public application tables or migrations.
--- Run `prisma migrate deploy` first. This file may then be applied from the
--- Supabase SQL editor (or equivalent deployment step) because it references
--- Supabase-managed auth.uid(), auth.users and database roles.
+-- Festacol Supabase platform integration for the canonical Prisma schema.
+-- Prisma owns public tables. Supabase owns auth.users, auth.uid(), RLS and
+-- SECURITY DEFINER RPCs. Apply this file only after `prisma migrate deploy`.
 
-begin;
+BEGIN;
 
-create extension if not exists pgcrypto;
-create schema if not exists private;
+CREATE SCHEMA IF NOT EXISTS private;
 
--- Prisma owns academic_profiles, but Supabase owns auth.users. This is the one
--- intentional cross-schema FK that stays in the Supabase integration layer.
-alter table public.academic_profiles
-  drop constraint if exists academic_profiles_auth_user_fk;
-alter table public.academic_profiles
-  add constraint academic_profiles_auth_user_fk
-  foreign key (auth_user_id) references auth.users(id) on delete set null;
+ALTER TABLE public.school_members
+  DROP CONSTRAINT IF EXISTS school_members_auth_user_fk;
+ALTER TABLE public.school_members
+  ADD CONSTRAINT school_members_auth_user_fk
+  FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
-create or replace function private.current_academic_profile_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = public, auth
-as $$
-  select p.id
-  from public.academic_profiles p
-  where p.auth_user_id = auth.uid()
-    and p.status = 'active'
-  limit 1;
+CREATE OR REPLACE FUNCTION private.current_school_member_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT m.id
+  FROM public.school_members m
+  WHERE m.auth_user_id = auth.uid()
+    AND m.status = 'active'
+  LIMIT 1;
 $$;
 
--- Keep the helper's SQL contract as text across the legacy -> Prisma enum
--- cutover. Authorization consumers compare stable role labels; exposing the
--- physical enum type here would make CREATE OR REPLACE incompatible with the
--- already-deployed legacy function and unnecessarily couple Supabase helpers
--- to Prisma's storage representation.
-create or replace function private.current_academic_role()
-returns text
-language sql
-stable
-security definer
-set search_path = public, auth
-as $$
-  select p.role::text
-  from public.academic_profiles p
-  where p.auth_user_id = auth.uid()
-    and p.status = 'active'
-  limit 1;
+CREATE OR REPLACE FUNCTION private.current_member_role()
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT m.role::text
+  FROM public.school_members m
+  WHERE m.auth_user_id = auth.uid()
+    AND m.status = 'active'
+  LIMIT 1;
 $$;
 
-create or replace function private.is_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public, auth
-as $$
-  select coalesce(private.current_academic_role() = 'administrator', false);
+CREATE OR REPLACE FUNCTION private.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT COALESCE(private.current_member_role() = 'administrator', false);
 $$;
 
-create or replace function private.is_staff()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public, auth
-as $$
-  select coalesce(private.current_academic_role() in ('teacher','administrator'), false);
+CREATE OR REPLACE FUNCTION private.is_staff()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT COALESCE(private.current_member_role() IN ('teacher','administrator'), false);
 $$;
 
--- Student login resolution intentionally does not create an academic identity.
--- It is service-role only because it runs before the student's Auth session
--- exists. Normalization is calculated at query time, avoiding duplicated
--- first_name_key/last_name_key columns in public schema.
-create or replace function public.resolve_student_profile_by_name(
+CREATE OR REPLACE FUNCTION public.resolve_student_profile_by_name(
   p_first_name text,
   p_last_name text
 )
-returns table(
+RETURNS TABLE(
   profile_id uuid,
   auth_user_id uuid,
   first_name text,
   last_name text,
   student_number text
 )
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
-declare
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
   v_first text := lower(regexp_replace(btrim(coalesce(p_first_name,'')), '\s+', ' ', 'g'));
   v_last text := lower(regexp_replace(btrim(coalesce(p_last_name,'')), '\s+', ' ', 'g'));
   v_count integer;
-begin
-  if v_first = '' or v_last = '' then
-    return;
-  end if;
+BEGIN
+  IF v_first = '' OR v_last = '' THEN
+    RETURN;
+  END IF;
 
-  select count(*)::integer into v_count
-  from public.academic_profiles p
-  join public.student_academic_profiles s on s.profile_id = p.id
-  where p.role = 'student'
-    and p.status = 'active'
-    and lower(regexp_replace(btrim(p.first_name), '\s+', ' ', 'g')) = v_first
-    and lower(regexp_replace(btrim(p.last_name), '\s+', ' ', 'g')) = v_last;
+  SELECT count(*)::integer INTO v_count
+  FROM public.school_members m
+  WHERE m.role = 'student'
+    AND m.status = 'active'
+    AND lower(regexp_replace(btrim(m.first_name), '\s+', ' ', 'g')) = v_first
+    AND lower(regexp_replace(btrim(m.last_name), '\s+', ' ', 'g')) = v_last;
 
-  if v_count > 1 then
-    raise exception 'student_identity_ambiguous';
-  end if;
+  IF v_count > 1 THEN
+    RAISE EXCEPTION 'student_identity_ambiguous';
+  END IF;
 
-  return query
-  select p.id,p.auth_user_id,p.first_name,p.last_name,s.student_number
-  from public.academic_profiles p
-  join public.student_academic_profiles s on s.profile_id = p.id
-  where p.role = 'student'
-    and p.status = 'active'
-    and lower(regexp_replace(btrim(p.first_name), '\s+', ' ', 'g')) = v_first
-    and lower(regexp_replace(btrim(p.last_name), '\s+', ' ', 'g')) = v_last
-  limit 1;
-end;
+  RETURN QUERY
+  SELECT m.id,m.auth_user_id,m.first_name,m.last_name,m.student_number
+  FROM public.school_members m
+  WHERE m.role = 'student'
+    AND m.status = 'active'
+    AND lower(regexp_replace(btrim(m.first_name), '\s+', ' ', 'g')) = v_first
+    AND lower(regexp_replace(btrim(m.last_name), '\s+', ' ', 'g')) = v_last
+  LIMIT 1;
+END;
 $$;
 
--- Preserve the deployed boolean RPC contract. This is service-role only and
--- atomically attaches an existing academic student to an existing Auth user.
-create or replace function public.claim_student_auth_identity(
+-- Service-role-only atomic binding between a pre-provisioned student and an
+-- existing Supabase Auth identity. It never creates a domain student record.
+CREATE OR REPLACE FUNCTION public.claim_student_auth_identity(
   p_profile_id uuid,
   p_auth_user_id uuid
 )
-returns boolean
-language plpgsql
-volatile
-security definer
-set search_path = public, auth
-as $$
-declare
-  v_profile public.academic_profiles%rowtype;
-begin
-  select * into v_profile
-  from public.academic_profiles p
-  where p.id = p_profile_id
-  for update;
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_member public.school_members%rowtype;
+BEGIN
+  SELECT * INTO v_member
+  FROM public.school_members m
+  WHERE m.id = p_profile_id
+  FOR UPDATE;
 
-  if not found or v_profile.role <> 'student' or v_profile.status <> 'active' then
-    return false;
-  end if;
+  IF NOT FOUND OR v_member.role <> 'student' OR v_member.status <> 'active' THEN
+    RETURN false;
+  END IF;
 
-  if not exists (select 1 from auth.users u where u.id = p_auth_user_id) then
-    return false;
-  end if;
+  IF NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = p_auth_user_id) THEN
+    RETURN false;
+  END IF;
 
-  if v_profile.auth_user_id is not null then
-    return v_profile.auth_user_id = p_auth_user_id;
-  end if;
+  IF v_member.auth_user_id IS NOT NULL THEN
+    RETURN v_member.auth_user_id = p_auth_user_id;
+  END IF;
 
-  if exists (
-    select 1 from public.academic_profiles p
-    where p.auth_user_id = p_auth_user_id
-      and p.id <> p_profile_id
-  ) then
-    return false;
-  end if;
+  IF EXISTS (
+    SELECT 1 FROM public.school_members m
+    WHERE m.auth_user_id = p_auth_user_id
+      AND m.id <> p_profile_id
+  ) THEN
+    RETURN false;
+  END IF;
 
-  update public.academic_profiles
-  set auth_user_id = p_auth_user_id, updated_at = now()
-  where id = p_profile_id
-    and auth_user_id is null;
+  UPDATE public.school_members
+  SET auth_user_id = p_auth_user_id, updated_at = now()
+  WHERE id = p_profile_id
+    AND auth_user_id IS NULL;
 
-  return found;
-end;
+  RETURN FOUND;
+END;
 $$;
 
-create or replace function private.student_is_enrolled_in_offering(
+-- A student is eligible for an offering when they are actively enrolled in the
+-- offering's class and the subject is either required by the curriculum rule or
+-- explicitly selected by the student as an elective.
+CREATE OR REPLACE FUNCTION private.student_is_enrolled_in_offering(
   p_offering_id uuid,
-  p_student_profile_id uuid
+  p_student_id uuid
 )
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.student_subject_enrollments e
-    where e.offering_id = p_offering_id
-      and e.student_profile_id = p_student_profile_id
-      and e.status = 'active'
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.class_subject_offerings o
+    JOIN public.classes c ON c.id = o.class_id
+    JOIN public.subject_curriculum_rules r
+      ON r.subject_id = o.subject_id
+     AND r.level_id = c.level_id
+     AND r.track = c.track
+    JOIN public.class_enrollments ce
+      ON ce.class_id = c.id
+     AND ce.student_id = p_student_id
+     AND ce.status = 'active'
+     AND ce.ended_at IS NULL
+    WHERE o.id = p_offering_id
+      AND o.status = 'active'
+      AND (
+        r.participation = 'required'
+        OR EXISTS (
+          SELECT 1
+          FROM public.student_subject_enrollments sse
+          WHERE sse.student_id = p_student_id
+            AND sse.offering_id = o.id
+            AND sse.status = 'active'
+            AND sse.ended_at IS NULL
+        )
+      )
   );
 $$;
 
-create or replace function private.student_is_targeted_for_exam(
-  p_session_id text,
-  p_student_profile_id uuid
-)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select case
-    when exists (
-      select 1
-      from public.exam_student_access esa
-      where esa.session_id = p_session_id
-        and esa.student_profile_id = p_student_profile_id
-        and esa.decision = 'deny'
-        and (esa.valid_from is null or esa.valid_from <= now())
-        and (esa.valid_until is null or esa.valid_until >= now())
-    ) then false
-    when exists (
-      select 1
-      from public.exam_student_access esa
-      where esa.session_id = p_session_id
-        and esa.student_profile_id = p_student_profile_id
-        and esa.decision = 'allow'
-        and (esa.valid_from is null or esa.valid_from <= now())
-        and (esa.valid_until is null or esa.valid_until >= now())
-    ) then true
-    when exists (
-      select 1
-      from public.exam_offering_targets eot
-      join public.class_subject_offerings o on o.id = eot.offering_id
-      join public.class_enrollments ce on ce.class_id = o.class_id
-      where eot.session_id = p_session_id
-        and ce.student_profile_id = p_student_profile_id
-        and ce.status = 'active'
-        and (
-          o.participation = 'required'
-          or exists (
-            select 1
-            from public.student_subject_enrollments sse
-            where sse.offering_id = o.id
-              and sse.student_profile_id = p_student_profile_id
-              and sse.status = 'active'
-          )
-        )
-    ) then true
-    else exists (
-      select 1
-      from public.exam_class_targets ect
-      join public.class_enrollments ce on ce.class_id = ect.class_id
-      join public.exam_sessions es on es.id = ect.session_id
-      where ect.session_id = p_session_id
-        and ce.student_profile_id = p_student_profile_id
-        and ce.status = 'active'
-        and ce.academic_year_id = es.academic_year_id
-        and not exists (
-          select 1 from public.exam_offering_targets eot
-          where eot.session_id = p_session_id
-        )
-    )
-  end;
-$$;
-
-create or replace function private.staff_can_access_class(
-  p_staff_profile_id uuid,
-  p_class_id text
-)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select private.is_admin()
-    or exists (
-      select 1
-      from public.staff_academic_profiles sap
-      where sap.profile_id = p_staff_profile_id
-        and sap.is_class_teacher = true
-        and sap.class_teacher_class_id = p_class_id
-    )
-    or exists (
-      select 1
-      from public.teaching_assignments ta
-      join public.class_subject_offerings o on o.id = ta.offering_id
-      where ta.staff_profile_id = p_staff_profile_id
-        and ta.status = 'active'
-        and o.class_id = p_class_id
-        and o.status = 'active'
-    );
-$$;
-
-create or replace function private.staff_can_access_subject(
-  p_staff_profile_id uuid,
-  p_subject_id uuid
-)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select private.is_admin()
-    or exists (
-      select 1
-      from public.staff_subject_qualifications q
-      where q.staff_profile_id = p_staff_profile_id
-        and q.subject_id = p_subject_id
-    )
-    or exists (
-      select 1
-      from public.teaching_assignments ta
-      join public.class_subject_offerings o on o.id = ta.offering_id
-      where ta.staff_profile_id = p_staff_profile_id
-        and ta.status = 'active'
-        and o.subject_id = p_subject_id
-        and o.status = 'active'
-    );
-$$;
-
-create or replace function private.teacher_is_assigned_to_offering(
-  p_staff_profile_id uuid,
+CREATE OR REPLACE FUNCTION private.teacher_is_assigned_to_offering(
+  p_staff_id uuid,
   p_offering_id uuid
 )
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select private.is_admin()
-    or exists (
-      select 1
-      from public.teaching_assignments ta
-      where ta.staff_profile_id = p_staff_profile_id
-        and ta.offering_id = p_offering_id
-        and ta.status = 'active'
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT private.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.teaching_assignments ta
+      WHERE ta.staff_id = p_staff_id
+        AND ta.offering_id = p_offering_id
+        AND ta.ended_at IS NULL
     );
 $$;
 
-create or replace function private.staff_can_access_exam(
-  p_staff_profile_id uuid,
+CREATE OR REPLACE FUNCTION private.staff_can_access_class(
+  p_staff_id uuid,
+  p_class_id text
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT private.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.teaching_assignments ta
+      JOIN public.class_subject_offerings o ON o.id = ta.offering_id
+      WHERE ta.staff_id = p_staff_id
+        AND ta.ended_at IS NULL
+        AND o.class_id = p_class_id
+        AND o.status = 'active'
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION private.staff_can_access_subject(
+  p_staff_id uuid,
+  p_subject_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT private.is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM public.staff_subject_qualifications q
+      WHERE q.staff_id = p_staff_id
+        AND q.subject_id = p_subject_id
+        AND q.active = true
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.teaching_assignments ta
+      JOIN public.class_subject_offerings o ON o.id = ta.offering_id
+      WHERE ta.staff_id = p_staff_id
+        AND ta.ended_at IS NULL
+        AND o.subject_id = p_subject_id
+        AND o.status = 'active'
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION private.staff_can_access_exam(
+  p_staff_id uuid,
   p_session_id text
 )
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select private.is_admin()
-    or exists (
-      select 1
-      from public.exam_sessions es
-      where es.id = p_session_id
-        and es.created_by_profile_id = p_staff_profile_id
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT private.is_admin()
+    OR EXISTS (
+      SELECT 1 FROM public.exam_sessions e
+      WHERE e.id = p_session_id AND e.created_by_id = p_staff_id
     )
-    or exists (
-      select 1
-      from public.exam_staff_assignments esa
-      where esa.session_id = p_session_id
-        and esa.staff_profile_id = p_staff_profile_id
+    OR EXISTS (
+      SELECT 1 FROM public.exam_staff_assignments a
+      WHERE a.session_id = p_session_id AND a.staff_id = p_staff_id
     )
-    or exists (
-      select 1
-      from public.exam_offering_targets eot
-      where eot.session_id = p_session_id
-        and private.teacher_is_assigned_to_offering(p_staff_profile_id,eot.offering_id)
+    OR EXISTS (
+      SELECT 1
+      FROM public.exam_offering_targets t
+      WHERE t.session_id = p_session_id
+        AND private.teacher_is_assigned_to_offering(p_staff_id,t.offering_id)
     )
-    or exists (
-      select 1
-      from public.exam_class_targets ect
-      where ect.session_id = p_session_id
-        and private.staff_can_access_class(p_staff_profile_id,ect.class_id)
+    OR EXISTS (
+      SELECT 1
+      FROM public.exam_class_targets t
+      WHERE t.session_id = p_session_id
+        AND private.staff_can_access_class(p_staff_id,t.class_id)
     );
 $$;
 
-create or replace function private.student_allowed_attempts(
+CREATE OR REPLACE FUNCTION private.student_is_targeted_for_exam(
   p_session_id text,
-  p_student_profile_id uuid
+  p_student_id uuid
 )
-returns integer
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select greatest(
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_decision text;
+BEGIN
+  SELECT a.decision::text INTO v_decision
+  FROM public.exam_student_access a
+  WHERE a.session_id = p_session_id
+    AND a.student_id = p_student_id
+    AND (a.valid_from IS NULL OR a.valid_from <= now())
+    AND (a.valid_until IS NULL OR a.valid_until >= now())
+  LIMIT 1;
+
+  IF v_decision = 'deny' THEN RETURN false; END IF;
+  IF v_decision = 'allow' THEN RETURN true; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.exam_offering_targets t WHERE t.session_id = p_session_id
+  ) THEN
+    RETURN EXISTS (
+      SELECT 1
+      FROM public.exam_offering_targets t
+      WHERE t.session_id = p_session_id
+        AND private.student_is_enrolled_in_offering(t.offering_id,p_student_id)
+    );
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.exam_class_targets t
+    JOIN public.class_enrollments ce
+      ON ce.class_id = t.class_id
+     AND ce.student_id = p_student_id
+     AND ce.status = 'active'
+     AND ce.ended_at IS NULL
+    WHERE t.session_id = p_session_id
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.student_allowed_attempts(
+  p_session_id text,
+  p_student_id uuid
+)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT greatest(
     0,
     coalesce(
       (
-        select esa.max_attempts_override
-        from public.exam_student_access esa
-        where esa.session_id = p_session_id
-          and esa.student_profile_id = p_student_profile_id
-          and esa.decision = 'allow'
-          and (esa.valid_from is null or esa.valid_from <= now())
-          and (esa.valid_until is null or esa.valid_until >= now())
+        SELECT a.max_attempts_override
+        FROM public.exam_student_access a
+        WHERE a.session_id = p_session_id
+          AND a.student_id = p_student_id
+          AND a.decision = 'allow'
+          AND (a.valid_from IS NULL OR a.valid_from <= now())
+          AND (a.valid_until IS NULL OR a.valid_until >= now())
       ),
-      (select es.attempt_limit from public.exam_sessions es where es.id = p_session_id),
+      (SELECT e.attempt_limit FROM public.exam_sessions e WHERE e.id = p_session_id),
       0
     )
     + coalesce(
       (
-        select sum(r.additional_attempts)::integer
-        from public.exam_retake_grants r
-        where r.session_id = p_session_id
-          and r.student_profile_id = p_student_profile_id
-          and r.revoked_at is null
-          and (r.expires_at is null or r.expires_at >= now())
+        SELECT sum(r.additional_attempts)::integer
+        FROM public.exam_retake_grants r
+        WHERE r.session_id = p_session_id
+          AND r.student_id = p_student_id
+          AND r.revoked_at IS NULL
+          AND (r.expires_at IS NULL OR r.expires_at >= now())
       ),
       0
     )
   );
 $$;
 
-revoke all on function public.resolve_student_profile_by_name(text,text) from public;
-revoke all on function public.resolve_student_profile_by_name(text,text) from authenticated;
-grant execute on function public.resolve_student_profile_by_name(text,text) to service_role;
+CREATE OR REPLACE FUNCTION public.my_exam_access(p_session_id text)
+RETURNS TABLE(
+  eligible boolean,
+  allowed_attempts integer,
+  used_attempts integer,
+  active_attempt_id uuid,
+  denial_reason text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public,private
+AS $$
+DECLARE
+  v_student uuid := private.current_school_member_id();
+  v_status text;
+  v_starts bigint;
+  v_ends bigint;
+  v_now bigint := (extract(epoch FROM now()) * 1000)::bigint;
+BEGIN
+  IF v_student IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.school_members m
+    WHERE m.id=v_student AND m.role='student' AND m.status='active'
+  ) THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'not_authenticated'::text;
+    RETURN;
+  END IF;
 
-revoke all on function public.claim_student_auth_identity(uuid,uuid) from public;
-revoke all on function public.claim_student_auth_identity(uuid,uuid) from authenticated;
-grant execute on function public.claim_student_auth_identity(uuid,uuid) to service_role;
+  SELECT e.status::text,e.starts_at,e.ends_at
+  INTO v_status,v_starts,v_ends
+  FROM public.exam_sessions e
+  WHERE e.id = upper(p_session_id);
 
-commit;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'not_found'::text;
+    RETURN;
+  END IF;
+  IF v_status <> 'open' THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'not_open'::text;
+    RETURN;
+  END IF;
+  IF v_starts IS NOT NULL AND v_now < v_starts THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'not_started'::text;
+    RETURN;
+  END IF;
+  IF v_ends IS NOT NULL AND v_now > v_ends THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'ended'::text;
+    RETURN;
+  END IF;
+  IF NOT private.student_is_targeted_for_exam(upper(p_session_id),v_student) THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'not_eligible'::text;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    true,
+    private.student_allowed_attempts(upper(p_session_id),v_student),
+    count(*)::integer,
+    (array_agg(a.id ORDER BY a.attempt_number DESC) FILTER (WHERE a.submitted_at IS NULL))[1],
+    NULL::text
+  FROM public.exam_attempts a
+  WHERE a.session_id = upper(p_session_id)
+    AND a.student_id = v_student;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.allocate_my_exam_attempt(p_session_id text)
+RETURNS TABLE(attempt_id uuid,attempt_number integer,resumed boolean)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public,private
+AS $$
+DECLARE
+  v_student uuid := private.current_school_member_id();
+  v_session public.exam_sessions%rowtype;
+  v_allowed integer;
+  v_used integer;
+  v_attempt_id uuid;
+  v_attempt_number integer;
+  v_now bigint := (extract(epoch FROM clock_timestamp()) * 1000)::bigint;
+BEGIN
+  IF v_student IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.school_members m
+    WHERE m.id=v_student AND m.role='student' AND m.status='active'
+  ) THEN
+    RAISE EXCEPTION 'student_profile_required';
+  END IF;
+
+  SELECT * INTO v_session
+  FROM public.exam_sessions e
+  WHERE e.id = upper(p_session_id);
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'exam_not_found'; END IF;
+  IF v_session.status <> 'open' THEN RAISE EXCEPTION 'exam_not_open'; END IF;
+  IF v_session.starts_at IS NOT NULL AND v_now < v_session.starts_at THEN RAISE EXCEPTION 'exam_not_started'; END IF;
+  IF v_session.ends_at IS NOT NULL AND v_now > v_session.ends_at THEN RAISE EXCEPTION 'exam_ended'; END IF;
+  IF NOT private.student_is_targeted_for_exam(v_session.id,v_student) THEN RAISE EXCEPTION 'student_not_eligible'; END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_session.id || ':' || v_student::text,0));
+
+  SELECT a.id,a.attempt_number
+  INTO v_attempt_id,v_attempt_number
+  FROM public.exam_attempts a
+  WHERE a.session_id = v_session.id
+    AND a.student_id = v_student
+    AND a.submitted_at IS NULL
+  ORDER BY a.attempt_number DESC
+  LIMIT 1;
+
+  IF FOUND THEN
+    RETURN QUERY SELECT v_attempt_id,v_attempt_number,true;
+    RETURN;
+  END IF;
+
+  v_allowed := private.student_allowed_attempts(v_session.id,v_student);
+  SELECT count(*)::integer INTO v_used
+  FROM public.exam_attempts a
+  WHERE a.session_id = v_session.id
+    AND a.student_id = v_student;
+
+  IF v_used >= v_allowed THEN RAISE EXCEPTION 'attempt_limit_reached'; END IF;
+
+  v_attempt_id := gen_random_uuid();
+  v_attempt_number := v_used + 1;
+  INSERT INTO public.exam_attempts(
+    id,session_id,student_id,attempt_number,context_snapshot,started_at,
+    current_index,remaining_seconds,elapsed_active_seconds,last_active_at,
+    paper_fingerprint,question_ids,created_at,updated_at
+  ) VALUES (
+    v_attempt_id,v_session.id,v_student,v_attempt_number,'{}'::jsonb,v_now,
+    0,v_session.duration_seconds,0,v_now,'','{}'::bigint[],v_now,v_now
+  );
+
+  RETURN QUERY SELECT v_attempt_id,v_attempt_number,false;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.grant_exam_retake(
+  p_session_id text,
+  p_student_profile_id uuid,
+  p_additional_attempts integer DEFAULT 1,
+  p_reason text DEFAULT ''
+)
+RETURNS uuid
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public,private
+AS $$
+DECLARE
+  v_staff uuid := private.current_school_member_id();
+  v_id uuid;
+BEGIN
+  IF v_staff IS NULL OR NOT private.staff_can_access_exam(v_staff,upper(p_session_id)) THEN
+    RAISE EXCEPTION 'exam_staff_access_required';
+  END IF;
+  IF p_additional_attempts < 1 OR p_additional_attempts > 10 THEN
+    RAISE EXCEPTION 'invalid_retake_count';
+  END IF;
+  IF NOT private.student_is_targeted_for_exam(upper(p_session_id),p_student_profile_id) THEN
+    RAISE EXCEPTION 'student_not_eligible';
+  END IF;
+
+  INSERT INTO public.exam_retake_grants(
+    session_id,student_id,additional_attempts,granted_by_id,reason
+  ) VALUES (
+    upper(p_session_id),p_student_profile_id,p_additional_attempts,v_staff,left(coalesce(p_reason,''),500)
+  ) RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION private.current_school_member_id() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.current_member_role() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.is_admin() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.is_staff() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.student_is_enrolled_in_offering(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.teacher_is_assigned_to_offering(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.staff_can_access_class(uuid,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.staff_can_access_subject(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.staff_can_access_exam(uuid,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.student_is_targeted_for_exam(text,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.student_allowed_attempts(text,uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION private.current_school_member_id() TO authenticated;
+GRANT EXECUTE ON FUNCTION private.current_member_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION private.is_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION private.is_staff() TO authenticated;
+GRANT EXECUTE ON FUNCTION private.student_is_enrolled_in_offering(uuid,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.teacher_is_assigned_to_offering(uuid,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.staff_can_access_class(uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.staff_can_access_subject(uuid,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.staff_can_access_exam(uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.student_is_targeted_for_exam(text,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.student_allowed_attempts(text,uuid) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.resolve_student_profile_by_name(text,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.resolve_student_profile_by_name(text,text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_student_profile_by_name(text,text) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_student_auth_identity(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.claim_student_auth_identity(uuid,uuid) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_student_auth_identity(uuid,uuid) TO service_role;
+
+REVOKE ALL ON FUNCTION public.my_exam_access(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.my_exam_access(text) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.allocate_my_exam_attempt(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.allocate_my_exam_attempt(text) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.grant_exam_retake(text,uuid,integer,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.grant_exam_retake(text,uuid,integer,text) TO authenticated;
+
+COMMIT;
