@@ -136,18 +136,20 @@ jobs:
       - name: Reapply migration 11
         run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/11-runtime-consumer-cutover.sql
 
-      - name: Assert relational migration contracts
-        run: |
-          for assertion in \
-            supabase/tests/academic-relational-foundation.assert.sql \
-            supabase/tests/academic-identity-cutover.assert.sql \
-            supabase/tests/curriculum-subject-offerings.assert.sql \
-            supabase/tests/exam-runtime-authorization.assert.sql \
-            supabase/tests/runtime-consumer-cutover.assert.sql
-          do
-            echo "Asserting ${assertion}"
-            psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "${assertion}"
-          done
+      - name: Assert relational foundation
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-relational-foundation.assert.sql
+
+      - name: Assert identity cutover
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/academic-identity-cutover.assert.sql
+
+      - name: Assert curriculum offerings
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/curriculum-subject-offerings.assert.sql
+
+      - name: Assert exam runtime authorization
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/exam-runtime-authorization.assert.sql
+
+      - name: Assert runtime consumer cutover
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/runtime-consumer-cutover.assert.sql
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
