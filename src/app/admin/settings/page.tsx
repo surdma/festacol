@@ -4,8 +4,8 @@ import { AdminMetricCard, AdminPageHeader, adminSecondaryButtonClass, adminSurfa
 import { MajorPicker } from "@/components/admin/major-picker";
 import { Button } from "@/components/ui/button";
 import { currentStaff } from "@/lib/auth/staff";
+import { DataControls } from "./data-controls";
 import { SubjectsManager } from "./subjects-manager";
-import { Task7DataControls } from "./task7-data-controls";
 
 export default async function AdminSettingsPage() {
   const { supabase, scope } = await currentStaff();
@@ -52,7 +52,7 @@ export default async function AdminSettingsPage() {
         <AdminMetricCard label="Persistence" value="Postgres" detail="typed production records, not prototype local storage" icon={Database} />
       </section>
       <div className="mt-5"><SubjectsManager initial={subjects} /></div>
-      <div className="mt-5"><Task7DataControls /></div>
+      <div className="mt-5"><DataControls /></div>
       {sessionPanel}
     </div>
   );
