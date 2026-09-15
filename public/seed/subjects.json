@@ -1,24 +1,12 @@
 {
   "schemaVersion": 5,
-  "fixtureId": "festacol-subject-catalog-2026-09-canonical",
-  "tracks": [
-    "SCIENCE",
-    "ART",
-    "SOCIAL_SCIENCE"
-  ],
-  "levels": [
-    "SS1",
-    "SS2",
-    "SS3"
-  ],
+  "fixtureId": "festacol-subject-catalog-2026-09-federal-fields",
+  "tracks": ["SCIENCE", "HUMANITIES", "BUSINESS"],
+  "levels": ["SS1", "SS2", "SS3"],
   "curriculumSource": {
     "effective": "2025-09",
-    "mapping": {
-      "ART": "Humanities",
-      "SOCIAL_SCIENCE": "Business",
-      "SCIENCE": "Science"
-    },
-    "note": "Festacol product track names map Humanities to ART and Business to SOCIAL_SCIENCE."
+    "fields": ["Science", "Humanities", "Business"],
+    "note": "Festacol uses the current Federal Ministry of Education senior-secondary fields directly; no legacy product-field mapping is applied."
   },
   "subjects": [
     {
@@ -30,12 +18,12 @@
         { "level": "SS1", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS2", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS3", "track": "SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
+        { "level": "SS1", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS1", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "BUSINESS", "participation": "REQUIRED" }
       ]
     },
     {
@@ -47,12 +35,12 @@
         { "level": "SS1", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS2", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS3", "track": "SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
+        { "level": "SS1", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS1", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "BUSINESS", "participation": "REQUIRED" }
       ]
     },
     {
@@ -64,12 +52,12 @@
         { "level": "SS1", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS2", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS3", "track": "SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
+        { "level": "SS1", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS1", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "BUSINESS", "participation": "REQUIRED" }
       ]
     },
     {
@@ -81,12 +69,12 @@
         { "level": "SS1", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS2", "track": "SCIENCE", "participation": "REQUIRED" },
         { "level": "SS3", "track": "SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "ART", "participation": "REQUIRED" },
-        { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" },
-        { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "REQUIRED" }
+        { "level": "SS1", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "HUMANITIES", "participation": "REQUIRED" },
+        { "level": "SS1", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS2", "track": "BUSINESS", "participation": "REQUIRED" },
+        { "level": "SS3", "track": "BUSINESS", "participation": "REQUIRED" }
       ]
     },
     { "code": "bio", "name": "Biology", "kind": "CURRICULUM", "active": true, "curriculum": [
@@ -120,83 +108,83 @@
       { "level": "SS1", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SCIENCE", "participation": "ELECTIVE" }
     ] },
     { "code": "history", "name": "Nigerian History", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "gov", "name": "Government", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "crs", "name": "Christian Religious Studies", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "irs", "name": "Islamic Studies", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "yor", "name": "Yoruba", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "french", "name": "French", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "arabic", "name": "Arabic", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "visualart", "name": "Visual Arts", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "music", "name": "Music", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "lit", "name": "English Literature", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "homemgt", "name": "Home Management", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "catering", "name": "Catering Craft", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" }
     ] },
     { "code": "acct", "name": "Accounting", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "commerce", "name": "Commerce", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "marketing", "name": "Marketing", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "eco", "name": "Economics", "kind": "CURRICULUM", "active": true, "curriculum": [
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "solar-pv", "name": "Solar PV Installation and Maintenance", "kind": "CURRICULUM", "active": true, "curriculum": [
       { "level": "SS1", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SCIENCE", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" },
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "fashion", "name": "Fashion Design and Garment Making", "kind": "CURRICULUM", "active": true, "curriculum": [
       { "level": "SS1", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SCIENCE", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" },
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "livestock", "name": "Livestock Farming", "kind": "CURRICULUM", "active": true, "curriculum": [
       { "level": "SS1", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SCIENCE", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" },
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "hardware", "name": "Computer Hardware and GSM Repairs", "kind": "CURRICULUM", "active": true, "curriculum": [
       { "level": "SS1", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SCIENCE", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" },
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "horticulture", "name": "Horticulture and Crop Production", "kind": "CURRICULUM", "active": true, "curriculum": [
       { "level": "SS1", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SCIENCE", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS2", "track": "ART", "participation": "ELECTIVE" }, { "level": "SS3", "track": "ART", "participation": "ELECTIVE" },
-      { "level": "SS1", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS2", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }, { "level": "SS3", "track": "SOCIAL_SCIENCE", "participation": "ELECTIVE" }
+      { "level": "SS1", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS2", "track": "HUMANITIES", "participation": "ELECTIVE" }, { "level": "SS3", "track": "HUMANITIES", "participation": "ELECTIVE" },
+      { "level": "SS1", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS2", "track": "BUSINESS", "participation": "ELECTIVE" }, { "level": "SS3", "track": "BUSINESS", "participation": "ELECTIVE" }
     ] },
     { "code": "q-eng", "name": "English Studies", "kind": "QUALIFIER", "active": true, "curriculum": [] },
     { "code": "q-math", "name": "Mathematics Aptitude", "kind": "QUALIFIER", "active": true, "curriculum": [] },
     { "code": "q-bst", "name": "Basic Science & Technology", "kind": "QUALIFIER", "active": true, "curriculum": [] },
-    { "code": "q-social", "name": "Social & Citizenship Studies", "kind": "QUALIFIER", "active": true, "curriculum": [] },
-    { "code": "q-business", "name": "Business Studies", "kind": "QUALIFIER", "active": true, "curriculum": [] },
+    { "code": "q-social", "name": "Humanities Readiness", "kind": "QUALIFIER", "active": true, "curriculum": [] },
+    { "code": "q-business", "name": "Business Readiness", "kind": "QUALIFIER", "active": true, "curriculum": [] },
     { "code": "q-digital", "name": "Digital Technologies", "kind": "QUALIFIER", "active": true, "curriculum": [] }
   ]
 }
