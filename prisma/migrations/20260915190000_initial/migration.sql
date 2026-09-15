@@ -9,7 +9,7 @@ CREATE TYPE member_role AS ENUM ('student','teacher','administrator');
 CREATE TYPE record_status AS ENUM ('active','inactive');
 CREATE TYPE student_progress_status AS ENUM ('on-track','promoted','repeating','graduated','withdrawn');
 CREATE TYPE academic_period_status AS ENUM ('planned','active','closed','archived');
-CREATE TYPE academic_track AS ENUM ('science','art','social_science');
+CREATE TYPE academic_track AS ENUM ('science','humanities','business');
 CREATE TYPE subject_kind AS ENUM ('curriculum','qualifier');
 CREATE TYPE enrollment_status AS ENUM ('active','completed','withdrawn','transferred','ended');
 CREATE TYPE offering_participation AS ENUM ('required','elective');
