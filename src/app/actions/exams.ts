@@ -1,7 +1,6 @@
 "use server";
 
 import { currentStudent } from "@/lib/auth/current-student";
-import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { getExamLink, normalizeExamId } from "@/lib/exam-links";
 
 interface AccessRow {
@@ -35,9 +34,19 @@ export async function resolveExamLinkAction(rawId: string): Promise<{ href?: str
   const accessRow = (Array.isArray(access) ? access[0] : access) as AccessRow | null;
   if (!accessRow?.eligible) return { error: accessMessage(accessRow?.denial_reason ?? null) };
 
-  const runtimeSession = await loadExamRuntimeSession(ctx.supabase, examId);
-  if (!runtimeSession) return { error: "Exam metadata is unavailable." };
-  return { href: getExamLink(runtimeSession.session) };
+  const { data: link, error: linkError } = await ctx.supabase
+    .from("exam_session_links")
+    .select("token,active,expires_at")
+    .eq("session_id", examId)
+    .eq("active", true)
+    .maybeSingle();
+  if (linkError) return { error: "Exam access link could not be resolved." };
+  if (!link?.token) return { error: "This examination has not published a candidate access link yet." };
+  if (link.expires_at && new Date(String(link.expires_at)).getTime() <= Date.now()) {
+    return { error: "This examination link has expired." };
+  }
+
+  return { href: getExamLink(String(link.token)) };
 }
 
 async function currentOpenAttempt(sessionId: string): Promise<string | null> {
