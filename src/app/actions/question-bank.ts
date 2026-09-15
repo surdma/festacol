@@ -10,7 +10,7 @@ import type { AcademicTrack } from "@/types/db";
 
 interface FixtureCurriculumRule {
   level: "SS1" | "SS2" | "SS3";
-  track: "SCIENCE" | "ART" | "SOCIAL_SCIENCE";
+  track: "SCIENCE" | "HUMANITIES" | "BUSINESS";
   participation: "REQUIRED" | "ELECTIVE";
 }
 
@@ -34,8 +34,8 @@ interface QuestionFixture {
 
 const TRACK_DB: Record<FixtureCurriculumRule["track"], AcademicTrack> = {
   SCIENCE: "science",
-  ART: "art",
-  SOCIAL_SCIENCE: "social_science",
+  HUMANITIES: "humanities",
+  BUSINESS: "business",
 };
 const PARTICIPATION_DB = { REQUIRED: "required", ELECTIVE: "elective" } as const;
 const KIND_DB = { CURRICULUM: "curriculum", QUALIFIER: "qualifier" } as const;
@@ -157,7 +157,7 @@ function normalizeQuestion(question: Record<string, unknown>, subjectId: string)
       domain: String(question.domain ?? ""),
       explanation: String(question.explanation ?? ""),
       status: "active",
-      created_by_id: null,
+      creator_id: null,
       created_at: new Date().toISOString(),
       updated_at: Date.now(),
     },
@@ -176,7 +176,7 @@ export async function syncQuestionBankFromFixtureAction(): Promise<ActionResult 
     const [{ data: subjectRows, error: subjectError }, { data: academicLevels, error: levelError }, { data: existingRows, error: existingError }] = await Promise.all([
       admin.from("subjects").select("id,code").in("code", subjectCodes).eq("active", true),
       admin.from("academic_levels").select("id,name").eq("active", true),
-      admin.from("questions").select("id,created_by_id"),
+      admin.from("questions").select("id,creator_id"),
     ]);
     if (subjectError || levelError || existingError) return { ok: false, error: subjectError?.message ?? levelError?.message ?? existingError?.message ?? "Question fixture references could not be resolved." };
 
@@ -184,7 +184,7 @@ export async function syncQuestionBankFromFixtureAction(): Promise<ActionResult 
     const unresolved = subjectCodes.filter((code) => !subjectIdByCode.has(code));
     if (unresolved.length) return { ok: false, error: `Seed these subject codes before syncing questions: ${unresolved.join(", ")}.` };
     const levelIdByName = new Map(((academicLevels ?? []) as { id: string; name: string }[]).map((row) => [row.name, row.id]));
-    const existing = new Map(((existingRows ?? []) as { id: number; created_by_id: string | null }[]).map((row) => [Number(row.id), row.created_by_id]));
+    const existing = new Map(((existingRows ?? []) as { id: number; creator_id: string | null }[]).map((row) => [Number(row.id), row.creator_id]));
     const protectedQuestion = fixture.questions.find((question) => existing.get(Number(question.id)) !== undefined && existing.get(Number(question.id)) !== null);
     if (protectedQuestion) return { ok: false, error: `Question id ${String(protectedQuestion.id)} belongs to a staff-authored question and cannot be replaced by the bank fixture.` };
 
@@ -202,7 +202,7 @@ export async function syncQuestionBankFromFixtureAction(): Promise<ActionResult 
       });
 
       const { error: questionError } = existing.has(id)
-        ? await admin.from("questions").update(normalized.row).eq("id", id).is("created_by_id", null)
+        ? await admin.from("questions").update(normalized.row).eq("id", id).is("creator_id", null)
         : await admin.from("questions").insert(normalized.row);
       if (questionError) return { ok: false, error: questionError.message };
 
