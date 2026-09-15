@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Copy, ExternalLink, Pencil, Users } from "lucide-react";
+import { Copy, ExternalLink, Pencil } from "lucide-react";
 import {
   authorizeRewriteAction,
-  deleteClassAction,
   deleteExamAction,
   deleteQuestionAction,
-  deleteWhatsappAction,
   duplicateExamAction,
   getAttemptDetailAction,
   getStaffListAction,
@@ -20,10 +18,10 @@ import {
 } from "@/app/actions/admin";
 import {
   getAdminFormOptionsAction,
-  getClassDetailAction,
   getExamEditorDetailAction,
   updateExamParityAction,
 } from "@/app/actions/admin-parity";
+import { getExamAccessLinkAction } from "@/app/actions/exam-access-links";
 import { getExamRelationSummaryAction, type ExamRelationSummary } from "@/app/actions/exam-relations";
 import { getQuestionEditorDetailAction } from "@/app/actions/question-bank";
 import { MetricCard } from "@/components/metric-card";
@@ -36,7 +34,6 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { getExamLink } from "@/lib/exam-links";
 import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
 
 function useModalRoute() {
@@ -66,18 +63,30 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
   const [relations, setRelations] = useState<ExamRelationSummary | null>(null);
   const [staff, setStaff] = useState<{ id: string; full_name: string; subjectIds: string[] }[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [sharePath, setSharePath] = useState("");
+  const [qrRevision, setQrRevision] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setError(null);
-    void Promise.all([getExamEditorDetailAction(examId), getExamRelationSummaryAction(examId)])
-      .then(([detail, relationSummary]) => {
-        setData(detail as typeof data);
-        setRelations(relationSummary);
-      })
-      .catch(() => setError("Exam details could not be loaded."));
+    setSharePath("");
+    setQrRevision(null);
+    void Promise.all([
+      getExamEditorDetailAction(examId),
+      getExamRelationSummaryAction(examId),
+      getExamAccessLinkAction(examId),
+    ]).then(([detail, relationSummary, accessLink]) => {
+      setData(detail as typeof data);
+      setRelations(relationSummary);
+      if (accessLink.ok && accessLink.path) {
+        setSharePath(accessLink.path);
+        setQrRevision(accessLink.qrRevision ?? null);
+      } else {
+        setError(accessLink.error ?? "Candidate access link could not be prepared.");
+      }
+    }).catch(() => setError("Exam details could not be loaded."));
     void isAdminAction().then((value) => {
       setIsAdmin(value);
       if (value) void getStaffListAction().then(setStaff);
@@ -85,9 +94,6 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
   }, [examId]);
 
   const session = data?.session;
-  const sharePath = useMemo(() => session
-    ? getExamLink({ id: String(session.id), title: String(session.title) })
-    : "", [session]);
   const audience = relations?.targetLabels.join(", ") || "Explicit audience";
   const subjects = relations?.subjectNames.join(", ")
     || (relations?.placementTracks.length ? `${relations.placementTracks.map(trackLabel).join(", ")} placement pool` : "General / qualifier pool");
@@ -130,8 +136,8 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
 
             <div className="rounded-xl border bg-muted/30 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Candidate access</p><p className="mt-1 font-mono text-sm font-semibold">{examId}</p><p className="mt-1 break-all text-xs text-muted-foreground">{sharePath}</p></div>
-                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => void copyShareLink()}><Copy data-icon="inline-start" />{copied ? "Copied" : "Copy exam link"}</Button><Button size="sm" variant="outline" render={<a href={sharePath} target="_blank" rel="noreferrer" />}><ExternalLink data-icon="inline-start" />Open exam link</Button></div>
+                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Candidate access</p><p className="mt-1 font-mono text-sm font-semibold">{examId}</p><p className="mt-1 break-all text-xs text-muted-foreground">{sharePath || "Preparing opaque access link…"}</p>{qrRevision ? <p className="mt-1 text-[11px] text-muted-foreground">Persisted QR payload revision {qrRevision}</p> : null}</div>
+                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!sharePath} onClick={() => void copyShareLink()}><Copy data-icon="inline-start" />{copied ? "Copied" : "Copy exam link"}</Button><Button size="sm" variant="outline" disabled={!sharePath} render={sharePath ? <a href={sharePath} target="_blank" rel="noreferrer" /> : undefined}><ExternalLink data-icon="inline-start" />Open exam link</Button></div>
               </div>
             </div>
 
@@ -286,20 +292,4 @@ export function QuestionDetailDialog({ questionId, onClose }: { questionId: numb
     <div className="grid gap-2 sm:grid-cols-3"><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Difficulty</span><strong className="mt-1 block capitalize">{String(question.difficulty || "medium")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Levels</span><strong className="mt-1 block">{((question.levels ?? []) as string[]).join(", ") || "—"}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Source</span><strong className="mt-1 block">{question.creator_id ? "Staff authored" : "Seed bank"}</strong></div></div>
     <div className="flex flex-wrap gap-2">{canEdit ? <Button size="sm" variant="outline" onClick={() => openModal({ modal: "question-edit", question: String(questionId) })}><Pencil data-icon="inline-start" />Edit question</Button> : null}{canEdit ? <AlertDialog><AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete question?</AlertDialogTitle><AlertDialogDescription>This removes the question from future paper generation. Existing submitted attempt responses remain as audit records.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={() => startTransition(async () => { const result = await deleteQuestionAction(questionId); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } onClose(); router.refresh(); })}>Delete question</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> : null}</div>
   </div> : <p className="text-sm text-muted-foreground">Loading question…</p>}</DialogContent></Dialog>;
-}
-
-export function ClassDetailDialog({ classId, onClose }: { classId: string; onClose: () => void }) {
-  const router = useRouter();
-  const openModal = useModalRoute();
-  const [data, setData] = useState<{ classRow: Record<string, unknown> | null; students: Record<string, unknown>[]; groups: Record<string, unknown>[] } | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-  useEffect(() => { setError(null); void getClassDetailAction(classId).then((detail) => setData(detail as typeof data)).catch(() => setError("Class could not be loaded.")); void isAdminAction().then(setIsAdmin); }, [classId]);
-  const item = data?.classRow;
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{String(item?.display_name ?? "Class detail")}</DialogTitle><DialogDescription>{String(item?.level_name ?? "")} · {String(item?.track_name ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{item ? <div className="flex flex-col gap-4">
-    <div className="grid gap-3 sm:grid-cols-3"><MetricCard label="Students" value={String(data?.students.length ?? 0)} /><MetricCard label="Capacity" value={String(item.capacity ?? 0)} /><MetricCard label="WhatsApp groups" value={String(data?.groups.length ?? 0)} /></div>
-    {isAdmin ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openModal({ modal: "class-edit", class: classId })}><Pencil data-icon="inline-start" />Edit class</Button><Button size="sm" variant="outline" onClick={() => openModal({ modal: "whatsapp-new", class: classId })}>Add WhatsApp group</Button><AlertDialog><AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete class</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this class?</AlertDialogTitle><AlertDialogDescription>Deletion is allowed only when database relationships permit it. Move active students and dependent records first.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={() => startTransition(async () => { const result = await deleteClassAction(classId); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } onClose(); router.refresh(); })}>Delete class</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div> : null}
-    <div className="grid gap-4 lg:grid-cols-2"><div className="rounded-xl border"><div className="flex items-center gap-2 border-b px-4 py-3"><Users className="size-4" /><h3 className="text-sm font-semibold">Students</h3></div><div className="max-h-72 divide-y overflow-auto">{(data?.students ?? []).map((student) => <button key={String(student.id)} type="button" className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "student", student: String(student.id) })}><span className="text-sm font-medium">{String(student.full_name)}</span><StatusBadge tone={student.status === "active" ? "emerald" : "neutral"}>{String(student.status)}</StatusBadge></button>)}{data && data.students.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No students assigned.</p> : null}</div></div><div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Communication</h3></div><div className="divide-y">{(data?.groups ?? []).map((group) => <div key={String(group.id)} className="flex items-center gap-3 px-4 py-3"><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{String(group.name)}</strong><a href={String(group.invite_url)} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline">Open invite <ExternalLink className="size-3" /></a></span>{isAdmin ? <><Button size="sm" variant="outline" onClick={() => openModal({ modal: "whatsapp-edit", class: classId, group: String(group.id) })}>Edit</Button><Button size="sm" variant="ghost" disabled={pending} onClick={() => startTransition(async () => { const result = await deleteWhatsappAction(String(group.id)); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } const next = await getClassDetailAction(classId); setData(next as typeof data); router.refresh(); })}>Remove</Button></> : null}</div>)}{data && data.groups.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No WhatsApp group configured.</p> : null}</div></div></div>
-  </div> : <p className="text-sm text-muted-foreground">Loading class…</p>}</DialogContent></Dialog>;
 }
