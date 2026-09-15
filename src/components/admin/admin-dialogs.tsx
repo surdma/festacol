@@ -8,6 +8,7 @@ import { AttemptDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDi
 import { QuestionFormDialog, UserFormDialog } from "./entity-forms";
 import { Task7ClassFormDialog } from "./task7-class-form";
 import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./task7-record-dialogs";
+import { Task7StudentFormDialog } from "./task7-student-form";
 import { Task7WhatsappFormDialog } from "./task7-whatsapp-form";
 
 const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step"] as const;
@@ -35,6 +36,7 @@ function Host() {
   const questionId = params.get("question");
   const attemptHash = params.get("attempt");
   const groupId = params.get("group");
+  const newUserRole = params.get("role") ?? "student";
 
   return (
     <>
@@ -47,8 +49,8 @@ function Host() {
       {modal === "attempt" && attemptHash ? <AttemptDetailDialog attemptHash={attemptHash} onClose={close} /> : null}
       {modal === "question" && questionId ? <QuestionDetailDialog questionId={Number(questionId)} onClose={close} /> : null}
       {modal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
-      {modal === "user-new" ? <UserFormDialog open presetRole={params.get("role") ?? "student"} onClose={close} /> : null}
-      {modal === "user-edit" && studentId ? <UserFormDialog open presetRole="student" userId={studentId} onClose={close} /> : null}
+      {modal === "user-new" ? newUserRole === "student" ? <Task7StudentFormDialog open onClose={close} /> : <UserFormDialog open presetRole={newUserRole} onClose={close} /> : null}
+      {modal === "user-edit" && studentId ? <Task7StudentFormDialog open userId={studentId} onClose={close} /> : null}
       {modal === "class-new" ? <Task7ClassFormDialog open onClose={close} /> : null}
       {modal === "class-edit" && classId ? <Task7ClassFormDialog open classId={classId} onClose={close} /> : null}
       {modal === "question-new" ? <QuestionFormDialog open onClose={close} /> : null}
