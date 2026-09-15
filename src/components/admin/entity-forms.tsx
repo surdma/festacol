@@ -101,7 +101,7 @@ export function UserFormDialog({ open, onClose, presetRole = "student", userId }
 export function ClassFormDialog({ open, onClose, classId }: { open: boolean; onClose: () => void; classId?: string }) {
   const router = useRouter();
   const [classLevel, setClassLevel] = useState("SS1");
-  const [track, setTrack] = useState<AcademicTrack | "">("science");
+  const [track, setTrack] = useState<AcademicTrack>("science");
   const [arm, setArm] = useState("A");
   const [capacity, setCapacity] = useState(40);
   const [room, setRoom] = useState("");
@@ -113,10 +113,10 @@ export function ClassFormDialog({ open, onClose, classId }: { open: boolean; onC
     setError(null);
     if (!classId) { setClassLevel("SS1"); setTrack("science"); setArm("A"); setCapacity(40); setRoom(""); return; }
     void getClassDetailAction(classId).then((detail) => {
-      const item = detail.classRow as { level_name?: string; track?: AcademicTrack | null; arm?: string; capacity?: number; room?: string } | null;
+      const item = detail.classRow as { level_name?: string; track?: AcademicTrack; arm?: string; capacity?: number; room?: string } | null;
       if (!item) { setError("Class record is unavailable."); return; }
       setClassLevel(item.level_name ?? "SS1");
-      setTrack(item.track ?? "");
+      setTrack(item.track ?? "science");
       setArm(item.arm ?? "A");
       setCapacity(Number(item.capacity ?? 40));
       setRoom(item.room ?? "");
@@ -126,13 +126,13 @@ export function ClassFormDialog({ open, onClose, classId }: { open: boolean; onC
   return (
     <Shell title={classId ? "Edit class" : "Add class"} description="Class identity is level + academic track + arm for an academic year. Subject offerings are configured separately." open={open} pending={pending} error={error} onClose={onClose} saveLabel={classId ? "Update class" : "Add class"} submit={() => startTransition(async () => {
       setError(null);
-      const result = await upsertClassAction({ id: classId, classLevel, track: track || null, arm, capacity, room });
+      const result = await upsertClassAction({ id: classId, classLevel, track, arm, capacity, room });
       if (!result.ok) { setError(result.error ?? "Save failed."); return; }
       onClose(); router.refresh();
     })}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field><FieldLabel htmlFor="c-level">Level</FieldLabel><NativeSelect id="c-level" value={classLevel} onChange={(event) => setClassLevel(event.target.value)}>{["SS1", "SS2", "SS3"].map((level) => <NativeSelectOption key={level} value={level}>{level}</NativeSelectOption>)}</NativeSelect></Field>
-        <Field><FieldLabel htmlFor="c-track">Academic track</FieldLabel><NativeSelect id="c-track" value={track} onChange={(event) => setTrack(event.target.value as AcademicTrack | "")}><NativeSelectOption value="">Unassigned / qualifier</NativeSelectOption><NativeSelectOption value="science">Science</NativeSelectOption><NativeSelectOption value="art">Art</NativeSelectOption><NativeSelectOption value="social_science">Social Science</NativeSelectOption></NativeSelect></Field>
+        <Field><FieldLabel htmlFor="c-track">Academic track</FieldLabel><NativeSelect id="c-track" value={track} onChange={(event) => setTrack(event.target.value as AcademicTrack)}><NativeSelectOption value="science">Science</NativeSelectOption><NativeSelectOption value="humanities">Humanities</NativeSelectOption><NativeSelectOption value="business">Business</NativeSelectOption></NativeSelect></Field>
         <Field><FieldLabel htmlFor="c-arm">Arm</FieldLabel><Input id="c-arm" value={arm} onChange={(event) => setArm(event.target.value.toUpperCase())} maxLength={4} /></Field>
         <Field><FieldLabel htmlFor="c-cap">Capacity</FieldLabel><Input id="c-cap" type="number" min={1} max={500} value={capacity} onChange={(event) => setCapacity(Number(event.target.value))} /></Field>
       </div>
