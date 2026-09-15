@@ -9,15 +9,12 @@ interface BankPayload {
 interface QuestionRow {
   id: number;
   subject_id: string;
-  subject_name: string;
-  label: string;
   qtype: string;
   prompt: string;
   options: string[];
   correct_answers: string[];
   fill_template: string | null;
   instruction: string;
-  levels: string[];
   exam_modes: string[];
   difficulty: string;
   domain: string;
@@ -37,22 +34,38 @@ interface BlankRow {
 // Server Actions and sanitizePaper removes them before browser delivery.
 export async function loadQuestionPayload(): Promise<BankPayload> {
   const admin = createSupabaseAdminClient();
-  const [{ data: questions, error: questionError }, { data: blanks, error: blankError }, { data: subjects, error: subjectError }] = await Promise.all([
-    admin.from("questions").select("id,subject_id,subject_name,label,qtype,prompt,options,correct_answers,fill_template,instruction,levels,exam_modes,difficulty,domain,explanation").not("subject_id", "is", null),
+  const [
+    { data: questions, error: questionError },
+    { data: blanks, error: blankError },
+    { data: subjects, error: subjectError },
+    { data: levelLinks, error: levelLinkError },
+    { data: levels, error: levelError },
+  ] = await Promise.all([
+    admin.from("questions").select("id,subject_id,qtype,prompt,options,correct_answers,fill_template,instruction,exam_modes,difficulty,domain,explanation").eq("status", "active"),
     admin.from("question_blanks").select("question_id,position,blank_key,placeholder,accepted").order("position"),
     admin.from("subjects").select("id,name").eq("active", true),
+    admin.from("question_academic_levels").select("question_id,level_id"),
+    admin.from("academic_levels").select("id,name").eq("active", true),
   ]);
   if (questionError) throw new Error(`Question bank read failed: ${questionError.message}`);
   if (blankError) throw new Error(`Question blank read failed: ${blankError.message}`);
   if (subjectError) throw new Error(`Subject catalog read failed: ${subjectError.message}`);
+  if (levelLinkError) throw new Error(`Question level read failed: ${levelLinkError.message}`);
+  if (levelError) throw new Error(`Academic level read failed: ${levelError.message}`);
 
   const names = new Map(((subjects ?? []) as { id: string; name: string }[]).map((subject) => [subject.id, subject.name]));
+  const levelNames = new Map(((levels ?? []) as { id: string; name: string }[]).map((level) => [level.id, level.name]));
+  const levelsByQuestion = new Map<number, string[]>();
+  for (const link of ((levelLinks ?? []) as { question_id: number; level_id: string }[])) {
+    const name = levelNames.get(link.level_id);
+    if (name) levelsByQuestion.set(link.question_id, [...(levelsByQuestion.get(link.question_id) ?? []), name]);
+  }
   const blanksByQuestion = new Map<number, BlankRow[]>();
   for (const blank of ((blanks ?? []) as BlankRow[])) {
     blanksByQuestion.set(blank.question_id, [...(blanksByQuestion.get(blank.question_id) ?? []), blank]);
   }
   const merged = ((questions ?? []) as QuestionRow[]).map((row) =>
-    toDTO(row, names.get(row.subject_id) ?? row.subject_name, blanksByQuestion.get(row.id) ?? []),
+    toDTO(row, names.get(row.subject_id) ?? "Subject", levelsByQuestion.get(row.id) ?? [], blanksByQuestion.get(row.id) ?? []),
   );
   return {
     questions: merged,
@@ -60,7 +73,7 @@ export async function loadQuestionPayload(): Promise<BankPayload> {
   };
 }
 
-function toDTO(row: QuestionRow, subjectName: string, blanks: BlankRow[]): QuestionDTO {
+function toDTO(row: QuestionRow, subjectName: string, levels: string[], blanks: BlankRow[]): QuestionDTO {
   const type = row.qtype as QuestionDTO["type"];
   const dto: QuestionDTO = {
     id: row.id,
@@ -69,7 +82,7 @@ function toDTO(row: QuestionRow, subjectName: string, blanks: BlankRow[]): Quest
     type,
     prompt: row.prompt,
     options: row.options ?? [],
-    levels: (row.levels ?? []) as QuestionDTO["levels"],
+    levels: levels as QuestionDTO["levels"],
     examModes: (row.exam_modes ?? []) as QuestionDTO["examModes"],
   };
   if (row.fill_template && (type === "fill" || type === "fill-multi")) {

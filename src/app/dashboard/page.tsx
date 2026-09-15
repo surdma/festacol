@@ -24,7 +24,7 @@ export default async function DashboardHome() {
       <Card>
         <CardHeader><CardTitle>{active ? "In progress" : "No active exam"}</CardTitle></CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          {active ? `Resume ${active.session_title}.` : "Open an exam from a link, QR card, or the Exam ID button."}
+          {active ? `Resume ${active.context_snapshot.sessionTitle}.` : "Open an exam from a link, QR card, or the Exam ID button."}
         </CardContent>
       </Card>
       <Stagger className="grid grid-cols-2 gap-4 xl:grid-cols-4">

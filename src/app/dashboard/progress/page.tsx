@@ -9,7 +9,7 @@ export default async function ProgressPage() {
   const ctx = await currentStudent();
   if (!ctx) redirect("/");
   const attempts = await attemptsForStudent(ctx.supabase, ctx.profile.profile_id);
-  const qualifier = attempts.find((attempt) => attempt.submitted_at && attempt.mode === "qualifier");
+  const qualifier = attempts.find((attempt) => attempt.submitted_at && attempt.context_snapshot.mode === "qualifier");
   const assignedTrack = qualifier?.assigned_track;
   const confidence = qualifier?.placement_confidence;
   return (

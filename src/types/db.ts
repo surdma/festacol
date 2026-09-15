@@ -85,7 +85,6 @@ export interface ClassRow {
   level_id: string;
   programme_id: string | null;
   academic_year_id: string;
-  name: string;
   arm: string;
   capacity: number;
   room: string;
@@ -106,7 +105,6 @@ export interface ClassEnrollmentRow {
 export interface SubjectRow {
   id: string;
   name: string;
-  category: string;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -254,6 +252,7 @@ export interface ExamAttemptRuntimeStateRow {
   remaining_seconds: number;
   elapsed_active_seconds: number;
   last_active_at: number;
+  paper_fingerprint: string;
   question_ids: number[];
   updated_at: number;
 }

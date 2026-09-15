@@ -41,19 +41,20 @@ function examId(): string {
   return `FST-${suffix}`;
 }
 
-async function subjectCompatibilityCode(admin: ReturnType<typeof createSupabaseAdminClient>, subjectId: string) {
-  const { data } = await admin.from("subjects").select("code,name").eq("id", subjectId).maybeSingle();
-  return data as { code: string; name: string } | null;
-}
-
 async function teacherMayManageClass(ctx: StaffContext, classId: string): Promise<boolean> {
   if (ctx.scope.isAdmin) return true;
+  const { data: offerings } = await ctx.supabase
+    .from("class_subject_offerings")
+    .select("id")
+    .eq("class_id", classId);
+  const offeringIds = ((offerings ?? []) as { id: string }[]).map((row) => row.id);
+  if (!offeringIds.length) return false;
   const { count } = await ctx.supabase
     .from("teaching_assignments")
     .select("id", { count: "exact", head: true })
     .eq("staff_profile_id", ctx.scope.profileId!)
-    .eq("class_id", classId)
-    .eq("status", "active");
+    .in("offering_id", offeringIds)
+    .is("ended_at", null);
   return (count ?? 0) > 0;
 }
 
@@ -85,49 +86,45 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
     }
 
     const { data: offerings, error: offeringError } = offeringIds.length
-      ? await ctx.admin.from("class_subject_offerings").select("id,class_id,subject_id,academic_year_id,academic_term_id,status").in("id", offeringIds)
+      ? await ctx.admin.from("class_subject_offerings").select("id,class_id,subject_id,academic_term_id,status").in("id", offeringIds)
       : { data: [], error: null };
     if (offeringError) return { ok: false, error: offeringError.message };
-    const offeringRows = (offerings ?? []) as { id: string; class_id: string; subject_id: string; academic_year_id: string; academic_term_id: string | null; status: string }[];
+    const offeringRows = (offerings ?? []) as { id: string; class_id: string; subject_id: string; academic_term_id: string | null; status: string }[];
     if (offeringRows.length !== offeringIds.length || offeringRows.some((row) => row.status !== "active")) {
       return { ok: false, error: "Every selected subject offering must be active." };
     }
     if (subjectIds.length && offeringRows.some((row) => !subjectIds.includes(row.subject_id))) {
       return { ok: false, error: "Exam subjects and subject offerings do not match." };
     }
-    if (!ctx.scope.isAdmin) {
-      const { data: assignments } = offeringIds.length
-        ? await ctx.supabase.from("teaching_assignments").select("offering_id").eq("staff_profile_id", ctx.scope.profileId!).eq("status", "active").in("offering_id", offeringIds)
-        : { data: [] };
+    if (!ctx.scope.isAdmin && offeringIds.length) {
+      const { data: assignments } = await ctx.supabase
+        .from("teaching_assignments")
+        .select("offering_id")
+        .eq("staff_profile_id", ctx.scope.profileId!)
+        .is("ended_at", null)
+        .in("offering_id", offeringIds);
       const assigned = new Set(((assignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id));
       if (offeringIds.some((offeringId) => !assigned.has(offeringId))) return { ok: false, error: "You may create exams only for subject offerings you teach." };
     }
 
     const allClassIds = [...new Set([...classIds, ...offeringRows.map((row) => row.class_id)])];
-    const { data: classes } = await ctx.admin.from("classes").select("id,class_level,stream,academic_session").in("id", allClassIds);
-    const classRows = (classes ?? []) as { id: string; class_level: string; stream: string; academic_session: string }[];
+    const [{ data: classes }, { data: level }] = await Promise.all([
+      ctx.admin.from("classes").select("id,level_id,academic_year_id").in("id", allClassIds),
+      ctx.admin.from("academic_levels").select("id").eq("name", input.classLevel).eq("active", true).maybeSingle(),
+    ]);
+    const classRows = (classes ?? []) as { id: string; level_id: string; academic_year_id: string }[];
+    const levelId = (level as { id?: string } | null)?.id;
+    if (!levelId) return { ok: false, error: "Academic level is not configured." };
     if (classRows.length !== allClassIds.length) return { ok: false, error: "One or more target classes no longer exist." };
-    if (classRows.some((row) => row.class_level !== input.classLevel)) return { ok: false, error: "All target classes must match the selected academic level." };
-    const academicSessions = [...new Set(classRows.map((row) => row.academic_session))];
-    if (academicSessions.length !== 1) return { ok: false, error: "All target classes must belong to the same academic year." };
+    if (classRows.some((row) => row.level_id !== levelId)) return { ok: false, error: "All target classes must match the selected academic level." };
+    if (new Set(classRows.map((row) => row.academic_year_id)).size !== 1) return { ok: false, error: "All target classes must belong to the same academic year." };
 
-    const subjectRows = await Promise.all(subjectIds.map((subjectId) => subjectCompatibilityCode(ctx.admin, subjectId)));
-    if (subjectRows.some((row) => !row)) return { ok: false, error: "One or more subjects are unavailable." };
     const now = Date.now();
     const id = examId();
-    const groupSnapshot = [...new Set(classRows.map((row) => row.stream).filter(Boolean))].join(", ") || "General";
-    const legacyCodes = subjectRows.map((row) => row!.code);
     const { error: sessionError } = await ctx.admin.from("exam_sessions").insert({
       id,
       title: input.title.trim().slice(0, 72),
-      class_level: input.classLevel,
-      class_group: groupSnapshot.slice(0, 80),
-      academic_session: academicSessions[0] ?? "",
-      term: "",
       mode: input.mode,
-      subjects: legacyCodes,
-      placement_tracks: [],
-      cohosts: [],
       duration_seconds: Math.min(10800, Math.max(30, input.durationSeconds)),
       question_count: Math.min(150, Math.max(5, input.questionCount)),
       status: input.status,
@@ -138,6 +135,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       focus_monitoring: true,
       fullscreen_prompt: true,
       clipboard_guard: true,
+      camera_required: input.cameraRequired,
       warn_after: input.warnAfter,
       question_order: true,
       option_order: true,
@@ -150,15 +148,6 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
     if (sessionError) return { ok: false, error: sessionError.message };
 
     try {
-      if (subjectIds.length) {
-        const { error } = await ctx.admin.from("exam_subjects").insert(subjectIds.map((subjectId, position) => ({
-          session_id: id,
-          subject_id: subjectId,
-          subject_code: subjectRows[position]!.code,
-          position,
-        })));
-        if (error) throw error;
-      }
       if (allClassIds.length) {
         const { error } = await ctx.admin.from("exam_class_targets").insert(allClassIds.map((classId) => ({ session_id: id, class_id: classId })));
         if (error) throw error;
@@ -167,8 +156,6 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
         const { error } = await ctx.admin.from("exam_offering_targets").insert(offeringIds.map((offeringId) => ({ session_id: id, offering_id: offeringId })));
         if (error) throw error;
       }
-      await ctx.admin.from("exam_staff_assignments").insert({ session_id: id, staff_profile_id: ctx.scope.profileId, role: "owner" });
-      await ctx.admin.from("exam_proctor_policies").upsert({ session_id: id, camera_required: input.cameraRequired, updated_at: now });
     } catch (error) {
       await ctx.admin.from("exam_sessions").delete().eq("id", id);
       return { ok: false, error: error instanceof Error ? error.message : "Exam relationships could not be saved." };
@@ -188,11 +175,9 @@ export async function updateExamAction(
     const ctx = await requireStaff();
     if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
     if (patch.status === "open") {
-      const [{ count: subjects }, { count: offerings }] = await Promise.all([
-        ctx.admin.from("exam_subjects").select("subject_id", { count: "exact", head: true }).eq("session_id", id).not("subject_id", "is", null),
-        ctx.admin.from("exam_offering_targets").select("offering_id", { count: "exact", head: true }).eq("session_id", id),
-      ]);
-      if ((subjects ?? 0) > 0 && (offerings ?? 0) === 0) return { ok: false, error: "Subject exams require at least one explicit class subject offering before opening." };
+      const { count: offerings } = await ctx.admin.from("exam_offering_targets").select("offering_id", { count: "exact", head: true }).eq("session_id", id);
+      const { data: row } = await ctx.admin.from("exam_sessions").select("mode").eq("id", id).maybeSingle();
+      if ((row as { mode?: string } | null)?.mode !== "qualifier" && (offerings ?? 0) === 0) return { ok: false, error: "Subject exams require at least one explicit class subject offering before opening." };
     }
     const now = Date.now();
     const { error } = await ctx.admin.from("exam_sessions").update({
@@ -201,11 +186,11 @@ export async function updateExamAction(
       question_count: patch.questionCount,
       instructions: patch.instructions.slice(0, 140),
       status: patch.status,
+      camera_required: patch.cameraRequired,
       warn_after: patch.warnAfter,
       updated_at: now,
     }).eq("id", id);
     if (error) return { ok: false, error: error.message };
-    await ctx.admin.from("exam_proctor_policies").upsert({ session_id: id, camera_required: patch.cameraRequired, updated_at: now });
     revalidatePath("/admin/exams");
     return { ok: true };
   } catch (error) {
@@ -233,25 +218,34 @@ export async function duplicateExamAction(id: string): Promise<ActionResult & { 
     const ctx = await requireStaff();
     const source = await scopedSession(ctx, id);
     if (!source) return { ok: false, error: "Exam not found or outside your scope." };
-    const [{ data: subjects }, { data: offerings }, { data: classes }, { data: policy }] = await Promise.all([
-      ctx.admin.from("exam_subjects").select("subject_id").eq("session_id", id).not("subject_id", "is", null).order("position"),
+    const [{ data: offerings }, { data: classes }] = await Promise.all([
       ctx.admin.from("exam_offering_targets").select("offering_id").eq("session_id", id),
       ctx.admin.from("exam_class_targets").select("class_id").eq("session_id", id),
-      ctx.admin.from("exam_proctor_policies").select("camera_required").eq("session_id", id).maybeSingle(),
     ]);
+    const offeringIds = ((offerings ?? []) as { offering_id: string }[]).map((item) => item.offering_id);
+    const { data: offeringRows } = offeringIds.length
+      ? await ctx.admin.from("class_subject_offerings").select("subject_id,class_id").in("id", offeringIds)
+      : { data: [] };
+    const subjectIds = [...new Set(((offeringRows ?? []) as { subject_id: string }[]).map((row) => row.subject_id))];
+    const classIds = [...new Set([
+      ...((classes ?? []) as { class_id: string }[]).map((item) => item.class_id),
+      ...((offeringRows ?? []) as { class_id: string }[]).map((row) => row.class_id),
+    ])];
+    const { data: firstClass } = classIds.length ? await ctx.admin.from("classes").select("level_id").eq("id", classIds[0]).maybeSingle() : { data: null };
+    const { data: level } = firstClass ? await ctx.admin.from("academic_levels").select("name").eq("id", (firstClass as { level_id: string }).level_id).maybeSingle() : { data: null };
     const row = source as Record<string, unknown>;
     return createExamAction({
       title: `${String(row.title)} (copy)`.slice(0, 72),
-      classLevel: row.class_level as ExamWizardInput["classLevel"],
+      classLevel: String((level as { name?: string } | null)?.name ?? "SS1") as ExamWizardInput["classLevel"],
       mode: row.mode as ExamWizardInput["mode"],
-      subjectIds: ((subjects ?? []) as { subject_id: string }[]).map((item) => item.subject_id),
-      offeringIds: ((offerings ?? []) as { offering_id: string }[]).map((item) => item.offering_id),
-      classIds: ((classes ?? []) as { class_id: string }[]).map((item) => item.class_id),
+      subjectIds,
+      offeringIds,
+      classIds,
       durationSeconds: Number(row.duration_seconds),
       questionCount: Number(row.question_count),
       status: "draft",
       instructions: String(row.instructions ?? ""),
-      cameraRequired: Boolean((policy as { camera_required?: boolean } | null)?.camera_required),
+      cameraRequired: Boolean(row.camera_required),
       warnAfter: Number(row.warn_after ?? 2),
     });
   } catch (error) {
@@ -283,39 +277,15 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
     const lastName = parts.slice(1).join(" ") || firstName;
     if (firstName.length < 2) return { ok: false, error: "Enter a valid name." };
 
-    let legacyId = input.id ?? `ST-${Date.now().toString(36).toUpperCase()}`;
-    let profileId: string | null = null;
+    const profileId = input.id ?? randomUUID();
     if (input.id) {
-      const { data: profile } = await ctx.admin.from("academic_profiles").select("id").eq("legacy_user_id", input.id).eq("role", "student").maybeSingle();
-      profileId = (profile as { id?: string } | null)?.id ?? null;
-      if (!profileId) return { ok: false, error: "Student academic profile was not found." };
+      const { data: existing } = await ctx.admin.from("academic_profiles").select("id,role").eq("id", input.id).maybeSingle();
+      if (!existing || (existing as { role: string }).role !== "student") return { ok: false, error: "Student academic profile was not found." };
     }
-    if (!profileId) profileId = randomUUID();
-
-    const legacyRow = {
-      id: legacyId,
-      full_name: input.fullName.trim(),
-      first_name: firstName,
-      last_name: lastName,
-      role: "student",
-      class_id: input.classId || null,
-      guardian: input.guardian ?? "",
-      academic_session: "2026/2027",
-      joined_at: Date.now(),
-      status: "active",
-      promotion_status: "on-track",
-    };
-    const legacyWrite = input.id
-      ? await ctx.admin.from("users").update(legacyRow).eq("id", legacyId)
-      : await ctx.admin.from("users").insert(legacyRow);
-    if (legacyWrite.error) return { ok: false, error: legacyWrite.error.message };
-
     const { error: profileError } = await ctx.admin.from("academic_profiles").upsert({
       id: profileId,
-      legacy_user_id: legacyId,
       role: "student",
       status: "active",
-      full_name: input.fullName.trim(),
       first_name: firstName,
       last_name: lastName,
       updated_at: new Date().toISOString(),
@@ -329,19 +299,13 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
     if (studentError) return { ok: false, error: studentError.message };
 
     if (input.classId) {
-      const { data: classRow } = await ctx.admin.from("classes").select("academic_session").eq("id", input.classId).maybeSingle();
-      const yearName = (classRow as { academic_session?: string } | null)?.academic_session;
-      const { data: year } = yearName ? await ctx.admin.from("academic_years").select("id").eq("name", yearName).maybeSingle() : { data: null };
-      const yearId = (year as { id?: string } | null)?.id;
-      if (!yearId) return { ok: false, error: "Class academic year is not configured." };
       await ctx.admin.from("class_enrollments").update({ status: "ended", ended_at: new Date().toISOString() }).eq("student_profile_id", profileId).eq("status", "active").neq("class_id", input.classId);
       const { error: enrollmentError } = await ctx.admin.from("class_enrollments").upsert({
         student_profile_id: profileId,
         class_id: input.classId,
-        academic_year_id: yearId,
         status: "active",
         ended_at: null,
-      }, { onConflict: "student_profile_id,class_id,academic_year_id" });
+      }, { onConflict: "student_profile_id,class_id" });
       if (enrollmentError) return { ok: false, error: enrollmentError.message };
     }
     revalidatePath("/admin/students");
@@ -355,7 +319,7 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
 export async function toggleUserAction(id: string, active: boolean): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const { data: profile } = await ctx.admin.from("academic_profiles").select("id,role").eq("legacy_user_id", id).maybeSingle();
+    const { data: profile } = await ctx.admin.from("academic_profiles").select("id,role").eq("id", id).maybeSingle();
     const row = profile as { id: string; role: string } | null;
     if (!row || row.role !== "student") return { ok: false, error: "Student not found." };
     if (!ctx.scope.isAdmin) {
@@ -363,12 +327,8 @@ export async function toggleUserAction(id: string, active: boolean): Promise<Act
       const classId = (enrollment as { class_id?: string } | null)?.class_id;
       if (!classId || !(await teacherMayManageClass(ctx, classId))) return { ok: false, error: "Student is outside your assigned classes." };
     }
-    const status = active ? "active" : "inactive";
-    const [{ error: profileError }, { error: legacyError }] = await Promise.all([
-      ctx.admin.from("academic_profiles").update({ status, updated_at: new Date().toISOString() }).eq("id", row.id),
-      ctx.admin.from("users").update({ status }).eq("id", id),
-    ]);
-    if (profileError || legacyError) return { ok: false, error: profileError?.message ?? legacyError?.message };
+    const { error } = await ctx.admin.from("academic_profiles").update({ status: active ? "active" : "inactive", updated_at: new Date().toISOString() }).eq("id", row.id);
+    if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/students");
     return { ok: true };
   } catch (error) {
@@ -381,30 +341,33 @@ export async function upsertClassAction(input: { id?: string; classLevel: string
   try {
     const ctx = await requireAdmin();
     const arm = input.arm.trim().toUpperCase().slice(0, 4) || "A";
-    const { data: level } = await ctx.admin.from("academic_levels").select("id,name").eq("name", input.classLevel).eq("active", true).maybeSingle();
-    const levelRow = level as { id: string; name: string } | null;
-    if (!levelRow) return { ok: false, error: "Academic level is not configured." };
-    let programme: { id: string; name: string } | null = null;
+    const [{ data: level }, { data: currentYear }] = await Promise.all([
+      ctx.admin.from("academic_levels").select("id").eq("name", input.classLevel).eq("active", true).maybeSingle(),
+      ctx.admin.from("academic_years").select("id").eq("status", "current").limit(1).maybeSingle(),
+    ]);
+    const levelId = (level as { id?: string } | null)?.id;
+    if (!levelId) return { ok: false, error: "Academic level is not configured." };
     if (input.programmeId) {
-      const { data } = await ctx.admin.from("academic_programmes").select("id,name").eq("id", input.programmeId).eq("active", true).maybeSingle();
-      programme = data as { id: string; name: string } | null;
+      const { data: programme } = await ctx.admin.from("academic_programmes").select("id").eq("id", input.programmeId).eq("active", true).maybeSingle();
       if (!programme) return { ok: false, error: "Programme is unavailable." };
     }
+    let academicYearId = (currentYear as { id?: string } | null)?.id ?? null;
+    if (input.id) {
+      const { data: existing } = await ctx.admin.from("classes").select("academic_year_id").eq("id", input.id).maybeSingle();
+      academicYearId = (existing as { academic_year_id?: string } | null)?.academic_year_id ?? academicYearId;
+    }
+    if (!academicYearId) return { ok: false, error: "Set a current academic year before creating classes." };
     const id = input.id ?? `${input.classLevel.toLowerCase()}-${arm.toLowerCase()}-${Date.now().toString(36)}`;
-    const programmeName = programme?.name ?? "General";
     const { error } = await ctx.admin.from("classes").upsert({
       id,
-      class_level: input.classLevel,
-      level_id: levelRow.id,
-      programme_id: programme?.id ?? null,
-      name: `${input.classLevel} ${arm}`,
-      stream: programmeName,
-      grp: programmeName,
+      level_id: levelId,
+      programme_id: input.programmeId || null,
+      academic_year_id: academicYearId,
       arm,
       capacity: input.capacity,
       room: input.room,
-      academic_session: "2026/2027",
       status: "active",
+      updated_at: new Date().toISOString(),
     });
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/classes");
@@ -414,7 +377,7 @@ export async function upsertClassAction(input: { id?: string; classLevel: string
   }
 }
 
-export async function upsertClassOfferingAction(input: { id?: string; classId: string; subjectId: string; academicYearId: string; academicTermId?: string; participation: "required" | "elective"; status: "draft" | "active" | "ended" }): Promise<ActionResult & { id?: string }> {
+export async function upsertClassOfferingAction(input: { id?: string; classId: string; subjectId: string; academicYearId?: string; academicTermId?: string; participation: "required" | "elective"; status: "draft" | "active" | "ended" }): Promise<ActionResult & { id?: string }> {
   try {
     const ctx = await requireAdmin();
     const id = input.id ?? randomUUID();
@@ -422,11 +385,9 @@ export async function upsertClassOfferingAction(input: { id?: string; classId: s
       id,
       class_id: input.classId,
       subject_id: input.subjectId,
-      academic_year_id: input.academicYearId,
       academic_term_id: input.academicTermId || null,
       participation: input.participation,
       status: input.status,
-      source: "explicit",
       updated_at: new Date().toISOString(),
     });
     if (error) return { ok: false, error: error.message };
@@ -503,12 +464,12 @@ export async function upsertQuestionAction(input: { subject: string; subjectId: 
 async function upsertQuestionCore(input: { id?: number; subjectId: string; kind: string; prompt: string; options: string[]; correctAnswers: string[]; levels: string[]; fillTemplate?: string | null; difficulty?: string; domain?: string; explanation?: string; blanks?: { position: number; accepted: string[] }[] }): Promise<ActionResult & { id?: number }> {
   const ctx = await requireStaff();
   if (!questionSubjectVisibleTo(input.subjectId, ctx.scope)) return { ok: false, error: "Outside your subject scope." };
-  const subject = await subjectCompatibilityCode(ctx.admin, input.subjectId);
+  const { data: subject } = await ctx.admin.from("subjects").select("id").eq("id", input.subjectId).eq("active", true).maybeSingle();
   if (!subject) return { ok: false, error: "Subject not found." };
-  let existing: { created_by_profile_id: string | null } | null = null;
+  let existing: { created_by_profile_id: string | null; created_at: string | null } | null = null;
   if (input.id !== undefined) {
-    const { data } = await ctx.admin.from("questions").select("created_by_profile_id").eq("id", input.id).maybeSingle();
-    existing = data as { created_by_profile_id: string | null } | null;
+    const { data } = await ctx.admin.from("questions").select("created_by_profile_id,created_at").eq("id", input.id).maybeSingle();
+    existing = data as { created_by_profile_id: string | null; created_at: string | null } | null;
     if (!existing) return { ok: false, error: "Question not found." };
     if (!ctx.scope.isAdmin && existing.created_by_profile_id !== ctx.scope.profileId) return { ok: false, error: "Teachers can edit only questions they authored." };
   }
@@ -516,27 +477,30 @@ async function upsertQuestionCore(input: { id?: number; subjectId: string; kind:
   const row = {
     id,
     subject_id: input.subjectId,
-    subject_code: subject.code,
-    subject_name: subject.name,
-    label: subject.name,
     qtype: input.kind,
     prompt: input.prompt.trim(),
     options: input.options.filter(Boolean),
     correct_answers: input.correctAnswers,
     fill_template: input.fillTemplate ?? null,
     instruction: "",
-    levels: input.levels.length ? input.levels : ["SS1", "SS2", "SS3"],
     exam_modes: ["single", "mixed", "waec", "qualifier", "bece", "neco", "jamb"],
     difficulty: input.difficulty ?? "medium",
     domain: input.domain ?? "",
     explanation: input.explanation ?? "",
     created_by_profile_id: existing?.created_by_profile_id ?? ctx.scope.profileId,
-    created_by: ctx.scope.staffId,
-    created_at: input.id === undefined ? new Date().toISOString() : undefined,
+    created_at: existing?.created_at ?? new Date().toISOString(),
     updated_at: Date.now(),
   };
   const write = input.id === undefined ? await ctx.admin.from("questions").insert(row) : await ctx.admin.from("questions").update(row).eq("id", id);
   if (write.error) return { ok: false, error: write.error.message };
+
+  const requestedLevels = input.levels.length ? input.levels : ["SS1", "SS2", "SS3"];
+  const { data: levels } = await ctx.admin.from("academic_levels").select("id,name").in("name", requestedLevels);
+  await ctx.admin.from("question_academic_levels").delete().eq("question_id", id);
+  if ((levels ?? []).length) {
+    const { error } = await ctx.admin.from("question_academic_levels").insert(((levels ?? []) as { id: string }[]).map((level) => ({ question_id: id, level_id: level.id })));
+    if (error) return { ok: false, error: error.message };
+  }
   if (input.blanks) {
     await ctx.admin.from("question_blanks").delete().eq("question_id", id);
     if (input.blanks.length) {
@@ -569,31 +533,37 @@ export async function syncQuestionBankAction(): Promise<ActionResult & { count?:
   try {
     const ctx = await requireAdmin();
     const file = await readFile(path.join(process.cwd(), "public", "seed", "questions.json"), "utf8");
-    const parsed = JSON.parse(file) as { questions?: unknown[] } | unknown[];
+    const parsed = JSON.parse(file) as { subjectCatalog?: { code?: unknown; label?: unknown }[]; questions?: unknown[] } | unknown[];
     const list = (Array.isArray(parsed) ? parsed : parsed.questions ?? []) as Record<string, unknown>[];
+    const catalog = Array.isArray(parsed) ? [] : parsed.subjectCatalog ?? [];
     if (!list.length) return { ok: false, error: "Seed file has no questions." };
-    const aliases = [...new Set(list.map((item) => String(item.subjectCode ?? "")).filter(Boolean))];
-    const { data: aliasRows } = await ctx.admin.from("subject_legacy_aliases").select("alias,subject_id").in("alias", aliases);
-    const aliasMap = new Map(((aliasRows ?? []) as { alias: string; subject_id: string }[]).map((row) => [row.alias, row.subject_id]));
-    const unresolved = aliases.filter((alias) => !aliasMap.has(alias));
-    if (unresolved.length) return { ok: false, error: `Resolve legacy subject aliases before syncing: ${unresolved.join(", ")}.` };
-    const { data: subjectRows } = await ctx.admin.from("subjects").select("id,code,name").in("id", [...new Set(aliasMap.values())]);
-    const subjects = new Map(((subjectRows ?? []) as { id: string; code: string; name: string }[]).map((row) => [row.id, row]));
+    const nameByCode = new Map(catalog.map((item) => [String(item.code ?? ""), String(item.label ?? "").replace(/\s*\(legacy bank\)\s*/i, "").trim()]));
+    for (const question of list) {
+      const code = String(question.subjectCode ?? "");
+      if (!nameByCode.has(code)) nameByCode.set(code, String(question.subject ?? code).replace(/\s*\(legacy bank\)\s*/i, "").trim());
+    }
+    const { data: subjectRows } = await ctx.admin.from("subjects").select("id,name").eq("active", true);
+    const subjectByName = new Map(((subjectRows ?? []) as { id: string; name: string }[]).map((row) => [row.name.trim().toLocaleLowerCase("en"), row.id]));
+    const unresolved = [...nameByCode.values()].filter((name) => name && !subjectByName.has(name.toLocaleLowerCase("en")));
+    if (unresolved.length) return { ok: false, error: `Create these canonical subjects before syncing: ${[...new Set(unresolved)].join(", ")}.` };
     const { data: existing } = await ctx.admin.from("questions").select("id");
     const have = new Set(((existing ?? []) as { id: number }[]).map((row) => Number(row.id)));
     const fresh = list.filter((question) => !have.has(Number(question.id)));
-    const rows: Record<string, unknown>[] = [];
-    const blanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
+    const now = Date.now();
+    const questionRows: Record<string, unknown>[] = [];
+    const blankRows: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
+    const levelNamesByQuestion = new Map<number, string[]>();
     for (const question of fresh) {
-      const alias = String(question.subjectCode ?? "");
-      const subjectId = aliasMap.get(alias)!;
-      const subject = subjects.get(subjectId);
-      if (!subject) return { ok: false, error: `Subject for alias ${alias} is unavailable.` };
+      const code = String(question.subjectCode ?? "");
+      const canonicalName = nameByCode.get(code) ?? String(question.subject ?? "");
+      const subjectId = subjectByName.get(canonicalName.toLocaleLowerCase("en"));
+      if (!subjectId) return { ok: false, error: `Subject ${canonicalName || code} is unavailable.` };
       const type = String(question.type ?? "single");
       const rawAnswer = question.answer as unknown;
       const rawAnswers = question.answers as unknown;
       const correct = type === "boolean" ? [String(rawAnswer)] : Array.isArray(rawAnswers) ? rawAnswers.map(String) : Array.isArray(rawAnswer) ? rawAnswer.map(String) : rawAnswer !== undefined ? [String(rawAnswer)] : [];
       const levels = Array.isArray(question.levels) ? (question.levels as unknown[]).map(String) : ["SS1", "SS2", "SS3"];
+      levelNamesByQuestion.set(Number(question.id), levels);
       const modes = Array.isArray(question.examModes) ? (question.examModes as unknown[]).map(String) : ["single", "mixed", "waec"];
       const template = question.fillTemplate as { text?: string; blank?: string; placeholder?: string }[] | undefined;
       let position = 0;
@@ -603,31 +573,31 @@ export async function syncQuestionBankAction(): Promise<ActionResult & { count?:
           if (part.blank === undefined) return part.text ?? "";
           const marker = `{{${position}}}`;
           const source = Array.isArray(question.acceptedAnswers) ? (question.acceptedAnswers as unknown[])[position] : undefined;
-          blanks.push({ question_id: Number(question.id), position, blank_key: String(part.blank || `b${position}`), placeholder: String(part.placeholder ?? ""), accepted: Array.isArray(source) ? source.map(String) : source !== undefined ? [String(source)] : [] });
+          blankRows.push({ question_id: Number(question.id), position, blank_key: String(part.blank || `b${position}`), placeholder: String(part.placeholder ?? ""), accepted: Array.isArray(source) ? source.map(String) : source !== undefined ? [String(source)] : [] });
           position += 1;
           return marker;
         }).join("");
       }
-      rows.push({
-        id: Number(question.id), subject_id: subjectId, subject_code: subject.code, subject_name: subject.name,
-        label: String(question.label ?? subject.name), qtype: type, prompt: String(question.prompt ?? ""),
+      questionRows.push({
+        id: Number(question.id), subject_id: subjectId, qtype: type, prompt: String(question.prompt ?? ""),
         options: Array.isArray(question.options) ? (question.options as unknown[]).map(String) : [],
         correct_answers: type === "fill" || type === "fill-multi" ? [] : correct, fill_template: fillTemplate,
-        instruction: String(question.instruction ?? ""), levels, exam_modes: modes,
-        difficulty: String(question.difficulty ?? "medium"), domain: String(question.domain ?? ""), explanation: String(question.explanation ?? ""),
-        created_by: null, created_by_profile_id: null, updated_at: Date.now(),
+        instruction: String(question.instruction ?? ""), exam_modes: modes, difficulty: String(question.difficulty ?? "medium"),
+        domain: String(question.domain ?? ""), explanation: String(question.explanation ?? ""), created_by_profile_id: null,
+        created_at: new Date().toISOString(), updated_at: now,
       });
     }
-    for (let index = 0; index < rows.length; index += 200) {
-      const { error } = await ctx.admin.from("questions").insert(rows.slice(index, index + 200));
+    for (let index = 0; index < questionRows.length; index += 200) {
+      const { error } = await ctx.admin.from("questions").insert(questionRows.slice(index, index + 200));
       if (error) return { ok: false, error: error.message };
     }
-    for (let index = 0; index < blanks.length; index += 200) {
-      const { error } = await ctx.admin.from("question_blanks").insert(blanks.slice(index, index + 200));
-      if (error) return { ok: false, error: error.message };
-    }
+    const { data: academicLevels } = await ctx.admin.from("academic_levels").select("id,name");
+    const levelIdByName = new Map(((academicLevels ?? []) as { id: string; name: string }[]).map((row) => [row.name, row.id]));
+    const levelLinks = [...levelNamesByQuestion.entries()].flatMap(([questionId, names]) => names.map((name) => levelIdByName.get(name)).filter(Boolean).map((levelId) => ({ question_id: questionId, level_id: levelId })));
+    if (levelLinks.length) { const { error } = await ctx.admin.from("question_academic_levels").insert(levelLinks); if (error) return { ok: false, error: error.message }; }
+    for (let index = 0; index < blankRows.length; index += 200) { const { error } = await ctx.admin.from("question_blanks").insert(blankRows.slice(index, index + 200)); if (error) return { ok: false, error: error.message }; }
     revalidatePath("/admin/questions");
-    return { ok: true, count: rows.length };
+    return { ok: true, count: questionRows.length };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Sync failed." };
   }
@@ -638,12 +608,12 @@ export async function resetUnfinishedAttemptAction(): Promise<ActionResult> {
   return { ok: false, error: "Attempt reset has been removed. Preserve the attempt and use an explicit retake grant when another attempt is required." };
 }
 
-export async function authorizeRewriteAction(attemptKey: string): Promise<ActionResult> {
+export async function authorizeRewriteAction(attemptId: string): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    const { data } = await ctx.supabase.from("exam_attempts").select("attempt_uuid,session_id,student_profile_id").or(`attempt_uuid.eq.${attemptKey},attempt_hash.eq.${attemptKey}`).maybeSingle();
-    const attempt = data as { attempt_uuid: string; session_id: string | null; student_profile_id: string | null } | null;
-    if (!attempt?.session_id || !attempt.student_profile_id) return { ok: false, error: "Attempt not found or outside your scope." };
+    const { data } = await ctx.supabase.from("exam_attempts").select("id,session_id,student_profile_id").eq("id", attemptId).maybeSingle();
+    const attempt = data as { id: string; session_id: string; student_profile_id: string } | null;
+    if (!attempt) return { ok: false, error: "Attempt not found or outside your scope." };
     const { error } = await ctx.supabase.rpc("grant_exam_retake", {
       p_session_id: attempt.session_id,
       p_student_profile_id: attempt.student_profile_id,
@@ -664,45 +634,41 @@ export async function getExamDetailAction(examIdValue: string) {
   const examIdValueNormalized = examIdValue.toUpperCase();
   const session = await scopedSession(ctx, examIdValueNormalized);
   if (!session) return { session: null, attempts: [], cameraRequired: false };
-  const [{ data: attempts }, { data: subjects }, { data: offerings }, { data: classes }, { data: policy }] = await Promise.all([
-    ctx.supabase.from("exam_attempts").select("attempt_uuid,attempt_hash,student_profile_id,student_name,score,submitted_at,started_at,attempt_number").eq("session_id", examIdValueNormalized).order("created_at", { ascending: false }).limit(100),
-    ctx.supabase.from("exam_subjects").select("subject_id,position").eq("session_id", examIdValueNormalized).not("subject_id", "is", null).order("position"),
+  const [{ data: attempts }, { data: offerings }, { data: classes }] = await Promise.all([
+    ctx.supabase.from("exam_attempts").select("id,student_profile_id,context_snapshot,score,submitted_at,started_at,attempt_number,integrity_score").eq("session_id", examIdValueNormalized).order("created_at", { ascending: false }).limit(100),
     ctx.supabase.from("exam_offering_targets").select("offering_id").eq("session_id", examIdValueNormalized),
     ctx.supabase.from("exam_class_targets").select("class_id").eq("session_id", examIdValueNormalized),
-    ctx.supabase.from("exam_proctor_policies").select("camera_required").eq("session_id", examIdValueNormalized).maybeSingle(),
   ]);
-  return { session, attempts: attempts ?? [], subjects: subjects ?? [], offerings: offerings ?? [], classes: classes ?? [], cameraRequired: Boolean((policy as { camera_required?: boolean } | null)?.camera_required) };
+  return { session, attempts: attempts ?? [], offerings: offerings ?? [], classes: classes ?? [], cameraRequired: Boolean((session as Record<string, unknown>).camera_required) };
 }
 
 export async function getUserDetailAction(userId: string) {
   const ctx = await requireStaff();
-  const { data: profile } = await ctx.admin.from("academic_profiles").select("id,legacy_user_id,role,status,full_name,first_name,last_name,email").eq("legacy_user_id", userId).maybeSingle();
-  const person = profile as { id: string; legacy_user_id: string | null; role: string; status: string; full_name: string; first_name: string; last_name: string; email: string } | null;
+  const { data: profile } = await ctx.admin.from("academic_profiles").select("id,role,status,first_name,last_name").eq("id", userId).maybeSingle();
+  const person = profile as { id: string; role: string; status: string; first_name: string; last_name: string } | null;
   if (!person) return { user: null, attempts: [] };
   if (!ctx.scope.isAdmin && person.role !== "student") return { user: null, attempts: [] };
-  const [{ data: legacy }, { data: student }, { data: enrollment }, { data: attempts }] = await Promise.all([
-    person.legacy_user_id ? ctx.admin.from("users").select("*").eq("id", person.legacy_user_id).maybeSingle() : Promise.resolve({ data: null }),
-    person.role === "student" ? ctx.admin.from("student_academic_profiles").select("guardian,phone,promotion_status").eq("profile_id", person.id).maybeSingle() : Promise.resolve({ data: null }),
+  const [{ data: student }, { data: enrollment }, { data: attempts }] = await Promise.all([
+    person.role === "student" ? ctx.admin.from("student_academic_profiles").select("student_number,guardian,phone,promotion_status").eq("profile_id", person.id).maybeSingle() : Promise.resolve({ data: null }),
     person.role === "student" ? ctx.admin.from("class_enrollments").select("class_id").eq("student_profile_id", person.id).eq("status", "active").limit(1).maybeSingle() : Promise.resolve({ data: null }),
-    person.role === "student" ? ctx.admin.from("exam_attempts").select("attempt_uuid,attempt_hash,session_title,score,integrity_score,submitted_at").eq("student_profile_id", person.id).order("created_at", { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
+    person.role === "student" ? ctx.admin.from("exam_attempts").select("id,session_id,context_snapshot,score,integrity_score,submitted_at").eq("student_profile_id", person.id).order("created_at", { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
   ]);
   return {
-    user: { ...(legacy ?? {}), ...person, guardian: (student as { guardian?: string } | null)?.guardian ?? "", class_id: (enrollment as { class_id?: string } | null)?.class_id ?? null },
+    user: { ...person, full_name: `${person.first_name} ${person.last_name}`.trim(), ...(student ?? {}), class_id: (enrollment as { class_id?: string } | null)?.class_id ?? null },
     attempts: attempts ?? [],
   };
 }
 
-export async function getAttemptDetailAction(attemptKey: string) {
+export async function getAttemptDetailAction(attemptId: string) {
   const ctx = await requireStaff();
-  const { data: attempt } = await ctx.supabase.from("exam_attempts").select("*").or(`attempt_uuid.eq.${attemptKey},attempt_hash.eq.${attemptKey}`).maybeSingle();
-  const row = attempt as { attempt_uuid: string } | null;
+  const { data: attempt } = await ctx.supabase.from("exam_attempts").select("*").eq("id", attemptId).maybeSingle();
+  const row = attempt as { id: string } | null;
   if (!row) return { attempt: null, answers: [], stats: [], events: [] };
-  const [{ data: answers }, { data: stats }, { data: events }] = await Promise.all([
-    ctx.supabase.from("exam_attempt_answers").select("*").eq("attempt_uuid", row.attempt_uuid).order("id"),
-    ctx.supabase.from("exam_attempt_subject_stats").select("*").eq("attempt_uuid", row.attempt_uuid),
-    ctx.supabase.from("exam_integrity_events_v2").select("type,detail,at").eq("attempt_uuid", row.attempt_uuid).order("at"),
+  const [{ data: answers }, { data: events }] = await Promise.all([
+    ctx.admin.from("exam_attempt_answers").select("*").eq("attempt_id", row.id).order("question_id"),
+    ctx.supabase.from("exam_integrity_events").select("type,detail,at").eq("attempt_id", row.id).order("at"),
   ]);
-  return { attempt, answers: answers ?? [], stats: stats ?? [], events: events ?? [] };
+  return { attempt, answers: answers ?? [], stats: [], events: events ?? [] };
 }
 
 export async function getQuestionDetailAction(id: number) {
@@ -723,21 +689,23 @@ export async function isAdminAction(): Promise<boolean> {
 
 export async function getStaffListAction(): Promise<{ id: string; profile_id: string; full_name: string; subjectIds: string[] }[]> {
   const ctx = await requireAdmin();
-  const { data: profiles } = await ctx.admin.from("academic_profiles").select("id,legacy_user_id,full_name").in("role", ["teacher", "administrator"]).eq("status", "active").order("full_name").limit(200);
-  const rows = (profiles ?? []) as { id: string; legacy_user_id: string | null; full_name: string }[];
+  const { data: profiles } = await ctx.admin.from("academic_profiles").select("id,first_name,last_name").in("role", ["teacher", "administrator"]).eq("status", "active").order("last_name").limit(200);
+  const rows = (profiles ?? []) as { id: string; first_name: string; last_name: string }[];
   const ids = rows.map((row) => row.id);
-  const { data: qualifications } = ids.length ? await ctx.admin.from("staff_subject_qualifications").select("staff_profile_id,subject_id").in("staff_profile_id", ids).eq("active", true).not("subject_id", "is", null) : { data: [] };
+  const { data: qualifications } = ids.length ? await ctx.admin.from("staff_subject_qualifications").select("staff_profile_id,subject_id").in("staff_profile_id", ids).eq("active", true) : { data: [] };
   const byStaff = new Map<string, string[]>();
   for (const item of ((qualifications ?? []) as { staff_profile_id: string; subject_id: string }[])) byStaff.set(item.staff_profile_id, [...(byStaff.get(item.staff_profile_id) ?? []), item.subject_id]);
-  return rows.map((row) => ({ id: row.legacy_user_id ?? row.id, profile_id: row.id, full_name: row.full_name, subjectIds: byStaff.get(row.id) ?? [] }));
+  return rows.map((row) => ({ id: row.id, profile_id: row.id, full_name: `${row.first_name} ${row.last_name}`.trim(), subjectIds: byStaff.get(row.id) ?? [] }));
 }
 
 export async function updateCohostsAction(examIdValue: string, cohosts: string[]): Promise<ActionResult> {
   try {
     const ctx = await requireAdmin();
-    const unique = [...new Set(cohosts.filter(Boolean))];
-    const { data: profiles } = unique.length ? await ctx.admin.from("academic_profiles").select("id,legacy_user_id").or(`id.in.(${unique.join(",")}),legacy_user_id.in.(${unique.join(",")})`) : { data: [] };
-    const profileIds = [...new Set(((profiles ?? []) as { id: string }[]).map((row) => row.id))];
+    const profileIds = [...new Set(cohosts.filter(Boolean))];
+    if (profileIds.length) {
+      const { count } = await ctx.admin.from("academic_profiles").select("id", { count: "exact", head: true }).in("id", profileIds).in("role", ["teacher", "administrator"]);
+      if ((count ?? 0) !== profileIds.length) return { ok: false, error: "One or more staff profiles are unavailable." };
+    }
     await ctx.admin.from("exam_staff_assignments").delete().eq("session_id", examIdValue).eq("role", "cohost");
     if (profileIds.length) {
       const { error } = await ctx.admin.from("exam_staff_assignments").insert(profileIds.map((profileId) => ({ session_id: examIdValue, staff_profile_id: profileId, role: "cohost" })));
@@ -756,7 +724,7 @@ export async function getSubjectsAction(): Promise<string[]> {
 
 export async function getSessionOptionsAction() {
   const ctx = await requireStaff();
-  const { data: classes } = await ctx.admin.from("classes").select("id,name,class_level,level_id,programme_id").eq("status", "active").limit(200);
+  const { data: classes } = await ctx.admin.from("classes").select("id,arm,level_id,programme_id,academic_year_id").eq("status", "active").limit(200);
   return { classes: classes ?? [] };
 }
 
@@ -766,16 +734,11 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
     if (ctx.scope.isAdmin || !ctx.scope.profileId) return { ok: false, error: "Teachers only." };
     const clean = [...new Set(subjectIds.filter(Boolean))].slice(0, 24);
     if (!clean.length) return { ok: false, error: "Choose at least one subject." };
-    const valid = await ctx.admin.from("subjects").select("id,code").in("id", clean).eq("active", true);
-    const rows = (valid.data ?? []) as { id: string; code: string }[];
+    const valid = await ctx.admin.from("subjects").select("id").in("id", clean).eq("active", true);
+    const rows = (valid.data ?? []) as { id: string }[];
     if (rows.length !== clean.length) return { ok: false, error: "One or more subjects are unavailable." };
     await ctx.admin.from("staff_subject_qualifications").update({ active: false }).eq("staff_profile_id", ctx.scope.profileId);
-    const { error } = await ctx.admin.from("staff_subject_qualifications").upsert(rows.map((subject) => ({
-      staff_profile_id: ctx.scope.profileId,
-      subject_id: subject.id,
-      subject_code: subject.code,
-      active: true,
-    })), { onConflict: "staff_profile_id,subject_code" });
+    const { error } = await ctx.admin.from("staff_subject_qualifications").upsert(rows.map((subject) => ({ staff_profile_id: ctx.scope.profileId, subject_id: subject.id, active: true })), { onConflict: "staff_profile_id,subject_id" });
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin");
     revalidatePath("/admin/staff");
@@ -791,49 +754,40 @@ export async function getMyScopeAction(): Promise<{ isAdmin: boolean; subjectIds
 }
 
 // --------------------------------------------------------------- subjects
-export async function getActiveSubjectsAction(): Promise<{ id: string; name: string; category: string }[]> {
+export async function getActiveSubjectsAction(): Promise<{ id: string; name: string }[]> {
   const ctx = await requireStaff();
-  const { data } = await ctx.admin.from("subjects").select("id,name,category").eq("active", true).order("name");
-  return (data ?? []) as { id: string; name: string; category: string }[];
+  const { data } = await ctx.admin.from("subjects").select("id,name").eq("active", true).order("name");
+  return (data ?? []) as { id: string; name: string }[];
 }
 
 export async function seedSubjectsAction(): Promise<ActionResult & { count?: number }> {
   try {
     const ctx = await requireAdmin();
     const { WAEC_SUBJECTS } = await import("@/lib/subjects-catalog");
-    const now = Date.now();
-    let count = 0;
-    for (const subject of WAEC_SUBJECTS) {
-      const normalized = subject.name.replace(/\s*\(legacy bank\)\s*/i, "").trim().toLocaleLowerCase("en");
-      const { data: existing } = await ctx.admin.from("subjects").select("id").eq("normalized_name", normalized).limit(1).maybeSingle();
-      if (existing) {
-        await ctx.admin.from("subject_legacy_aliases").upsert({ alias: subject.code, subject_id: (existing as { id: string }).id, source: "seed-alias" });
-        continue;
-      }
-      const id = randomUUID();
-      const compatibilityCode = `v2-${id}`;
-      const { error } = await ctx.admin.from("subjects").insert({ id, code: compatibilityCode, name: subject.name.replace(/\s*\(legacy bank\)\s*/i, "").trim(), normalized_name: normalized, category: subject.category, streams: [], active: true, updated_at: now });
+    const canonicalNames = [...new Set(WAEC_SUBJECTS.map((subject) => subject.name.replace(/\s*\(legacy bank\)\s*/i, "").trim()).filter(Boolean))];
+    const { data: existing } = await ctx.admin.from("subjects").select("name");
+    const have = new Set(((existing ?? []) as { name: string }[]).map((row) => row.name.trim().toLocaleLowerCase("en")));
+    const fresh = canonicalNames.filter((name) => !have.has(name.toLocaleLowerCase("en"))).map((name) => ({ id: randomUUID(), name, active: true }));
+    if (fresh.length) {
+      const { error } = await ctx.admin.from("subjects").insert(fresh);
       if (error) return { ok: false, error: error.message };
-      await ctx.admin.from("subject_legacy_aliases").upsert({ alias: subject.code, subject_id: id, source: "seed-alias" });
-      count += 1;
     }
     revalidatePath("/admin/settings");
-    return { ok: true, count };
+    return { ok: true, count: fresh.length };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Seed failed." };
   }
 }
 
-export async function upsertSubjectAction(input: { id?: string; name: string; category: string }): Promise<ActionResult & { id?: string }> {
+export async function upsertSubjectAction(input: { id?: string; name: string }): Promise<ActionResult & { id?: string }> {
   try {
     const ctx = await requireAdmin();
-    const name = input.name.trim();
+    const name = input.name.trim().replace(/\s+/g, " ");
     if (!name) return { ok: false, error: "Subject name is required." };
-    const normalized = name.toLocaleLowerCase("en").replace(/\s+/g, " ");
     const id = input.id ?? randomUUID();
-    const row: Record<string, unknown> = { id, name, normalized_name: normalized, category: input.category || "elective", active: true, updated_at_v2: new Date().toISOString(), updated_at: Date.now() };
-    if (!input.id) Object.assign(row, { code: `v2-${id}`, streams: [] });
-    const write = input.id ? await ctx.admin.from("subjects").update(row).eq("id", id) : await ctx.admin.from("subjects").insert(row);
+    const write = input.id
+      ? await ctx.admin.from("subjects").update({ name, updated_at: new Date().toISOString() }).eq("id", id)
+      : await ctx.admin.from("subjects").insert({ id, name, active: true });
     if (write.error) return { ok: false, error: write.error.message };
     revalidatePath("/admin/settings");
     return { ok: true, id };
@@ -845,7 +799,7 @@ export async function upsertSubjectAction(input: { id?: string; name: string; ca
 export async function toggleSubjectAction(subjectId: string, active: boolean): Promise<ActionResult> {
   try {
     const ctx = await requireAdmin();
-    const { error } = await ctx.admin.from("subjects").update({ active, updated_at_v2: new Date().toISOString(), updated_at: Date.now() }).eq("id", subjectId);
+    const { error } = await ctx.admin.from("subjects").update({ active, updated_at: new Date().toISOString() }).eq("id", subjectId);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/admin/settings");
     return { ok: true };

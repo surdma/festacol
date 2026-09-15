@@ -15,20 +15,17 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { currentStaff } from "@/lib/auth/staff";
-import { studentHashFor } from "@/lib/assessment";
-import { listClasses, listUsers } from "@/lib/supabase/queries";
-import type { UserRow } from "@/types/db";
+import { listClasses, listUsers, type DirectoryUserRow } from "@/lib/supabase/queries";
 
 interface AttemptIndexRow {
-  student_hash: string;
+  student_profile_id: string;
   score: number | null;
   submitted_at: number | null;
-  rewrite_archived_at: number | null;
   assigned_track: string | null;
 }
 
 interface DirectoryRow {
-  user: UserRow;
+  user: DirectoryUserRow;
   className: string;
   classLevel: string;
   pathway: string;
@@ -118,43 +115,29 @@ export default async function AdminStudentsPage({
   const q = String(params.q ?? "").trim();
   const status = params.status === "inactive" ? "inactive" : params.status === "active" ? "active" : "all";
   const level = ["SS1", "SS2", "SS3"].includes(String(params.level)) ? String(params.level) : "all";
-  const pathway = ["Science", "Arts", "Social Science", "General"].includes(String(params.pathway)) ? String(params.pathway) : "all";
+  const pathway = String(params.pathway ?? "all");
   const classFilter = String(params.class ?? "all");
   const performance = ["high", "mid", "support", "none"].includes(String(params.performance)) ? String(params.performance) : "all";
   const { supabase } = await currentStaff();
-  const idSearch = q ? `%${q}%` : "__festacol_no_student_id_match__";
 
-  const [nameMatches, idMatchesResult, classes, attemptsResult, totalResult, activeResult] = await Promise.all([
+  const [users, classes, attemptsResult, totalResult, activeResult] = await Promise.all([
     listUsers(supabase, "student", q),
-    supabase.from("users").select("*").eq("role", "student").ilike("id", idSearch).order("full_name").limit(300),
     listClasses(supabase),
-    supabase.from("exam_attempts").select("student_hash,score,submitted_at,rewrite_archived_at,assigned_track").limit(5000),
-    supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "student"),
-    supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "student").eq("status", "active"),
+    supabase.from("exam_attempts").select("student_profile_id,score,submitted_at,assigned_track").limit(5000),
+    supabase.from("academic_profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
+    supabase.from("academic_profiles").select("id", { count: "exact", head: true }).eq("role", "student").eq("status", "active"),
   ]);
 
-  const userMap = new Map<string, UserRow>();
-  for (const user of nameMatches) userMap.set(user.id, user);
-  for (const user of ((idMatchesResult.data ?? []) as UserRow[])) userMap.set(user.id, user);
-  const users = [...userMap.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
   const classById = new Map(classes.map((item) => [item.id, item]));
   const attemptRows = (attemptsResult.data ?? []) as AttemptIndexRow[];
   const attemptsByStudent = new Map<string, AttemptIndexRow[]>();
-  for (const row of attemptRows) {
-    if (!row.student_hash) continue;
-    const rows = attemptsByStudent.get(row.student_hash) ?? [];
-    rows.push(row);
-    attemptsByStudent.set(row.student_hash, rows);
-  }
+  for (const row of attemptRows) attemptsByStudent.set(row.student_profile_id, [...(attemptsByStudent.get(row.student_profile_id) ?? []), row]);
 
-  const indexed: DirectoryRow[] = await Promise.all(users.map(async (user) => {
-    let hash = "";
-    try { hash = await studentHashFor(user.first_name, user.last_name); } catch { hash = ""; }
-    const studentAttempts = hash ? attemptsByStudent.get(hash) ?? [] : [];
-    const current = studentAttempts.filter((attempt) => !attempt.rewrite_archived_at);
-    const submittedAttempts = current.filter((attempt) => attempt.submitted_at);
+  const indexed: DirectoryRow[] = users.map((user) => {
+    const studentAttempts = attemptsByStudent.get(user.id) ?? [];
+    const submittedAttempts = studentAttempts.filter((attempt) => attempt.submitted_at);
     const scores = submittedAttempts.map((attempt) => Number(attempt.score)).filter(Number.isFinite);
-    const latestPlacement = current.find((attempt) => attempt.assigned_track)?.assigned_track ?? null;
+    const latestPlacement = studentAttempts.find((attempt) => attempt.assigned_track)?.assigned_track ?? null;
     const classRow = user.class_id ? classById.get(user.class_id) : undefined;
     const hrefParams = new URLSearchParams();
     if (q) hrefParams.set("q", q);
@@ -167,16 +150,16 @@ export default async function AdminStudentsPage({
     hrefParams.set("student", user.id);
     return {
       user,
-      className: classRow?.name ?? "Unassigned",
-      classLevel: classRow?.class_level ?? "",
-      pathway: classRow?.stream ?? "",
-      attempts: current.length,
+      className: classRow?.display_name ?? "Unassigned",
+      classLevel: classRow?.level_name ?? "",
+      pathway: classRow?.programme_name ?? "General",
+      attempts: studentAttempts.length,
       submitted: submittedAttempts.length,
       averageScore: average(scores),
       placement: latestPlacement,
       href: `/admin/students?${hrefParams.toString()}`,
     };
-  }));
+  });
 
   const rows = indexed.filter((row) => {
     if (status !== "all" && (status === "active" ? row.user.status !== "active" : row.user.status === "active")) return false;
@@ -190,15 +173,16 @@ export default async function AdminStudentsPage({
     return true;
   });
 
+  const programmeOptions = [...new Set(classes.map((item) => item.programme_name ?? "General"))].sort();
   const filterState = { q, status: status === "all" ? undefined : status, level: level === "all" ? undefined : level, pathway: pathway === "all" ? undefined : pathway, class: classFilter === "all" ? undefined : classFilter, performance: performance === "all" ? undefined : performance };
   const hasFilters = Boolean(q) || status !== "all" || level !== "all" || pathway !== "all" || classFilter !== "all" || performance !== "all";
 
   return (
     <div>
-      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the live academic directory, filter by current cohort and performance, then drill into exact examinations, attempts, placement and integrity history." actions={<Button render={<Link href="/admin/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
+      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the academic profile directory, filter by current class/programme and performance, then drill into relational exam history." actions={<Button render={<Link href="/admin/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
 
       <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-        <AdminSearchForm query={q} placeholder="Search name or ID" hidden={{ status: filterState.status, level: filterState.level, pathway: filterState.pathway, class: filterState.class, performance: filterState.performance }} />
+        <AdminSearchForm query={q} placeholder="Search student name" hidden={{ status: filterState.status, level: filterState.level, pathway: filterState.pathway, class: filterState.class, performance: filterState.performance }} />
         <AdminFilterLinks pathname="/admin/students" param="status" current={status} preserve={{ q, level: filterState.level, pathway: filterState.pathway, class: filterState.class, performance: filterState.performance }} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
       </div>
 
@@ -207,8 +191,8 @@ export default async function AdminStudentsPage({
           {q ? <input type="hidden" name="q" value={q} /> : null}
           {status !== "all" ? <input type="hidden" name="status" value={status} /> : null}
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Level<NativeSelect name="level" defaultValue={level}><NativeSelectOption value="all">All levels</NativeSelectOption>{["SS1", "SS2", "SS3"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
-          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Pathway<NativeSelect name="pathway" defaultValue={pathway}><NativeSelectOption value="all">All pathways</NativeSelectOption>{["Science", "Arts", "Social Science", "General"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
-          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Class<NativeSelect name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.name}</NativeSelectOption>)}</NativeSelect></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Programme<NativeSelect name="pathway" defaultValue={pathway}><NativeSelectOption value="all">All programmes</NativeSelectOption>{programmeOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Class<NativeSelect name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}{item.programme_name ? ` · ${item.programme_name}` : ""}</NativeSelectOption>)}</NativeSelect></label>
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Performance<NativeSelect name="performance" defaultValue={performance}><NativeSelectOption value="all">Any performance</NativeSelectOption><NativeSelectOption value="high">70% and above</NativeSelectOption><NativeSelectOption value="mid">50–69%</NativeSelectOption><NativeSelectOption value="support">Below 50%</NativeSelectOption><NativeSelectOption value="none">No submitted exam</NativeSelectOption></NativeSelect></label>
           <div className="flex gap-2"><Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>{hasFilters ? <Button variant="outline" render={<Link href="/admin/students" />} className={adminSecondaryButtonClass}>Reset</Button> : null}</div>
         </form>

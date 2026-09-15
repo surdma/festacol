@@ -24,7 +24,7 @@ export default async function AdminStaffPage({ searchParams }: { searchParams: P
   const role = params.role === "teacher" || params.role === "administrator" ? params.role : "all";
   const { supabase, scope } = await currentStaff();
   const [users, classes] = await Promise.all([listUsers(supabase, "staff", q), listClasses(supabase)]);
-  const classNames = new Map(classes.map((item) => [item.id, item.name]));
+  const classNames = new Map(classes.map((item) => [item.id, item.display_name]));
   const visible = users.filter((user) => role === "all" || user.role === role);
 
   return (
@@ -68,7 +68,7 @@ export default async function AdminStaffPage({ searchParams }: { searchParams: P
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <span className="grid size-9 place-items-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-800">{initials(user.full_name)}</span>
-                          <span><strong className="block text-neutral-950">{user.full_name}</strong><span className="text-xs text-neutral-500">{user.email || user.id}</span></span>
+                          <span><strong className="block text-neutral-950">{user.full_name}</strong><span className="text-xs text-neutral-500">{user.staff_number || user.id}</span></span>
                         </div>
                       </td>
                       <td className="px-4 py-3 capitalize text-neutral-700">{user.role}</td>

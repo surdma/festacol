@@ -77,7 +77,6 @@ async function signInLinkedStudent(profile: Awaited<ReturnType<typeof resolveExi
   }
 
   if (!authUserId || !email) return { ok: false, error: "Student login could not be resolved." };
-  await admin.from("academic_profiles").update({ email, updated_at: new Date().toISOString() }).eq("id", profile.profileId);
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
   if (signInError) return { ok: false, error: signInError.message };
   return { ok: true };

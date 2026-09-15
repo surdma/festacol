@@ -7,7 +7,6 @@ export interface ExistingStudentIdentity {
   firstName: string;
   lastName: string;
   fullName: string;
-  email: string;
   studentNumber: string | null;
   phone: string;
   guardian: string;
@@ -36,26 +35,26 @@ export function studentPasswordForProfile(profileId: string): string {
 }
 
 // Resolve an EXISTING roster student. This function never inserts a student.
-// Duplicate normalized names are rejected instead of being guessed.
+// Duplicate normalized names are rejected by the service-role RPC.
 export async function resolveExistingStudentIdentity(firstName: string, lastName: string): Promise<ExistingStudentIdentity> {
   const id = candidateCredentials(firstName, lastName);
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("academic_profiles")
-    .select("id,auth_user_id,first_name,last_name,full_name,email")
-    .eq("role", "student")
-    .eq("status", "active")
-    .eq("first_name_key", nameKey(id.firstName))
-    .eq("last_name_key", nameKey(id.lastName))
-    .limit(2);
-  if (error) throw new Error(error.message);
+  const { data, error } = await admin.rpc("resolve_student_profile_by_name", {
+    p_first_name: nameKey(id.firstName),
+    p_last_name: nameKey(id.lastName),
+  });
+  if (error) {
+    if (error.message.includes("student_identity_ambiguous")) {
+      throw new Error("More than one student has those names. Contact your school administrator to use a unique student identity.");
+    }
+    throw new Error(error.message);
+  }
   const matches = (data ?? []) as {
-    id: string;
+    profile_id: string;
     auth_user_id: string | null;
     first_name: string;
     last_name: string;
-    full_name: string;
-    email: string;
+    student_number: string | null;
   }[];
   if (matches.length === 0) throw new Error("No active student record matches those names. Contact your school administrator.");
   if (matches.length !== 1) throw new Error("More than one student has those names. Contact your school administrator to use a unique student identity.");
@@ -63,20 +62,19 @@ export async function resolveExistingStudentIdentity(firstName: string, lastName
   const profile = matches[0];
   const { data: student, error: studentError } = await admin
     .from("student_academic_profiles")
-    .select("student_number,phone,guardian")
-    .eq("profile_id", profile.id)
+    .select("phone,guardian")
+    .eq("profile_id", profile.profile_id)
     .maybeSingle();
   if (studentError) throw new Error(studentError.message);
   if (!student) throw new Error("Student academic profile is incomplete. Contact your school administrator.");
-  const extension = student as { student_number: string | null; phone: string; guardian: string };
+  const extension = student as { phone: string; guardian: string };
   return {
-    profileId: profile.id,
+    profileId: profile.profile_id,
     authUserId: profile.auth_user_id,
     firstName: profile.first_name,
     lastName: profile.last_name,
-    fullName: profile.full_name,
-    email: profile.email,
-    studentNumber: extension.student_number,
+    fullName: `${profile.first_name} ${profile.last_name}`.trim(),
+    studentNumber: profile.student_number,
     phone: extension.phone,
     guardian: extension.guardian,
   };

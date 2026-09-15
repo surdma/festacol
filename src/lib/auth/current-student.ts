@@ -6,7 +6,6 @@ export interface CurrentStudentProfile {
   first_name: string;
   last_name: string;
   full_name: string;
-  email: string;
   phone: string;
   guardian: string;
   promotion_status: string;
@@ -15,7 +14,6 @@ export interface CurrentStudentProfile {
 export interface CurrentStudentEnrollment {
   id: string;
   class_id: string;
-  academic_year_id: string;
   status: string;
   enrolled_at: string;
 }
@@ -31,7 +29,7 @@ export async function currentStudent() {
 
   const { data: academic } = await supabase
     .from("academic_profiles")
-    .select("id,role,status,first_name,last_name,full_name,email")
+    .select("id,role,status,first_name,last_name")
     .eq("auth_user_id", authUser.id)
     .eq("role", "student")
     .eq("status", "active")
@@ -42,8 +40,6 @@ export async function currentStudent() {
     status: string;
     first_name: string;
     last_name: string;
-    full_name: string;
-    email: string;
   } | null;
   if (!person) return null;
 
@@ -55,7 +51,7 @@ export async function currentStudent() {
       .maybeSingle(),
     supabase
       .from("class_enrollments")
-      .select("id,class_id,academic_year_id,status,enrolled_at")
+      .select("id,class_id,status,enrolled_at")
       .eq("student_profile_id", person.id)
       .eq("status", "active")
       .order("enrolled_at", { ascending: false })
@@ -81,8 +77,7 @@ export async function currentStudent() {
     student_number: student.student_number,
     first_name: person.first_name,
     last_name: person.last_name,
-    full_name: person.full_name,
-    email: person.email,
+    full_name: `${person.first_name} ${person.last_name}`.trim(),
     phone: student.phone,
     guardian: student.guardian,
     promotion_status: student.promotion_status,

@@ -7,8 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default async function RootPage() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
-  if (data.user?.user_metadata?.student_hash ?? data.user?.app_metadata?.student_hash) redirect("/dashboard");
-  if ((data.user?.app_metadata?.role ?? data.user?.user_metadata?.role) === "administrator") redirect("/admin");
+  if (data.user) {
+    const { data: profile } = await supabase.from("academic_profiles").select("role,status").eq("auth_user_id", data.user.id).eq("status", "active").maybeSingle();
+    if (profile?.role === "student") redirect("/dashboard");
+    if (profile?.role === "administrator" || profile?.role === "teacher") redirect("/admin");
+  }
 
   return (
     <main className="min-h-dvh bg-background p-4 sm:p-7">
