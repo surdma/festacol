@@ -26,8 +26,8 @@ const CLASS_LEVELS = new Set<ClassLevel>(["SS1", "SS2", "SS3"]);
 
 function displayTrack(value: string): string {
   if (value === "science") return "Science";
-  if (value === "art") return "Art";
-  if (value === "social_science") return "Social Science";
+  if (value === "humanities") return "Humanities";
+  if (value === "business") return "Business";
   return value;
 }
 
