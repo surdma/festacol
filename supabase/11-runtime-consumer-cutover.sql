@@ -57,30 +57,37 @@ create unique index if not exists exam_attempt_subject_stats_uuid_subject_idx
 -- ------------------------------------------------------- relational admin RLS
 -- Replace JWT-metadata admin authority on tables touched by the v2 runtime.
 drop policy if exists es_admin_all on public.exam_sessions;
+drop policy if exists es_admin_all_v2 on public.exam_sessions;
 create policy es_admin_all_v2 on public.exam_sessions
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
 drop policy if exists ea_admin_all on public.exam_attempts;
+drop policy if exists ea_admin_all_v2 on public.exam_attempts;
 create policy ea_admin_all_v2 on public.exam_attempts
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
 drop policy if exists epp_admin_all on public.exam_proctor_policies;
+drop policy if exists epp_admin_all_v2 on public.exam_proctor_policies;
 create policy epp_admin_all_v2 on public.exam_proctor_policies
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
 drop policy if exists q_admin_all on public.questions;
+drop policy if exists q_admin_all_v2 on public.questions;
 create policy q_admin_all_v2 on public.questions
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
 drop policy if exists qbl_admin_all on public.question_blanks;
+drop policy if exists qbl_admin_all_v2 on public.question_blanks;
 create policy qbl_admin_all_v2 on public.question_blanks
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
 drop policy if exists eab_admin_all on public.exam_attempt_answers;
+drop policy if exists eab_admin_all_v2 on public.exam_attempt_answers;
 create policy eab_admin_all_v2 on public.exam_attempt_answers
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
 drop policy if exists eas_admin_all on public.exam_attempt_subject_stats;
+drop policy if exists eas_admin_all_v2 on public.exam_attempt_subject_stats;
 create policy eas_admin_all_v2 on public.exam_attempt_subject_stats
   for all to authenticated using (private.is_admin_v2()) with check (private.is_admin_v2());
 
