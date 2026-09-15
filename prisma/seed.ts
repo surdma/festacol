@@ -70,13 +70,39 @@ const VALID_TYPES = new Set(["single", "multi", "boolean", "fill", "fill-multi"]
 const VALID_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const MINIMUM_QUESTION_COUNT = 720;
 const QUESTION_FIXTURE_SCHEMA_VERSION = 4;
+const QUESTION_FIXTURE_FILES = [
+  "questions.json",
+  "questions/qualifier-english.json",
+  "questions/qualifier-mathematics.json",
+  "questions/qualifier-basic-science.json",
+  "questions/qualifier-humanities.json",
+  "questions/qualifier-business.json",
+  "questions/qualifier-digital.json",
+] as const;
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
 
 async function loadJson<T>(name: string): Promise<T> {
   return JSON.parse(await readFile(path.join(process.cwd(), "public", "seed", name), "utf8")) as T;
 }
 
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+async function loadQuestionBank(): Promise<QuestionFixture> {
+  const fixtures = await Promise.all(
+    QUESTION_FIXTURE_FILES.map((name) => loadJson<QuestionFixture>(name)),
+  );
+  for (const [index, fixture] of fixtures.entries()) {
+    assert(
+      fixture.schemaVersion === QUESTION_FIXTURE_SCHEMA_VERSION,
+      `${QUESTION_FIXTURE_FILES[index]} must use schemaVersion ${QUESTION_FIXTURE_SCHEMA_VERSION}.`,
+    );
+    assert(Array.isArray(fixture.questions), `${QUESTION_FIXTURE_FILES[index]} has no questions array.`);
+  }
+  return {
+    schemaVersion: QUESTION_FIXTURE_SCHEMA_VERSION,
+    questions: fixtures.flatMap((fixture) => fixture.questions),
+  };
 }
 
 function unique(values: string[], label: string) {
@@ -157,15 +183,16 @@ function validateAnswerMetadata(question: Record<string, unknown>, id: number, t
 function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, questions: QuestionFixture) {
   assert(subjects.schemaVersion === 5, "subjects.json must use schemaVersion 5.");
   assert(classes.schemaVersion === 5, "classes.json must use schemaVersion 5.");
-  // Question schema v4 is the answer-aware question format. The academic
-  // structure moved to v5 independently; questions reference it by stable code.
   assert(
     questions.schemaVersion === QUESTION_FIXTURE_SCHEMA_VERSION,
-    `questions.json must use schemaVersion ${QUESTION_FIXTURE_SCHEMA_VERSION}.`,
+    `Question fixtures must use schemaVersion ${QUESTION_FIXTURE_SCHEMA_VERSION}.`,
   );
   assert(subjects.subjects.length > 0, "subjects.json has no subjects.");
   assert(classes.classes.length > 0, "classes.json has no classes.");
-  assert(questions.questions.length >= MINIMUM_QUESTION_COUNT, `questions.json must contain at least ${MINIMUM_QUESTION_COUNT} questions.`);
+  assert(
+    questions.questions.length >= MINIMUM_QUESTION_COUNT,
+    `Logical question bank must contain at least ${MINIMUM_QUESTION_COUNT} questions.`,
+  );
 
   unique(subjects.subjects.map((subject) => subject.code), "subject codes");
   unique(classes.levels.map((level) => level.name), "academic levels");
@@ -507,7 +534,7 @@ async function main() {
   const [subjects, classes, questions] = await Promise.all([
     loadJson<SubjectFixture>("subjects.json"),
     loadJson<ClassFixture>("classes.json"),
-    loadJson<QuestionFixture>("questions.json"),
+    loadQuestionBank(),
   ]);
 
   validateFixtures(subjects, classes, questions);
