@@ -27,9 +27,9 @@
       "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss1-art-a",
+      "id": "ss1-humanities-a",
       "level": "SS1",
-      "track": "ART",
+      "track": "HUMANITIES",
       "arm": "A",
       "capacity": 40,
       "room": "",
@@ -37,9 +37,9 @@
       "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss1-social-science-a",
+      "id": "ss1-business-a",
       "level": "SS1",
-      "track": "SOCIAL_SCIENCE",
+      "track": "BUSINESS",
       "arm": "A",
       "capacity": 40,
       "room": "",
@@ -57,9 +57,9 @@
       "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss2-art-a",
+      "id": "ss2-humanities-a",
       "level": "SS2",
-      "track": "ART",
+      "track": "HUMANITIES",
       "arm": "A",
       "capacity": 40,
       "room": "",
@@ -67,9 +67,9 @@
       "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss2-social-science-a",
+      "id": "ss2-business-a",
       "level": "SS2",
-      "track": "SOCIAL_SCIENCE",
+      "track": "BUSINESS",
       "arm": "A",
       "capacity": 40,
       "room": "",
@@ -87,9 +87,9 @@
       "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss3-art-a",
+      "id": "ss3-humanities-a",
       "level": "SS3",
-      "track": "ART",
+      "track": "HUMANITIES",
       "arm": "A",
       "capacity": 40,
       "room": "",
@@ -97,9 +97,9 @@
       "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
     },
     {
-      "id": "ss3-social-science-a",
+      "id": "ss3-business-a",
       "level": "SS3",
-      "track": "SOCIAL_SCIENCE",
+      "track": "BUSINESS",
       "arm": "A",
       "capacity": 40,
       "room": "",
