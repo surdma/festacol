@@ -351,11 +351,12 @@ CREATE TABLE questions (
   domain text NOT NULL DEFAULT '',
   explanation text NOT NULL DEFAULT '',
   status record_status NOT NULL DEFAULT 'active',
-  created_by_id uuid REFERENCES school_members(id) ON DELETE SET NULL,
+  creator_id uuid REFERENCES school_members(id) ON DELETE SET NULL,
   created_at timestamptz,
   updated_at bigint NOT NULL DEFAULT ((extract(epoch FROM now()) * 1000)::bigint)
 );
 CREATE INDEX questions_subject_idx ON questions(subject_id);
+CREATE INDEX questions_creator_idx ON questions(creator_id);
 
 CREATE TABLE question_academic_levels (
   question_id bigint NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
