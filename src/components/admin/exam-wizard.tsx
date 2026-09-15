@@ -14,6 +14,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { AcademicTrack } from "@/types/db";
 
 const STEPS = ["Scope", "Audience", "Paper", "Integrity", "Review"] as const;
 const MODES = ["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"] as const;
@@ -30,7 +31,7 @@ const modeLabels: Record<ExamWizardInput["mode"], string> = {
   single: "Single-subject exam",
 };
 
-type ClassOption = { id: string; name: string; class_level: string; programme_id: string | null; status: string };
+type ClassOption = { id: string; name: string; class_level: string; track: AcademicTrack; track_name: string; status: string };
 type ScopeOption = { isAdmin: boolean; subjectIds: string[]; qualifierAccess: boolean };
 
 const initialForm: ExamWizardInput = {
@@ -69,7 +70,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
     void getAdminFormOptionsAction().then((options) => {
       setSubjects(options.subjects);
       setOfferings(options.offerings);
-      setClasses(options.classes as ClassOption[]);
+      setClasses(options.classes);
       setScope({ isAdmin: options.scope.isAdmin, subjectIds: options.scope.subjectIds, qualifierAccess: options.scope.qualifierAccess });
     }).catch(() => setError("Exam setup data could not be loaded."));
   }, [open]);
@@ -91,7 +92,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
   const selectedSubjectNames = useMemo(() => form.subjectIds.map((id) => subjects.find((subject) => subject.id === id)?.name ?? "Subject"), [form.subjectIds, subjects]);
   const selectedOfferingLabels = useMemo(() => form.offeringIds.map((id) => {
     const offering = offerings.find((item) => item.id === id);
-    return offering ? `${offering.subjectName} · ${offering.className}${offering.programmeName ? ` · ${offering.programmeName}` : ""}` : "Offering";
+    return offering ? `${offering.subjectName} · ${offering.className} · ${offering.trackName}` : "Offering";
   }), [form.offeringIds, offerings]);
 
   function set<K extends keyof ExamWizardInput>(key: K, value: ExamWizardInput[K]) {
@@ -207,7 +208,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
         <DialogHeader>
           <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Create examination</p>
           <DialogTitle className="font-display text-xl font-extrabold text-neutral-950">{STEPS[step]}</DialogTitle>
-          <DialogDescription>Step {step + 1} of {STEPS.length}. Audience eligibility comes from explicit class-subject offerings, not programme labels.</DialogDescription>
+          <DialogDescription>Step {step + 1} of {STEPS.length}. Audience eligibility comes from explicit class-subject offerings and canonical class tracks.</DialogDescription>
         </DialogHeader>
         <Progress value={((step + 1) / STEPS.length) * 100} className="h-1.5" />
 
@@ -238,7 +239,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
                 <div className="grid max-h-72 gap-2 overflow-auto rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:grid-cols-2">
                   {availableOfferings.map((offering) => {
                     const active = form.offeringIds.includes(offering.id);
-                    return <Button key={offering.id} type="button" variant={active ? "default" : "outline"} className="h-auto justify-start whitespace-normal rounded-lg px-3 py-2 text-left" onClick={() => toggleOffering(offering.id)}><span><strong className="block">{offering.subjectName} · {offering.className}</strong><span className="block text-xs opacity-70">{offering.programmeName || "General"} · {offering.academicYear}{offering.academicTerm ? ` · ${offering.academicTerm}` : ""} · {offering.participation}</span></span></Button>;
+                    return <Button key={offering.id} type="button" variant={active ? "default" : "outline"} className="h-auto justify-start whitespace-normal rounded-lg px-3 py-2 text-left" onClick={() => toggleOffering(offering.id)}><span><strong className="block">{offering.subjectName} · {offering.className}</strong><span className="block text-xs opacity-70">{offering.trackName} · {offering.academicYear} · {offering.participation}</span></span></Button>;
                   })}
                   {!availableOfferings.length ? <p className="text-sm text-neutral-500">No active offerings match this level and selected subject. Configure the class subject offering first.</p> : null}
                 </div>
