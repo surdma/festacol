@@ -89,6 +89,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate normalized seed fixtures
+        run: pnpm seed:check
+
       - name: Validate Prisma schema
         run: pnpm exec prisma validate
 
@@ -207,15 +210,19 @@ jobs:
           prisma.config.ts
           src/app/layout.tsx
           src/app/admin/layout.tsx
+          src/app/actions/academic-structure.ts
           src/app/actions/admin-parity.ts
           src/app/actions/exam-state.ts
           src/app/actions/exams.ts
+          src/app/actions/question-bank.ts
           src/app/dashboard/exam/page.tsx
           src/app/dashboard/exam/workspace.tsx
           src/components/admin/admin-chrome.tsx
           src/components/admin/admin-nav.tsx
+          src/components/admin/entity-forms.tsx
           src/lib/assessment.ts
           src/lib/questions.ts
           src/lib/nav.ts
+          src/lib/supabase/queries.ts
           src/types/db.ts
           src/types/exam.ts
