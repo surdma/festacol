@@ -11,11 +11,9 @@ import {
   deleteWhatsappAction,
   duplicateExamAction,
   getAttemptDetailAction,
-  getQuestionDetailAction,
   getStaffListAction,
   getUserDetailAction,
   isAdminAction,
-  resetUnfinishedAttemptAction,
   setExamStatusAction,
   toggleUserAction,
   updateCohostsAction,
@@ -26,6 +24,8 @@ import {
   getExamEditorDetailAction,
   updateExamParityAction,
 } from "@/app/actions/admin-parity";
+import { getExamRelationSummaryAction, type ExamRelationSummary } from "@/app/actions/exam-relations";
+import { getQuestionEditorDetailAction } from "@/app/actions/question-bank";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -37,7 +37,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getExamLink } from "@/lib/exam-links";
-import type { ExamSessionDTO, ExamStatus } from "@/types/exam";
+import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
 
 function useModalRoute() {
   const router = useRouter();
@@ -48,42 +48,23 @@ function useModalRoute() {
   };
 }
 
-function sessionToDto(session: Record<string, unknown>): ExamSessionDTO {
-  return {
-    id: String(session.id),
-    title: String(session.title),
-    classLevel: String(session.class_level) as ExamSessionDTO["classLevel"],
-    classGroup: String(session.class_group ?? "General"),
-    academicSession: String(session.academic_session ?? "2026/2027"),
-    term: String(session.term ?? "First term"),
-    mode: String(session.mode) as ExamSessionDTO["mode"],
-    subjects: (session.subjects ?? []) as string[],
-    placementTracks: (session.placement_tracks ?? []) as string[],
-    durationSeconds: Number(session.duration_seconds),
-    questionCount: Number(session.question_count),
-    status: String(session.status) as ExamStatus,
-    instructions: String(session.instructions ?? ""),
-    startsAt: session.starts_at ? Number(session.starts_at) : null,
-    endsAt: session.ends_at ? Number(session.ends_at) : null,
-    integrityPolicy: {
-      focusMonitoring: session.focus_monitoring !== false,
-      fullscreenPrompt: session.fullscreen_prompt !== false,
-      clipboardGuard: session.clipboard_guard !== false,
-      warnAfter: Number(session.warn_after ?? 2),
-    },
-    randomization: {
-      questionOrder: session.question_order !== false,
-      optionOrder: session.option_order !== false,
-      minimizePaperCollisions: session.minimize_collisions !== false,
-    },
-  };
+function attemptContext(attempt: Record<string, unknown>): ExamAttemptContextSnapshot {
+  const value = attempt.context_snapshot;
+  return value && typeof value === "object" ? value as ExamAttemptContextSnapshot : {};
+}
+
+function trackLabel(track: AcademicTrack) {
+  if (track === "science") return "Science";
+  if (track === "humanities") return "Humanities";
+  return "Business";
 }
 
 export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
   const router = useRouter();
   const openModal = useModalRoute();
   const [data, setData] = useState<{ session: Record<string, unknown> | null; attempts: Record<string, unknown>[]; cameraRequired?: boolean; structureLocked?: boolean } | null>(null);
-  const [staff, setStaff] = useState<{ id: string; full_name: string; subjects: string[] }[]>([]);
+  const [relations, setRelations] = useState<ExamRelationSummary | null>(null);
+  const [staff, setStaff] = useState<{ id: string; full_name: string; subjectIds: string[] }[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -91,12 +72,25 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
 
   useEffect(() => {
     setError(null);
-    void getExamEditorDetailAction(examId).then((detail) => setData(detail as typeof data)).catch(() => setError("Exam details could not be loaded."));
-    void isAdminAction().then((value) => { setIsAdmin(value); if (value) void getStaffListAction().then(setStaff); });
+    void Promise.all([getExamEditorDetailAction(examId), getExamRelationSummaryAction(examId)])
+      .then(([detail, relationSummary]) => {
+        setData(detail as typeof data);
+        setRelations(relationSummary);
+      })
+      .catch(() => setError("Exam details could not be loaded."));
+    void isAdminAction().then((value) => {
+      setIsAdmin(value);
+      if (value) void getStaffListAction().then(setStaff);
+    });
   }, [examId]);
 
   const session = data?.session;
-  const sharePath = useMemo(() => session ? getExamLink(sessionToDto(session)) : "", [session]);
+  const sharePath = useMemo(() => session
+    ? getExamLink({ id: String(session.id), title: String(session.title) })
+    : "", [session]);
+  const audience = relations?.targetLabels.join(", ") || "Explicit audience";
+  const subjects = relations?.subjectNames.join(", ")
+    || (relations?.placementTracks.length ? `${relations.placementTracks.map(trackLabel).join(", ")} placement pool` : "General / qualifier pool");
 
   function act(fn: () => Promise<{ ok: boolean; error?: string; id?: string }>, done?: (id?: string) => void) {
     setError(null);
@@ -111,8 +105,13 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
   async function copyShareLink() {
     if (!sharePath) return;
     const absolute = `${window.location.origin}${sharePath}`;
-    try { await navigator.clipboard.writeText(absolute); setCopied(true); window.setTimeout(() => setCopied(false), 1600); }
-    catch { setError("The browser did not allow clipboard access. Use Open exam link instead."); }
+    try {
+      await navigator.clipboard.writeText(absolute);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setError("The browser did not allow clipboard access. Use Open exam link instead.");
+    }
   }
 
   return (
@@ -124,14 +123,14 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
           <div className="flex flex-col gap-5">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard label="Questions" value={String(session.question_count)} detail={data?.structureLocked ? "paper structure locked" : "editable before first attempt"} />
-              <MetricCard label="Duration" value={`${Math.round(Number(session.duration_seconds) / 60)}m`} detail={`${String(session.class_level)} · ${String(session.class_group)}`} />
+              <MetricCard label="Duration" value={`${Math.round(Number(session.duration_seconds) / 60)}m`} detail={audience} />
               <MetricCard label="Attempts" value={String(data?.attempts.length ?? 0)} detail="latest 100 candidate records" />
               <MetricCard label="Status" value={String(session.status)} detail={data?.cameraRequired ? "camera required" : "camera optional"} />
             </div>
 
             <div className="rounded-xl border bg-muted/30 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Candidate access</p><p className="mt-1 font-mono text-sm font-semibold">{examId}</p><p className="mt-1 text-xs text-muted-foreground">{sharePath}</p></div>
+                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Candidate access</p><p className="mt-1 font-mono text-sm font-semibold">{examId}</p><p className="mt-1 break-all text-xs text-muted-foreground">{sharePath}</p></div>
                 <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => void copyShareLink()}><Copy data-icon="inline-start" />{copied ? "Copied" : "Copy exam link"}</Button><Button size="sm" variant="outline" render={<a href={sharePath} target="_blank" rel="noreferrer" />}><ExternalLink data-icon="inline-start" />Open exam link</Button></div>
               </div>
             </div>
@@ -142,28 +141,32 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
               <Button size="sm" variant="outline" disabled={pending} onClick={() => act(() => duplicateExamAction(examId), (id) => { if (id) openModal({ modal: "exam", exam: id }); })}>Duplicate</Button>
               <AlertDialog>
                 <AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete</AlertDialogTrigger>
-                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this examination?</AlertDialogTitle><AlertDialogDescription>The session is removed. Existing attempt rows are preserved for audit history by the database relation.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => act(() => deleteExamAction(examId))}>Delete exam</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this examination?</AlertDialogTitle><AlertDialogDescription>The session can be deleted only when its relational history permits it. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => act(() => deleteExamAction(examId))}>Delete exam</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
               </AlertDialog>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
               <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Mode</span><strong className="mt-1 block capitalize">{String(session.mode)}</strong></div>
-              <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Subjects</span><strong className="mt-1 block">{((session.subjects ?? []) as string[]).join(", ") || "Qualifier pool"}</strong></div>
+              <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Subjects</span><strong className="mt-1 block">{subjects}</strong></div>
               <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Integrity threshold</span><strong className="mt-1 block">{String(session.warn_after ?? 2)} events</strong></div>
               <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Instructions</span><strong className="mt-1 block line-clamp-2">{String(session.instructions || "None")}</strong></div>
             </div>
 
-            {isAdmin ? <CohostManager examId={examId} initial={(session.cohosts ?? []) as string[]} staff={staff} /> : null}
+            {isAdmin ? <CohostManager examId={examId} initial={relations?.cohostIds ?? []} staff={staff} /> : null}
 
             <div className="rounded-xl border">
               <div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Candidate activity</h3></div>
               <div className="divide-y">
-                {(data?.attempts ?? []).slice(0, 20).map((attempt) => (
-                  <button key={String(attempt.attempt_hash)} type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: String(attempt.attempt_hash) })}>
-                    <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{String(attempt.student_name)}</strong><span className="mt-1 block text-xs text-muted-foreground">{attempt.submitted_at ? "Submitted" : "In progress"}</span></span>
-                    <StatusBadge tone={attempt.submitted_at ? "emerald" : "amber"}>{attempt.submitted_at ? `${String(attempt.score ?? "—")}%` : "live"}</StatusBadge>
-                  </button>
-                ))}
+                {(data?.attempts ?? []).slice(0, 20).map((attempt) => {
+                  const context = attemptContext(attempt);
+                  const attemptId = String(attempt.id);
+                  return (
+                    <button key={attemptId} type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: attemptId })}>
+                      <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{context.studentName || "Candidate"}</strong><span className="mt-1 block text-xs text-muted-foreground">{attempt.submitted_at ? "Submitted" : "In progress"} · attempt {String(attempt.attempt_number ?? 1)}</span></span>
+                      <StatusBadge tone={attempt.submitted_at ? "emerald" : "amber"}>{attempt.submitted_at ? `${String(attempt.score ?? "—")}%` : "live"}</StatusBadge>
+                    </button>
+                  );
+                })}
                 {data && data.attempts.length === 0 ? <p className="p-5 text-sm text-muted-foreground">No candidates have started this examination.</p> : null}
               </div>
             </div>
@@ -193,7 +196,15 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
     void getExamEditorDetailAction(examId).then((detail) => {
       const session = detail.session as Record<string, unknown> | null;
       if (!session) { setError("Exam is unavailable or outside your scope."); return; }
-      setTitle(String(session.title ?? "")); setDurationSeconds(Number(session.duration_seconds ?? 3600)); setQuestionCount(Number(session.question_count ?? 50)); setInstructions(String(session.instructions ?? "")); setStatus(String(session.status ?? "draft")); setCameraRequired(detail.cameraRequired); setWarnAfter(Number(session.warn_after ?? 2)); setLocked(detail.structureLocked); setLoaded(true);
+      setTitle(String(session.title ?? ""));
+      setDurationSeconds(Number(session.duration_seconds ?? 3600));
+      setQuestionCount(Number(session.question_count ?? 50));
+      setInstructions(String(session.instructions ?? ""));
+      setStatus(String(session.status ?? "draft"));
+      setCameraRequired(detail.cameraRequired);
+      setWarnAfter(Number(session.warn_after ?? 2));
+      setLocked(detail.structureLocked);
+      setLoaded(true);
     }).catch(() => setError("Exam could not be loaded."));
   }, [examId]);
 
@@ -215,10 +226,11 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
   );
 }
 
-function CohostManager({ examId, initial, staff }: { examId: string; initial: string[]; staff: { id: string; full_name: string; subjects: string[] }[] }) {
+function CohostManager({ examId, initial, staff }: { examId: string; initial: string[]; staff: { id: string; full_name: string; subjectIds: string[] }[] }) {
   const [selected, setSelected] = useState<string[]>(initial);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
+  useEffect(() => setSelected(initial), [initial]);
   return <div className="rounded-xl border p-4"><p className="text-sm font-semibold">Cohost access</p><p className="mt-1 text-xs text-muted-foreground">Administrators can grant specific staff access outside their normal subject scope.</p><div className="mt-3 flex max-h-40 flex-wrap gap-2 overflow-auto">{staff.map((member) => { const active = selected.includes(member.id); return <Button key={member.id} type="button" size="sm" variant={active ? "default" : "outline"} onClick={() => { setSaved(false); setSelected(active ? selected.filter((id) => id !== member.id) : [...selected, member.id]); }}>{member.full_name}</Button>; })}{staff.length === 0 ? <p className="text-xs text-muted-foreground">No staff records are available.</p> : null}</div><div className="mt-3 flex items-center gap-2"><Button size="sm" disabled={pending} onClick={() => startTransition(async () => { const result = await updateCohostsAction(examId, selected); if (result.ok) setSaved(true); })}>{pending ? "Saving…" : "Save cohosts"}</Button>{saved ? <span className="text-xs text-emerald-600">Saved</span> : null}</div></div>;
 }
 
@@ -232,25 +244,25 @@ export function UserDetailDialog({ userId, onClose }: { userId: string; onClose:
   const user = data?.user;
   const isStudent = String(user?.role ?? "") === "student";
   return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{String(user?.full_name ?? "User detail")}</DialogTitle><DialogDescription>{String(user?.role ?? "")} · {String(user?.status ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{user ? <div className="flex flex-col gap-4">
-    <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Class</span><strong className="mt-1 block">{String(user.class_id || "Unassigned")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Guardian</span><strong className="mt-1 block">{String(user.guardian || "Not recorded")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Academic session</span><strong className="mt-1 block">{String(user.academic_session || "—")}</strong></div></div>
+    <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Class</span><strong className="mt-1 block">{String(user.class_id || "Unassigned")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Guardian</span><strong className="mt-1 block">{String(user.guardian || "Not recorded")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Promotion status</span><strong className="mt-1 block">{String(user.promotion_status || "Not recorded")}</strong></div></div>
     {isStudent ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openModal({ modal: "user-edit", student: userId })}><Pencil data-icon="inline-start" />Edit student</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await toggleUserAction(userId, user.status !== "active"); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{user.status === "active" ? "Suspend" : "Reactivate"}</Button></div> : null}
-    <div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Exam history</h3></div><div className="divide-y">{(data?.attempts ?? []).map((attempt) => <button key={String(attempt.attempt_hash)} type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: String(attempt.attempt_hash) })}><span className="min-w-0"><strong className="block truncate text-sm">{String(attempt.session_title)}</strong><span className="mt-1 block text-xs text-muted-foreground">Integrity {String(attempt.integrity_score ?? "—")}%</span></span><span className="font-semibold tabular-nums">{String(attempt.score ?? "—")}%</span></button>)}{data && data.attempts.length === 0 ? <p className="p-5 text-sm text-muted-foreground">No attempts yet.</p> : null}</div></div>
+    <div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Exam history</h3></div><div className="divide-y">{(data?.attempts ?? []).map((attempt) => { const context = attemptContext(attempt); const attemptId = String(attempt.id); return <button key={attemptId} type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: attemptId })}><span className="min-w-0"><strong className="block truncate text-sm">{context.sessionTitle || String(attempt.session_id)}</strong><span className="mt-1 block text-xs text-muted-foreground">Integrity {String(attempt.integrity_score ?? "—")}%</span></span><span className="font-semibold tabular-nums">{String(attempt.score ?? "—")}%</span></button>; })}{data && data.attempts.length === 0 ? <p className="p-5 text-sm text-muted-foreground">No attempts yet.</p> : null}</div></div>
   </div> : <p className="text-sm text-muted-foreground">Loading record…</p>}</DialogContent></Dialog>;
 }
 
-export function AttemptDetailDialog({ attemptHash, onClose }: { attemptHash: string; onClose: () => void }) {
+export function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string; onClose: () => void }) {
   const [attempt, setAttempt] = useState<Record<string, unknown> | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>[]>([]);
-  const [stats, setStats] = useState<Record<string, unknown>[]>([]);
   const [events, setEvents] = useState<{ type: string; detail?: string; at: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  useEffect(() => { setError(null); void getAttemptDetailAction(attemptHash).then((detail) => { setAttempt(detail.attempt as Record<string, unknown> | null); setAnswers(detail.answers as Record<string, unknown>[]); setStats(detail.stats as Record<string, unknown>[]); setEvents(detail.events as { type: string; detail?: string; at: number }[]); }).catch(() => setError("Attempt could not be loaded.")); }, [attemptHash]);
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto"><DialogHeader><DialogTitle>{String(attempt?.student_name ?? "Attempt")}</DialogTitle><DialogDescription className="font-mono">{attemptHash}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{attempt ? <div className="flex flex-col gap-4">
+  useEffect(() => { setError(null); void getAttemptDetailAction(attemptId).then((detail) => { setAttempt(detail.attempt as Record<string, unknown> | null); setAnswers(detail.answers as Record<string, unknown>[]); setEvents(detail.events as { type: string; detail?: string; at: number }[]); }).catch(() => setError("Attempt could not be loaded.")); }, [attemptId]);
+  const context = attempt ? attemptContext(attempt) : {};
+  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto"><DialogHeader><DialogTitle>{context.studentName || "Attempt"}</DialogTitle><DialogDescription className="font-mono">{attemptId}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{attempt ? <div className="flex flex-col gap-4">
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Score" value={`${String(attempt.score ?? "—")}%`} /><MetricCard label="Integrity" value={`${String(attempt.integrity_score ?? "—")}%`} /><MetricCard label="Answers" value={String(answers.length)} /><MetricCard label="Submission" value={attempt.submitted_at ? "Submitted" : "In progress"} /></div>
-    {stats.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{stats.map((stat, index) => <div key={index} className="rounded-lg border p-3 text-sm"><strong>{String(stat.subject_code ?? stat.subject ?? "Subject")}</strong><p className="mt-1 text-xs text-muted-foreground">{String(stat.correct ?? 0)}/{String(stat.total ?? 0)} correct</p></div>)}</div> : null}
+    <div className="rounded-xl border p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Exam</p><p className="mt-1 text-sm font-semibold">{context.sessionTitle || String(attempt.session_id)}</p><p className="mt-1 text-xs text-muted-foreground">Attempt {String(attempt.attempt_number ?? 1)}</p></div>
     <div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Integrity timeline</h3></div><div className="max-h-72 overflow-auto divide-y">{events.length ? events.map((event, index) => <div key={`${event.at}-${index}`} className="px-4 py-3"><div className="flex items-center justify-between gap-3"><strong className="text-sm">{event.type}</strong><span className="text-xs text-muted-foreground">{new Date(Number(event.at)).toLocaleString()}</span></div>{event.detail ? <p className="mt-1 text-xs text-muted-foreground">{event.detail}</p> : null}</div>) : <p className="p-4 text-sm text-muted-foreground">No integrity events recorded.</p>}</div></div>
-    <div className="flex flex-wrap gap-2">{!attempt.submitted_at ? <Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await resetUnfinishedAttemptAction(String(attempt.session_id), String(attempt.candidate_hash)); if (!result.ok) { setError(result.error ?? "Reset failed."); return; } onClose(); })}>Reset unfinished attempt</Button> : null}{attempt.submitted_at ? <Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await authorizeRewriteAction(attemptHash); if (!result.ok) { setError(result.error ?? "Authorization failed."); return; } onClose(); })}>Authorize rewrite</Button> : null}</div>
+    <div className="flex flex-wrap gap-2">{attempt.submitted_at ? <Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await authorizeRewriteAction(attemptId); if (!result.ok) { setError(result.error ?? "Retake authorization failed."); return; } onClose(); })}>Grant retake</Button> : <p className="text-xs text-muted-foreground">Active attempts are preserved; another attempt can be granted after submission when needed.</p>}</div>
   </div> : <p className="text-sm text-muted-foreground">Loading attempt…</p>}</DialogContent></Dialog>;
 }
 
@@ -258,20 +270,21 @@ export function QuestionDetailDialog({ questionId, onClose }: { questionId: numb
   const router = useRouter();
   const openModal = useModalRoute();
   const [question, setQuestion] = useState<Record<string, unknown> | null>(null);
+  const [subjectName, setSubjectName] = useState("");
   const [blanks, setBlanks] = useState<{ blank_key: string; accepted: string[] }[]>([]);
   const [canEdit, setCanEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  useEffect(() => { setError(null); void Promise.all([getQuestionDetailAction(questionId), getAdminFormOptionsAction()]).then(([detail, options]) => { const nextQuestion = detail.question as Record<string, unknown> | null; setQuestion(nextQuestion); setBlanks(detail.blanks as { blank_key: string; accepted: string[] }[]); setCanEdit(Boolean(nextQuestion && (options.scope.isAdmin || nextQuestion.created_by === options.scope.staffId))); }).catch(() => setError("Question could not be loaded.")); }, [questionId]);
+  useEffect(() => { setError(null); void Promise.all([getQuestionEditorDetailAction(questionId), getAdminFormOptionsAction()]).then(([detail, options]) => { const nextQuestion = detail.question as Record<string, unknown> | null; setQuestion(nextQuestion); setBlanks(detail.blanks as { blank_key: string; accepted: string[] }[]); const subjectId = String(nextQuestion?.subject_id ?? ""); setSubjectName(options.subjects.find((subject) => subject.id === subjectId)?.name ?? "Subject"); setCanEdit(Boolean(nextQuestion && (options.scope.isAdmin || nextQuestion.creator_id === options.scope.profileId))); }).catch(() => setError("Question could not be loaded.")); }, [questionId]);
   const options = (question?.options ?? []) as string[];
   const correct = (question?.correct_answers ?? []) as string[];
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Question #{questionId}</DialogTitle><DialogDescription>{String(question?.subject_name ?? question?.subject_code ?? "")} · {String(question?.qtype ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{question ? <div className="flex flex-col gap-4 text-sm">
+  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Question #{questionId}</DialogTitle><DialogDescription>{subjectName} · {String(question?.qtype ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{question ? <div className="flex flex-col gap-4 text-sm">
     <p className="text-base leading-7">{String(question.prompt ?? "")}</p>
     {options.length ? <div className="grid gap-2">{options.map((option, index) => <div key={`${index}-${option}`} className={`rounded-lg border px-3 py-2 ${correct.includes(option) ? "border-emerald-300 bg-emerald-50" : ""}`}><span className="mr-2 font-semibold">{String.fromCharCode(65 + index)}.</span>{option}{correct.includes(option) ? <span className="ml-2 text-xs font-semibold text-emerald-700">Correct</span> : null}</div>)}</div> : null}
     {String(question.qtype) === "boolean" ? <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Correct answer</span><strong className="mt-1 block capitalize">{correct[0] ?? "—"}</strong></div> : null}
     {blanks.length ? <div className="grid gap-2">{blanks.map((blank) => <div key={blank.blank_key} className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">{blank.blank_key}</span><strong className="mt-1 block">{blank.accepted.join(" / ")}</strong></div>)}</div> : null}
-    <div className="grid gap-2 sm:grid-cols-3"><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Difficulty</span><strong className="mt-1 block capitalize">{String(question.difficulty || "medium")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Levels</span><strong className="mt-1 block">{((question.levels ?? []) as string[]).join(", ")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Source</span><strong className="mt-1 block">{question.created_by ? "Staff authored" : "Seed bank"}</strong></div></div>
-    <div className="flex flex-wrap gap-2">{canEdit ? <Button size="sm" variant="outline" onClick={() => openModal({ modal: "question-edit", question: String(questionId) })}><Pencil data-icon="inline-start" />Edit question</Button> : null}{canEdit ? <AlertDialog><AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete question?</AlertDialogTitle><AlertDialogDescription>This removes the question from future paper generation. Existing submitted attempt answers remain as audit records.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={() => startTransition(async () => { const result = await deleteQuestionAction(questionId); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } onClose(); router.refresh(); })}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> : null}</div>
+    <div className="grid gap-2 sm:grid-cols-3"><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Difficulty</span><strong className="mt-1 block capitalize">{String(question.difficulty || "medium")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Levels</span><strong className="mt-1 block">{((question.levels ?? []) as string[]).join(", ") || "—"}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Source</span><strong className="mt-1 block">{question.creator_id ? "Staff authored" : "Seed bank"}</strong></div></div>
+    <div className="flex flex-wrap gap-2">{canEdit ? <Button size="sm" variant="outline" onClick={() => openModal({ modal: "question-edit", question: String(questionId) })}><Pencil data-icon="inline-start" />Edit question</Button> : null}{canEdit ? <AlertDialog><AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete question?</AlertDialogTitle><AlertDialogDescription>This removes the question from future paper generation. Existing submitted attempt responses remain as audit records.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={() => startTransition(async () => { const result = await deleteQuestionAction(questionId); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } onClose(); router.refresh(); })}>Delete question</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> : null}</div>
   </div> : <p className="text-sm text-muted-foreground">Loading question…</p>}</DialogContent></Dialog>;
 }
 
@@ -284,9 +297,9 @@ export function ClassDetailDialog({ classId, onClose }: { classId: string; onClo
   const [pending, startTransition] = useTransition();
   useEffect(() => { setError(null); void getClassDetailAction(classId).then((detail) => setData(detail as typeof data)).catch(() => setError("Class could not be loaded.")); void isAdminAction().then(setIsAdmin); }, [classId]);
   const item = data?.classRow;
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{String(item?.name ?? "Class detail")}</DialogTitle><DialogDescription>{String(item?.class_level ?? "")} · {String(item?.stream ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{item ? <div className="flex flex-col gap-4">
+  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{String(item?.display_name ?? "Class detail")}</DialogTitle><DialogDescription>{String(item?.level_name ?? "")} · {String(item?.track_name ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{item ? <div className="flex flex-col gap-4">
     <div className="grid gap-3 sm:grid-cols-3"><MetricCard label="Students" value={String(data?.students.length ?? 0)} /><MetricCard label="Capacity" value={String(item.capacity ?? 0)} /><MetricCard label="WhatsApp groups" value={String(data?.groups.length ?? 0)} /></div>
-    {isAdmin ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openModal({ modal: "class-edit", class: classId })}><Pencil data-icon="inline-start" />Edit class</Button><Button size="sm" variant="outline" onClick={() => openModal({ modal: "whatsapp-new", class: classId })}>Add WhatsApp group</Button><AlertDialog><AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete class</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this class?</AlertDialogTitle><AlertDialogDescription>Students are unassigned by the database relation and class WhatsApp records cascade. This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={() => startTransition(async () => { const result = await deleteClassAction(classId); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } onClose(); router.refresh(); })}>Delete class</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div> : null}
+    {isAdmin ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openModal({ modal: "class-edit", class: classId })}><Pencil data-icon="inline-start" />Edit class</Button><Button size="sm" variant="outline" onClick={() => openModal({ modal: "whatsapp-new", class: classId })}>Add WhatsApp group</Button><AlertDialog><AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete class</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this class?</AlertDialogTitle><AlertDialogDescription>Deletion is allowed only when database relationships permit it. Move active students and dependent records first.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={() => startTransition(async () => { const result = await deleteClassAction(classId); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } onClose(); router.refresh(); })}>Delete class</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div> : null}
     <div className="grid gap-4 lg:grid-cols-2"><div className="rounded-xl border"><div className="flex items-center gap-2 border-b px-4 py-3"><Users className="size-4" /><h3 className="text-sm font-semibold">Students</h3></div><div className="max-h-72 divide-y overflow-auto">{(data?.students ?? []).map((student) => <button key={String(student.id)} type="button" className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "student", student: String(student.id) })}><span className="text-sm font-medium">{String(student.full_name)}</span><StatusBadge tone={student.status === "active" ? "emerald" : "neutral"}>{String(student.status)}</StatusBadge></button>)}{data && data.students.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No students assigned.</p> : null}</div></div><div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Communication</h3></div><div className="divide-y">{(data?.groups ?? []).map((group) => <div key={String(group.id)} className="flex items-center gap-3 px-4 py-3"><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{String(group.name)}</strong><a href={String(group.invite_url)} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline">Open invite <ExternalLink className="size-3" /></a></span>{isAdmin ? <><Button size="sm" variant="outline" onClick={() => openModal({ modal: "whatsapp-edit", class: classId, group: String(group.id) })}>Edit</Button><Button size="sm" variant="ghost" disabled={pending} onClick={() => startTransition(async () => { const result = await deleteWhatsappAction(String(group.id)); if (!result.ok) { setError(result.error ?? "Delete failed."); return; } const next = await getClassDetailAction(classId); setData(next as typeof data); router.refresh(); })}>Remove</Button></> : null}</div>)}{data && data.groups.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No WhatsApp group configured.</p> : null}</div></div></div>
   </div> : <p className="text-sm text-muted-foreground">Loading class…</p>}</DialogContent></Dialog>;
 }
