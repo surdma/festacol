@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-qualifier-humanities-2026-09",
+  "questions": [
+    {
+      "id": 736,
+      "subjectCode": "q-social",
+      "domain": "Citizenship",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "easy",
+      "label": "Humanities Readiness · Citizenship",
+      "explanation": "Obeying lawful rules and protecting public property are examples of responsible citizenship.",
+      "type": "single",
+      "prompt": "Which action best shows responsibility toward shared community property?",
+      "options": [
+        "reporting damage to a public facility",
+        "writing on public walls",
+        "removing public signs for personal use",
+        "ignoring a leaking public tap"
+      ],
+      "answer": "reporting damage to a public facility"
+    },
+    {
+      "id": 737,
+      "subjectCode": "q-social",
+      "domain": "Civic values",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Humanities Readiness · Civic values",
+      "explanation": "Tolerance means respecting people despite differences in views, background or beliefs.",
+      "type": "single",
+      "prompt": "Which civic value is shown when people respect one another despite differences in opinion?",
+      "options": ["tolerance", "dishonesty", "negligence", "intimidation"],
+      "answer": "tolerance"
+    },
+    {
+      "id": 738,
+      "subjectCode": "q-social",
+      "domain": "Rule of law",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Humanities Readiness · Rule of law",
+      "explanation": "The rule of law requires laws to apply to everyone, including people in authority.",
+      "type": "boolean",
+      "prompt": "Under the rule of law, people in authority are also subject to the law.",
+      "answer": true
+    },
+    {
+      "id": 739,
+      "subjectCode": "q-social",
+      "domain": "Community",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Humanities Readiness · Community",
+      "explanation": "Cooperation is the act of working together toward a shared goal.",
+      "type": "fill",
+      "prompt": "Supply the civic term for people working together toward a shared goal.",
+      "fillTemplate": [
+        {"text": "Working together toward a shared goal is called "},
+        {"blank": "answer", "placeholder": "civic term"},
+        {"text": "."}
+      ],
+      "acceptedAnswers": ["cooperation", "co-operation"]
+    },
+    {
+      "id": 740,
+      "subjectCode": "q-social",
+      "domain": "Rights and duties",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "hard",
+      "label": "Humanities Readiness · Rights and duties",
+      "explanation": "Freedom of expression is a right, while obeying lawful rules is a civic responsibility.",
+      "type": "multi",
+      "prompt": "Select exactly TWO correctly classified civic examples.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "freedom of expression — a right",
+        "obeying lawful rules — a responsibility",
+        "damaging public property — a right",
+        "preventing others from speaking lawfully — a responsibility"
+      ],
+      "answers": ["freedom of expression — a right", "obeying lawful rules — a responsibility"]
+    }
+  ]
+}

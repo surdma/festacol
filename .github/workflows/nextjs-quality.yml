@@ -1,0 +1,167 @@
+name: Next.js Quality
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - 'work/**'
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'supabase/**'
+      - 'public/seed/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'prisma.config.ts'
+      - 'tsconfig.json'
+      - 'next.config.*'
+      - '.github/workflows/nextjs-quality.yml'
+  pull_request:
+    branches:
+      - master
+      - main
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'supabase/**'
+      - 'public/seed/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'prisma.config.ts'
+      - 'tsconfig.json'
+      - 'next.config.*'
+      - '.github/workflows/nextjs-quality.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextjs-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Canonical schema, seed graph, types, build & lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?schema=public
+      PGPASSWORD: postgres
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      SUPABASE_WEBHOOK_SECRET: ci-placeholder-webhook-secret
+      SETUP_SECRET: ci-placeholder-setup-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate fixture contract
+        run: pnpm seed:check
+
+      - name: Validate runtime schema contract
+        run: node scripts/validate-runtime-schema-contract.mjs
+
+      - name: Assert canonical migration history
+        run: |
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 3
+          test -f prisma/migrations/20260915190000_initial/migration.sql
+          test -f prisma/migrations/20260915220633/migration.sql
+          test -f prisma/migrations/20260915220829/migration.sql
+          test ! -e supabase/schema.sql
+          test "$(find supabase -maxdepth 1 -type f -name '[0-9][0-9]-*.sql' | wc -l)" -eq 0
+          test "$(find scripts -maxdepth 1 -type f \( -name '*.chunk*' -o -name '.sandbox*' -o -name '.pr13-*' \) | wc -l)" -eq 0
+
+      - name: Validate Prisma schema
+        run: pnpm exec prisma validate
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Apply canonical Prisma migrations
+        run: pnpm exec prisma migrate deploy
+
+      - name: Seed canonical relational fixtures
+        run: pnpm db:seed
+
+      - name: Assert canonical seed graph
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f prisma/tests/seed-relations.sql
+
+      - name: Initialize Supabase platform stubs
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          create schema if not exists auth;
+          create table if not exists auth.users (id uuid primary key);
+          create or replace function auth.uid()
+          returns uuid language sql stable as $$ select null::uuid $$;
+          do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
+          do $$ begin create role service_role; exception when duplicate_object then null; end $$;
+          SQL
+
+      - name: Apply Supabase auth and RLS integration
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/auth-rpc.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rls.sql
+
+      - name: Assert platform integration
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regprocedure('public.my_exam_access(text)') is null then raise exception 'my_exam_access_missing'; end if;
+            if to_regprocedure('public.allocate_my_exam_attempt(text)') is null then raise exception 'attempt_allocator_missing'; end if;
+            if to_regprocedure('public.grant_exam_retake(text,uuid,integer,text)') is null then raise exception 'retake_rpc_missing'; end if;
+            if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_responses') then raise exception 'attempt_response_rls_missing'; end if;
+          end $$;
+          SQL
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm build
+
+      - name: Biome lint canonical migration surfaces
+        run: >-
+          pnpm exec biome lint
+          prisma.config.ts
+          prisma/seed.ts
+          src/app/actions
+          src/app/api/admin
+          src/lib/auth
+          src/lib/exam-session.ts
+          src/lib/supabase/queries.ts
+          src/types/db.ts

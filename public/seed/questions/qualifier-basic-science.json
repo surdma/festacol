@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-qualifier-basic-science-2026-09",
+  "questions": [
+    {
+      "id": 731,
+      "subjectCode": "q-bst",
+      "domain": "Living things",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "easy",
+      "label": "Basic Science & Technology · Living things",
+      "explanation": "The cell is the basic structural and functional unit of living organisms.",
+      "type": "single",
+      "prompt": "What is the basic structural and functional unit of a living organism?",
+      "options": ["cell", "tissue", "organ", "system"],
+      "answer": "cell"
+    },
+    {
+      "id": 732,
+      "subjectCode": "q-bst",
+      "domain": "Energy",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Basic Science & Technology · Energy",
+      "explanation": "A stretched elastic band stores elastic potential energy.",
+      "type": "single",
+      "prompt": "Which form of energy is stored in a stretched elastic band?",
+      "options": ["sound energy", "elastic potential energy", "light energy", "electrical energy"],
+      "answer": "elastic potential energy"
+    },
+    {
+      "id": 733,
+      "subjectCode": "q-bst",
+      "domain": "Electricity",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Basic Science & Technology · Electricity",
+      "explanation": "A complete or closed circuit provides a continuous path for electric current.",
+      "type": "boolean",
+      "prompt": "Electric current can flow through a simple circuit only when the conducting path is complete.",
+      "answer": true
+    },
+    {
+      "id": 734,
+      "subjectCode": "q-bst",
+      "domain": "Measurement",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Basic Science & Technology · Measurement",
+      "explanation": "The SI unit of force is the newton, symbol N.",
+      "type": "fill",
+      "prompt": "Name the SI unit used to measure force.",
+      "fillTemplate": [
+        {"text": "The SI unit of force is the "},
+        {"blank": "answer", "placeholder": "unit"},
+        {"text": "."}
+      ],
+      "acceptedAnswers": ["newton", "N"]
+    },
+    {
+      "id": 735,
+      "subjectCode": "q-bst",
+      "domain": "Matter",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "hard",
+      "label": "Basic Science & Technology · Matter",
+      "explanation": "Melting changes a solid to a liquid, while evaporation changes a liquid to a gas.",
+      "type": "multi",
+      "prompt": "Select exactly TWO correctly matched changes of state.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "melting — solid to liquid",
+        "evaporation — liquid to gas",
+        "freezing — gas to liquid",
+        "condensation — solid to gas"
+      ],
+      "answers": ["melting — solid to liquid", "evaporation — liquid to gas"]
+    }
+  ]
+}

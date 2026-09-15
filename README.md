@@ -1,41 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Festacol
 
-## Getting Started
+Festacol is a Next.js examination platform backed by Supabase Postgres and Prisma.
 
-First, run the development server:
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy `.env.example` to `.env` and provide the required Supabase and database credentials. Do not commit `.env`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database source of truth
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The production database is normalized. The canonical schema and migration history live in:
 
-## Learn More
+- `prisma/schema.prisma` — application data model and relations.
+- `prisma/migrations/` — ordered Prisma migration history used by `prisma migrate deploy`.
+- `prisma/seed.ts` — canonical academic, class, subject and question fixture seeding.
+- `supabase/auth-rpc.sql` — Supabase authentication/RPC integration applied after Prisma migrations.
+- `supabase/rls.sql` — row-level-security policies and grants applied after Prisma migrations.
 
-To learn more about Next.js, take a look at the following resources:
+The current migration history starts with `20260915190000_initial` and includes the checked-in schema-reconciliation migrations that follow it. Do not recreate removed legacy Supabase schema files or add a second baseline.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+After changing the Prisma schema, validate and generate the client before creating or applying migrations:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm exec prisma validate
+pnpm db:generate
+```
 
-## Deploy on Vercel
+For a deployment target, apply the checked-in history and canonical seed data with:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm exec prisma migrate deploy
+pnpm db:seed
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Supabase auth/RPC and RLS integration must then be applied from the two SQL files above. The CI workflow exercises this complete sequence against PostgreSQL before typecheck and build.
 
-Next steps for you:
-1. Point DATABASE_URL in .env at a real Postgres (or run pnpm dlx create-db for a free Prisma Postgres instance)
-2. Define models in prisma/schema.prisma, then pnpm db:migrate (dev) / prisma migrate deploy (prod)
-3. Import via import { prisma } from "@/lib/prisma"
+## Academic data model
+
+Festacol models curriculum and teaching relationships explicitly rather than duplicating programme/class/subject labels:
+
+- classes reference an academic level, academic year and canonical track;
+- `class_subject_offerings` relate classes to subjects;
+- `teaching_assignments` relate staff to concrete class-subject offerings;
+- `staff_subject_qualifications` describe subject qualifications independently of class assignments;
+- `student_subject_enrollments` record per-student subject participation;
+- exam class/offering targets define the audience for an examination;
+- exam attempts use durable UUID identities and preserve relational context snapshots;
+- candidate share links use persisted opaque `exam_session_links` tokens, with versioned QR payload metadata in `exam_qr_codes`.
+
+## Seed fixtures
+
+Canonical fixtures live under `public/seed/` and are validated before database seeding:
+
+```bash
+pnpm seed:check
+```
+
+The question fixture references canonical subject codes; subject and class definitions are maintained in their own fixture files rather than duplicated inside every question row.
+
+## Quality checks
+
+```bash
+pnpm seed:check
+pnpm exec prisma validate
+pnpm db:generate
+pnpm exec tsc --noEmit
+pnpm build
+pnpm lint
+```

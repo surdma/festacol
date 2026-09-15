@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 5,
+  "fixtureId": "festacol-academic-structure-2026-2027",
+  "academicYear": {
+    "name": "2026/2027",
+    "status": "ACTIVE"
+  },
+  "terms": [
+    { "name": "First Term", "sequence": 1, "status": "ACTIVE" },
+    { "name": "Second Term", "sequence": 2, "status": "PLANNED" },
+    { "name": "Third Term", "sequence": 3, "status": "PLANNED" }
+  ],
+  "levels": [
+    { "name": "SS1", "ordinal": 1 },
+    { "name": "SS2", "ordinal": 2 },
+    { "name": "SS3", "ordinal": 3 }
+  ],
+  "classes": [
+    {
+      "id": "ss1-science-a",
+      "level": "SS1",
+      "track": "SCIENCE",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss1-humanities-a",
+      "level": "SS1",
+      "track": "HUMANITIES",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss1-business-a",
+      "level": "SS1",
+      "track": "BUSINESS",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "acct", "commerce", "marketing", "eco", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss2-science-a",
+      "level": "SS2",
+      "track": "SCIENCE",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss2-humanities-a",
+      "level": "SS2",
+      "track": "HUMANITIES",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss2-business-a",
+      "level": "SS2",
+      "track": "BUSINESS",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "acct", "commerce", "marketing", "eco", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss3-science-a",
+      "level": "SS3",
+      "track": "SCIENCE",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "bio", "chem", "phy", "agric", "fmath", "phe", "health", "foodnut", "geo", "techdraw", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss3-humanities-a",
+      "level": "SS3",
+      "track": "HUMANITIES",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "history", "gov", "crs", "irs", "yor", "french", "arabic", "visualart", "music", "lit", "homemgt", "catering", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    },
+    {
+      "id": "ss3-business-a",
+      "level": "SS3",
+      "track": "BUSINESS",
+      "arm": "A",
+      "capacity": 40,
+      "room": "",
+      "status": "ACTIVE",
+      "offerings": ["eng", "mat", "civ", "comp", "acct", "commerce", "marketing", "eco", "solar-pv", "fashion", "livestock", "hardware", "horticulture"]
+    }
+  ]
+}

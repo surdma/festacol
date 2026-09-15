@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-qualifier-business-2026-09",
+  "questions": [
+    {
+      "id": 741,
+      "subjectCode": "q-business",
+      "domain": "Entrepreneurship",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "easy",
+      "label": "Business Readiness · Entrepreneurship",
+      "explanation": "An entrepreneur organizes resources and takes business risks to provide goods or services.",
+      "type": "single",
+      "prompt": "What is the name for a person who organizes a business and accepts the risk of running it?",
+      "options": ["entrepreneur", "consumer", "auditor", "messenger"],
+      "answer": "entrepreneur"
+    },
+    {
+      "id": 742,
+      "subjectCode": "q-business",
+      "domain": "Bookkeeping",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Business Readiness · Bookkeeping",
+      "explanation": "A receipt provides evidence that money has been received for a transaction.",
+      "type": "single",
+      "prompt": "Which document commonly confirms that a customer has made a payment?",
+      "options": ["receipt", "agenda", "catalogue", "memo"],
+      "answer": "receipt"
+    },
+    {
+      "id": 743,
+      "subjectCode": "q-business",
+      "domain": "Trade",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Business Readiness · Trade",
+      "explanation": "Retailers normally sell goods in relatively small quantities to final consumers.",
+      "type": "boolean",
+      "prompt": "A retailer usually sells goods directly to final consumers in smaller quantities.",
+      "answer": true
+    },
+    {
+      "id": 744,
+      "subjectCode": "q-business",
+      "domain": "Consumer education",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "medium",
+      "label": "Business Readiness · Consumer education",
+      "explanation": "A budget is a plan of expected income and expenditure over a period.",
+      "type": "fill",
+      "prompt": "Give the business term for a plan showing expected income and spending over a period.",
+      "fillTemplate": [
+        {"text": "A plan of expected income and spending is a "},
+        {"blank": "answer", "placeholder": "business term"},
+        {"text": "."}
+      ],
+      "acceptedAnswers": ["budget"]
+    },
+    {
+      "id": 745,
+      "subjectCode": "q-business",
+      "domain": "Office practice",
+      "levels": ["SS1"],
+      "examModes": ["qualifier"],
+      "difficulty": "hard",
+      "label": "Business Readiness · Office practice",
+      "explanation": "An invoice states goods supplied and amount due; a receipt confirms payment received.",
+      "type": "multi",
+      "prompt": "Select exactly TWO correctly matched business documents and uses.",
+      "instruction": "Select exactly TWO answers.",
+      "requiredSelections": 2,
+      "options": [
+        "invoice — states goods supplied and the amount due",
+        "receipt — confirms that payment was received",
+        "agenda — confirms that payment was received",
+        "receipt — lists topics for a meeting"
+      ],
+      "answers": [
+        "invoice — states goods supplied and the amount due",
+        "receipt — confirms that payment was received"
+      ]
+    }
+  ]
+}
