@@ -58,8 +58,9 @@ export function AdminSidebarFooter() {
   );
 }
 
-function MobileNavigation() {
+function MobileNavigation({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
+  const isAdmin = role === "administrator";
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger render={<button type="button" className={`${iconBtn} lg:hidden`} aria-label="Open navigation" />}>
@@ -68,30 +69,31 @@ function MobileNavigation() {
       <SheetContent side="left" showCloseButton={false} overlayClassName="bg-black/40 backdrop-blur-sm" className="w-[min(88vw,320px)] max-w-none gap-0 border-r border-neutral-200 bg-white p-0 text-neutral-950 shadow-2xl data-[side=left]:data-starting-style:-translate-x-full data-[side=left]:data-ending-style:-translate-x-full lg:hidden">
         <div className="flex items-center justify-between border-b border-neutral-200 p-4">
           <div>
-            <SheetTitle className="font-display font-bold text-neutral-950">Festacol Admin</SheetTitle>
-            <SheetDescription className="text-xs text-neutral-500">Academic operations</SheetDescription>
+            <SheetTitle className="font-display font-bold text-neutral-950">{isAdmin ? "Festacol Administration" : "Festacol Teaching"}</SheetTitle>
+            <SheetDescription className="text-xs text-neutral-500">{isAdmin ? "School management" : "Teaching workspace"}</SheetDescription>
           </div>
           <SheetClose render={<button type="button" className={iconBtn} aria-label="Close navigation" />}>
             <PrototypeAdminIcon name="close" />
           </SheetClose>
         </div>
-        <AdminNav mobile onNavigate={() => setOpen(false)} />
+        <AdminNav role={role} mobile onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );
 }
 
-export function AdminTopbar({ notifications }: { notifications: AdminTopbarNotification[] }) {
+export function AdminTopbar({ notifications, role }: { notifications: AdminTopbarNotification[]; role: string }) {
   const item = useAdminNavItem();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const isAdmin = role === "administrator";
 
   return (
     <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 backdrop-blur-xl">
       <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <MobileNavigation />
+        <MobileNavigation role={role} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-bold uppercase tracking-[.14em] text-neutral-400">Administration / {item.label}</p>
+          <p className="truncate text-[10px] font-bold uppercase tracking-[.14em] text-neutral-400">{isAdmin ? "Administration" : "Teaching"} / {item.label}</p>
           <p className="truncate text-sm font-bold">{item.label}</p>
         </div>
 
@@ -133,7 +135,7 @@ export function AdminTopbar({ notifications }: { notifications: AdminTopbarNotif
               )) : (
                 <div className="flex gap-3 rounded-xl p-3">
                   <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><PrototypeAdminIcon name="check" className="size-4 shrink-0" /></span>
-                  <span><strong className="block text-xs">No immediate exceptions</strong><span className="mt-1 block text-[11px] leading-4 text-neutral-500">Draft, active-attempt, integrity and communication queues are clear.</span></span>
+                  <span><strong className="block text-xs">No immediate items</strong><span className="mt-1 block text-[11px] leading-4 text-neutral-500">There is nothing requiring attention right now.</span></span>
                 </div>
               )}
             </DropdownMenuGroup>
