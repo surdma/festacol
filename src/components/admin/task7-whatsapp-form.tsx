@@ -2,9 +2,21 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, MessageCircle } from "lucide-react";
+import { ExternalLink, MessageCircle, Trash2 } from "lucide-react";
+import { deleteWhatsappAction } from "@/app/actions/admin";
 import { getAdminFormOptionsAction, getWhatsappDetailAction } from "@/app/actions/admin-parity";
 import { upsertSingleClassWhatsappAction } from "@/app/actions/task7";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -59,6 +71,17 @@ export function Task7WhatsappFormDialog({
     });
   }
 
+  function remove() {
+    if (!groupId) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteWhatsappAction(groupId);
+      if (!result.ok) { setError(result.error ?? "WhatsApp group could not be deleted."); return; }
+      onClose();
+      router.refresh();
+    });
+  }
+
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
       <DialogContent className="max-w-2xl">
@@ -88,9 +111,9 @@ export function Task7WhatsappFormDialog({
           {inviteUrl.startsWith("https://") ? <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3"><span className="min-w-0 truncate text-xs text-muted-foreground">{inviteUrl}</span><Button size="sm" variant="outline" render={<a href={inviteUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink data-icon="inline-start" />Open</Button></div> : null}
         </FieldGroup>
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={pending || !classId || !name.trim() || !inviteUrl.trim()} onClick={save}>{pending ? "Saving…" : groupId ? "Update mapping" : "Connect group"}</Button>
+        <DialogFooter className="sm:justify-between">
+          <div>{groupId ? <AlertDialog><AlertDialogTrigger render={<Button type="button" variant="outline" disabled={pending} className="border-red-200 text-red-700 hover:bg-red-50" />}><Trash2 data-icon="inline-start" />Delete mapping</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this WhatsApp mapping?</AlertDialogTitle><AlertDialogDescription>The class and its students remain intact. Only the stored invite relationship and its QR/open destination are removed.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={remove}>Delete mapping</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> : null}</div>
+          <div className="flex gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={pending || !classId || !name.trim() || !inviteUrl.trim()} onClick={save}>{pending ? "Saving…" : groupId ? "Update mapping" : "Connect group"}</Button></div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
