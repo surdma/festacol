@@ -160,21 +160,25 @@ jobs:
         run: |
           awk -v target=3 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
-      - name: Assert attempt answer-detail secrecy
+      - name: Assert no student answer-detail policy
         run: |
           awk -v target=4 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
-      - name: Assert attempt mutation boundary
+      - name: Assert staff answer-detail policy
         run: |
           awk -v target=5 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
-      - name: Assert relational exam metadata policies
+      - name: Assert attempt mutation boundary
         run: |
           awk -v target=6 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
-      - name: Assert relational admin policy
+      - name: Assert relational exam metadata policies
         run: |
           awk -v target=7 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Assert relational admin policy
+        run: |
+          awk -v target=8 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
