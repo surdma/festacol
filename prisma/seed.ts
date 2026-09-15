@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Client } from "pg";
 
-type Track = "SCIENCE" | "ART" | "SOCIAL_SCIENCE";
+type Track = "SCIENCE" | "HUMANITIES" | "BUSINESS";
 type Participation = "REQUIRED" | "ELECTIVE";
 type PeriodStatus = "PLANNED" | "ACTIVE" | "CLOSED" | "ARCHIVED";
 
@@ -51,8 +51,8 @@ interface QuestionFixture {
 
 const TRACK_DB: Record<Track, string> = {
   SCIENCE: "science",
-  ART: "art",
-  SOCIAL_SCIENCE: "social_science",
+  HUMANITIES: "humanities",
+  BUSINESS: "business",
 };
 const PARTICIPATION_DB: Record<Participation, string> = {
   REQUIRED: "required",
@@ -64,6 +64,7 @@ const STATUS_DB: Record<PeriodStatus, string> = {
   CLOSED: "closed",
   ARCHIVED: "archived",
 };
+const VALID_TRACKS = new Set<Track>(["SCIENCE", "HUMANITIES", "BUSINESS"]);
 const VALID_MODES = new Set(["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"]);
 const VALID_TYPES = new Set(["single", "multi", "boolean", "fill", "fill-multi"]);
 
@@ -87,7 +88,7 @@ function unique(values: string[], label: string) {
 function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, questions: QuestionFixture) {
   assert(subjects.schemaVersion === 5, "subjects.json must use schemaVersion 5.");
   assert(classes.schemaVersion === 5, "classes.json must use schemaVersion 5.");
-  assert(questions.schemaVersion >= 4, "questions.json uses an unsupported schema version.");
+  assert(questions.schemaVersion === 5, "questions.json must use schemaVersion 5.");
   assert(subjects.subjects.length > 0, "subjects.json has no subjects.");
   assert(classes.classes.length > 0, "classes.json has no classes.");
   assert(questions.questions.length > 0, "questions.json has no questions.");
@@ -95,8 +96,12 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
   unique(subjects.subjects.map((subject) => subject.code), "subject codes");
   unique(classes.levels.map((level) => level.name), "academic levels");
   unique(classes.classes.map((item) => item.id), "class ids");
+  unique(subjects.tracks, "subject fixture tracks");
+  assert(
+    subjects.tracks.length === VALID_TRACKS.size && subjects.tracks.every((track) => VALID_TRACKS.has(track)),
+    "subjects.json tracks must be exactly SCIENCE, HUMANITIES and BUSINESS.",
+  );
 
-  const validTracks = new Set<Track>(["SCIENCE", "ART", "SOCIAL_SCIENCE"]);
   const levelNames = new Set(classes.levels.map((level) => level.name));
   const subjectByCode = new Map(subjects.subjects.map((subject) => [subject.code, subject]));
   const ruleKeys = new Set<string>();
@@ -111,7 +116,7 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
     assert(subject.curriculum.length > 0, `Curriculum subject ${subject.code} has no curriculum rules.`);
     for (const rule of subject.curriculum) {
       assert(levelNames.has(rule.level), `Subject ${subject.code} references unknown level ${rule.level}.`);
-      assert(validTracks.has(rule.track), `Subject ${subject.code} references invalid track ${rule.track}.`);
+      assert(VALID_TRACKS.has(rule.track), `Subject ${subject.code} references invalid track ${rule.track}.`);
       const key = `${subject.code}:${rule.level}:${rule.track}`;
       assert(!ruleKeys.has(key), `Duplicate curriculum rule ${key}.`);
       ruleKeys.add(key);
@@ -120,7 +125,7 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
 
   for (const coreCode of ["eng", "mat", "civ", "comp"]) {
     for (const level of levelNames) {
-      for (const track of validTracks) {
+      for (const track of VALID_TRACKS) {
         const subject = subjectByCode.get(coreCode);
         const rule = subject?.curriculum.find((item) => item.level === level && item.track === track);
         assert(rule?.participation === "REQUIRED", `${coreCode} must be REQUIRED for ${level} ${track}.`);
@@ -133,7 +138,7 @@ function validateFixtures(subjects: SubjectFixture, classes: ClassFixture, quest
 
   for (const item of classes.classes) {
     assert(levelNames.has(item.level), `Class ${item.id} references unknown level ${item.level}.`);
-    assert(validTracks.has(item.track), `Class ${item.id} has invalid track ${item.track}.`);
+    assert(VALID_TRACKS.has(item.track), `Class ${item.id} has invalid track ${item.track}.`);
     assert(Number.isInteger(item.capacity) && item.capacity > 0, `Class ${item.id} has invalid capacity.`);
     unique(item.offerings, `offerings for ${item.id}`);
     for (const code of item.offerings) {
@@ -305,11 +310,11 @@ async function seedDatabase(subjectFixture: SubjectFixture, classFixture: ClassF
 
     for (const question of questionFixture.questions) {
       const id = Number(question.id);
-      const existing = await client.query<{ created_by_id: string | null }>(
-        "SELECT created_by_id FROM questions WHERE id=$1",
+      const existing = await client.query<{ creator_id: string | null }>(
+        "SELECT creator_id FROM questions WHERE id=$1",
         [id],
       );
-      if (existing.rows[0]?.created_by_id) {
+      if (existing.rows[0]?.creator_id) {
         throw new Error(`Question ${id} is staff-authored and cannot be overwritten by fixture seeding.`);
       }
 
@@ -322,7 +327,7 @@ async function seedDatabase(subjectFixture: SubjectFixture, classFixture: ClassF
       await client.query(
         `INSERT INTO questions(
            id,subject_id,qtype,prompt,options,correct_answers,fill_template,instruction,
-           exam_modes,difficulty,domain,explanation,status,created_by_id,created_at,updated_at
+           exam_modes,difficulty,domain,explanation,status,creator_id,created_at,updated_at
          )
          VALUES ($1,$2,$3::question_type,$4,$5,$6,$7,$8,$9::exam_mode[],$10,$11,$12,'active',NULL,now(),$13)
          ON CONFLICT (id) DO UPDATE SET
