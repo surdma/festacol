@@ -1,15 +1,15 @@
 "use server";
 
 import type { ActionResult } from "@/app/actions/student";
-import { seedSubjectsAction, syncQuestionBankAction } from "@/app/actions/admin";
+import {
+  seedSubjectCatalogFromFixtureAction,
+  syncQuestionBankFromFixtureAction,
+} from "@/app/actions/question-bank";
 
-// The seed file may still carry historical subject codes as import metadata,
-// but codes are resolved to canonical subject names inside the server action
-// and are never persisted as subject identity.
 export async function seedSubjectCatalogFromBankAction(): Promise<ActionResult & { count?: number }> {
-  return seedSubjectsAction();
+  return seedSubjectCatalogFromFixtureAction();
 }
 
 export async function syncProductionQuestionBankAction(): Promise<ActionResult & { count?: number }> {
-  return syncQuestionBankAction();
+  return syncQuestionBankFromFixtureAction();
 }
