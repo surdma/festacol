@@ -1,16 +1,21 @@
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StudentLoginForm } from "./login-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { StudentLoginForm } from "./login-form";
 
 export default async function RootPage() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   if (data.user) {
-    const { data: profile } = await supabase.from("academic_profiles").select("role,status").eq("auth_user_id", data.user.id).eq("status", "active").maybeSingle();
-    if (profile?.role === "student") redirect("/dashboard");
-    if (profile?.role === "administrator" || profile?.role === "teacher") redirect("/admin");
+    const { data: member } = await supabase
+      .from("school_members")
+      .select("role,status")
+      .eq("auth_user_id", data.user.id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (member?.role === "student") redirect("/dashboard");
+    if (member?.role === "administrator" || member?.role === "teacher") redirect("/admin");
   }
 
   return (
