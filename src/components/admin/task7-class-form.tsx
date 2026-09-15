@@ -9,13 +9,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import type { AcademicTrack } from "@/types/db";
 
-const PATHWAYS = ["Science", "Arts", "Social Science", "General"] as const;
+const TRACKS: { id: AcademicTrack; label: string }[] = [
+  { id: "science", label: "Science" },
+  { id: "humanities", label: "Humanities" },
+  { id: "business", label: "Business" },
+];
 
 export function Task7ClassFormDialog({ open, onClose, classId }: { open: boolean; onClose: () => void; classId?: string }) {
   const router = useRouter();
   const [classLevel, setClassLevel] = useState("SS1");
-  const [stream, setStream] = useState<(typeof PATHWAYS)[number]>("Science");
+  const [track, setTrack] = useState<AcademicTrack>("science");
   const [arm, setArm] = useState("A");
   const [capacity, setCapacity] = useState(40);
   const [room, setRoom] = useState("");
@@ -27,17 +32,17 @@ export function Task7ClassFormDialog({ open, onClose, classId }: { open: boolean
     setError(null);
     if (!classId) {
       setClassLevel("SS1");
-      setStream("Science");
+      setTrack("science");
       setArm("A");
       setCapacity(40);
       setRoom("");
       return;
     }
     void getClassDetailAction(classId).then((detail) => {
-      const item = detail.classRow as { class_level?: string; stream?: string; arm?: string; capacity?: number; room?: string } | null;
+      const item = detail.classRow as { level_name?: string; track?: AcademicTrack; arm?: string; capacity?: number; room?: string } | null;
       if (!item) { setError("Class record is unavailable."); return; }
-      setClassLevel(item.class_level ?? "SS1");
-      setStream(PATHWAYS.includes(item.stream as (typeof PATHWAYS)[number]) ? item.stream as (typeof PATHWAYS)[number] : "General");
+      setClassLevel(item.level_name ?? "SS1");
+      setTrack(TRACKS.some((candidate) => candidate.id === item.track) ? item.track ?? "science" : "science");
       setArm(item.arm ?? "A");
       setCapacity(Number(item.capacity ?? 40));
       setRoom(item.room ?? "");
@@ -51,7 +56,7 @@ export function Task7ClassFormDialog({ open, onClose, classId }: { open: boolean
       return;
     }
     startTransition(async () => {
-      const result = await upsertClassAction({ id: classId, classLevel, stream, arm, capacity, room });
+      const result = await upsertClassAction({ id: classId, classLevel, track, arm, capacity, room });
       if (!result.ok) { setError(result.error ?? "Class save failed."); return; }
       onClose();
       router.refresh();
@@ -74,11 +79,11 @@ export function Task7ClassFormDialog({ open, onClose, classId }: { open: boolean
               </NativeSelect>
             </Field>
             <Field>
-              <FieldLabel htmlFor="task7-class-pathway">Pathway</FieldLabel>
-              <NativeSelect id="task7-class-pathway" value={stream} onChange={(event) => setStream(event.target.value as (typeof PATHWAYS)[number])}>
-                {PATHWAYS.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}
+              <FieldLabel htmlFor="task7-class-track">Track</FieldLabel>
+              <NativeSelect id="task7-class-track" value={track} onChange={(event) => setTrack(event.target.value as AcademicTrack)}>
+                {TRACKS.map((value) => <NativeSelectOption key={value.id} value={value.id}>{value.label}</NativeSelectOption>)}
               </NativeSelect>
-              <FieldDescription>Science, Arts and Social Science mirror the current prototype pathways. General is for non-specialized cohorts.</FieldDescription>
+              <FieldDescription>Use the canonical Science, Humanities or Business track for this class.</FieldDescription>
             </Field>
             <Field>
               <FieldLabel htmlFor="task7-class-arm">Arm</FieldLabel>
