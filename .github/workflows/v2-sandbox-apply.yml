@@ -1,0 +1,32 @@
+name: V2 Sandbox Apply
+
+on:
+  push:
+    branches:
+      - 'work/academic-relational-schema-v2-validation'
+    paths:
+      - 'scripts/v2_sandbox_apply.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Apply verified sandbox transforms
+        run: python scripts/v2_sandbox_apply.py
+      - name: Commit transformed sources
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "festacol-v2-integration"
+          git config user.email "actions@users.noreply.github.com"
+          git add src prisma supabase prototype
+          git commit -m "fix(app): align relational consumer contracts"
+          git push origin HEAD:work/academic-relational-schema-v2-validation
