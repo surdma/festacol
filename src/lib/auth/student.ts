@@ -28,9 +28,6 @@ export function studentEmailForProfile(profileId: string): string {
 }
 
 export function studentPasswordForProfile(profileId: string): string {
-  // Student UX is still name-based, so this credential is intentionally an
-  // internal Auth wrapper rather than a user-known secret. Authorization is
-  // enforced by the linked academic profile and exam eligibility relations.
   return `fst-v2:${profileId}`;
 }
 
@@ -60,14 +57,15 @@ export async function resolveExistingStudentIdentity(firstName: string, lastName
   if (matches.length !== 1) throw new Error("More than one student has those names. Contact your school administrator to use a unique student identity.");
 
   const profile = matches[0];
-  const { data: student, error: studentError } = await admin
-    .from("student_academic_profiles")
+  const { data: member, error: memberError } = await admin
+    .from("school_members")
     .select("phone,guardian")
-    .eq("profile_id", profile.profile_id)
+    .eq("id", profile.profile_id)
+    .eq("role", "student")
     .maybeSingle();
-  if (studentError) throw new Error(studentError.message);
-  if (!student) throw new Error("Student academic profile is incomplete. Contact your school administrator.");
-  const extension = student as { phone: string; guardian: string };
+  if (memberError) throw new Error(memberError.message);
+  if (!member) throw new Error("Student record is incomplete. Contact your school administrator.");
+  const student = member as { phone: string | null; guardian: string | null };
   return {
     profileId: profile.profile_id,
     authUserId: profile.auth_user_id,
@@ -75,8 +73,8 @@ export async function resolveExistingStudentIdentity(firstName: string, lastName
     lastName: profile.last_name,
     fullName: `${profile.first_name} ${profile.last_name}`.trim(),
     studentNumber: profile.student_number,
-    phone: extension.phone,
-    guardian: extension.guardian,
+    phone: student.phone ?? "",
+    guardian: student.guardian ?? "",
   };
 }
 
