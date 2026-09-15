@@ -17,6 +17,11 @@ async function deleteAll(supabase: Awaited<ReturnType<typeof requireAdmin>>, tab
   if (error) throw new Error(error.message);
 }
 
+function revalidateSchoolData() {
+  revalidatePath("/admin/data-library");
+  revalidatePath("/admin/settings");
+}
+
 export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<ActionResult> {
   try {
     const supabase = await requireAdmin();
@@ -26,7 +31,7 @@ export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<
       await deleteAll(supabase, "exam_sessions");
       revalidatePath("/admin/exams");
       revalidatePath("/admin/reports");
-      revalidatePath("/admin/settings");
+      revalidateSchoolData();
       return { ok: true };
     }
 
@@ -36,14 +41,14 @@ export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<
       revalidatePath("/admin/classes");
       revalidatePath("/admin/exams");
       revalidatePath("/admin/reports");
-      revalidatePath("/admin/settings");
+      revalidateSchoolData();
       return { ok: true };
     }
 
     if (scope === "whatsapp") {
       await deleteAll(supabase, "whatsapp_groups");
       revalidatePath("/admin/classes");
-      revalidatePath("/admin/settings");
+      revalidateSchoolData();
       return { ok: true };
     }
 
@@ -51,12 +56,12 @@ export async function clearAdminDataScopeAction(scope: AdminDataScope): Promise<
       const { error } = await supabase.from("questions").delete().not("creator_id", "is", null);
       if (error) throw new Error(error.message);
       revalidatePath("/admin/questions");
-      revalidatePath("/admin/settings");
+      revalidateSchoolData();
       return { ok: true };
     }
 
-    return { ok: false, error: "Unsupported data-management scope." };
+    return { ok: false, error: "Choose a supported maintenance action." };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Data-management action failed." };
+    return { ok: false, error: error instanceof Error ? error.message : "The maintenance action could not be completed." };
   }
 }
