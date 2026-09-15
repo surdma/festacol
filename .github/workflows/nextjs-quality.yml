@@ -10,6 +10,8 @@ on:
       - 'src/**'
       - 'prisma/**'
       - 'supabase/**'
+      - 'public/seed/**'
+      - 'scripts/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'prisma.config.ts'
@@ -24,6 +26,8 @@ on:
       - 'src/**'
       - 'prisma/**'
       - 'supabase/**'
+      - 'public/seed/**'
+      - 'scripts/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'prisma.config.ts'
@@ -179,6 +183,9 @@ jobs:
       - name: Assert relational admin policy
         run: |
           awk -v target=8 'BEGIN{block=0} /^do \$\$/{block++} block==target{print} block==target && /^end \$\$;/{exit}' supabase/tests/runtime-consumer-cutover.assert.sql | psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      - name: Apply Prisma migration history
+        run: pnpm exec prisma migrate deploy
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
