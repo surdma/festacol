@@ -10,7 +10,7 @@ import {
   adminSecondaryButtonClass,
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
-import { Task7StudentStatusButton } from "@/components/admin/task7-student-status-button";
+import { StudentStatusButton } from "@/components/admin/student-status-button";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -83,7 +83,7 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
                 <td className="px-4 py-3">{averageScore === null ? <span className="text-neutral-400">—</span> : <StatusBadge tone={averageScore >= 70 ? "emerald" : averageScore >= 50 ? "blue" : "amber"}>{averageScore}%</StatusBadge>}</td>
                 <td className="px-4 py-3 text-neutral-700">{placement ?? "—"}</td>
                 <td className="px-4 py-3"><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></td>
-                <td className="px-4 py-3"><div className="flex justify-end gap-2"><Task7StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact /><Button size="icon" variant="outline" render={<Link href={href} />} className={adminIconButtonClass} aria-label={`Open ${user.full_name}`}><MoreHorizontal /></Button></div></td>
+                <td className="px-4 py-3"><div className="flex justify-end gap-2"><StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact /><Button size="icon" variant="outline" render={<Link href={href} />} className={adminIconButtonClass} aria-label={`Open ${user.full_name}`}><MoreHorizontal /></Button></div></td>
               </tr>
             ))}
           </tbody>
@@ -98,7 +98,7 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
               <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{className} · {field || "Unassigned"}</span><span className="mt-1 block truncate text-[11px] text-neutral-400">{attempts} attempt{attempts === 1 ? "" : "s"}{averageScore === null ? "" : ` · avg ${averageScore}%`}{placement ? ` · ${placement}` : ""}</span></span>
               <StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge>
             </Link>
-            <Task7StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact />
+            <StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact />
           </div>
         ))}
       </div>
