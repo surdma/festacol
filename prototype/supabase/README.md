@@ -30,6 +30,17 @@ with it; seed edits patch questions without deleting them.
 > once in SQL Editor — it renames tables with data kept, adds the foreign
 > keys, merges the old split question tables into `questions`, and retires
 > the outdated policies.
+>
+> If admin Question Bank fails with `column questions.created_by does not exist`
+> (or overview/reports stay blank), your database predates the typed question
+> schema that `prototype/js/shared.js` now expects. Run
+> `prototype/supabase/migration_normalize.sql` once in SQL Editor — it adds
+> `created_by` + typed question columns, `subjects`, `question_blanks`,
+> `exam_attempt_answers` / `exam_attempt_subject_stats` / `exam_integrity_events`
+> / `exam_responses`, typed `exam_states` / `exam_background_markers` columns
+> and the matching RLS policies, migrating existing rows in place. The prototype
+> also falls back to the old `origin`/`data` shape pre-migration so pages keep
+> loading, but teacher-question writes need the migration.
 
 To seed the initial school classes (SS1–SS3 + Qualifier pool), run
 `prototype/supabase/seed_classes.sql` — safe to re-run, existing ids are

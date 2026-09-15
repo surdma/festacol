@@ -4,14 +4,42 @@
 -- Live data (1 attempt, 720 questions) is migrated inline before each drop.
 
 -- ============================================================ 0. arrays
-alter table public.subjects
-  alter column streams type text[]
-  using (coalesce(array(select jsonb_array_elements_text(streams)), '{}'));
+-- NOTE: Postgres forbids subqueries in ALTER ... USING (error 0A000
+-- "cannot use subquery in transform expression"), so NEVER do:
+--   ALTER TABLE t ALTER COLUMN c TYPE text[]
+--     USING (coalesce(array(select jsonb_array_elements_text(c)), '{}'));
+-- jsonb -> text[] is done add/update/drop/rename (UPDATE allows the subquery).
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='subjects' and column_name='streams' and data_type = 'jsonb') then
+    alter table public.subjects add column if not exists streams_new text[] not null default '{}';
+    update public.subjects set streams_new = case
+      when jsonb_typeof(streams) = 'array'
+        then coalesce((select array_agg(x) from jsonb_array_elements_text(streams) as x), '{}')
+      else '{}' end;
+    alter table public.subjects drop column streams;
+    alter table public.subjects rename column streams_new to streams;
+  end if;
+end $$;
 alter table public.subjects alter column streams set default '{}';
 
-alter table public.users
-  alter column subjects type text[]
-  using (coalesce(array(select jsonb_array_elements_text(subjects)), '{}'));
+do $$ begin
+  -- 02-policies reference users.subjects (q_teacher_* + qbl_teacher_write via
+  -- the teacher helper). Drop them first; re-run 02-rls-policies.sql after 04.
+  drop policy if exists q_teacher_insert on public.questions;
+  drop policy if exists q_teacher_write on public.questions;
+  drop policy if exists q_teacher_delete on public.questions;
+  drop policy if exists qbl_teacher_write on public.question_blanks;
+  drop function if exists private.teacher_may_access_session(text[], text, text[]) cascade;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='users' and column_name='subjects' and data_type = 'jsonb') then
+    alter table public.users add column if not exists subjects_new text[] not null default '{}';
+    update public.users set subjects_new = case
+      when jsonb_typeof(subjects) = 'array'
+        then coalesce((select array_agg(x) from jsonb_array_elements_text(subjects) as x), '{}')
+      else '{}' end;
+    alter table public.users drop column subjects;
+    alter table public.users rename column subjects_new to subjects;
+  end if;
+end $$;
 alter table public.users alter column subjects set default '{}';
 
 -- ============================================================ 1. sessions
@@ -27,27 +55,63 @@ alter table public.exam_sessions
   add column if not exists placement_tracks_new text[] not null default '{}',
   add column if not exists cohosts_new text[] not null default '{}';
 
-update public.exam_sessions set
-  warn_after = coalesce((integrity_policy->>'warnAfter')::int, 2),
-  focus_monitoring = coalesce((integrity_policy->>'focusMonitoring')::boolean, true),
-  fullscreen_prompt = coalesce((integrity_policy->>'fullscreenPrompt')::boolean, true),
-  clipboard_guard = coalesce((integrity_policy->>'clipboardGuard')::boolean, true),
-  question_order = coalesce((randomization->>'questionOrder')::boolean, true),
-  option_order = coalesce((randomization->>'optionOrder')::boolean, true),
-  minimize_collisions = coalesce((randomization->>'minimizePaperCollisions')::boolean, true),
-  subjects_new = coalesce(array(select jsonb_array_elements_text(subjects)), '{}'),
-  placement_tracks_new = coalesce(array(select jsonb_array_elements_text(placement_tracks)), '{}'),
-  cohosts_new = coalesce(array(select jsonb_array_elements_text(cohosts)), '{}');
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='integrity_policy') then
+    update public.exam_sessions set
+      warn_after = coalesce((integrity_policy->>'warnAfter')::int, warn_after),
+      focus_monitoring = coalesce((integrity_policy->>'focusMonitoring')::boolean, focus_monitoring),
+      fullscreen_prompt = coalesce((integrity_policy->>'fullscreenPrompt')::boolean, fullscreen_prompt),
+      clipboard_guard = coalesce((integrity_policy->>'clipboardGuard')::boolean, clipboard_guard);
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='randomization') then
+    update public.exam_sessions set
+      question_order = coalesce((randomization->>'questionOrder')::boolean, question_order),
+      option_order = coalesce((randomization->>'optionOrder')::boolean, option_order),
+      minimize_collisions = coalesce((randomization->>'minimizePaperCollisions')::boolean, minimize_collisions);
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='subjects' and data_type = 'jsonb') then
+    update public.exam_sessions set subjects_new = case
+      when jsonb_typeof(subjects) = 'array'
+        then coalesce((select array_agg(x) from jsonb_array_elements_text(subjects) as x), '{}')
+      else '{}' end;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='placement_tracks' and data_type = 'jsonb') then
+    update public.exam_sessions set placement_tracks_new = case
+      when jsonb_typeof(placement_tracks) = 'array'
+        then coalesce((select array_agg(x) from jsonb_array_elements_text(placement_tracks) as x), '{}')
+      else '{}' end;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='cohosts' and data_type = 'jsonb') then
+    update public.exam_sessions set cohosts_new = case
+      when jsonb_typeof(cohosts) = 'array'
+        then coalesce((select array_agg(x) from jsonb_array_elements_text(cohosts) as x), '{}')
+      else '{}' end;
+  end if;
+end $$;
 
 alter table public.exam_sessions
   drop column if exists integrity_policy,
-  drop column if exists randomization,
-  drop column if exists subjects,
-  drop column if exists placement_tracks,
-  drop column if exists cohosts;
-alter table public.exam_sessions rename column subjects_new to subjects;
-alter table public.exam_sessions rename column placement_tracks_new to placement_tracks;
-alter table public.exam_sessions rename column cohosts_new to cohosts;
+  drop column if exists randomization;
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='subjects' and data_type = 'jsonb') then
+    alter table public.exam_sessions drop column subjects;
+    alter table public.exam_sessions rename column subjects_new to subjects;
+  else
+    alter table public.exam_sessions drop column if exists subjects_new;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='placement_tracks' and data_type = 'jsonb') then
+    alter table public.exam_sessions drop column placement_tracks;
+    alter table public.exam_sessions rename column placement_tracks_new to placement_tracks;
+  else
+    alter table public.exam_sessions drop column if exists placement_tracks_new;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_sessions' and column_name='cohosts' and data_type = 'jsonb') then
+    alter table public.exam_sessions drop column cohosts;
+    alter table public.exam_sessions rename column cohosts_new to cohosts;
+  else
+    alter table public.exam_sessions drop column if exists cohosts_new;
+  end if;
+end $$;
 
 -- ============================================================ 2. questions
 alter table public.questions
@@ -66,11 +130,13 @@ alter table public.questions
   add column if not exists explanation text not null default '',
   add column if not exists created_by text;
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='questions' and column_name='data') then
 update public.questions set
-  subject_name = coalesce(data->>'subject', ''),
-  label = coalesce(data->>'label', ''),
-  qtype = coalesce(data->>'type', 'single'),
-  prompt = coalesce(data->>'prompt', ''),
+  subject_name = coalesce(data->>'subject', subject_name),
+  label = coalesce(data->>'label', label),
+  qtype = coalesce(data->>'type', qtype),
+  prompt = coalesce(data->>'prompt', prompt),
   options = coalesce(array(select jsonb_array_elements_text(data->'options')), '{}'),
   correct_answers = case
     when coalesce(data->>'type', 'single') in ('fill', 'fill-multi') then '{}'
@@ -89,12 +155,14 @@ update public.questions set
           else coalesce(p->>'text', '') end, '' order by idx)
       from jsonb_array_elements(data->'fillTemplate') with ordinality as t(p, idx))
     end,
-  instruction = coalesce(data->>'instruction', ''),
-  levels = coalesce(array(select jsonb_array_elements_text(data->'levels')), '{}'),
-  exam_modes = coalesce(array(select jsonb_array_elements_text(data->'examModes')), '{}'),
-  difficulty = coalesce(data->>'difficulty', 'medium'),
-  domain = coalesce(data->>'domain', ''),
-  explanation = coalesce(data->>'explanation', '');
+  instruction = coalesce(data->>'instruction', instruction),
+  levels = coalesce(array(select jsonb_array_elements_text(data->'levels')), levels),
+  exam_modes = coalesce(array(select jsonb_array_elements_text(data->'examModes')), exam_modes),
+  difficulty = coalesce(data->>'difficulty', difficulty),
+  domain = coalesce(data->>'domain', domain),
+  explanation = coalesce(data->>'explanation', explanation);
+end if;
+end $$;
 
 create table if not exists public.question_blanks (
   question_id bigint not null references public.questions(id) on delete cascade,
@@ -105,6 +173,8 @@ create table if not exists public.question_blanks (
   primary key (question_id, position)
 );
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='questions' and column_name='data') then
 insert into public.question_blanks (question_id, position, blank_key, placeholder, accepted)
 select b.qid, b.rn - 1, b.bk, b.ph,
   case when jsonb_typeof((b.answers)->(b.rn - 1)) = 'array'
@@ -120,6 +190,8 @@ from (
     and t.p ? 'blank'
 ) b
 on conflict do nothing;
+end if;
+end $$;
 
 alter table public.questions drop column if exists data;
 alter table public.questions drop column if exists origin;
@@ -142,10 +214,14 @@ alter table public.exam_attempts
   add column if not exists assigned_track text,
   add column if not exists placement_confidence integer;
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_attempts' and column_name='placement') then
 update public.exam_attempts set
   assigned_track = placement->>'assignedTrack',
   placement_confidence = (placement->>'confidence')::int
   where placement is not null;
+end if;
+end $$;
 
 create table if not exists public.exam_attempt_answers (
   id bigint generated always as identity primary key,
@@ -164,6 +240,8 @@ create table if not exists public.exam_attempt_answers (
 create index if not exists exam_attempt_answers_attempt_idx
   on public.exam_attempt_answers (attempt_hash);
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_attempts' and column_name='details') then
 insert into public.exam_attempt_answers
   (attempt_hash, session_id, candidate_hash, question_id, subject_code,
    subject_name, correct, response_text, response_values, correct_answer, seconds)
@@ -185,6 +263,8 @@ select a.attempt_hash, a.session_id, a.candidate_hash,
   coalesce((d->>'seconds')::double precision, 0)
 from public.exam_attempts a,
   jsonb_array_elements(a.details) as d;
+end if;
+end $$;
 
 create table if not exists public.exam_attempt_subject_stats (
   attempt_hash text not null references public.exam_attempts(attempt_hash) on delete cascade,
@@ -197,6 +277,8 @@ create table if not exists public.exam_attempt_subject_stats (
   primary key (attempt_hash, subject_code)
 );
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_attempts' and column_name='subject_stats') then
 insert into public.exam_attempt_subject_stats
   (attempt_hash, subject_code, subject_name, total, correct, seconds, percent)
 select a.attempt_hash, coalesce(s->>'subjectCode', ''),
@@ -207,6 +289,8 @@ select a.attempt_hash, coalesce(s->>'subjectCode', ''),
 from public.exam_attempts a,
   jsonb_array_elements(a.subject_stats) as s
 on conflict do nothing;
+end if;
+end $$;
 
 create table if not exists public.exam_integrity_events (
   id bigint generated always as identity primary key,
@@ -220,14 +304,20 @@ create table if not exists public.exam_integrity_events (
 create index if not exists exam_integrity_events_session_idx
   on public.exam_integrity_events (session_id, candidate_hash);
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_attempts' and column_name='integrity_events') then
 insert into public.exam_integrity_events (session_id, candidate_hash, attempt_hash, type, detail, at)
 select a.session_id, a.candidate_hash, a.attempt_hash,
   e->>'type', coalesce(e->>'detail', ''), coalesce((e->>'at')::bigint, 0)
-from public.exam_attempts a, jsonb_array_elements(a.integrity_events) as e
-union all
+from public.exam_attempts a, jsonb_array_elements(a.integrity_events) as e;
+end if;
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_states' and column_name='state') then
+insert into public.exam_integrity_events (session_id, candidate_hash, attempt_hash, type, detail, at)
 select s.session_id, s.candidate_hash, nullif(s.state->>'attemptHash', ''),
   e->>'type', coalesce(e->>'detail', ''), coalesce((e->>'at')::bigint, 0)
 from public.exam_states s, jsonb_array_elements(s.state->'integrityEvents') as e;
+end if;
+end $$;
 
 alter table public.exam_attempts
   drop column if exists details,
@@ -249,6 +339,8 @@ create table if not exists public.exam_responses (
   primary key (session_id, candidate_hash, question_id)
 );
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_states' and column_name='state') then
 insert into public.exam_responses
   (session_id, candidate_hash, question_id, response_text, response_values, seconds, flagged)
 select s.session_id, s.candidate_hash, r.key::bigint,
@@ -269,6 +361,8 @@ select s.session_id, s.candidate_hash, r.key::bigint,
 from public.exam_states s,
   jsonb_each(s.state->'responses') as r(key, value)
 on conflict do nothing;
+end if;
+end $$;
 
 alter table public.exam_states
   add column if not exists started_at bigint,
@@ -281,6 +375,8 @@ alter table public.exam_states
   add column if not exists paper_fingerprint text not null default '',
   add column if not exists question_ids bigint[] not null default '{}';
 
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_states' and column_name='state') then
 update public.exam_states set
   started_at = (state->>'startedAt')::bigint,
   submitted_at = (state->>'submittedAt')::bigint,
@@ -292,6 +388,8 @@ update public.exam_states set
   paper_fingerprint = coalesce(state->>'paperFingerprint', ''),
   question_ids = coalesce(
     array(select (x::bigint) from jsonb_array_elements_text(state->'questionIds') as x), '{}');
+end if;
+end $$;
 
 alter table public.exam_states drop column if exists state;
 
@@ -299,8 +397,12 @@ alter table public.exam_states drop column if exists state;
 alter table public.exam_background_markers
   add column if not exists hidden_at bigint,
   add column if not exists started_at bigint;
+do $$ begin
+if exists (select 1 from information_schema.columns where table_schema='public' and table_name='exam_background_markers' and column_name='marker') then
 update public.exam_background_markers set
   hidden_at = (marker->>'hiddenAt')::bigint,
   started_at = (marker->>'startedAt')::bigint
   where marker is not null;
+end if;
+end $$;
 alter table public.exam_background_markers drop column if exists marker;
