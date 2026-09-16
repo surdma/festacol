@@ -18,6 +18,7 @@ ALTER TABLE public.teaching_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_class_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_offering_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_subject_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_placement_tracks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_session_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_qr_codes ENABLE ROW LEVEL SECURITY;
@@ -46,11 +47,11 @@ BEGIN
         'school_members','academic_years','academic_terms','academic_levels','classes',
         'class_enrollments','subjects','subject_curriculum_rules','class_subject_offerings',
         'student_subject_enrollments','staff_subject_qualifications','teaching_assignments',
-        'exam_sessions','exam_class_targets','exam_offering_targets','exam_placement_tracks',
-        'exam_session_links','exam_qr_codes','exam_staff_assignments','exam_student_access',
-        'exam_retake_grants','exam_attempts','exam_attempt_responses','exam_integrity_events',
-        'questions','question_academic_levels','question_blanks','whatsapp_groups',
-        'member_deletion_audits'
+        'exam_sessions','exam_class_targets','exam_offering_targets','exam_subject_targets',
+        'exam_placement_tracks','exam_session_links','exam_qr_codes','exam_staff_assignments',
+        'exam_student_access','exam_retake_grants','exam_attempts','exam_attempt_responses',
+        'exam_integrity_events','questions','question_academic_levels','question_blanks',
+        'whatsapp_groups','member_deletion_audits'
       ])
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',r.policyname,r.schemaname,r.tablename);
@@ -73,9 +74,9 @@ GRANT SELECT ON public.academic_years,public.academic_terms,public.academic_leve
   public.teaching_assignments TO authenticated;
 
 GRANT SELECT ON public.exam_sessions,public.exam_class_targets,public.exam_offering_targets,
-  public.exam_placement_tracks,public.exam_session_links,public.exam_qr_codes,
-  public.exam_staff_assignments,public.exam_student_access,public.exam_retake_grants,
-  public.exam_attempts TO authenticated;
+  public.exam_subject_targets,public.exam_placement_tracks,public.exam_session_links,
+  public.exam_qr_codes,public.exam_staff_assignments,public.exam_student_access,
+  public.exam_retake_grants,public.exam_attempts TO authenticated;
 
 -- Candidate runtime state lives directly on exam_attempts. Students can update
 -- only transient runtime columns while an attempt is open.
@@ -194,6 +195,12 @@ CREATE POLICY exam_class_targets_access_read ON public.exam_class_targets
     OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
 CREATE POLICY exam_offering_targets_access_read ON public.exam_offering_targets
+  FOR SELECT TO authenticated
+  USING (
+    private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
+  );
+CREATE POLICY exam_subject_targets_access_read ON public.exam_subject_targets
   FOR SELECT TO authenticated
   USING (
     private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
