@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import { useExamTimer, useIntegrityRecorder } from "@/hooks/use-exam";
 import { cn } from "@/lib/utils";
 import type { QuestionDTO } from "@/types/exam";
@@ -30,16 +31,18 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
   const [summary, setSummary] = useState<SubmitSummary | null>(null);
   const [lockedScore, setLockedScore] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const timingsRef = useRef<Record<string, number>>({});
   const activeRef = useRef<{ qid: string; since: number }>({ qid: "", since: Date.now() });
   const elapsedRef = useRef(0);
+  const remainingRef = useRef(durationSeconds);
   const stateRef = useRef({ responses, index, flagged });
   stateRef.current = { responses, index, flagged };
 
   const persist = useCallback(async (rem: number) => {
     const state = stateRef.current;
-    await saveProgressAction(sessionId, {
+    const result = await saveProgressAction(sessionId, {
       responses: state.responses,
       currentIndex: state.index,
       questionTimings: timingsRef.current,
@@ -47,6 +50,8 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
       elapsedActiveSeconds: elapsedRef.current,
       flagged: state.flagged,
     });
+    setSaveError(result.ok ? null : result.error);
+    return result;
   }, [sessionId]);
 
   const flushTiming = useCallback((qid: string) => {
@@ -60,6 +65,7 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
 
   function start() {
     setError(null);
+    setSaveError(null);
     setPhase("loading");
     startTransition(async () => {
       const result = await getExamPaperAction(sessionId);
@@ -87,7 +93,12 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
   const doSubmit = useCallback((reason: string) => {
     startTransition(async () => {
       flushTiming("");
-      await persist(0);
+      const saved = await persist(reason === "time-expired" ? 0 : remainingRef.current);
+      if (!saved.ok) {
+        setError(saved.error);
+        setPhase("review");
+        return;
+      }
       const result = await submitExamAction(sessionId, reason);
       if (result.ok && result.summary) {
         setSummary(result.summary);
@@ -101,14 +112,25 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
 
   const timerActive = phase === "exam" || phase === "review";
   const timer = useExamTimer(remaining, () => doSubmit("time-expired"), timerActive);
+  remainingRef.current = timer.remaining;
   useIntegrityRecorder(timerActive ? sessionId : "");
-  useEffect(() => { elapsedRef.current += 1; }, [timer.remaining]);
+  useEffect(() => {
+    if (timerActive) elapsedRef.current += 1;
+  }, [timer.remaining, timerActive]);
 
   useEffect(() => {
-    if (phase !== "exam" && phase !== "review") return;
-    const timerId = setInterval(() => void persist(timer.remaining), 10000);
-    return () => clearInterval(timerId);
-  }, [phase, persist, timer.remaining]);
+    if (!timerActive) return;
+    const save = () => void persist(remainingRef.current);
+    const timerId = setInterval(save, 10000);
+    const onVisibilityChange = () => {
+      if (document.hidden) save();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(timerId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [timerActive, persist]);
 
   function go(nextIndex: number) {
     flushTiming(String(paper[nextIndex]?.id ?? ""));
@@ -135,14 +157,23 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
             <p>Stay on this tab. Tab switches, window blurs and clipboard use are recorded as integrity events.</p>
             {cameraRequired ? <p>Camera monitoring is required for this exam.</p> : null}
             {error ? <p className="text-destructive" role="alert">{error}</p> : null}
-            <Button onClick={start} disabled={pending}>{pending ? "Preparing paper…" : "Start examination"}</Button>
+            <Button onClick={start} disabled={pending}>
+              {pending ? <><Spinner data-icon="inline-start" />Preparing paper…</> : "Start examination"}
+            </Button>
           </CardContent>
         </Card>
       </FadeUp>
     );
   }
 
-  if (phase === "loading") return <p className="text-center text-sm text-muted-foreground">Preparing your paper…</p>;
+  if (phase === "loading") {
+    return (
+      <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground" role="status" aria-live="polite">
+        <Spinner />
+        Preparing your paper…
+      </div>
+    );
+  }
 
   if (phase === "locked") {
     return (
@@ -182,21 +213,30 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <p className={cn("font-mono text-lg font-semibold tabular-nums", timer.isCritical ? "text-destructive" : timer.isWarning ? "text-amber-600" : "")} aria-live="polite">{timer.format()}</p>
+          <p className={cn("font-mono text-lg font-semibold tabular-nums", timer.isCritical ? "text-destructive" : timer.isWarning ? "text-foreground" : "text-muted-foreground")} aria-live="polite">{timer.format()}</p>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Progress value={Math.max(0, (timer.remaining / Math.max(1, remaining)) * 100)} />
+          {saveError ? <p className="text-sm text-destructive" role="alert">{saveError} Keep this exam open while Festacol retries automatically.</p> : null}
           <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
             {paper.map((item, itemIndex) => {
               const status = responseStatus(item, responses[String(item.id)]);
+              const variant = status === "answered" ? "default" : status === "incomplete" ? "secondary" : "outline";
               return (
-                <button key={item.id} type="button" onClick={() => go(itemIndex)} aria-label={`Question ${itemIndex + 1}: ${status}`}
-                  className={cn("flex size-9 items-center justify-center rounded-md border text-xs tabular-nums",
-                    itemIndex === index && "ring-2 ring-primary",
-                    status === "answered" ? "bg-emerald-600 text-white" : status === "incomplete" ? "bg-amber-400" : "bg-muted",
-                    flagged.includes(String(item.id)) && "outline-2 outline-amber-500")}>
+                <Button
+                  key={item.id}
+                  type="button"
+                  size="icon-sm"
+                  variant={variant}
+                  onClick={() => go(itemIndex)}
+                  aria-label={`Question ${itemIndex + 1}: ${status}`}
+                  className={cn(
+                    itemIndex === index && "ring-2 ring-ring",
+                    flagged.includes(String(item.id)) && "outline-2 outline-offset-1 outline-ring",
+                  )}
+                >
                   {itemIndex + 1}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -220,9 +260,12 @@ export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId
         <Card><CardHeader><CardTitle>Review & submit</CardTitle>
           <CardDescription>{paper.filter((item) => responseStatus(item, responses[String(item.id)]) === "answered").length} of {paper.length} answered</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-2">
+            {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
             <Button variant="outline" onClick={() => setPhase("exam")}>Back to questions</Button>
             <AlertDialog>
-              <AlertDialogTrigger render={<Button disabled={pending} />}>{pending ? "Submitting…" : "Submit examination"}</AlertDialogTrigger>
+              <AlertDialogTrigger render={<Button disabled={pending} />}>
+                {pending ? <><Spinner data-icon="inline-start" />Submitting…</> : "Submit examination"}
+              </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Submit?</AlertDialogTitle>
                   <AlertDialogDescription>This cannot be undone. Unanswered questions score zero.</AlertDialogDescription></AlertDialogHeader>

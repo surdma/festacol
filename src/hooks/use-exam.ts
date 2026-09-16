@@ -5,8 +5,15 @@ import { recordIntegrityAction } from "@/app/actions/exams";
 
 export function useExamTimer(initialRemaining: number, onExpire: () => void, active = true) {
   const [remaining, setRemaining] = useState(initialRemaining);
+  const initialRef = useRef(initialRemaining);
   const cbRef = useRef(onExpire);
   cbRef.current = onExpire;
+
+  useEffect(() => {
+    if (initialRef.current === initialRemaining) return;
+    initialRef.current = initialRemaining;
+    setRemaining(Math.max(0, Math.round(initialRemaining)));
+  }, [initialRemaining]);
 
   useEffect(() => {
     if (!active) return;
