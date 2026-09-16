@@ -48,7 +48,7 @@ export function SubjectsManager({ initial }: { initial: SubjectSettingsRow[] }) 
               <Plus data-icon="inline-start" />
               Add subject
             </SheetTrigger>
-            <SheetContent className="w-[min(92vw,430px)] max-w-none">
+            <SheetContent className="data-[side=right]:w-[min(92vw,430px)] data-[side=right]:sm:max-w-[430px]">
               <SheetHeader>
                 <SheetTitle>Add school subject</SheetTitle>
                 <SheetDescription>Add a canonical subject record when it is not already supplied by the prepared curriculum fixture.</SheetDescription>
