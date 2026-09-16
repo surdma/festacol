@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ActionResult } from "@/app/actions/student";
 import {
   createExamAction,
   getExamDetailAction,
@@ -9,6 +8,8 @@ import {
   updateExamAction,
   type ExamWizardInput,
 } from "@/app/actions/admin";
+import { createQualifierExamAction } from "@/app/actions/qualifier-exams";
+import type { ActionResult } from "@/app/actions/student";
 import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listClasses } from "@/lib/supabase/queries";
@@ -19,6 +20,7 @@ export interface SubjectOption {
   id: string;
   code: string;
   name: string;
+  kind: "curriculum" | "qualifier";
 }
 
 export interface OfferingOption {
@@ -36,6 +38,19 @@ export interface OfferingOption {
   status: string;
 }
 
+export interface CandidateOption {
+  id: string;
+  name: string;
+  studentNumber: string | null;
+  classId: string | null;
+  className: string | null;
+}
+
+export interface ExamCreationInput extends ExamWizardInput {
+  studentIds: string[];
+  placementTracks: AcademicTrack[];
+}
+
 async function staffContext() {
   const context = await currentStaff();
   if (!context.scope.profileId) throw new Error("Staff sign-in required.");
@@ -44,7 +59,7 @@ async function staffContext() {
 
 export async function getSubjectCatalogAction(): Promise<SubjectOption[]> {
   const { admin } = await staffContext();
-  const { data } = await admin.from("subjects").select("id,code,name").eq("active", true).order("name");
+  const { data } = await admin.from("subjects").select("id,code,name,kind").eq("active", true).order("name");
   return (data ?? []) as SubjectOption[];
 }
 
@@ -54,13 +69,15 @@ function curriculumKey(subjectId: string, levelId: string, track: string): strin
 
 export async function getAdminFormOptionsAction() {
   const { admin, scope } = await staffContext();
-  const [subjects, classes, yearsResult, termsResult, offeringsResult, rulesResult] = await Promise.all([
+  const [subjects, classes, yearsResult, termsResult, offeringsResult, rulesResult, studentsResult, enrollmentsResult] = await Promise.all([
     getSubjectCatalogAction(),
     listClasses(admin),
     admin.from("academic_years").select("id,name,status").order("name", { ascending: false }),
     admin.from("academic_terms").select("id,academic_year_id,name,sequence,status").order("sequence"),
     admin.from("class_subject_offerings").select("id,class_id,subject_id,status").in("status", ["active", "draft"]).limit(1000),
     admin.from("subject_curriculum_rules").select("subject_id,level_id,track,participation").limit(5000),
+    admin.from("school_members").select("id,first_name,last_name,student_number").eq("role", "student").eq("status", "active").order("last_name").limit(2000),
+    admin.from("class_enrollments").select("student_id,class_id").eq("status", "active").is("ended_at", null).limit(3000),
   ]);
   const years = (yearsResult.data ?? []) as { id: string; name: string; status: string }[];
   const terms = (termsResult.data ?? []) as { id: string; academic_year_id: string; name: string; sequence: number; status: string }[];
@@ -70,6 +87,7 @@ export async function getAdminFormOptionsAction() {
     ((rulesResult.data ?? []) as { subject_id: string; level_id: string; track: string; participation: "required" | "elective" }[])
       .map((row) => [curriculumKey(row.subject_id, row.level_id, row.track), row.participation]),
   );
+  const classIdByStudent = new Map(((enrollmentsResult.data ?? []) as { student_id: string; class_id: string }[]).map((row) => [row.student_id, row.class_id]));
 
   const offerings: OfferingOption[] = ((offeringsResult.data ?? []) as {
     id: string;
@@ -79,7 +97,7 @@ export async function getAdminFormOptionsAction() {
   }[]).flatMap((row) => {
     const cls = classMap.get(row.class_id);
     const subject = subjectMap.get(row.subject_id);
-    if (!cls || !subject) return [];
+    if (!cls || !subject || subject.kind !== "curriculum") return [];
     const participation = participationByRule.get(curriculumKey(row.subject_id, cls.level_id, cls.track));
     if (!participation) return [];
     return [{
@@ -104,16 +122,34 @@ export async function getAdminFormOptionsAction() {
     { id: "business" as AcademicTrack, name: "Business" },
   ];
 
+  const candidates: CandidateOption[] = ((studentsResult.data ?? []) as {
+    id: string;
+    first_name: string;
+    last_name: string;
+    student_number: string | null;
+  }[]).map((student) => {
+    const classId = classIdByStudent.get(student.id) ?? null;
+    const cls = classId ? classMap.get(classId) : null;
+    return {
+      id: student.id,
+      name: `${student.first_name} ${student.last_name}`.trim(),
+      studentNumber: student.student_number,
+      classId,
+      className: cls?.display_name ?? null,
+    };
+  });
+
   return {
     subjects,
     classes: classes.map((row) => ({
       id: row.id,
       name: row.display_name,
-      class_level: row.level_name,
+      classLevel: row.level_name,
       track: row.track,
-      track_name: row.track_name,
+      trackName: row.track_name,
       status: row.status,
     })),
+    candidates,
     tracks,
     years,
     terms,
@@ -122,14 +158,22 @@ export async function getAdminFormOptionsAction() {
   };
 }
 
-function validateExamShape(input: ExamWizardInput): string | null {
+function validateExamShape(input: ExamCreationInput): string | null {
   if (input.title.trim().length < 3) return "Enter an exam title of at least 3 characters.";
   if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 30 || input.durationSeconds > 10800) return "Duration must be between 30 seconds and 3 hours.";
   if (!Number.isInteger(input.questionCount) || input.questionCount < 5 || input.questionCount > 150) return "Question count must be between 5 and 150.";
   if (!Number.isInteger(input.warnAfter) || input.warnAfter < 1 || input.warnAfter > 10) return "Integrity warning threshold must be between 1 and 10.";
-  if (input.mode === "qualifier" && input.classLevel !== "SS1") return "Qualifier examinations are reserved for SS1.";
   if (input.mode === "waec" && input.classLevel !== "SS3") return "WAEC examinations are configured for SS3.";
+
   const subjectIds = [...new Set(input.subjectIds)];
+  if (input.mode === "qualifier") {
+    if (input.classLevel !== "SS1") return "Qualifier questions use the incoming SS1 readiness level.";
+    if (!subjectIds.length || subjectIds.length > 6) return "Choose between 1 and 6 qualifier subjects.";
+    if (!input.studentIds.length) return "Choose at least one incoming candidate.";
+    if (!input.placementTracks.length) return "Choose at least one placement outcome.";
+    return null;
+  }
+
   if (input.mode === "mixed" && (subjectIds.length < 2 || subjectIds.length > 12)) return "Mixed examinations require between 2 and 12 subjects.";
   if (["single", "waec", "bece", "neco", "jamb"].includes(input.mode) && subjectIds.length !== 1) return "This examination mode requires exactly one subject.";
   if (subjectIds.length && !input.offeringIds.length) return "Subject examinations require explicit class subject offerings.";
@@ -137,7 +181,7 @@ function validateExamShape(input: ExamWizardInput): string | null {
   return null;
 }
 
-async function eligibleQuestionCount(input: ExamWizardInput): Promise<number> {
+async function eligibleQuestionCount(input: ExamCreationInput): Promise<number> {
   const { admin } = await staffContext();
   let query = admin.from("questions").select("id,subject_id,exam_modes").eq("status", "active").limit(5000);
   if (input.subjectIds.length) query = query.in("subject_id", [...new Set(input.subjectIds)]);
@@ -156,33 +200,65 @@ async function eligibleQuestionCount(input: ExamWizardInput): Promise<number> {
   return new Set(((links ?? []) as { question_id: number }[]).map((link) => Number(link.question_id))).size;
 }
 
-export async function getExamCoverageAction(input: ExamWizardInput): Promise<{ ok: boolean; count: number; error?: string }> {
+export async function getExamCoverageAction(input: ExamCreationInput): Promise<{ ok: boolean; count: number; error?: string }> {
   const shapeError = validateExamShape(input);
   if (shapeError) return { ok: false, count: 0, error: shapeError };
   const { admin } = await staffContext();
-  if (input.offeringIds.length) {
+
+  if (input.mode === "qualifier") {
+    const { data: qualifierSubjects, error } = await admin.from("subjects").select("id").in("id", [...new Set(input.subjectIds)]).eq("kind", "qualifier").eq("active", true);
+    if (error) return { ok: false, count: 0, error: error.message };
+    if ((qualifierSubjects ?? []).length !== [...new Set(input.subjectIds)].length) {
+      return { ok: false, count: 0, error: "Qualifier papers may use only active qualifier subjects." };
+    }
+  } else if (input.offeringIds.length) {
     const { data: offerings } = await admin.from("class_subject_offerings").select("id,subject_id,class_id,status").in("id", input.offeringIds);
     const rows = (offerings ?? []) as { id: string; subject_id: string; class_id: string; status: string }[];
     if (rows.length !== [...new Set(input.offeringIds)].length || rows.some((row) => row.status !== "active")) return { ok: false, count: 0, error: "One or more subject offerings are unavailable." };
     const offeredSubjects = new Set(rows.map((row) => row.subject_id));
     if (input.subjectIds.some((subjectId) => !offeredSubjects.has(subjectId))) return { ok: false, count: 0, error: "Every exam subject needs a selected class subject offering." };
   }
+
   const count = await eligibleQuestionCount(input);
   if (count < input.questionCount) return { ok: false, count, error: `Only ${count} eligible questions are available for this paper.` };
   return { ok: true, count };
 }
 
-export async function createExamParityAction(input: ExamWizardInput): Promise<ActionResult & { id?: string }> {
+export async function createExamParityAction(input: ExamCreationInput): Promise<ActionResult & { id?: string }> {
   try {
     const shapeError = validateExamShape(input);
     if (shapeError) return { ok: false, error: shapeError };
     const coverage = await getExamCoverageAction(input);
     if (!coverage.ok) return { ok: false, error: coverage.error };
+
+    if (input.mode === "qualifier") {
+      return createQualifierExamAction({
+        title: input.title,
+        subjectIds: [...new Set(input.subjectIds)],
+        studentIds: [...new Set(input.studentIds)],
+        placementTracks: [...new Set(input.placementTracks)],
+        durationSeconds: input.durationSeconds,
+        questionCount: input.questionCount,
+        status: input.status,
+        instructions: input.instructions,
+        cameraRequired: input.cameraRequired,
+        warnAfter: input.warnAfter,
+      });
+    }
+
     return createExamAction({
-      ...input,
+      title: input.title,
+      classLevel: input.classLevel,
+      mode: input.mode,
       subjectIds: [...new Set(input.subjectIds)],
       offeringIds: [...new Set(input.offeringIds)],
       classIds: [...new Set(input.classIds)],
+      durationSeconds: input.durationSeconds,
+      questionCount: input.questionCount,
+      status: input.status,
+      instructions: input.instructions,
+      cameraRequired: input.cameraRequired,
+      warnAfter: input.warnAfter,
     });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Create failed." };
