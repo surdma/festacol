@@ -7,17 +7,17 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   if (!scope.profileId || (!scope.isAdmin && !scope.isTeacher)) redirect("/admin/login");
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
-      <aside className="lg:sticky lg:top-21">
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-100/70 p-2">
-          <div className="hidden px-3 pb-2 pt-2 lg:block">
-            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-500">{scope.isAdmin ? "School settings" : "My settings"}</p>
-            <p className="mt-1 text-xs leading-5 text-neutral-500">{scope.isAdmin ? "Configure the academic environment and your account." : "Manage the teaching settings available to your role."}</p>
-          </div>
+    <div className="min-w-0">
+      <div className="mb-5 border-b border-border pb-3 lg:hidden">
+        <SettingsNav role={scope.role} />
+      </div>
+
+      <div className="grid min-w-0 gap-7 lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start">
+        <aside className="hidden border-r border-border pr-5 lg:sticky lg:top-20 lg:block lg:min-h-[calc(100dvh-7rem)]">
           <SettingsNav role={scope.role} />
-        </div>
-      </aside>
-      <div className="min-w-0">{children}</div>
+        </aside>
+        <section className="min-w-0 pb-10">{children}</section>
+      </div>
     </div>
   );
 }
