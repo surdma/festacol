@@ -3,15 +3,16 @@
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StaffScopeDialog } from "@/components/admin/staff-provision-dialog";
-import { ClassAcademicRecordDialog, StudentAcademicRecordDialog } from "./academic-record-dialogs";
+import { ClassAcademicRecordDialog } from "./academic-record-dialogs";
 import { ClassFormDialog } from "./class-form-dialog";
 import { AttemptDetailDialog, ExamDetailDialog, ExamEditDialog, QuestionDetailDialog, UserDetailDialog } from "./detail-dialogs";
 import { QuestionFormDialog, UserFormDialog } from "./entity-forms";
 import { ExamWizard } from "./exam-wizard";
+import { StudentDossierDialog } from "./student-dossier-dialog";
 import { StudentFormDialog } from "./student-form-dialog";
 import { WhatsappFormDialog } from "./whatsapp-form-dialog";
 
-const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step"] as const;
+const RECORD_KEYS = ["exam", "student", "staff", "class", "question", "attempt", "group", "step", "view"] as const;
 
 function Host() {
   const params = useSearchParams();
@@ -42,7 +43,7 @@ function Host() {
       <ExamWizard open={modal === "create-exam"} onClose={close} />
       {modal === "exam" && examId ? <ExamDetailDialog examId={examId} onClose={close} /> : null}
       {modal === "exam-edit" && examId ? <ExamEditDialog examId={examId} onClose={close} /> : null}
-      {modal === "student" && studentId ? <StudentAcademicRecordDialog userId={studentId} onClose={close} /> : null}
+      {modal === "student" && studentId ? <StudentDossierDialog userId={studentId} onClose={close} /> : null}
       {modal === "staff" && staffId ? <UserDetailDialog userId={staffId} onClose={close} /> : null}
       {modal === "staff-edit" && staffId ? <StaffScopeDialog staffId={staffId} onClose={close} /> : null}
       {modal === "attempt" && attemptId ? <AttemptDetailDialog attemptId={attemptId} onClose={close} /> : null}
