@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-history-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "history",
+    "subjectName": "Nigerian History",
+    "baseId": 2014000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Early Societies","term":"Nok culture","definition":"an ancient culture in central Nigeria noted for ironworking and distinctive terracotta sculptures"},
+      {"domain":"Trade","term":"Trans-Saharan trade","definition":"the exchange of goods and ideas across the Sahara linking West Africa with North Africa and beyond"},
+      {"domain":"Colonial Era","term":"Colonialism","definition":"political and economic control of a territory by an external power"},
+      {"domain":"Colonial Era","term":"1914 amalgamation","definition":"the British administrative merger of the Northern and Southern Protectorates to form the Colony and Protectorate of Nigeria"},
+      {"domain":"Nationalism","term":"Nationalism","definition":"organized political activity seeking self-government, national unity, and independence from colonial rule"},
+      {"domain":"Independence","term":"Independence","definition":"the attainment of sovereign self-government by Nigeria on 1 October 1960"},
+      {"domain":"Post-Independence","term":"Nigerian Civil War","definition":"the 1967 to 1970 conflict between the Federal Government of Nigeria and the secessionist state of Biafra"},
+      {"domain":"Political History","term":"Military rule","definition":"periods in which Nigeria was governed by military regimes rather than elected civilian administrations"},
+      {"domain":"Political History","term":"Fourth Republic","definition":"Nigeria's current era of continuous civilian constitutional government beginning in 1999"},
+      {"domain":"Regional Relations","term":"ECOWAS","definition":"the regional organization established to promote economic integration and cooperation among West African states"}
+    ]
+  }
+}
