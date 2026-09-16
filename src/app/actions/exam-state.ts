@@ -14,6 +14,10 @@ export type PaperStatus =
   | { status: "locked"; score: number | null }
   | { status: "unavailable"; error: string };
 
+export type SaveProgressResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 interface RuntimeState {
   id: string;
   current_index: number;
@@ -209,9 +213,11 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
 export async function saveProgressAction(
   sessionId: string,
   patch: { responses: Record<string, unknown>; currentIndex: number; questionTimings: Record<string, number>; remainingSeconds: number; elapsedActiveSeconds: number; flagged: string[] },
-): Promise<void> {
+): Promise<SaveProgressResult> {
   const attempt = await latestAttempt(sessionId);
-  if (!attempt || attempt.submitted_at) return;
+  if (!attempt) return { ok: false, error: "No active attempt is available to save." };
+  if (attempt.submitted_at) return { ok: false, error: "This attempt has already been submitted." };
+
   const supabase = await createSupabaseServerClient();
   const now = Date.now();
   const { error: stateError } = await supabase.from("exam_attempts").update({
@@ -221,7 +227,7 @@ export async function saveProgressAction(
     last_active_at: now,
     updated_at: now,
   }).eq("id", attempt.id);
-  if (stateError) return;
+  if (stateError) return { ok: false, error: "Your exam progress could not be saved." };
 
   const flagged = new Set(patch.flagged);
   const rows = Object.entries(patch.responses).map(([questionId, value]) => {
@@ -237,8 +243,11 @@ export async function saveProgressAction(
     };
   });
   if (rows.length) {
-    await supabase.from("exam_attempt_responses").upsert(rows, { onConflict: "attempt_id,question_id" });
+    const { error: responseError } = await supabase.from("exam_attempt_responses").upsert(rows, { onConflict: "attempt_id,question_id" });
+    if (responseError) return { ok: false, error: "Your answers could not be saved." };
   }
+
+  return { ok: true };
 }
 
 export interface SubmitSummary {
