@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-commerce-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "commerce",
+    "subjectName": "Commerce",
+    "baseId": 2027000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Trade","term":"Trade","definition":"the exchange of goods and services between buyers and sellers"},
+      {"domain":"Distribution","term":"Wholesaler","definition":"a trader who buys goods in large quantities from producers and resells them mainly to retailers"},
+      {"domain":"Distribution","term":"Retailer","definition":"a trader who sells goods or services in relatively small quantities directly to final consumers"},
+      {"domain":"Business Services","term":"Insurance","definition":"an arrangement that transfers specified financial risks to an insurer in return for a premium"},
+      {"domain":"Business Services","term":"Banking","definition":"the business of accepting deposits, facilitating payments, and providing financial services and credit"},
+      {"domain":"Aids to Trade","term":"Transport","definition":"the movement of people and goods from one location to another to support production and exchange"},
+      {"domain":"Aids to Trade","term":"Warehousing","definition":"the safe storage of goods until they are needed for distribution, sale, or production"},
+      {"domain":"Promotion","term":"Advertising","definition":"paid non-personal communication used to inform or persuade a target audience about goods, services, or ideas"},
+      {"domain":"Digital Commerce","term":"E-commerce","definition":"the buying and selling of goods or services through electronic networks, especially the internet"},
+      {"domain":"Enterprise","term":"Entrepreneurship","definition":"the process of identifying an opportunity and organizing resources to create and manage a venture while bearing risk"}
+    ]
+  }
+}
