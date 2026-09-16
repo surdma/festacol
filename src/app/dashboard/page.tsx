@@ -11,7 +11,7 @@ import { ExamIdDialog } from "@/components/exam-id-dialog";
 import { LiveExamNotice } from "@/components/live-exam-notice";
 import { MetricCard } from "@/components/metric-card";
 import { FadeUp, Stagger } from "@/components/motion";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -77,21 +77,18 @@ export default async function DashboardHome() {
         <CardContent>
           {active ? (
             resumeHref ? (
-              <Button render={<Link href={resumeHref} />}>
+              <Link href={resumeHref} className={buttonVariants()}>
                 Resume {active.context_snapshot.sessionTitle}
-              </Button>
+              </Link>
             ) : (
               <div className="flex flex-col items-start gap-3">
                 <p className="text-sm text-muted-foreground">
                   Your exam link is unavailable — ask your teacher for a new
                   link.
                 </p>
-                <Button
-                  variant="outline"
-                  render={<Link href="/dashboard/history" />}
-                >
+                <Link href="/dashboard/history" className={buttonVariants({ variant: "outline" })}>
                   Open history
-                </Button>
+                </Link>
               </div>
             )
           ) : (
