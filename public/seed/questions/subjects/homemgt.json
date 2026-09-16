@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-homemgt-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "homemgt",
+    "subjectName": "Home Management",
+    "baseId": 2024000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Resource Management","term":"Budgeting","definition":"planning how available income will be allocated among expected household needs and goals"},
+      {"domain":"Resource Management","term":"Household resource","definition":"money, time, skills, materials, or services available to a household for meeting its needs"},
+      {"domain":"Clothing Care","term":"Laundry","definition":"the process of sorting, washing, drying, and caring for clothing and household textiles"},
+      {"domain":"Home Care","term":"Cleaning","definition":"the planned removal of dirt, waste, and unwanted substances from household spaces and surfaces"},
+      {"domain":"Family Care","term":"Child care","definition":"the provision of safe supervision, nurturing, health support, and developmental needs for children"},
+      {"domain":"Food Management","term":"Meal planning","definition":"the organized selection of meals to satisfy nutritional, financial, cultural, and household requirements"},
+      {"domain":"Safety","term":"Home safety","definition":"practices that reduce hazards and prevent injury, fire, poisoning, and other household accidents"},
+      {"domain":"Consumer Education","term":"Consumer choice","definition":"the selection of goods or services after considering need, quality, price, and available alternatives"},
+      {"domain":"Resource Management","term":"Time management","definition":"the planning and prioritization of activities so that available time is used effectively"},
+      {"domain":"Family Living","term":"Family relationship","definition":"the pattern of interaction, responsibility, communication, and support among members of a family"}
+    ]
+  }
+}
