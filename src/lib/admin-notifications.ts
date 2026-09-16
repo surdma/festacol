@@ -1,6 +1,6 @@
 import type { StaffScope } from "@/lib/auth/staff";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { AdminTopbarNotification } from "@/types/admin";
+import type { ApplicationNotification } from "@/types/admin";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -57,7 +57,7 @@ async function visibleSessionIds(
 export async function getAdminTopbarNotifications(
   supabase: ServerSupabaseClient,
   scope: StaffScope,
-): Promise<AdminTopbarNotification[]> {
+): Promise<ApplicationNotification[]> {
   const [sessionsResult, attemptsResult, eventsResult, classesResult, groupsResult] = await Promise.all([
     supabase.from("exam_sessions").select("id,status,created_by_id").limit(200),
     supabase.from("exam_attempts").select("id,session_id,started_at,submitted_at").limit(500),
@@ -83,18 +83,46 @@ export async function getAdminTopbarNotifications(
   const groupedClasses = new Set(groups.map((group) => group.class_id));
   const missingGroups = scope.isAdmin ? activeClasses.filter((item) => !groupedClasses.has(item.id)) : [];
 
-  const items: AdminTopbarNotification[] = [];
+  const items: ApplicationNotification[] = [];
   if (drafts.length) {
-    items.push({ href: "/workspace/exams?status=draft", title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`, detail: "Open examinations to publish or refine them.", icon: "book", tone: "amber" });
+    items.push({
+      id: "draft-exams",
+      title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`,
+      detail:
+        "There are unpublished examinations in your current staff scope. Review their questions, targeting, duration and controls before deciding whether they are ready to publish.",
+      icon: "book",
+      tone: "amber",
+    });
   }
   if (activeAttempts.length) {
-    items.push({ href: "/workspace/exams", title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`, detail: "Monitor current candidate activity.", icon: "clock", tone: "blue" });
+    items.push({
+      id: "active-attempts",
+      title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`,
+      detail:
+        "Candidates currently have active examination attempts that have not been submitted. Use the examination workspace when you need to inspect live candidate activity.",
+      icon: "clock",
+      tone: "blue",
+    });
   }
   if (integrityAttempts.size) {
-    items.push({ href: "/workspace/reports?view=integrity", title: `${integrityAttempts.size} submitted attempt${integrityAttempts.size === 1 ? " has" : "s have"} integrity events`, detail: "Review exact attempt logs.", icon: "shield", tone: "red" });
+    items.push({
+      id: "integrity-events",
+      title: `${integrityAttempts.size} submitted attempt${integrityAttempts.size === 1 ? " has" : "s have"} integrity events`,
+      detail:
+        "One or more submitted attempts include recorded integrity events. Review the attempt-level integrity history before making any academic or administrative decision.",
+      icon: "shield",
+      tone: "red",
+    });
   }
   if (missingGroups.length) {
-    items.push({ href: "/workspace/classes", title: `${missingGroups.length} active class${missingGroups.length === 1 ? "" : "es"} lack WhatsApp QR access`, detail: "Complete class communication setup.", icon: "qr", tone: "neutral" });
+    items.push({
+      id: "missing-whatsapp-groups",
+      title: `${missingGroups.length} active class${missingGroups.length === 1 ? "" : "es"} lack WhatsApp QR access`,
+      detail:
+        "These active classes do not yet have a linked WhatsApp group record. Complete the class communication setup before distributing parent or student QR access.",
+      icon: "qr",
+      tone: "neutral",
+    });
   }
   return items;
 }
