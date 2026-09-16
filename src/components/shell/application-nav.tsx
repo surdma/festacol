@@ -163,7 +163,7 @@ export function MobileBottomNavigation({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur-xl lg:hidden"
       aria-label="Mobile application navigation"
     >
-      <div className="mx-auto grid max-w-xl grid-cols-5">
+      <div className={cn("mx-auto grid max-w-xl", overflow.length ? "grid-cols-5" : "grid-cols-4")}>
         {primary.map((route) => (
           <MobileNavLink
             key={route.href}
