@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-eco-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "eco",
+    "subjectName": "Economics",
+    "baseId": 2029000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Basic Economic Problems","term":"Scarcity","definition":"the condition in which limited resources are insufficient to satisfy all human wants"},
+      {"domain":"Choice","term":"Opportunity cost","definition":"the value of the next best alternative forgone when a choice is made"},
+      {"domain":"Markets","term":"Demand","definition":"the quantity of a good or service consumers are willing and able to buy at various prices over a period"},
+      {"domain":"Markets","term":"Supply","definition":"the quantity of a good or service producers are willing and able to offer at various prices over a period"},
+      {"domain":"Markets","term":"Market equilibrium","definition":"the market condition in which quantity demanded equals quantity supplied at a particular price"},
+      {"domain":"Macroeconomics","term":"Inflation","definition":"a sustained rise in the general price level that reduces the purchasing power of money"},
+      {"domain":"Macroeconomics","term":"Unemployment","definition":"the condition of people able and willing to work who cannot obtain employment"},
+      {"domain":"National Income","term":"Gross domestic product","definition":"the monetary value of final goods and services produced within a country's borders during a specified period"},
+      {"domain":"Markets","term":"Elasticity","definition":"a measure of how responsive one economic variable is to a change in another variable"},
+      {"domain":"Economic Organization","term":"Market","definition":"an arrangement through which buyers and sellers interact to exchange goods, services, or resources"}
+    ]
+  }
+}
