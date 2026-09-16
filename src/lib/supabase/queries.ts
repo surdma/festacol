@@ -208,9 +208,28 @@ export async function listClasses(client: SupabaseClient): Promise<ClassDirector
   });
 }
 
+const QUESTION_PAGE_SIZE = 1000;
+
 export async function listQuestions(client: SupabaseClient): Promise<QuestionRow[]> {
-  const { data } = await client.from("questions").select("*").order("id").limit(120);
-  return (data ?? []) as QuestionRow[];
+  const questions: QuestionRow[] = [];
+
+  for (let from = 0; ; from += QUESTION_PAGE_SIZE) {
+    const { data, error } = await client
+      .from("questions")
+      .select("*")
+      .order("id", { ascending: true })
+      .range(from, from + QUESTION_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Unable to load the question bank: ${error.message}`);
+    }
+
+    const page = (data ?? []) as QuestionRow[];
+    questions.push(...page);
+    if (page.length < QUESTION_PAGE_SIZE) break;
+  }
+
+  return questions;
 }
 
 export async function listActiveSubjects(client: SupabaseClient): Promise<SubjectRow[]> {
