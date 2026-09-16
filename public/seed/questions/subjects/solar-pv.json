@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-solar-pv-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "solar-pv",
+    "subjectName": "Solar PV Installation and Maintenance",
+    "baseId": 2030000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"PV Fundamentals","term":"Photovoltaic cell","definition":"a semiconductor device that converts light energy directly into direct-current electrical energy"},
+      {"domain":"PV Components","term":"PV module","definition":"an assembly of interconnected photovoltaic cells packaged to produce usable electrical power"},
+      {"domain":"PV Systems","term":"PV array","definition":"a group of photovoltaic modules electrically connected to provide the required system voltage and current"},
+      {"domain":"Power Conversion","term":"Inverter","definition":"a device that converts direct-current electricity into alternating-current electricity"},
+      {"domain":"Charge Management","term":"Charge controller","definition":"a device that regulates electrical charge flowing between a solar array and a battery bank"},
+      {"domain":"Energy Storage","term":"Battery","definition":"an electrochemical device that stores electrical energy in chemical form for later use"},
+      {"domain":"Solar Resource","term":"Irradiance","definition":"the solar power received per unit area on a surface"},
+      {"domain":"Installation","term":"Tilt angle","definition":"the angle between a photovoltaic module surface and the horizontal plane"},
+      {"domain":"Electrical Connections","term":"Series connection","definition":"a circuit arrangement that adds component voltages while the same current flows through each component"},
+      {"domain":"Electrical Connections","term":"Parallel connection","definition":"a circuit arrangement that adds branch currents while maintaining the same voltage across each branch"}
+    ]
+  }
+}
