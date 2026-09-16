@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-chem-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "chem",
+    "subjectName": "Chemistry",
+    "baseId": 2005000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Atomic Structure","term":"Atom","definition":"the smallest particle of an element that retains the chemical properties of that element"},
+      {"domain":"Matter","term":"Element","definition":"a pure substance made of only one type of atom"},
+      {"domain":"Matter","term":"Compound","definition":"a pure substance formed when two or more elements are chemically combined in fixed proportions"},
+      {"domain":"Matter","term":"Mixture","definition":"a physical combination of substances whose components retain their individual properties"},
+      {"domain":"Quantitative Chemistry","term":"Mole","definition":"the amount of substance containing Avogadro's number of specified particles"},
+      {"domain":"Acids and Bases","term":"Acid","definition":"a substance that produces hydrogen ions in aqueous solution or donates protons"},
+      {"domain":"Acids and Bases","term":"Base","definition":"a substance that accepts protons or produces hydroxide ions in aqueous solution"},
+      {"domain":"Redox","term":"Oxidation","definition":"a chemical process involving loss of electrons or an increase in oxidation number"},
+      {"domain":"Reaction Rates","term":"Catalyst","definition":"a substance that changes the rate of a reaction without being consumed overall"},
+      {"domain":"Periodic Chemistry","term":"Periodic table","definition":"an arrangement of chemical elements by atomic number that reveals recurring trends in their properties"}
+    ]
+  }
+}
