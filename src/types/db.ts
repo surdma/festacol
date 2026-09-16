@@ -174,6 +174,12 @@ export interface ExamOfferingTargetRow {
   created_at: string;
 }
 
+export interface ExamSubjectTargetRow {
+  session_id: string;
+  subject_id: string;
+  created_at: string;
+}
+
 export interface ExamPlacementTrackRow {
   session_id: string;
   track: AcademicTrack;
