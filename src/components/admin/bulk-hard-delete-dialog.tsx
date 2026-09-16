@@ -45,6 +45,19 @@ export function BulkHardDeleteDialog({ open, onOpenChange, members, onDeleted }:
     }
   }, [open]);
 
+  function closeDialog() {
+    if (result?.deleted) onDeleted?.();
+    onOpenChange(false);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      closeDialog();
+      return;
+    }
+    onOpenChange(true);
+  }
+
   function removeSelected() {
     if (!members.length || confirmation !== confirmationText) return;
     setResult(null);
@@ -68,13 +81,15 @@ export function BulkHardDeleteDialog({ open, onOpenChange, members, onDeleted }:
       }
 
       setResult({ deleted, errors });
-      if (deleted > 0) onDeleted?.();
-      if (!errors.length) onOpenChange(false);
+      if (!errors.length) {
+        if (deleted > 0) onDeleted?.();
+        onOpenChange(false);
+      }
     });
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="max-w-lg">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -119,7 +134,7 @@ export function BulkHardDeleteDialog({ open, onOpenChange, members, onDeleted }:
               spellCheck={false}
               placeholder={confirmationText}
               aria-invalid={confirmation.length > 0 && confirmation !== confirmationText}
-              disabled={pending}
+              disabled={pending || Boolean(result)}
             />
           </div>
           <div className="grid gap-2">
@@ -129,7 +144,7 @@ export function BulkHardDeleteDialog({ open, onOpenChange, members, onDeleted }:
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               maxLength={280}
-              disabled={pending}
+              disabled={pending || Boolean(result)}
               placeholder="Why these accounts are being removed"
             />
           </div>
@@ -147,11 +162,13 @@ export function BulkHardDeleteDialog({ open, onOpenChange, members, onDeleted }:
         ) : null}
 
         <AlertDialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>Cancel</Button>
-          <Button variant="destructive" onClick={removeSelected} disabled={pending || !members.length || confirmation !== confirmationText}>
-            <Trash2 data-icon="inline-start" />
-            {pending ? "Deleting selected…" : `Delete ${members.length} account${members.length === 1 ? "" : "s"}`}
-          </Button>
+          <Button variant="outline" onClick={closeDialog} disabled={pending}>{result ? "Close" : "Cancel"}</Button>
+          {!result ? (
+            <Button variant="destructive" onClick={removeSelected} disabled={pending || !members.length || confirmation !== confirmationText}>
+              <Trash2 data-icon="inline-start" />
+              {pending ? "Deleting selected…" : `Delete ${members.length} account${members.length === 1 ? "" : "s"}`}
+            </Button>
+          ) : null}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
