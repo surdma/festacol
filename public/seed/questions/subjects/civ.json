@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-civ-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "civ",
+    "subjectName": "Citizenship and Heritage Studies",
+    "baseId": 2002000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Citizenship","term":"Citizenship","definition":"legal membership of a state with associated rights and responsibilities"},
+      {"domain":"Governance","term":"Constitution","definition":"the fundamental rules and principles by which a state is governed"},
+      {"domain":"Governance","term":"Democracy","definition":"a system of government in which citizens participate in choosing their leaders"},
+      {"domain":"Governance","term":"Rule of law","definition":"the principle that everyone, including government, is subject to the law"},
+      {"domain":"Rights","term":"Human rights","definition":"basic freedoms and protections that belong to every person"},
+      {"domain":"Citizenship","term":"Civic responsibility","definition":"a duty citizens perform to support their community and country"},
+      {"domain":"Heritage","term":"National identity","definition":"a shared sense of belonging to a nation and its common symbols and values"},
+      {"domain":"Heritage","term":"Cultural heritage","definition":"traditions, sites, knowledge, and practices inherited from earlier generations"},
+      {"domain":"Governance","term":"Public accountability","definition":"the obligation of public officials to explain and answer for their decisions and use of resources"},
+      {"domain":"Participation","term":"Electoral participation","definition":"citizen involvement in lawful activities connected with choosing public representatives"}
+    ]
+  }
+}
