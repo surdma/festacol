@@ -1,9 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ApplicationTopbar } from "@/components/shell/application-chrome";
-import { ApplicationNav, type ApplicationSurface } from "@/components/shell/application-nav";
+import {
+  ApplicationNav,
+  MobileBottomNavigation,
+  type ApplicationSurface,
+} from "@/components/shell/application-nav";
 import { Toaster } from "@/components/ui/toast";
-import type { AdminTopbarNotification } from "@/types/admin";
+import type { ApplicationNotification } from "@/types/admin";
 
 export function ApplicationShell({
   children,
@@ -20,7 +24,7 @@ export function ApplicationShell({
   role: string;
   profileName: string;
   profileDetail?: string | null;
-  notifications?: AdminTopbarNotification[];
+  notifications?: ApplicationNotification[];
   sidebarStatus?: ReactNode;
   overlays?: ReactNode;
 }) {
@@ -73,12 +77,13 @@ export function ApplicationShell({
           <main
             id="application-root"
             tabIndex={-1}
-            className="mx-auto max-w-[1600px] px-4 py-5 outline-none sm:px-6 lg:px-8"
+            className="mx-auto max-w-[1600px] px-4 pb-28 pt-5 outline-none sm:px-6 lg:px-8 lg:pb-5"
           >
             {children}
           </main>
         </div>
 
+        <MobileBottomNavigation surface={surface} role={role} />
         {overlays}
       </div>
     </Toaster>
