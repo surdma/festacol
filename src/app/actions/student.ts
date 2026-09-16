@@ -55,6 +55,9 @@ export async function signInLinkedStudent(
     );
     if (updateError) return { ok: false, error: updateError.message };
   } else {
+    // Recover the old Auth wrapper if one already exists. This only happens
+    // after the roster member was resolved uniquely, so a free-typed name can
+    // never create or select an academic student record.
     const legacy = await legacyStudentCredential(
       member.firstName,
       member.lastName,
