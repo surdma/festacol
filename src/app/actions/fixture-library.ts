@@ -6,15 +6,39 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { seedSubjectCatalogFromFixtureAction, syncQuestionBankFromFixtureAction } from "@/app/actions/question-bank";
 import { currentStaff } from "@/lib/auth/staff";
+import { QUESTION_FIXTURE_FILES, QUESTION_FIXTURE_SCHEMA_VERSION } from "@/lib/fixture-sources";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type SchoolDataSource = "subjects" | "academic-structure" | "question-bank";
 
+export interface SchoolDataManifestItem {
+  source: SchoolDataSource;
+  title: string;
+  description: string;
+  schemaVersion: number;
+  identifier: string;
+  files: string[];
+  bundledRecords: number;
+  detail: string;
+  dependsOn: SchoolDataSource[];
+  affects: string[];
+  safeguard: string;
+}
+
 type Track = "SCIENCE" | "HUMANITIES" | "BUSINESS";
 type PeriodStatus = "PLANNED" | "ACTIVE" | "CLOSED" | "ARCHIVED";
 
+interface SubjectFixture {
+  schemaVersion: number;
+  fixtureId: string;
+  tracks: string[];
+  levels: string[];
+  subjects: unknown[];
+}
+
 interface ClassFixture {
   schemaVersion: number;
+  fixtureId: string;
   academicYear: { name: string; status: PeriodStatus };
   terms: { name: string; sequence: number; status: PeriodStatus }[];
   levels: { name: string; ordinal: number }[];
@@ -28,6 +52,12 @@ interface ClassFixture {
     status: "ACTIVE" | "INACTIVE";
     offerings: string[];
   }[];
+}
+
+interface QuestionFixture {
+  schemaVersion: number;
+  questionSetId?: string;
+  questions: unknown[];
 }
 
 const TRACK_DB: Record<Track, "science" | "humanities" | "business"> = {
@@ -49,9 +79,13 @@ async function requireAdministrator() {
   return createSupabaseAdminClient();
 }
 
+async function loadJson<T>(relativePath: string): Promise<T> {
+  const raw = await readFile(path.join(process.cwd(), "public", "seed", relativePath), "utf8");
+  return JSON.parse(raw) as T;
+}
+
 async function loadClassFixture(): Promise<ClassFixture> {
-  const raw = await readFile(path.join(process.cwd(), "public", "seed", "classes.json"), "utf8");
-  const fixture = JSON.parse(raw) as ClassFixture;
+  const fixture = await loadJson<ClassFixture>("classes.json");
   if (fixture.schemaVersion !== 5 || !fixture.academicYear?.name || !fixture.levels?.length || !fixture.classes?.length) {
     throw new Error("The prepared class data is incomplete or uses an unsupported version.");
   }
@@ -59,6 +93,71 @@ async function loadClassFixture(): Promise<ClassFixture> {
     throw new Error("The prepared class data contains duplicate class records.");
   }
   return fixture;
+}
+
+export async function getSchoolDataManifestAction(): Promise<SchoolDataManifestItem[]> {
+  await requireAdministrator();
+
+  const [subjects, classes, ...questionFixtures] = await Promise.all([
+    loadJson<SubjectFixture>("subjects.json"),
+    loadClassFixture(),
+    ...QUESTION_FIXTURE_FILES.map((file) => loadJson<QuestionFixture>(file)),
+  ]);
+
+  if (subjects.schemaVersion !== 5 || !subjects.subjects?.length || !subjects.fixtureId) {
+    throw new Error("The prepared subject fixture is unavailable or unsupported.");
+  }
+  for (const [index, fixture] of questionFixtures.entries()) {
+    if (fixture.schemaVersion !== QUESTION_FIXTURE_SCHEMA_VERSION || !Array.isArray(fixture.questions)) {
+      throw new Error(`Unsupported question fixture ${QUESTION_FIXTURE_FILES[index]}.`);
+    }
+  }
+
+  const offeringCount = classes.classes.reduce((total, item) => total + item.offerings.length, 0);
+  const questionCount = questionFixtures.reduce((total, fixture) => total + fixture.questions.length, 0);
+  const baseQuestionId = questionFixtures[0]?.questionSetId ?? "festacol-question-bank";
+
+  return [
+    {
+      source: "subjects",
+      title: "Subject curriculum",
+      description: "Canonical subjects plus level, study-track and required/elective curriculum relationships.",
+      schemaVersion: subjects.schemaVersion,
+      identifier: subjects.fixtureId,
+      files: ["public/seed/subjects.json"],
+      bundledRecords: subjects.subjects.length,
+      detail: `${subjects.tracks.length} study tracks · ${subjects.levels.length} senior levels`,
+      dependsOn: [],
+      affects: ["subjects", "subject_curriculum_rules"],
+      safeguard: "Existing subject identities are matched by code and curriculum rules are rebuilt from the approved fixture.",
+    },
+    {
+      source: "academic-structure",
+      title: "Academic structure",
+      description: "Academic year, terms, senior levels, classes and the subject offerings attached to each class.",
+      schemaVersion: classes.schemaVersion,
+      identifier: classes.fixtureId,
+      files: ["public/seed/classes.json"],
+      bundledRecords: classes.classes.length,
+      detail: `${classes.terms.length} terms · ${classes.levels.length} levels · ${offeringCount} class offerings`,
+      dependsOn: ["subjects"],
+      affects: ["academic_years", "academic_terms", "academic_levels", "classes", "class_subject_offerings"],
+      safeguard: "The loader refuses to create class offerings when referenced curriculum subjects are missing.",
+    },
+    {
+      source: "question-bank",
+      title: "Question bank",
+      description: "The answer-aware senior-secondary bank plus six qualifier subject supplements loaded as one logical source.",
+      schemaVersion: QUESTION_FIXTURE_SCHEMA_VERSION,
+      identifier: baseQuestionId,
+      files: QUESTION_FIXTURE_FILES.map((file) => `public/seed/${file}`),
+      bundledRecords: questionCount,
+      detail: `${QUESTION_FIXTURE_FILES.length} JSON files · senior and qualifier inventory`,
+      dependsOn: ["subjects", "academic-structure"],
+      affects: ["questions", "question_academic_levels", "question_blanks"],
+      safeguard: "Fixture rows use creator_id = null; a staff-authored question with a matching id blocks replacement instead of being overwritten.",
+    },
+  ];
 }
 
 async function syncAcademicStructureFromFixtureAction(): Promise<ActionResult & { count?: number; detail?: string }> {
