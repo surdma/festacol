@@ -32,12 +32,12 @@ export async function signInAdminAction(input: { email: string; password: string
     return { ok: false, error: "This Auth account is not linked to an active staff member." };
   }
 
-  revalidatePath("/admin");
-  return { ok: true, next: input.next && input.next.startsWith("/admin") ? input.next : "/admin" };
+  revalidatePath("/workspace");
+  return { ok: true, next: input.next && input.next.startsWith("/workspace") ? input.next : "/workspace" };
 }
 
 export async function signOutAdminAction() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
-  redirect("/admin/login");
+  redirect("/workspace/login");
 }

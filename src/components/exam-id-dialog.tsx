@@ -8,10 +8,16 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { resolveExamLinkAction } from "@/app/actions/exams";
 
-export function ExamIdDialog() {
+export function ExamIdDialog({
+  initialValue = "",
+  defaultOpen = false,
+}: {
+  initialValue?: string;
+  defaultOpen?: boolean;
+} = {}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [examId, setExamId] = useState("");
+  const [open, setOpen] = useState(defaultOpen);
+  const [examId, setExamId] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 

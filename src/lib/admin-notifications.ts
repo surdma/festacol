@@ -85,16 +85,16 @@ export async function getAdminTopbarNotifications(
 
   const items: AdminTopbarNotification[] = [];
   if (drafts.length) {
-    items.push({ href: "/admin/exams?status=draft", title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`, detail: "Open examinations to publish or refine them.", icon: "book", tone: "amber" });
+    items.push({ href: "/workspace/exams?status=draft", title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`, detail: "Open examinations to publish or refine them.", icon: "book", tone: "amber" });
   }
   if (activeAttempts.length) {
-    items.push({ href: "/admin/exams", title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`, detail: "Monitor current candidate activity.", icon: "clock", tone: "blue" });
+    items.push({ href: "/workspace/exams", title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`, detail: "Monitor current candidate activity.", icon: "clock", tone: "blue" });
   }
   if (integrityAttempts.size) {
-    items.push({ href: "/admin/reports?view=integrity", title: `${integrityAttempts.size} submitted attempt${integrityAttempts.size === 1 ? " has" : "s have"} integrity events`, detail: "Review exact attempt logs.", icon: "shield", tone: "red" });
+    items.push({ href: "/workspace/reports?view=integrity", title: `${integrityAttempts.size} submitted attempt${integrityAttempts.size === 1 ? " has" : "s have"} integrity events`, detail: "Review exact attempt logs.", icon: "shield", tone: "red" });
   }
   if (missingGroups.length) {
-    items.push({ href: "/admin/classes", title: `${missingGroups.length} active class${missingGroups.length === 1 ? "" : "es"} lack WhatsApp QR access`, detail: "Complete class communication setup.", icon: "qr", tone: "neutral" });
+    items.push({ href: "/workspace/classes", title: `${missingGroups.length} active class${missingGroups.length === 1 ? "" : "es"} lack WhatsApp QR access`, detail: "Complete class communication setup.", icon: "qr", tone: "neutral" });
   }
   return items;
 }

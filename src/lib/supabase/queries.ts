@@ -59,9 +59,19 @@ export async function listUsers(
     .order("first_name")
     .limit(200);
   memberQuery = role === "student" ? memberQuery.eq("role", "student") : memberQuery.in("role", ["teacher", "administrator"]);
-  if (q) {
-    const escaped = q.replaceAll(",", " ");
-    memberQuery = memberQuery.or(`first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%`);
+  // Name search plus short-ID search. Commas are PostgREST OR separators, so
+  // they are neutralized first; `%` is stripped so callers cannot inject
+  // wildcards. An exact (case-insensitive) student/staff number match is
+  // included so a full FST-XXXXX / legacy STD- ID jumps straight to its row.
+  // No status or enrollment filter is applied here: status=all (including
+  // class-less placement students) is filtered in memory by the caller.
+  if (q.trim()) {
+    const raw = q.trim().replaceAll(",", " ").replace(/[%"]/g, "");
+    const escaped = raw.slice(0, 80);
+    const upper = escaped.toUpperCase();
+    memberQuery = memberQuery.or(
+      `first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,student_number.ilike.%${escaped}%,staff_number.ilike.%${escaped}%,student_number.eq.${upper},staff_number.eq.${upper}`,
+    );
   }
   const { data: memberData } = await memberQuery;
   const members = (memberData ?? []) as {

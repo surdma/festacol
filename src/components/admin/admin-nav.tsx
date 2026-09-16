@@ -12,19 +12,19 @@ interface AdminRoute {
 }
 
 const routes: AdminRoute[] = [
-  { href: "/admin", label: "Overview", icon: "home" },
-  { href: "/admin/students", label: "Students", icon: "users" },
-  { href: "/admin/staff", label: "Staff", icon: "staff", administratorOnly: true },
-  { href: "/admin/exams", label: "Examinations", icon: "book" },
-  { href: "/admin/classes", label: "Classes", icon: "school" },
-  { href: "/admin/questions", label: "Question Bank", icon: "book" },
-  { href: "/admin/reports", label: "Reports", icon: "chart" },
-  { href: "/admin/settings", label: "Settings", icon: "cog" },
-  { href: "/admin/data-library", label: "School Data", icon: "school", administratorOnly: true },
+  { href: "/workspace", label: "Overview", icon: "home" },
+  { href: "/workspace/students", label: "Students", icon: "users" },
+  { href: "/workspace/staff", label: "Staff", icon: "staff", administratorOnly: true },
+  { href: "/workspace/exams", label: "Examinations", icon: "book" },
+  { href: "/workspace/classes", label: "Classes", icon: "school" },
+  { href: "/workspace/questions", label: "Question Bank", icon: "book" },
+  { href: "/workspace/reports", label: "Reports", icon: "chart" },
+  { href: "/workspace/settings", label: "Settings", icon: "cog" },
+  { href: "/workspace/data-library", label: "School Data", icon: "school", administratorOnly: true },
 ];
 
 function isCurrent(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return href === "/workspace" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function visibleRoutes(role?: string) {

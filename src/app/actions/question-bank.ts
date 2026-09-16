@@ -101,8 +101,8 @@ export async function seedSubjectCatalogFromFixtureAction(): Promise<ActionResul
       if (error) return { ok: false, error: error.message };
     }
 
-    revalidatePath("/admin/settings");
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/settings");
+    revalidatePath("/workspace/classes");
     return { ok: true, count: fixture.subjects.length };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Subject fixture sync failed." };
@@ -295,8 +295,8 @@ export async function syncQuestionBankBatchAction(offset: number, limit: number)
 
     const done = Math.min(total, safeOffset + slice.length);
     if (done >= total) {
-      revalidatePath("/admin/questions");
-      revalidatePath("/admin/settings");
+      revalidatePath("/workspace/questions");
+      revalidatePath("/workspace/settings");
     }
     return { ok: true, done, total };
   } catch (error) {

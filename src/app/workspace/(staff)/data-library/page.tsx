@@ -20,7 +20,7 @@ import { currentStaff } from "@/lib/auth/staff";
 
 export default async function SchoolDataLibraryPage() {
   const { supabase, scope } = await currentStaff();
-  if (!scope.isAdmin) redirect("/admin/settings");
+  if (!scope.isAdmin) redirect("/workspace/settings");
 
   const [manifest, { count: subjects }, { count: levels }, { count: classes }, { count: questions }] = await Promise.all([
     getSchoolDataManifestAction(),
@@ -41,7 +41,7 @@ export default async function SchoolDataLibraryPage() {
         title="School study content"
         description="Publish approved study content, clear old records with exact counts first, or see what is stored where."
         actions={
-          <Button variant="outline" nativeButton={false} render={<Link href="/admin/settings" />}>
+          <Button variant="outline" nativeButton={false} render={<Link href="/workspace/settings" />}>
             Back to settings
           </Button>
         }

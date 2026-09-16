@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AdminLiveBadge } from "@/app/admin/live-badge";
+import { AdminLiveBadge } from "@/app/workspace/(staff)/live-badge";
 import { AdminNav, useAdminNavItem } from "@/components/admin/admin-nav";
 import { PrototypeAdminIcon } from "@/components/admin/prototype-admin-icon";
 import {
@@ -36,7 +36,7 @@ const iconName: Record<AdminTopbarNotification["icon"], "book" | "clock" | "shie
 
 export function AdminSidebarBrand() {
   return (
-    <Link href="/admin" className="flex items-center gap-3">
+    <Link href="/workspace" className="flex items-center gap-3">
       <span className="grid size-10 place-items-center rounded-xl bg-white font-display text-sm font-black text-neutral-950 shadow-sm">F</span>
       <span><strong className="block font-display text-base">Festacol</strong><span className="text-xs text-neutral-400">Academic operations</span></span>
     </Link>
@@ -102,7 +102,7 @@ export function AdminTopbar({ notifications, role }: { notifications: AdminTopba
           onSubmit={(event) => {
             event.preventDefault();
             const value = query.trim();
-            router.push(value ? `/admin/students?q=${encodeURIComponent(value)}` : "/admin/students");
+            router.push(value ? `/workspace/students?q=${encodeURIComponent(value)}` : "/workspace/students");
           }}
         >
           <label>
@@ -112,7 +112,7 @@ export function AdminTopbar({ notifications, role }: { notifications: AdminTopba
           </label>
         </form>
 
-        <Link href="/admin/exams?modal=create-exam" className={`${btnPrimary} hidden sm:inline-flex`}>
+        <Link href="/workspace/exams?modal=create-exam" className={`${btnPrimary} hidden sm:inline-flex`}>
           <PrototypeAdminIcon name="plus" className="size-4 shrink-0" />Create exam
         </Link>
 

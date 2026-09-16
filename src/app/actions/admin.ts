@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import type { ActionResult } from "@/app/actions/student";
 import {
   upsertClassAction as upsertCanonicalClassAction,
   upsertClassOfferingAction as upsertCanonicalOfferingAction,
@@ -11,7 +10,13 @@ import {
   seedSubjectCatalogFromFixtureAction,
   syncQuestionBankFromFixtureAction,
 } from "@/app/actions/question-bank";
+import type { ActionResult } from "@/app/actions/student";
 import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/auth/staff";
+import {
+  generateStudentNumber,
+  normalizeStudentNumber,
+  STUDENT_ID_CONFLICT_ERROR,
+} from "@/lib/auth/student";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
 
@@ -190,7 +195,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       return { ok: false, error: error instanceof Error ? error.message : "Exam relationships could not be saved." };
     }
 
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Create failed." };
@@ -222,7 +227,7 @@ export async function updateExamAction(
       updated_at: Date.now(),
     }).eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
@@ -294,7 +299,7 @@ export async function deleteExamAction(id: string): Promise<ActionResult> {
     if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
     const { error } = await ctx.admin.from("exam_sessions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -302,22 +307,71 @@ export async function deleteExamAction(id: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------- students
-export async function upsertUserAction(input: { id?: string; fullName: string; role: string; classId?: string; guardian?: string }): Promise<ActionResult> {
+export interface UpsertUserInput {
+  id?: string;
+  /** Legacy single-field form. Must contain at least two name tokens. */
+  fullName?: string;
+  /** Preferred split form. When either is present both are required. */
+  firstName?: string;
+  lastName?: string;
+  /** Optional editable short ID (FST-XXXXX). Normalized to uppercase. */
+  studentNumber?: string;
+  role: string;
+  classId?: string;
+  guardian?: string;
+}
+
+const SPLIT_NAME_ERROR = "Enter the student's first and last name.";
+const STUDENT_ID_FORMAT_ERROR = "Enter a valid Student ID (for example FST-XXXXX).";
+
+function collapseName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function resolveStudentNames(input: UpsertUserInput): { firstName: string; lastName: string } | { error: string } {
+  const hasSplit = input.firstName !== undefined || input.lastName !== undefined;
+  if (hasSplit) {
+    const firstName = collapseName(input.firstName ?? "");
+    const lastName = collapseName(input.lastName ?? "");
+    if (firstName.length < 2 || lastName.length < 2) return { error: SPLIT_NAME_ERROR };
+    return { firstName, lastName };
+  }
+  const parts = collapseName(input.fullName ?? "").split(" ").filter(Boolean);
+  if (parts.length < 2) return { error: SPLIT_NAME_ERROR };
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(" ");
+  if (firstName.length < 2 || lastName.length < 2) return { error: SPLIT_NAME_ERROR };
+  return { firstName, lastName };
+}
+
+export async function upsertUserAction(input: UpsertUserInput): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
     if (input.role !== "student") return { ok: false, error: "Staff accounts are provisioned from Staff management." };
     if (input.classId && !(await teacherMayManageClass(ctx, input.classId))) return { ok: false, error: "You are not assigned to this class." };
-    const parts = input.fullName.trim().split(/\s+/).filter(Boolean);
-    const firstName = parts[0] ?? "";
-    const lastName = parts.slice(1).join(" ") || firstName;
-    if (firstName.length < 2) return { ok: false, error: "Enter a valid name." };
+    const names = resolveStudentNames(input);
+    if ("error" in names) return { ok: false, error: names.error };
+    const { firstName, lastName } = names;
 
     const memberId = input.id ?? randomUUID();
     if (input.id) {
       const { data: existing } = await ctx.admin.from("school_members").select("id,role").eq("id", input.id).maybeSingle();
       if (!existing || (existing as { role: string }).role !== "student") return { ok: false, error: "Student was not found." };
     }
-    const payload = {
+
+    const explicitRaw = input.studentNumber?.trim() ?? "";
+    let explicitNumber: string | null = null;
+    if (explicitRaw) {
+      explicitNumber = normalizeStudentNumber(explicitRaw);
+      if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(explicitNumber)) {
+        return { ok: false, error: STUDENT_ID_FORMAT_ERROR };
+      }
+      const { data: clash } = await ctx.admin.from("school_members").select("id").eq("student_number", explicitNumber).maybeSingle();
+      const clashId = (clash as { id?: string } | null)?.id;
+      if (clashId && clashId !== memberId) return { ok: false, error: STUDENT_ID_CONFLICT_ERROR };
+    }
+
+    const basePayload = {
       id: memberId,
       role: "student",
       status: "active",
@@ -326,10 +380,49 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
       guardian: input.guardian?.trim() || null,
       promotion_status: "on-track",
       updated_at: new Date().toISOString(),
-      ...(input.id ? {} : { student_number: `STD-${Date.now().toString(36).toUpperCase()}` }),
     };
-    const { error: memberError } = await ctx.admin.from("school_members").upsert(payload);
-    if (memberError) return { ok: false, error: memberError.message };
+    // Updates without an explicit ID keep the existing student_number.
+    // Creates generate a fresh FST-XXXXX with write-conflict retry (3 attempts).
+    if (explicitNumber) {
+      const { error: memberError } = await ctx.admin
+        .from("school_members")
+        .upsert({ ...basePayload, student_number: explicitNumber });
+      if (memberError) {
+        const conflict =
+          (memberError as { code?: string }).code === "23505" ||
+          /duplicate|already exists/i.test(memberError.message);
+        return { ok: false, error: conflict ? STUDENT_ID_CONFLICT_ERROR : memberError.message };
+      }
+    } else if (input.id) {
+      const { error: memberError } = await ctx.admin.from("school_members").upsert(basePayload);
+      if (memberError) return { ok: false, error: memberError.message };
+    } else {
+      let saved = false;
+      let lastError = "";
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const candidate = generateStudentNumber();
+        const { error } = await ctx.admin
+          .from("school_members")
+          .upsert({ ...basePayload, student_number: candidate });
+        if (!error) {
+          saved = true;
+          break;
+        }
+        lastError = error.message;
+        const conflict =
+          (error as { code?: string }).code === "23505" ||
+          /duplicate|already exists/i.test(error.message);
+        if (!conflict) return { ok: false, error: error.message };
+      }
+      if (!saved) {
+        return {
+          ok: false,
+          error: /duplicate|already exists/i.test(lastError)
+            ? STUDENT_ID_CONFLICT_ERROR
+            : lastError || "Save failed.",
+        };
+      }
+    }
 
     if (input.classId) {
       await ctx.admin.from("class_enrollments").update({ status: "ended", ended_at: new Date().toISOString() }).eq("student_id", memberId).eq("status", "active").neq("class_id", input.classId);
@@ -341,8 +434,8 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
       }, { onConflict: "student_id,class_id" });
       if (enrollmentError) return { ok: false, error: enrollmentError.message };
     }
-    revalidatePath("/admin/students");
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/students");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -362,7 +455,7 @@ export async function toggleUserAction(id: string, active: boolean): Promise<Act
     }
     const { error } = await ctx.admin.from("school_members").update({ status: active ? "active" : "inactive", updated_at: new Date().toISOString() }).eq("id", row.id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/students");
+    revalidatePath("/workspace/students");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
@@ -385,7 +478,7 @@ export async function deleteClassOfferingAction(id: string): Promise<ActionResul
     if ((count ?? 0) > 0) return { ok: false, error: "This offering is used by an examination. End it instead of deleting it." };
     const { error } = await ctx.admin.from("class_subject_offerings").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Offering delete failed." };
@@ -399,7 +492,7 @@ export async function deleteClassAction(id: string): Promise<ActionResult> {
     if ((count ?? 0) > 0) return { ok: false, error: "Move active students before deleting this class." };
     const { error } = await ctx.admin.from("classes").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -416,7 +509,7 @@ export async function upsertWhatsappAction(input: { id?: string; classId: string
       ? await ctx.admin.from("whatsapp_groups").update({ class_id: input.classId, name: input.name, invite_url: input.inviteUrl, updated_at: now }).eq("id", input.id)
       : await ctx.admin.from("whatsapp_groups").insert({ id: `WA-${Date.now().toString(36).toUpperCase()}`, class_id: input.classId, name: input.name, invite_url: input.inviteUrl, created_at: now, updated_at: now });
     if (write.error) return { ok: false, error: write.error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -428,7 +521,7 @@ export async function deleteWhatsappAction(id: string): Promise<ActionResult> {
     const ctx = await requireAdmin();
     const { error } = await ctx.admin.from("whatsapp_groups").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -513,7 +606,7 @@ async function upsertQuestionCore(input: {
       if (error) return { ok: false, error: error.message };
     }
   }
-  revalidatePath("/admin/questions");
+  revalidatePath("/workspace/questions");
   return { ok: true, id };
 }
 
@@ -527,7 +620,7 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
     if (!ctx.scope.isAdmin && question.creator_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
     const { error } = await ctx.admin.from("questions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/questions");
+    revalidatePath("/workspace/questions");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -556,7 +649,7 @@ export async function authorizeRewriteAction(attemptId: string): Promise<ActionR
       p_reason: "Authorized from attempt review",
     });
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Retake authorization failed." };
@@ -677,7 +770,7 @@ export async function updateCohostsAction(examIdValue: string, cohosts: string[]
       const { error } = await ctx.admin.from("exam_staff_assignments").insert(staffIds.map((staffId) => ({ session_id: examIdValue, staff_id: staffId, role: "cohost" })));
       if (error) return { ok: false, error: error.message };
     }
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
@@ -709,8 +802,8 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
       { onConflict: "staff_id,subject_id" },
     );
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin");
-    revalidatePath("/admin/staff");
+    revalidatePath("/workspace");
+    revalidatePath("/workspace/staff");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -752,7 +845,7 @@ export async function upsertSubjectAction(input: { id?: string; name: string }):
       ? await ctx.admin.from("subjects").update({ name, updated_at: new Date().toISOString() }).eq("id", id)
       : await ctx.admin.from("subjects").insert({ id, code: subjectCode(name), name, kind: "curriculum", active: true });
     if (write.error) return { ok: false, error: write.error.message };
-    revalidatePath("/admin/settings");
+    revalidatePath("/workspace/settings");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -764,7 +857,7 @@ export async function toggleSubjectAction(subjectId: string, active: boolean): P
     const ctx = await requireAdmin();
     const { error } = await ctx.admin.from("subjects").update({ active, updated_at: new Date().toISOString() }).eq("id", subjectId);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/settings");
+    revalidatePath("/workspace/settings");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };

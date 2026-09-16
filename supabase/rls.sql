@@ -113,6 +113,13 @@ CREATE POLICY school_members_self_update ON public.school_members
   USING (id = private.current_school_member_id())
   WITH CHECK (id = private.current_school_member_id());
 
+-- Staff directory visibility. The workspace directory (listUsers) runs under
+-- the staff member's own authenticated session, so staff need a readable
+-- school_members surface. Writes stay service-role-only via Server Actions.
+CREATE POLICY school_members_staff_read ON public.school_members
+  FOR SELECT TO authenticated
+  USING (private.is_staff());
+
 -- --------------------------------------------------------------- catalog read
 CREATE POLICY academic_years_read ON public.academic_years
   FOR SELECT TO authenticated USING (true);

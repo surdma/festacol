@@ -41,7 +41,7 @@ export default async function RootPage({
           `/denied?from=${encodeURIComponent(next)}&reason=staff-on-student`,
         );
       }
-      redirect("/admin");
+      redirect("/workspace");
     }
   }
 

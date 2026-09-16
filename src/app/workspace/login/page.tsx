@@ -17,7 +17,7 @@ export default async function AdminLoginPage({
 }) {
   const next = (await searchParams).next;
   const safeNext =
-    next && next.startsWith("/admin") && !next.startsWith("//")
+    next && next.startsWith("/workspace") && !next.startsWith("//")
       ? next
       : undefined;
   // Role separation: students must never see or reuse the staff login while
@@ -33,10 +33,10 @@ export default async function AdminLoginPage({
       .maybeSingle();
     const role = (member as { role?: string } | null)?.role;
     if (role === "teacher" || role === "administrator")
-      redirect(safeNext ?? "/admin");
+      redirect(safeNext ?? "/workspace");
     if (role === "student") {
       redirect(
-        `/denied?from=${encodeURIComponent(safeNext ?? "/admin")}&reason=student-on-staff`,
+        `/denied?from=${encodeURIComponent(safeNext ?? "/workspace")}&reason=student-on-staff`,
       );
     }
   }

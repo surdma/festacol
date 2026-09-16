@@ -23,7 +23,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
         setError(result.error ?? "Sign in failed.");
         return;
       }
-      router.push(result.next ?? "/admin");
+      router.push(result.next ?? "/workspace");
       router.refresh();
     });
   }

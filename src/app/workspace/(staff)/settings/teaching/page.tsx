@@ -16,7 +16,7 @@ function titleCase(value: string) {
 
 export default async function TeachingSettingsPage() {
   const { supabase, scope } = await currentStaff();
-  if (!scope.isTeacher || !scope.profileId) redirect("/admin/settings");
+  if (!scope.isTeacher || !scope.profileId) redirect("/workspace/settings");
 
   const { data: assignmentRows } = await supabase
     .from("teaching_assignments")

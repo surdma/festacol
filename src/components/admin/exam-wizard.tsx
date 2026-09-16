@@ -287,7 +287,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
         title: form.mode === "qualifier" ? "Placement examination created" : "Examination created",
         description: `${form.title} is ready for review.`,
       });
-      router.replace(`/admin/exams?modal=exam&exam=${encodeURIComponent(result.id)}`, { scroll: false });
+      router.replace(`/workspace/exams?modal=exam&exam=${encodeURIComponent(result.id)}`, { scroll: false });
     });
   }
 

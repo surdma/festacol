@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { ExamIdDialog } from "@/components/exam-id-dialog";
 import { FadeUp } from "@/components/motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { currentStudent } from "@/lib/auth/current-student";
@@ -55,7 +54,6 @@ export default async function ProgressPage() {
           </CardContent>
         </Card>
       </div>
-      <ExamIdDialog />
     </FadeUp>
   );
 }

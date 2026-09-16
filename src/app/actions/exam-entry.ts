@@ -16,6 +16,20 @@ function cleanName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+// Machine-readable entry outcome for the exam-link form. `entered` means the
+// student session is ready and the client should route to the exam surface.
+// `placement-first` means this class exam cannot admit the unknown name on
+// its own (zero or several targeted classes) — the client should direct the
+// candidate to a placement exam first. `not-eligible` means an explicit deny
+// grant blocks this student — deny always wins and the client must not offer
+// a retry path into the same exam.
+export type ExamEntryNext = "entered" | "placement-first" | "not-eligible";
+
+export interface ExamEntryResult extends ActionResult {
+  next?: ExamEntryNext;
+  examId?: string;
+}
+
 // Name-based exam entry. Known roster students sign straight in (placement
 // exams also get an explicit grant); unknown names are provisioned as new
 // student accounts. Placement exams admit anyone; class exams admit unknown
@@ -27,7 +41,7 @@ export async function enterExamByNameAction(input: {
   token: string;
   firstName: string;
   lastName: string;
-}): Promise<ActionResult> {
+}): Promise<ExamEntryResult> {
   const parsed = studentLoginSchema.safeParse({
     firstName: input.firstName,
     lastName: input.lastName,
@@ -168,18 +182,38 @@ export async function enterExamByNameAction(input: {
 
   async function signInMember(
     member: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>,
-  ): Promise<ActionResult> {
+  ): Promise<ExamEntryResult> {
     const result = await signInLinkedStudent(member);
     if (!result.ok) return result;
     revalidatePath("/dashboard/exam");
-    return { ok: true };
+    return { ok: true, next: "entered", examId };
+  }
+
+  async function explicitDeny(studentId: string): Promise<boolean> {
+    const { data } = await admin
+      .from("exam_student_access")
+      .select("decision")
+      .eq("session_id", examId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    return (data as { decision?: string } | null)?.decision === "deny";
   }
 
   try {
     const member = await resolveExistingStudentIdentity(firstName, lastName);
+    // Deny always wins — even for known roster students on class exams that
+    // otherwise rely on my_exam_access at the exam surface.
+    if (await explicitDeny(member.memberId)) {
+      return {
+        ok: false,
+        error: "This examination is not assigned to you.",
+        next: "not-eligible",
+      };
+    }
     if (isPlacement) {
       const grantError = await grantOpenAccess(member.memberId);
-      if (grantError) return { ok: false, error: grantError };
+      if (grantError)
+        return { ok: false, error: grantError, next: "not-eligible" };
     }
     return await signInMember(member);
   } catch (error) {
@@ -197,7 +231,8 @@ export async function enterExamByNameAction(input: {
         return {
           ok: false,
           error:
-            "No student record matches those names and this exam covers several classes. Ask your school to register you first, then sign in.",
+            "No student record matches those names and this exam covers several classes. Ask your school to register you first, or start with a placement exam.",
+          next: "placement-first",
         };
       }
     }
@@ -218,7 +253,8 @@ export async function enterExamByNameAction(input: {
       if (enrollError) return { ok: false, error: enrollError };
     }
     const grantError = await grantOpenAccess(member.memberId);
-    if (grantError) return { ok: false, error: grantError };
+    if (grantError)
+      return { ok: false, error: grantError, next: "not-eligible" };
     return await signInMember(member);
   }
 }

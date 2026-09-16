@@ -45,7 +45,7 @@ export default async function DeniedPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Button render={<Link href="/" />}>Go to student sign in</Button>
-          <Button variant="outline" render={<Link href="/admin/login" />}>
+          <Button variant="outline" render={<Link href="/workspace/login" />}>
             Go to staff sign in
           </Button>
           {from ? (

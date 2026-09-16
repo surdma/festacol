@@ -1,7 +1,7 @@
 import { BookOpenCheck, CalendarDays, Database, School } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SubjectsManager } from "@/app/admin/settings/subjects-manager";
+import { SubjectsManager } from "@/app/workspace/(staff)/settings/subjects-manager";
 import { AdminPageHeader } from "@/components/admin/admin-ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,7 @@ function titleCase(value: string) {
 
 export default async function AcademicSettingsPage() {
   const { supabase, scope } = await currentStaff();
-  if (!scope.isAdmin) redirect("/admin/settings");
+  if (!scope.isAdmin) redirect("/workspace/settings");
 
   const [{ data: years }, { data: terms }, { data: levels }, { data: subjects }, { data: curriculumRules }] = await Promise.all([
     supabase.from("academic_years").select("id,name,starts_on,ends_on,status").order("starts_on", { ascending: false }),
@@ -67,11 +67,11 @@ export default async function AcademicSettingsPage() {
         description="Inspect the persisted academic year, terms, levels, subjects and curriculum-rule matrix used by classes and examinations."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" nativeButton={false} render={<Link href="/admin/data-library" />}>
+            <Button variant="outline" nativeButton={false} render={<Link href="/workspace/data-library" />}>
               <Database data-icon="inline-start" />
               School data
             </Button>
-            <Button nativeButton={false} render={<Link href="/admin/classes" />}>
+            <Button nativeButton={false} render={<Link href="/workspace/classes" />}>
               <School data-icon="inline-start" />
               Open classes
             </Button>
@@ -176,7 +176,7 @@ export default async function AcademicSettingsPage() {
           <BookOpenCheck />
           <AlertTitle>Curriculum rules are fixture-managed</AlertTitle>
           <AlertDescription>
-            Use <Link href="/admin/data-library">School Data</Link> to reload the approved subject curriculum. Class-specific offerings remain managed from Classes.
+            Use <Link href="/workspace/data-library">School Data</Link> to reload the approved subject curriculum. Class-specific offerings remain managed from Classes.
           </AlertDescription>
         </Alert>
       </section>
@@ -189,7 +189,7 @@ export default async function AcademicSettingsPage() {
         <CalendarDays />
         <AlertTitle>Class offerings are configured separately</AlertTitle>
         <AlertDescription>
-          Classes combine the active academic year, senior level and study track with concrete subject offerings. Keep that workflow in <Link href="/admin/classes">Classes</Link> to avoid duplicate settings state.
+          Classes combine the active academic year, senior level and study track with concrete subject offerings. Keep that workflow in <Link href="/workspace/classes">Classes</Link> to avoid duplicate settings state.
         </AlertDescription>
       </Alert>
     </div>

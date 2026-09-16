@@ -116,13 +116,20 @@ export async function claimStudentAuthIdentity(
   return data === true;
 }
 
-function generateStudentNumber(): string {
-  return `STD-${Date.now().toString(36).toUpperCase()}${Math.floor(
-    Math.random() * 1296,
-  )
-    .toString(36)
-    .toUpperCase()
-    .padStart(2, "0")}`;
+export const STUDENT_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const STUDENT_ID_PREFIX = "FST-";
+export const STUDENT_ID_CONFLICT_ERROR = "Student ID is already in use.";
+
+export function normalizeStudentNumber(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+export function generateStudentNumber(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(5));
+  let suffix = "";
+  for (const byte of bytes)
+    suffix += STUDENT_ID_ALPHABET[byte % STUDENT_ID_ALPHABET.length];
+  return `${STUDENT_ID_PREFIX}${suffix}`;
 }
 
 // First + last name are the student credential. When no active roster member
@@ -130,24 +137,53 @@ function generateStudentNumber(): string {
 // identity claim) so the name itself becomes the login. Callers must only
 // invoke this for the "no match" case — never for ambiguous names — and only
 // after their own context checks (exam link validity, staff-session guard).
+// Provisioned students start class-less; exam entry or staff assignment adds
+// the class afterwards. Student numbers use the short editable FST-XXXXX
+// form; legacy STD- rows remain valid and are never rewritten.
 export async function provisionNewStudentAccount(
   firstName: string,
   lastName: string,
 ): Promise<ExistingStudentIdentity> {
+  const id = candidateCredentials(firstName, lastName);
+  const cleanFirst = id.firstName;
+  const cleanLast = id.lastName;
   const admin = createSupabaseAdminClient();
   const memberId = randomUUID();
-  const studentNumber = generateStudentNumber();
-  const { error: insertError } = await admin.from("school_members").insert({
-    id: memberId,
-    role: "student",
-    status: "active",
-    first_name: firstName,
-    last_name: lastName,
-    student_number: studentNumber,
-    promotion_status: "on-track",
-    updated_at: new Date().toISOString(),
-  });
-  if (insertError) throw new Error("Enrollment failed. Try again.");
+
+  // Generate-and-retry so a random FST-XXXXX collision never surfaces as a
+  // generic enrollment failure. Three attempts is ample for a 32^5 space.
+  let studentNumber = "";
+  let inserted = false;
+  let lastError = "";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    studentNumber = generateStudentNumber();
+    const { error: insertError } = await admin.from("school_members").insert({
+      id: memberId,
+      role: "student",
+      status: "active",
+      first_name: cleanFirst,
+      last_name: cleanLast,
+      student_number: studentNumber,
+      promotion_status: "on-track",
+      updated_at: new Date().toISOString(),
+    });
+    if (!insertError) {
+      inserted = true;
+      break;
+    }
+    lastError = insertError.message;
+    const conflict =
+      (insertError as { code?: string }).code === "23505" ||
+      /duplicate|already exists|student_number/i.test(insertError.message);
+    if (!conflict) throw new Error("Enrollment failed. Try again.");
+  }
+  if (!inserted) {
+    if (/duplicate|already exists|student_number/i.test(lastError)) {
+      // Extremely unlikely triple collision — surface a retryable message.
+      throw new Error("Enrollment failed. Try again.");
+    }
+    throw new Error("Enrollment failed. Try again.");
+  }
 
   const email = studentEmailForMember(memberId);
   const password = studentPasswordForMember(memberId);
@@ -156,7 +192,7 @@ export async function provisionNewStudentAccount(
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: `${firstName} ${lastName}`.trim() },
+      user_metadata: { full_name: `${cleanFirst} ${cleanLast}`.trim() },
       app_metadata: { role: "student", school_member_id: memberId },
     });
   if (createError || !created.user) {
@@ -176,9 +212,9 @@ export async function provisionNewStudentAccount(
   return {
     memberId,
     authUserId: created.user.id,
-    firstName,
-    lastName,
-    fullName: `${firstName} ${lastName}`.trim(),
+    firstName: cleanFirst,
+    lastName: cleanLast,
+    fullName: `${cleanFirst} ${cleanLast}`.trim(),
     studentNumber,
     phone: "",
     guardian: "",

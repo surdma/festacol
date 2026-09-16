@@ -1,7 +1,6 @@
 import { BarChart3, ClipboardList, Gauge, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { EmptyState } from "@/components/empty-state";
-import { ExamIdDialog } from "@/components/exam-id-dialog";
 import { MetricCard } from "@/components/metric-card";
 import { FadeUp, Stagger } from "@/components/motion";
 import {
@@ -35,7 +34,6 @@ export default async function AnalyticsPage() {
           title="No completed exams"
           description="Analytics appear after your first submission."
         />
-        <ExamIdDialog />
       </FadeUp>
     );
   }
@@ -170,7 +168,6 @@ export default async function AnalyticsPage() {
           </CardContent>
         ) : null}
       </Card>
-      <ExamIdDialog />
     </FadeUp>
   );
 }

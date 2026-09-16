@@ -234,9 +234,9 @@ async function syncAcademicStructureFromFixtureAction(): Promise<ActionResult & 
       if (offeringError) return { ok: false, error: offeringError.message };
     }
 
-    revalidatePath("/admin/settings");
-    revalidatePath("/admin/settings/academic");
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/settings");
+    revalidatePath("/workspace/settings/academic");
+    revalidatePath("/workspace/classes");
     return { ok: true, count: fixture.classes.length, detail: `${fixture.levels.length} class levels and ${fixture.terms.length} terms are ready.` };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "The class list could not be published." };

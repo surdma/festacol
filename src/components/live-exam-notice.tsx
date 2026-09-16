@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useRealtimeTable } from "@/hooks/use-realtime";
@@ -24,7 +25,12 @@ export function LiveExamNotice() {
   return (
     <Alert>
       <AlertTitle>Live update</AlertTitle>
-      <AlertDescription>{notice}</AlertDescription>
+      <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>{notice}</span>
+        <Link href="/dashboard/history" className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/30">
+          Open History
+        </Link>
+      </AlertDescription>
     </Alert>
   );
 }

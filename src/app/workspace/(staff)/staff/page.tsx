@@ -39,7 +39,7 @@ export default async function AdminStaffPage({ searchParams }: { searchParams: P
       <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <AdminSearchForm query={q} placeholder="Search staff name" hidden={{ role: role === "all" ? undefined : role }} />
         <AdminFilterLinks
-          pathname="/admin/staff"
+          pathname="/workspace/staff"
           param="role"
           current={role}
           preserve={{ q }}
@@ -78,7 +78,7 @@ export default async function AdminStaffPage({ searchParams }: { searchParams: P
                       </td>
                       <td className="px-4 py-3 text-neutral-700">{user.class_id ? classNames.get(user.class_id) ?? user.class_id : "—"}</td>
                       <td className="px-4 py-3"><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></td>
-                      {scope.isAdmin ? <td className="px-4 py-3 text-right"><Button size="icon" variant="outline" render={<Link href={`/admin/staff?modal=staff-edit&staff=${encodeURIComponent(user.id)}`} />} className={adminIconButtonClass} aria-label={`Manage ${user.full_name}`}><MoreHorizontal className="size-5" /></Button></td> : null}
+                      {scope.isAdmin ? <td className="px-4 py-3 text-right"><Button size="icon" variant="outline" render={<Link href={`/workspace/staff?modal=staff-edit&staff=${encodeURIComponent(user.id)}`} />} className={adminIconButtonClass} aria-label={`Manage ${user.full_name}`}><MoreHorizontal className="size-5" /></Button></td> : null}
                     </tr>
                   ))}
                 </tbody>
@@ -88,7 +88,7 @@ export default async function AdminStaffPage({ searchParams }: { searchParams: P
             <div className="divide-y divide-neutral-100 md:hidden">
               {visible.map((user) => {
                 const content = <><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-xs font-bold text-neutral-800">{initials(user.full_name)}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{classNames.get(user.class_id ?? "") || user.role}</span></span><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></>;
-                return scope.isAdmin ? <Link key={user.id} href={`/admin/staff?modal=staff-edit&staff=${encodeURIComponent(user.id)}`} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-neutral-50">{content}</Link> : <div key={user.id} className="flex w-full items-center gap-3 p-4">{content}</div>;
+                return scope.isAdmin ? <Link key={user.id} href={`/workspace/staff?modal=staff-edit&staff=${encodeURIComponent(user.id)}`} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-neutral-50">{content}</Link> : <div key={user.id} className="flex w-full items-center gap-3 p-4">{content}</div>;
               })}
             </div>
           </>

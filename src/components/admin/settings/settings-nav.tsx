@@ -23,7 +23,7 @@ interface SettingsNavItem {
 
 const ADMIN_ITEMS: SettingsNavItem[] = [
   {
-    href: "/admin/settings",
+    href: "/workspace/settings",
     label: "Configuration",
     detail: "School settings health and actions",
     icon: SlidersHorizontal,
@@ -31,21 +31,21 @@ const ADMIN_ITEMS: SettingsNavItem[] = [
     group: "settings",
   },
   {
-    href: "/admin/settings/academic",
+    href: "/workspace/settings/academic",
     label: "Academic structure",
     detail: "Calendar, curriculum and subjects",
     icon: GraduationCap,
     group: "settings",
   },
   {
-    href: "/admin/settings/account",
+    href: "/workspace/settings/account",
     label: "Account & access",
     detail: "Administrator identity and session",
     icon: ShieldCheck,
     group: "settings",
   },
   {
-    href: "/admin/data-library",
+    href: "/workspace/data-library",
     label: "School data",
     detail: "Fixture manifest, loading and maintenance",
     icon: Database,
@@ -55,7 +55,7 @@ const ADMIN_ITEMS: SettingsNavItem[] = [
 
 const TEACHER_ITEMS: SettingsNavItem[] = [
   {
-    href: "/admin/settings",
+    href: "/workspace/settings",
     label: "My configuration",
     detail: "Teaching access and assignment health",
     icon: SlidersHorizontal,
@@ -63,14 +63,14 @@ const TEACHER_ITEMS: SettingsNavItem[] = [
     group: "settings",
   },
   {
-    href: "/admin/settings/teaching",
+    href: "/workspace/settings/teaching",
     label: "Teaching scope",
     detail: "Qualifications and current assignments",
     icon: BookOpenCheck,
     group: "settings",
   },
   {
-    href: "/admin/settings/account",
+    href: "/workspace/settings/account",
     label: "Account & access",
     detail: "Staff identity and sign-in session",
     icon: ShieldCheck,

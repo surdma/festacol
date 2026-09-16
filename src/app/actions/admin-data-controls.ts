@@ -279,16 +279,16 @@ const CHUNK_SIZES: Record<CleanupKind, number> = {
 };
 
 function revalidateCleanupTargets(kind: CleanupKind) {
-  revalidatePath("/admin/data-library");
-  revalidatePath("/admin/settings");
+  revalidatePath("/workspace/data-library");
+  revalidatePath("/workspace/settings");
   if (kind === "attempts" || kind === "sessions" || kind === "integrity-events") {
-    revalidatePath("/admin/exams");
-    revalidatePath("/admin/reports");
-    revalidatePath("/admin/students");
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/exams");
+    revalidatePath("/workspace/reports");
+    revalidatePath("/workspace/students");
+    revalidatePath("/workspace/classes");
   }
-  if (kind === "staff-questions") revalidatePath("/admin/questions");
-  if (kind === "whatsapp") revalidatePath("/admin/classes");
+  if (kind === "staff-questions") revalidatePath("/workspace/questions");
+  if (kind === "whatsapp") revalidatePath("/workspace/classes");
 }
 
 export async function runCleanupChunkAction(

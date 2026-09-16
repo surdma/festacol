@@ -76,7 +76,7 @@ export async function upsertClassAction(input: {
       ? await admin.from("classes").update(payload).eq("id", input.id)
       : await admin.from("classes").insert(payload);
     if (write.error) return { ok: false, error: write.error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Class save failed." };
@@ -191,8 +191,8 @@ export async function upsertClassOfferingAction(input: {
       ? await admin.from("class_subject_offerings").update(payload).eq("id", input.id)
       : await admin.from("class_subject_offerings").insert(payload);
     if (write.error) return { ok: false, error: write.error.message };
-    revalidatePath("/admin/classes");
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/classes");
+    revalidatePath("/workspace/exams");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Offering save failed." };

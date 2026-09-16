@@ -23,7 +23,7 @@ function Host() {
     const next = new URLSearchParams(params.toString());
     next.delete("modal");
     for (const key of RECORD_KEYS) next.delete(key);
-    if (modal === "user-new" && pathname !== "/admin/staff") next.delete("role");
+    if (modal === "user-new" && pathname !== "/workspace/staff") next.delete("role");
     const query = next.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }

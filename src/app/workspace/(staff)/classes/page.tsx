@@ -88,8 +88,8 @@ export default async function AdminClassesPage() {
         title="Classes & communication"
         description="Each class belongs to an academic level and one of the Science, Humanities or Business fields. Subject participation is configured independently through class subject offerings."
         actions={scope.isAdmin ? <>
-          <Button render={<Link href="/admin/classes?modal=class-new" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New class</Button>
-          <Button render={<Link href="/admin/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><QrCode data-icon="inline-start" />Connect WhatsApp</Button>
+          <Button render={<Link href="/workspace/classes?modal=class-new" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New class</Button>
+          <Button render={<Link href="/workspace/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><QrCode data-icon="inline-start" />Connect WhatsApp</Button>
         </> : null}
       />
 
@@ -119,7 +119,7 @@ export default async function AdminClassesPage() {
                     const submittedAttempts = matchedSessions.flatMap((session) => attemptsBySession.get(session.id) ?? []).filter((attempt) => attempt.submitted_at);
                     const scores = submittedAttempts.map((attempt) => Number(attempt.score)).filter(Number.isFinite);
                     const classAverage = average(scores);
-                    const recordHref = `/admin/classes?modal=class&class=${encodeURIComponent(item.id)}`;
+                    const recordHref = `/workspace/classes?modal=class&class=${encodeURIComponent(item.id)}`;
                     return (
                       <article key={item.id} className="grid gap-4 p-5 transition hover:bg-neutral-50/60 lg:grid-cols-[minmax(220px,1.25fr)_minmax(190px,.9fr)_minmax(170px,.8fr)_minmax(190px,.9fr)] lg:items-center">
                         <div className="min-w-0"><Link href={recordHref} className="group inline-flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white"><School /></span><span className="min-w-0"><strong className="block truncate font-display text-base font-extrabold text-neutral-950 group-hover:underline">{item.display_name}</strong><span className="mt-1 block text-xs text-neutral-500">{item.track_name} · {item.room || "Room not assigned"}</span></span></Link></div>

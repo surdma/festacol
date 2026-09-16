@@ -129,7 +129,7 @@ export default async function AdminSettingsPage() {
           </div>
           <div className="divide-y divide-border border-y border-border">
             <SettingActionRow
-              href="/admin/settings/teaching"
+              href="/workspace/settings/teaching"
               title="Subject qualifications"
               description="Choose the subjects you are qualified to teach and use in your question-bank workspace."
               status={subjects.length ? `${subjects.length} selected` : "Needs setup"}
@@ -138,7 +138,7 @@ export default async function AdminSettingsPage() {
               tone={subjects.length ? "default" : "attention"}
             />
             <SettingActionRow
-              href="/admin/settings/teaching#assignments"
+              href="/workspace/settings/teaching#assignments"
               title="Teaching assignments"
               description="Review the actual class-and-subject offerings assigned to you by school administration."
               status={`${assignmentCount ?? 0} active`}
@@ -146,7 +146,7 @@ export default async function AdminSettingsPage() {
               icon={GraduationCap}
             />
             <SettingActionRow
-              href="/admin/settings/account"
+              href="/workspace/settings/account"
               title="Account & access"
               description="Review your staff identity, role, sign-in email and qualifier-exam permission."
               status={member?.staff_number ?? "No staff number"}
@@ -232,7 +232,7 @@ export default async function AdminSettingsPage() {
 
         <div className="divide-y divide-border border-y border-border">
           <SettingActionRow
-            href="/admin/settings/academic#calendar"
+            href="/workspace/settings/academic#calendar"
             title="Academic calendar"
             description="Review the active academic year and term sequence used when classes and examinations are created."
             status={activeYear && activeTerm ? `${activeYear.name} · ${activeTerm.name}` : "Needs attention"}
@@ -241,7 +241,7 @@ export default async function AdminSettingsPage() {
             tone={activeYear && activeTerm ? "default" : "attention"}
           />
           <SettingActionRow
-            href="/admin/settings/academic#curriculum"
+            href="/workspace/settings/academic#curriculum"
             title="Curriculum & subjects"
             description="Manage the subject catalogue and inspect level-by-track curriculum participation rules."
             status={`${subjectCount ?? 0} subjects · ${curriculumRuleCount ?? 0} rules`}
@@ -249,7 +249,7 @@ export default async function AdminSettingsPage() {
             icon={BookOpenCheck}
           />
           <SettingActionRow
-            href="/admin/classes"
+            href="/workspace/classes"
             title="Classes & subject offerings"
             description="Manage class arms and the concrete subjects offered by each class for the active academic year."
             status={`${classCount ?? 0} classes · ${offeringCount ?? 0} offerings`}
@@ -257,7 +257,7 @@ export default async function AdminSettingsPage() {
             icon={School}
           />
           <SettingActionRow
-            href="/admin/staff"
+            href="/workspace/staff"
             title="Staff teaching scope"
             description="Manage staff qualifications and the class-subject offerings assigned to individual teachers."
             status={`${assignmentCount ?? 0} active assignments`}
@@ -265,7 +265,7 @@ export default async function AdminSettingsPage() {
             icon={UsersRound}
           />
           <SettingActionRow
-            href="/admin/data-library"
+            href="/workspace/data-library"
             title="School data fixtures"
             description="Inspect schema versions, dependency order and load state for the approved JSON fixture sources."
             status={`${questionCount ?? 0} active questions`}
@@ -273,7 +273,7 @@ export default async function AdminSettingsPage() {
             icon={Database}
           />
           <SettingActionRow
-            href="/admin/settings/account"
+            href="/workspace/settings/account"
             title="Administrator account"
             description="Review the current staff identity, administrator role and authenticated sign-in account."
             status={member?.staff_number ?? "No staff number"}

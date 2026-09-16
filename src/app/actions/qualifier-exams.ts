@@ -151,8 +151,8 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
       return { ok: false, error: error instanceof Error ? error.message : "Qualifier audience could not be saved." };
     }
 
-    revalidatePath("/admin/exams");
-    revalidatePath("/admin/reports");
+    revalidatePath("/workspace/exams");
+    revalidatePath("/workspace/reports");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Qualifier examination could not be created." };

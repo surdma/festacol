@@ -3,6 +3,7 @@
 // navigation identity only; relational eligibility is rechecked server-side.
 import Link from "next/link";
 import { AccessDenied } from "@/components/access-denied";
+import { ExamIdDialog } from "@/components/exam-id-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { currentStudent } from "@/lib/auth/current-student";
-import { normalizeExamToken } from "@/lib/exam-links";
+import { normalizeExamId, normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ExamLinkEntryForm } from "./entry-form";
@@ -29,6 +30,22 @@ function unavailable(title: string, message: string) {
       </CardContent>
     </Card>
   );
+}
+
+// Mirrors the server denial map in src/app/actions/exams.ts: not_found and
+// not_eligible deliberately share one message so token probing cannot reveal
+// whether an examination exists.
+function denialMessage(reason: string | null | undefined): string {
+  switch (reason) {
+    case "not_started":
+      return "This examination has not started yet.";
+    case "ended":
+      return "This examination has closed.";
+    case "not_open":
+      return "This examination is not open.";
+    default:
+      return "This examination is unavailable or not assigned to you.";
+  }
 }
 
 async function openEntrySession(token: string) {
@@ -69,12 +86,34 @@ export default async function HiddenExamPage({
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
-  const token = normalizeExamToken((await searchParams).token ?? "");
-  if (!token)
+  const raw = ((await searchParams).token ?? "").trim();
+  const token = normalizeExamToken(raw);
+  if (!token) {
+    // Exam-ID-pasted-as-token recovery: an Exam ID (e.g. F-…) is not a
+    // valid opaque token, so explain the difference and offer the Exam-ID
+    // dialog prefilled instead of a dead "Invalid exam link".
+    if (normalizeExamId(raw)) {
+      return (
+        <Card className="mx-auto max-w-md">
+          <CardHeader>
+            <CardTitle>You pasted an Exam ID</CardTitle>
+            <CardDescription>
+              Exam links open with a secure token, not the Exam ID. Ask your
+              teacher for the full exam link, or enter the Exam ID below to
+              resolve it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ExamIdDialog initialValue={raw} defaultOpen />
+          </CardContent>
+        </Card>
+      );
+    }
     return unavailable(
       "Invalid exam link",
       "Missing or malformed access token.",
     );
+  }
 
   const ctx = await currentStudent();
   if (!ctx) {
@@ -97,7 +136,7 @@ export default async function HiddenExamPage({
             message="You are signed in with a staff account. Sign out first to write this exam with a student account."
             signInHref={`/?next=${encodeURIComponent(`/dashboard/exam?token=${encodeURIComponent(token)}`)}`}
             signInLabel="Sign out and continue as student"
-            returnHref="/admin"
+            returnHref="/workspace"
           />
         );
       }
@@ -177,16 +216,7 @@ export default async function HiddenExamPage({
     denial_reason?: string | null;
   } | null;
   if (!accessRow?.eligible) {
-    const reason = accessRow?.denial_reason;
-    const message =
-      reason === "not_started"
-        ? "This examination has not started yet."
-        : reason === "ended"
-          ? "This examination has closed."
-          : reason === "not_open"
-            ? "This examination is not open."
-            : "This examination is not assigned to you.";
-    return unavailable("Exam unavailable", message);
+    return unavailable("Exam unavailable", denialMessage(accessRow?.denial_reason));
   }
 
   const { data: session } = await ctx.supabase

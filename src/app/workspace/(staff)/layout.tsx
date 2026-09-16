@@ -22,14 +22,14 @@ export default async function AdminLayout({
   // Never render admin content without a staff session. Students get an
   // explicit permission-denied (proxy redirects them to /denied first; this
   // is defense in depth that hides the dashboard completely).
-  if (!user) redirect("/admin/login");
+  if (!user) redirect("/workspace/login");
   if (role !== "administrator" && role !== "teacher") {
     return (
       <main className="grid min-h-dvh place-items-center bg-neutral-50 p-4">
         <AccessDenied
           title="Student accounts cannot open administration"
           message="You are signed in with a student account, which has no staff permission. Sign out first, then sign in with a staff account."
-          signInHref="/admin/login"
+          signInHref="/workspace/login"
           signInLabel="Go to staff sign in"
           returnHref="/dashboard"
         />

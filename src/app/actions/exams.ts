@@ -14,18 +14,18 @@ interface AccessRow {
 function accessMessage(reason: string | null): string {
   const messages: Record<string, string> = {
     not_authenticated: "Sign in before opening an examination.",
-    not_found: "Exam not found.",
+    // not_found and not_eligible deliberately share one message so Exam-ID
+    // probing cannot reveal whether an examination exists.
+    not_found: "This examination is unavailable or not assigned to you.",
     not_open: "Exam is not open.",
     not_started: "Exam has not started yet.",
     ended: "Exam has closed.",
-    not_eligible: "This examination is not assigned to you.",
+    not_eligible: "This examination is unavailable or not assigned to you.",
   };
   return messages[reason ?? ""] ?? "You are not eligible for this examination.";
 }
 
-export async function resolveExamLinkAction(rawId: string): Promise<{ href?: string; error?: string }> {
-  const examId = normalizeExamId(rawId);
-  if (!examId) return { error: "Enter a valid Exam ID." };
+async function resolveHrefForSession(examId: string): Promise<{ href?: string; error?: string }> {
   const ctx = await currentStudent();
   if (!ctx) return { error: "Sign in before opening an examination." };
 
@@ -47,6 +47,22 @@ export async function resolveExamLinkAction(rawId: string): Promise<{ href?: str
   }
 
   return { href: getExamLink(String(link.token)) };
+}
+
+export async function resolveExamLinkAction(rawId: string): Promise<{ href?: string; error?: string }> {
+  const examId = normalizeExamId(rawId);
+  if (!examId) return { error: "Enter a valid Exam ID." };
+  return resolveHrefForSession(examId);
+}
+
+// Dashboard-home resume card: same RPC-first then link-lookup shape as
+// resolveExamLinkAction, keyed by a stored session id (e.g. the active
+// attempt's session_id) instead of typed Exam-ID input. Returns the hidden
+// workspace href (/dashboard/exam?token=...) or a non-enumerating error.
+export async function resolveResumeHrefAction(sessionId: string): Promise<{ href?: string; error?: string }> {
+  const examId = normalizeExamId(sessionId);
+  if (!examId) return { error: "This examination is unavailable or not assigned to you." };
+  return resolveHrefForSession(examId);
 }
 
 async function currentOpenAttempt(sessionId: string): Promise<string | null> {

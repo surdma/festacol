@@ -58,7 +58,7 @@ export default async function DashboardLayout({
                 message="You are signed in with a staff account, which has no student permission. Sign out first, then sign in with a student account."
                 signInHref="/"
                 signInLabel="Go to student sign in"
-                returnHref="/admin"
+                returnHref="/workspace"
               />
             </MinimalShell>
           </StudentProvider>

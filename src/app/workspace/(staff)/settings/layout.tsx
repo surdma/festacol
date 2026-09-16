@@ -4,7 +4,7 @@ import { currentStaff } from "@/lib/auth/staff";
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const { scope } = await currentStaff();
-  if (!scope.profileId || (!scope.isAdmin && !scope.isTeacher)) redirect("/admin/login");
+  if (!scope.profileId || (!scope.isAdmin && !scope.isTeacher)) redirect("/workspace/login");
 
   return (
     <div className="min-w-0">

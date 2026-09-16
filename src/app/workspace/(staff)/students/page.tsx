@@ -52,8 +52,8 @@ export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; h
           title={hasFilters ? "No matching students" : "No students yet"}
           description={hasFilters ? "Change the current academic, status or performance filters." : "Add the first student to begin building the academic directory."}
           action={hasFilters
-            ? <Button size="sm" variant="outline" render={<Link href="/admin/students" />}>Clear filters</Button>
-            : <Button size="sm" render={<Link href="/admin/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>}
+            ? <Button size="sm" variant="outline" render={<Link href="/workspace/students" />}>Clear filters</Button>
+            : <Button size="sm" render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>}
         />
       </section>
     );
@@ -157,7 +157,7 @@ export default async function AdminStudentsPage({
       submitted: submittedAttempts.length,
       averageScore: average(scores),
       placement: latestPlacement,
-      href: `/admin/students?${hrefParams.toString()}`,
+      href: `/workspace/students?${hrefParams.toString()}`,
     };
   });
 
@@ -179,22 +179,22 @@ export default async function AdminStudentsPage({
 
   return (
     <div>
-      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the canonical school member directory, filter by current class/field and performance, then drill into relational exam history." actions={<Button render={<Link href="/admin/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
+      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the canonical school member directory, filter by current class/field and performance, then drill into relational exam history." actions={<Button render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
 
       <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <AdminSearchForm query={q} placeholder="Search student name" hidden={{ status: filterState.status, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance }} />
-        <AdminFilterLinks pathname="/admin/students" param="status" current={status} preserve={{ q, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance }} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
+        <AdminFilterLinks pathname="/workspace/students" param="status" current={status} preserve={{ q, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance }} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
       </div>
 
       <section className={`${adminSurfaceClass} mb-4 p-4`}>
-        <form action="/admin/students" method="get" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+        <form action="/workspace/students" method="get" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
           {q ? <input type="hidden" name="q" value={q} /> : null}
           {status !== "all" ? <input type="hidden" name="status" value={status} /> : null}
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Level<NativeSelect name="level" defaultValue={level}><NativeSelectOption value="all">All levels</NativeSelectOption>{["SS1", "SS2", "SS3"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Field<NativeSelect name="field" defaultValue={field}><NativeSelectOption value="all">All fields</NativeSelectOption>{fieldOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Class<NativeSelect name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}</NativeSelectOption>)}</NativeSelect></label>
           <label className="grid gap-1.5 text-xs font-semibold text-neutral-600">Performance<NativeSelect name="performance" defaultValue={performance}><NativeSelectOption value="all">Any performance</NativeSelectOption><NativeSelectOption value="high">70% and above</NativeSelectOption><NativeSelectOption value="mid">50–69%</NativeSelectOption><NativeSelectOption value="support">Below 50%</NativeSelectOption><NativeSelectOption value="none">No submitted exam</NativeSelectOption></NativeSelect></label>
-          <div className="flex gap-2"><Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>{hasFilters ? <Button variant="outline" render={<Link href="/admin/students" />} className={adminSecondaryButtonClass}>Reset</Button> : null}</div>
+          <div className="flex gap-2"><Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>{hasFilters ? <Button variant="outline" render={<Link href="/workspace/students" />} className={adminSecondaryButtonClass}>Reset</Button> : null}</div>
         </form>
       </section>
 
