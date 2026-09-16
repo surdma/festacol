@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-irs-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "irs",
+    "subjectName": "Islamic Studies",
+    "baseId": 2017000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Faith","term":"Tawhid","definition":"the Islamic belief in the absolute oneness and uniqueness of Allah"},
+      {"domain":"Worship","term":"Salah","definition":"the prescribed ritual prayer performed by Muslims at five appointed times each day"},
+      {"domain":"Worship","term":"Zakat","definition":"obligatory charitable giving from qualifying wealth for specified beneficiaries"},
+      {"domain":"Worship","term":"Sawm","definition":"fasting from dawn to sunset during Ramadan with the required intention and conduct"},
+      {"domain":"Worship","term":"Hajj","definition":"the pilgrimage to Makkah required once in a lifetime for Muslims who are able to undertake it"},
+      {"domain":"Sources","term":"Qur'an","definition":"the sacred scripture of Islam believed by Muslims to be the revealed word of Allah"},
+      {"domain":"Sources","term":"Hadith","definition":"a reported account of a saying, action, or approval attributed to Prophet Muhammad"},
+      {"domain":"Sources","term":"Sunnah","definition":"the normative example and practice of Prophet Muhammad used as guidance by Muslims"},
+      {"domain":"Community","term":"Ummah","definition":"the worldwide community of Muslims united by their faith"},
+      {"domain":"Ethics","term":"Ihsan","definition":"excellence in worship and conduct expressed through sincere awareness of Allah"}
+    ]
+  }
+}
