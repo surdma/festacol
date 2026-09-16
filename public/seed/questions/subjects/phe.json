@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-phe-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "phe",
+    "subjectName": "Physical Education",
+    "baseId": 2009000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Fitness","term":"Physical fitness","definition":"the ability to perform daily and sporting activities effectively without undue fatigue"},
+      {"domain":"Fitness","term":"Endurance","definition":"the ability to sustain physical activity over an extended period"},
+      {"domain":"Fitness","term":"Strength","definition":"the ability of a muscle or muscle group to exert force against resistance"},
+      {"domain":"Fitness","term":"Flexibility","definition":"the ability of a joint to move through an effective range of motion"},
+      {"domain":"Motor Skills","term":"Coordination","definition":"the ability to use different body parts together smoothly and efficiently"},
+      {"domain":"Exercise Safety","term":"Warm-up","definition":"light preparatory activity that gradually readies the body for more vigorous exercise"},
+      {"domain":"Exercise Safety","term":"Cool-down","definition":"gentle activity after exercise that helps the body return gradually toward its resting state"},
+      {"domain":"Safety","term":"First aid","definition":"immediate basic care given to an injured or suddenly ill person before full medical treatment"},
+      {"domain":"Athletics","term":"Athletics","definition":"competitive track and field activities involving running, jumping, and throwing"},
+      {"domain":"Games","term":"Team sport","definition":"a sport in which participants cooperate as a group against another group under agreed rules"}
+    ]
+  }
+}
