@@ -1,4 +1,4 @@
-name: Dependency Lock Preview
+name: Dependency Lock Apply
 
 on:
   push:
@@ -8,15 +8,17 @@ on:
       - '.github/workflows/dependency-lock-preview.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  preview:
+  apply:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: work/academic-relational-schema-v2-validation
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -29,11 +31,19 @@ jobs:
         with:
           node-version: 22
 
-      - name: Generate lockfile diff
+      - name: Generate and commit lockfile
         run: |
           pnpm add --lockfile-only --ignore-scripts \
             katex@0.18.7 \
             apexcharts@7.3.0 \
             react-apexcharts@2.1.1 \
             qrcode.react@4.2.0
-          git diff -- package.json pnpm-lock.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit."
+            exit 0
+          fi
+          git commit -m "build: add math qr and analytics dependencies"
+          git push origin HEAD:work/academic-relational-schema-v2-validation
