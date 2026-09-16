@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LogOut, Settings } from "lucide-react";
+import { signOutAdminAction } from "@/app/actions/admin-auth";
 import { AdminLiveBadge } from "@/app/workspace/(staff)/live-badge";
 import { AdminNav, useAdminNavItem } from "@/components/admin/admin-nav";
 import { PrototypeAdminIcon } from "@/components/admin/prototype-admin-icon";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,11 +85,21 @@ function MobileNavigation({ role }: { role: string }) {
   );
 }
 
-export function AdminTopbar({ notifications, role }: { notifications: AdminTopbarNotification[]; role: string }) {
+export function AdminTopbar({
+  notifications,
+  role,
+  profileEmail,
+}: {
+  notifications: AdminTopbarNotification[];
+  role: string;
+  profileEmail?: string | null;
+}) {
   const item = useAdminNavItem();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const isAdmin = role === "administrator";
+  const roleLabel = isAdmin ? "Administrator" : "Teacher";
+  const profileInitial = profileEmail?.trim().charAt(0).toUpperCase() || roleLabel.charAt(0);
 
   return (
     <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 backdrop-blur-xl">
@@ -139,6 +152,49 @@ export function AdminTopbar({ notifications, role }: { notifications: AdminTopba
                 </div>
               )}
             </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={(
+              <button
+                type="button"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-neutral-300 bg-white px-1.5 pr-2.5 text-left transition hover:border-neutral-400 hover:bg-neutral-50 focus:outline-none focus:ring-4 focus:ring-neutral-200"
+                aria-label="Open profile menu"
+              />
+            )}
+          >
+            <Avatar size="sm"><AvatarFallback className="bg-neutral-950 text-xs font-bold text-white">{profileInitial}</AvatarFallback></Avatar>
+            <span className="hidden max-w-28 sm:block">
+              <strong className="block truncate text-xs text-neutral-900">{roleLabel}</strong>
+              <span className="block truncate text-[10px] text-neutral-500">Account</span>
+            </span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-40 w-[min(88vw,280px)] rounded-2xl border border-neutral-200 bg-white p-2 shadow-xl">
+            <div className="border-b border-neutral-100 px-3 pb-3 pt-2">
+              <div className="flex items-center gap-3">
+                <Avatar><AvatarFallback className="bg-neutral-950 font-bold text-white">{profileInitial}</AvatarFallback></Avatar>
+                <div className="min-w-0">
+                  <strong className="block truncate text-sm text-neutral-950">{roleLabel}</strong>
+                  <span className="block truncate text-xs text-neutral-500">{profileEmail || "Signed-in staff account"}</span>
+                </div>
+              </div>
+            </div>
+            <DropdownMenuGroup className="p-1">
+              <DropdownMenuItem render={<Link href="/workspace/settings" />} className="rounded-xl py-2.5">
+                <Settings className="size-4" aria-hidden="true" />
+                Profile & settings
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <div className="border-t border-neutral-100 p-1 pt-2">
+              <form action={signOutAdminAction}>
+                <button type="submit" className="flex w-full items-center gap-2 rounded-xl px-2 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200">
+                  <LogOut className="size-4" aria-hidden="true" />
+                  Sign out
+                </button>
+              </form>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
