@@ -1,6 +1,7 @@
 import { AccessDenied } from "@/components/access-denied";
 import { ApplicationShell } from "@/components/shell/application-shell";
 import { currentStudent } from "@/lib/auth/current-student";
+import { getStudentTopbarNotifications } from "@/lib/student-notifications";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function MinimalShell({ children }: { children: React.ReactNode }) {
@@ -50,12 +51,19 @@ export default async function DashboardLayout({
     return <MinimalShell>{children}</MinimalShell>;
   }
 
+  const notifications = await getStudentTopbarNotifications(
+    context.supabase,
+    context.profile.profile_id,
+    Boolean(context.enrollment),
+  );
+
   return (
     <ApplicationShell
       surface="student"
       role="student"
       profileName={context.profile.full_name}
       profileDetail={context.profile.student_number ?? "Student account"}
+      notifications={notifications}
     >
       {children}
     </ApplicationShell>
