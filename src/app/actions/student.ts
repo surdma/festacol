@@ -19,6 +19,11 @@ export interface ActionResult {
   error?: string;
 }
 
+export interface StudentSignInResult extends ActionResult {
+  provisioned?: boolean;
+  studentNumber?: string | null;
+}
+
 export async function signInLinkedStudent(
   member: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>,
 ): Promise<ActionResult> {
@@ -121,14 +126,14 @@ export async function signInLinkedStudent(
   return { ok: true };
 }
 
-// First + last name are the student credential. Existing roster students sign
-// straight in; unknown names are provisioned as brand-new student accounts
-// (no class yet — staff assign one where necessary) and land on the dashboard.
-// Ambiguous names are still rejected so typos never merge two records.
+// First + last name are the one student credential surface. Existing roster
+// students sign straight in; unknown names are provisioned as brand-new
+// student accounts with no class yet. The caller decides whether the signed-in
+// student continues to the dashboard or returns to a preserved exam link.
 export async function signInStudentAction(input: {
   firstName: string;
   lastName: string;
-}): Promise<ActionResult> {
+}): Promise<StudentSignInResult> {
   const parsed = studentLoginSchema.safeParse(input);
   if (!parsed.success)
     return { ok: false, error: "Enter first and last name." };
@@ -157,7 +162,12 @@ export async function signInStudentAction(input: {
     const result = await signInLinkedStudent(member);
     if (!result.ok) return result;
     revalidatePath("/dashboard");
-    return { ok: true };
+    revalidatePath("/exam");
+    return {
+      ok: true,
+      provisioned: false,
+      studentNumber: member.studentNumber,
+    };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Student sign-in failed.";
@@ -169,7 +179,12 @@ export async function signInStudentAction(input: {
       const result = await signInLinkedStudent(member);
       if (!result.ok) return result;
       revalidatePath("/dashboard");
-      return { ok: true };
+      revalidatePath("/exam");
+      return {
+        ok: true,
+        provisioned: true,
+        studentNumber: member.studentNumber,
+      };
     } catch (provisionError) {
       return {
         ok: false,
