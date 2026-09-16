@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-mat-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "mat",
+    "subjectName": "General Mathematics",
+    "baseId": 2001000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Number","term":"Integer","definition":"a whole number that may be positive, negative, or zero"},
+      {"domain":"Number","term":"Fraction","definition":"a number that represents one part or several equal parts of a whole"},
+      {"domain":"Number","term":"Percentage","definition":"a ratio or fraction expressed as a number out of one hundred"},
+      {"domain":"Number","term":"Ratio","definition":"a comparison of two quantities by division"},
+      {"domain":"Algebra","term":"Linear equation","definition":"an equation whose highest power of the unknown is one"},
+      {"domain":"Geometry","term":"Angle","definition":"the figure formed by two rays meeting at a common endpoint"},
+      {"domain":"Geometry","term":"Triangle","definition":"a polygon with three sides and three interior angles"},
+      {"domain":"Statistics","term":"Mean","definition":"the sum of a set of values divided by the number of values"},
+      {"domain":"Statistics","term":"Median","definition":"the middle value when a data set is arranged in order"},
+      {"domain":"Probability","term":"Probability","definition":"a measure of how likely an event is to occur"}
+    ]
+  }
+}
