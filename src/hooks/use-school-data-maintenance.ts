@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { clearAdminDataScopeAction, type AdminDataScope } from "@/app/actions/admin-data-controls";
+import { toast } from "@/components/ui/toast";
 
 export interface MaintenanceFeedback {
   tone: "success" | "error";
@@ -21,11 +22,14 @@ export function useSchoolDataMaintenance() {
     startTransition(async () => {
       const result = await clearAdminDataScopeAction(scope);
       if (!result.ok) {
-        setFeedback({ tone: "error", message: result.error ?? "The selected records could not be cleared." });
+        const message = result.error ?? "The selected records could not be cleared.";
+        setFeedback({ tone: "error", message });
+        toast.add({ type: "error", title: "Maintenance action failed", description: message, priority: "high" });
         setActiveScope(null);
         return;
       }
       setFeedback({ tone: "success", message: successMessage });
+      toast.add({ type: "success", title: "Maintenance action completed", description: successMessage });
       setActiveScope(null);
       router.refresh();
     });
