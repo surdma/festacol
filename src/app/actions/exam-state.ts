@@ -340,8 +340,18 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
         updated_at: now,
       };
     });
-    const { error: gradingError } = await admin.from("exam_attempt_responses").upsert(gradedRows, { onConflict: "attempt_id,question_id" });
-    if (gradingError) return { ok: false, error: `Result details could not be saved: ${gradingError.message}` };
+    const writeGrading = () => admin.from("exam_attempt_responses").upsert(gradedRows, { onConflict: "attempt_id,question_id" });
+    const firstWrite = await writeGrading();
+    if (firstWrite.error) {
+      const retryWrite = await writeGrading();
+      if (retryWrite.error) {
+        console.error("Submitted attempt grading details could not be persisted", {
+          attemptId: attempt.id,
+          sessionId: session.id,
+          error: retryWrite.error.message,
+        });
+      }
+    }
   }
 
   return {
