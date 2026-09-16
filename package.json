@@ -13,7 +13,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "seed:check": "tsx prisma/seed.ts --validate-only",
+    "seed:check": "tsx prisma/seed.ts --validate-only && tsx scripts/validate-question-bank-contract.ts",
     "create-user": "tsx scripts/create-user.ts"
   },
   "dependencies": {
