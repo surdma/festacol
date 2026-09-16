@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-health-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "health",
+    "subjectName": "Health Education",
+    "baseId": 2010000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Personal Health","term":"Hygiene","definition":"practices that maintain cleanliness and reduce the spread of disease"},
+      {"domain":"Nutrition","term":"Nutrition","definition":"the intake and use of food nutrients needed for growth, energy, and body maintenance"},
+      {"domain":"Disease Prevention","term":"Communicable disease","definition":"an illness caused by an infectious agent that can pass between hosts directly or indirectly"},
+      {"domain":"Disease Prevention","term":"Vaccination","definition":"the administration of a vaccine to stimulate protective immune responses against a disease"},
+      {"domain":"Environmental Health","term":"Sanitation","definition":"measures that maintain clean surroundings and safely manage waste, water, and hygiene facilities"},
+      {"domain":"Mental Health","term":"Mental health","definition":"a state of emotional, psychological, and social well-being that supports daily functioning"},
+      {"domain":"Safety","term":"First aid","definition":"immediate basic assistance given to an injured or suddenly ill person before advanced care is available"},
+      {"domain":"Reproductive Health","term":"Reproductive health","definition":"physical, mental, and social well-being in matters relating to the reproductive system"},
+      {"domain":"Risk Behaviour","term":"Substance abuse","definition":"harmful or inappropriate use of drugs or other substances that can damage health or functioning"},
+      {"domain":"Community Health","term":"Public health","definition":"organized efforts to protect and improve the health of populations and communities"}
+    ]
+  }
+}
