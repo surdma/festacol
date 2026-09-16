@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-bio-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "bio",
+    "subjectName": "Biology",
+    "baseId": 2004000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Cell Biology","term":"Cell","definition":"the smallest structural and functional unit of a living organism"},
+      {"domain":"Organization","term":"Tissue","definition":"a group of similar cells working together to perform a particular function"},
+      {"domain":"Organization","term":"Organ","definition":"a structure made of different tissues that cooperate to perform a specific function"},
+      {"domain":"Plant Biology","term":"Photosynthesis","definition":"the process by which green plants use light energy to make glucose from carbon dioxide and water"},
+      {"domain":"Metabolism","term":"Respiration","definition":"the cellular process that releases usable energy from food molecules"},
+      {"domain":"Transport","term":"Osmosis","definition":"the net movement of water through a selectively permeable membrane from higher to lower water potential"},
+      {"domain":"Transport","term":"Diffusion","definition":"the net movement of particles from a region of higher concentration to a region of lower concentration"},
+      {"domain":"Ecology","term":"Ecosystem","definition":"a community of organisms interacting with one another and with their physical environment"},
+      {"domain":"Genetics","term":"Genetics","definition":"the study of heredity and variation in living organisms"},
+      {"domain":"Physiology","term":"Homeostasis","definition":"the maintenance of a relatively stable internal environment despite external changes"}
+    ]
+  }
+}
