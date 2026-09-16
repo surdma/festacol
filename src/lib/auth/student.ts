@@ -124,6 +124,46 @@ export function normalizeStudentNumber(value: string): string {
   return value.trim().toUpperCase();
 }
 
+export const SPLIT_NAME_ERROR = "Enter the student's first and last name.";
+export const STUDENT_ID_FORMAT_ERROR =
+  "Enter a valid Student ID (for example FST-XXXXX).";
+
+export function collapseName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+export interface SplitStudentNameInput {
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+// Split-name hygiene for roster writes. Prefers explicit first/last name;
+// falls back to splitting a single full-name field. Single-token names are
+// rejected so a mononym can never collapse first and last name together.
+export function resolveStudentNames(
+  input: SplitStudentNameInput,
+): { firstName: string; lastName: string } | { error: string } {
+  const hasSplit =
+    input.firstName !== undefined || input.lastName !== undefined;
+  if (hasSplit) {
+    const firstName = collapseName(input.firstName ?? "");
+    const lastName = collapseName(input.lastName ?? "");
+    if (firstName.length < 2 || lastName.length < 2)
+      return { error: SPLIT_NAME_ERROR };
+    return { firstName, lastName };
+  }
+  const parts = collapseName(input.fullName ?? "")
+    .split(" ")
+    .filter(Boolean);
+  if (parts.length < 2) return { error: SPLIT_NAME_ERROR };
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(" ");
+  if (firstName.length < 2 || lastName.length < 2)
+    return { error: SPLIT_NAME_ERROR };
+  return { firstName, lastName };
+}
+
 export function generateStudentNumber(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(5));
   let suffix = "";

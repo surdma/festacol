@@ -16,7 +16,7 @@ import { currentStudent } from "@/lib/auth/current-student";
 import { normalizeExamId, normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ExamLinkEntryForm } from "./entry-form";
+import { ExamEntryFlow } from "./entry-flow";
 import { ExamWorkspace } from "./workspace";
 
 function unavailable(title: string, message: string) {
@@ -177,7 +177,7 @@ export default async function HiddenExamPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ExamLinkEntryForm token={token} />
+          <ExamEntryFlow token={token} />
         </CardContent>
       </Card>
     );

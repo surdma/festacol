@@ -127,6 +127,7 @@ async function stateForAttempt(attemptId: string) {
 
 function accessErrorMessage(message: string): string {
   if (message.includes("attempt_limit_reached")) return "You have used all allowed attempts for this examination.";
+  if (message.includes("student_not_qualified")) return "Your current level does not qualify for this examination.";
   if (message.includes("student_not_eligible")) return "This examination is not assigned to you.";
   if (message.includes("exam_not_started")) return "This examination has not started yet.";
   if (message.includes("exam_ended")) return "This examination has closed.";

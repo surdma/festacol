@@ -15,10 +15,13 @@ import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/a
 import {
   generateStudentNumber,
   normalizeStudentNumber,
+  resolveStudentNames,
   STUDENT_ID_CONFLICT_ERROR,
+  STUDENT_ID_FORMAT_ERROR,
 } from "@/lib/auth/student";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
+import { z } from "zod";
 
 interface StaffContext {
   supabase: Awaited<ReturnType<typeof currentStaff>>["supabase"];
@@ -317,31 +320,13 @@ export interface UpsertUserInput {
   /** Optional editable short ID (FST-XXXXX). Normalized to uppercase. */
   studentNumber?: string;
   role: string;
+  /**
+   * Target class. On update, `""` is an explicit unassign (ends active
+   * enrollments); `undefined` leaves enrollments untouched. On create,
+   * `""`/`undefined` creates the student without an enrollment.
+   */
   classId?: string;
   guardian?: string;
-}
-
-const SPLIT_NAME_ERROR = "Enter the student's first and last name.";
-const STUDENT_ID_FORMAT_ERROR = "Enter a valid Student ID (for example FST-XXXXX).";
-
-function collapseName(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function resolveStudentNames(input: UpsertUserInput): { firstName: string; lastName: string } | { error: string } {
-  const hasSplit = input.firstName !== undefined || input.lastName !== undefined;
-  if (hasSplit) {
-    const firstName = collapseName(input.firstName ?? "");
-    const lastName = collapseName(input.lastName ?? "");
-    if (firstName.length < 2 || lastName.length < 2) return { error: SPLIT_NAME_ERROR };
-    return { firstName, lastName };
-  }
-  const parts = collapseName(input.fullName ?? "").split(" ").filter(Boolean);
-  if (parts.length < 2) return { error: SPLIT_NAME_ERROR };
-  const firstName = parts[0];
-  const lastName = parts.slice(1).join(" ");
-  if (firstName.length < 2 || lastName.length < 2) return { error: SPLIT_NAME_ERROR };
-  return { firstName, lastName };
 }
 
 export async function upsertUserAction(input: UpsertUserInput): Promise<ActionResult> {
@@ -349,6 +334,19 @@ export async function upsertUserAction(input: UpsertUserInput): Promise<ActionRe
     const ctx = await requireStaff();
     if (input.role !== "student") return { ok: false, error: "Staff accounts are provisioned from Staff management." };
     if (input.classId && !(await teacherMayManageClass(ctx, input.classId))) return { ok: false, error: "You are not assigned to this class." };
+    // Updates that pass classId:"" explicitly unassign the student. Creates
+    // with ""/undefined stay unenrolled, and updates that omit classId leave
+    // enrollments untouched. Teaching staff unassigning a student are scoped
+    // to the student's current class since there is no target class to check.
+    const wantsUnassign = Boolean(input.id) && input.classId === "";
+    const unassignStudentId = wantsUnassign ? String(input.id) : null;
+    if (unassignStudentId && !ctx.scope.isAdmin) {
+      const { data: current } = await ctx.admin.from("class_enrollments").select("class_id").eq("student_id", unassignStudentId).eq("status", "active").limit(1).maybeSingle();
+      const currentClassId = (current as { class_id?: string } | null)?.class_id;
+      if (!currentClassId || !(await teacherMayManageClass(ctx, currentClassId))) {
+        return { ok: false, error: "Student is outside your assigned classes." };
+      }
+    }
     const names = resolveStudentNames(input);
     if ("error" in names) return { ok: false, error: names.error };
     const { firstName, lastName } = names;
@@ -433,6 +431,11 @@ export async function upsertUserAction(input: UpsertUserInput): Promise<ActionRe
         ended_at: null,
       }, { onConflict: "student_id,class_id" });
       if (enrollmentError) return { ok: false, error: enrollmentError.message };
+    } else if (wantsUnassign) {
+      // Explicit move to Unassigned: end every active enrollment row. The
+      // member UUID is untouched, so exam attempts stay attached to it.
+      const { error: unassignError } = await ctx.admin.from("class_enrollments").update({ status: "ended", ended_at: new Date().toISOString() }).eq("student_id", memberId).eq("status", "active");
+      if (unassignError) return { ok: false, error: unassignError.message };
     }
     revalidatePath("/workspace/students");
     revalidatePath("/workspace/classes");
@@ -459,6 +462,168 @@ export async function toggleUserAction(id: string, active: boolean): Promise<Act
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
+  }
+}
+
+// ------------------------------------------------- member hard delete (admin)
+const hardDeleteMemberSchema = z.object({
+  memberId: z.string().uuid("Unknown account."),
+  /** Typed confirmation: the caller must send the literal DELETE string. */
+  confirmation: z.string(),
+  reason: z.string().trim().max(280).optional().default(""),
+});
+
+// Permanent removal of a student or staff account: auth user + member +
+// attempts/results, with the member_deletion_audits row as the only retained
+// record. Administrator-only, service-role-only, ordered so Restrict relations
+// (exam_attempts.session/student, exam_retake_grants.granted_by) never block:
+// retake grants/access rows → attempt responses → integrity events → attempts
+// → subject/teaching/qualification rows → enrollments → member row → auth user
+// → audit row. SetNull relations (created exams, authored questions, access
+// grantor) are left to the database. Deleted attempts are gone by design —
+// the confirm copy must say so.
+export async function hardDeleteMemberAction(input: {
+  memberId: string;
+  confirmation: string;
+  reason?: string;
+}): Promise<ActionResult & { auditId?: string }> {
+  try {
+    const parsed = hardDeleteMemberSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Unknown account." };
+    if (parsed.data.confirmation !== "DELETE") {
+      return { ok: false, error: "Type DELETE to confirm this permanent deletion." };
+    }
+    const ctx = await requireAdmin();
+
+    const { data: target } = await ctx.admin
+      .from("school_members")
+      .select("id,role,status,first_name,last_name,student_number,auth_user_id")
+      .eq("id", parsed.data.memberId)
+      .maybeSingle();
+    const targetRow = target as {
+      id: string;
+      role: string;
+      status: string;
+      first_name: string;
+      last_name: string;
+      student_number: string | null;
+      auth_user_id: string | null;
+    } | null;
+    if (!targetRow) return { ok: false, error: "Account was not found." };
+    if (targetRow.id === ctx.scope.profileId) {
+      return { ok: false, error: "You cannot delete your own administrator account." };
+    }
+    if (targetRow.role === "administrator") {
+      const { count } = await ctx.admin
+        .from("school_members")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "administrator")
+        .eq("status", "active");
+      if ((count ?? 0) <= 1) {
+        return { ok: false, error: "The last active administrator cannot be deleted." };
+      }
+    }
+
+    const { data: attemptRows } = await ctx.admin
+      .from("exam_attempts")
+      .select("id")
+      .eq("student_id", targetRow.id)
+      .limit(2000);
+    const attemptIds = ((attemptRows ?? []) as { id: string }[]).map((row) => row.id);
+
+    async function remove(
+      table: string,
+      column: string,
+      value: string,
+    ): Promise<string | null> {
+      const { error } = await ctx.admin.from(table).delete().eq(column, value);
+      return error ? error.message : null;
+    }
+
+    // 1. Retake grants + per-student access rows (grantor Restrict rows go too).
+    for (const column of ["student_id", "granted_by_id"]) {
+      const grantError = await remove("exam_retake_grants", column, targetRow.id);
+      if (grantError) return { ok: false, error: grantError };
+    }
+    const accessError = await remove("exam_student_access", "student_id", targetRow.id);
+    if (accessError) return { ok: false, error: accessError };
+
+    // 2-3. Attempt children (explicit ahead of the Restrict-guarded attempts).
+    if (attemptIds.length) {
+      for (const table of ["exam_attempt_responses", "exam_integrity_events"]) {
+        const { error } = await ctx.admin.from(table).delete().in("attempt_id", attemptIds);
+        if (error) return { ok: false, error: error.message };
+      }
+    }
+
+    // 4. Attempts (Restrict on session + student, so explicit).
+    const attemptsError = await remove("exam_attempts", "student_id", targetRow.id);
+    if (attemptsError) return { ok: false, error: attemptsError };
+
+    // 5. Subject/teaching/qualification + staff-assignment rows.
+    for (const [table, column] of [
+      ["student_subject_enrollments", "student_id"],
+      ["staff_subject_qualifications", "staff_id"],
+      ["teaching_assignments", "staff_id"],
+      ["exam_staff_assignments", "staff_id"],
+      ["class_enrollments", "student_id"],
+    ] as const) {
+      const relationError = await remove(table, column, targetRow.id);
+      if (relationError) return { ok: false, error: relationError };
+    }
+
+    // 6. Member row.
+    const { error: memberError } = await ctx.admin
+      .from("school_members")
+      .delete()
+      .eq("id", targetRow.id);
+    if (memberError) return { ok: false, error: memberError.message };
+
+    // 7. Auth user (missing Auth account is already the desired end state).
+    let authCleanupFailed = false;
+    if (targetRow.auth_user_id) {
+      const { error: authError } = await ctx.admin.auth.admin.deleteUser(
+        targetRow.auth_user_id,
+      );
+      if (authError && !/not found/i.test(authError.message)) {
+        authCleanupFailed = true;
+      }
+    }
+
+    // 8. Audit row — the only retained record.
+    const { data: audit, error: auditError } = await ctx.admin
+      .from("member_deletion_audits")
+      .insert({
+        target_member_id: targetRow.id,
+        target_role: targetRow.role,
+        target_name: `${targetRow.first_name} ${targetRow.last_name}`.trim(),
+        target_student_number: targetRow.student_number,
+        deleted_by_id: ctx.scope.profileId,
+        reason: authCleanupFailed
+          ? `${parsed.data.reason} [auth cleanup pending]`.trim()
+          : parsed.data.reason,
+        attempt_count: attemptIds.length,
+      })
+      .select("id")
+      .maybeSingle();
+    if (auditError) {
+      return { ok: false, error: `Account deleted but the audit record failed: ${auditError.message}` };
+    }
+    const auditId = (audit as { id?: string } | null)?.id;
+
+    revalidatePath("/workspace/students");
+    revalidatePath("/workspace/staff");
+    revalidatePath("/workspace/classes");
+    if (authCleanupFailed) {
+      return {
+        ok: false,
+        error: "Account records deleted but the Auth login could not be removed. Ask another administrator to retry the login cleanup.",
+        auditId,
+      };
+    }
+    return { ok: true, auditId };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
   }
 }
 
@@ -688,17 +853,53 @@ export async function getUserDetailAction(userId: string) {
     phone: string | null;
     promotion_status: string | null;
   } | null;
-  if (!person) return { user: null, attempts: [] };
-  if (!ctx.scope.isAdmin && person.role !== "student") return { user: null, attempts: [] };
+  if (!person) return { user: null, attempts: [], placementSuggestion: null };
+  if (!ctx.scope.isAdmin && person.role !== "student") return { user: null, attempts: [], placementSuggestion: null };
 
-  const [{ data: enrollment }, { data: attempts }] = await Promise.all([
+  const [{ data: enrollment }, { data: attempts }, { data: placementRows }] = await Promise.all([
     person.role === "student"
       ? ctx.admin.from("class_enrollments").select("class_id").eq("student_id", person.id).eq("status", "active").is("ended_at", null).limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
     person.role === "student"
       ? ctx.admin.from("exam_attempts").select("id,session_id,context_snapshot,score,integrity_score,submitted_at").eq("student_id", person.id).order("created_at", { ascending: false }).limit(50)
       : Promise.resolve({ data: [] }),
+    // Placement auto-suggest: latest submitted qualifier attempt carrying an
+    // assigned_track. Advisory only — promotion stays a separate staff write
+    // through upsertUserAction into a real ss1-<track>-a class.
+    person.role === "student"
+      ? ctx.admin.from("exam_attempts").select("id,session_id,assigned_track,placement_confidence,submitted_at").eq("student_id", person.id).not("assigned_track", "is", null).not("submitted_at", "is", null).order("submitted_at", { ascending: false }).limit(1)
+      : Promise.resolve({ data: [] }),
   ]);
+  const suggestionRow = ((placementRows ?? []) as {
+    id: string;
+    session_id: string;
+    assigned_track: AcademicTrack | null;
+    placement_confidence: number | null;
+    submitted_at: number | null;
+  }[])[0] ?? null;
+  let placementSuggestion: {
+    assignedTrack: AcademicTrack;
+    confidence: number | null;
+    sessionId: string;
+    attemptId: string;
+    submittedAt: number | null;
+  } | null = null;
+  if (suggestionRow?.assigned_track) {
+    const { data: placementSession } = await ctx.admin
+      .from("exam_sessions")
+      .select("mode")
+      .eq("id", suggestionRow.session_id)
+      .maybeSingle();
+    if ((placementSession as { mode?: string } | null)?.mode === "qualifier") {
+      placementSuggestion = {
+        assignedTrack: suggestionRow.assigned_track,
+        confidence: suggestionRow.placement_confidence,
+        sessionId: suggestionRow.session_id,
+        attemptId: suggestionRow.id,
+        submittedAt: suggestionRow.submitted_at,
+      };
+    }
+  }
   return {
     user: {
       ...person,
@@ -706,6 +907,7 @@ export async function getUserDetailAction(userId: string) {
       class_id: (enrollment as { class_id?: string } | null)?.class_id ?? null,
     },
     attempts: attempts ?? [],
+    placementSuggestion,
   };
 }
 

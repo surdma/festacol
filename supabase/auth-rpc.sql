@@ -358,6 +358,61 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION private.student_level_ordinal(
+  p_student_id uuid
+)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT l.ordinal
+      FROM public.class_enrollments ce
+      JOIN public.classes c ON c.id = ce.class_id
+      JOIN public.academic_levels l ON l.id = c.level_id
+      WHERE ce.student_id = p_student_id
+        AND ce.status = 'active'
+        AND ce.ended_at IS NULL
+      ORDER BY l.ordinal DESC
+      LIMIT 1
+    ),
+    -- Unassigned students (zero active class_enrollments) sit in the SS1
+    -- holding pool: ordinal 1. They may enter SS1 exams and placement
+    -- (qualifier) exams but never SS2+ class exams.
+    1
+  );
+$$;
+
+-- Minimum target level ordinal for an exam, resolved across direct class
+-- targets and classes behind offering targets. NULL when the exam targets no
+-- class (placement/qualifier exams admit anyone).
+CREATE OR REPLACE FUNCTION private.exam_min_target_ordinal(
+  p_session_id text
+)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT min(l.ordinal)
+  FROM (
+    SELECT t.class_id AS class_id
+    FROM public.exam_class_targets t
+    WHERE t.session_id = upper(p_session_id)
+    UNION
+    SELECT o.class_id AS class_id
+    FROM public.exam_offering_targets t
+    JOIN public.class_subject_offerings o ON o.id = t.offering_id
+    WHERE t.session_id = upper(p_session_id)
+  ) targets
+  JOIN public.classes c ON c.id = targets.class_id
+  JOIN public.academic_levels l ON l.id = c.level_id;
+$$;
+
 CREATE OR REPLACE FUNCTION private.student_allowed_attempts(
   p_session_id text,
   p_student_id uuid
@@ -450,6 +505,16 @@ BEGIN
     RETURN QUERY SELECT false,0,0,NULL::uuid,'not_eligible'::text;
     RETURN;
   END IF;
+  -- Level gate: a lower-level student (e.g. SS1-enrolled) attempting a
+  -- higher-level class exam (e.g. SS2-targeted) is not qualified. Deny rows
+  -- still win above; explicit allow grants do not bypass this gate. Qualifier
+  -- exams carry no class targets, so the NULL ordinal leaves them open.
+  IF (SELECT private.exam_min_target_ordinal(upper(p_session_id))) IS NOT NULL
+    AND private.student_level_ordinal(v_student)
+      < (SELECT private.exam_min_target_ordinal(upper(p_session_id))) THEN
+    RETURN QUERY SELECT false,0,0,NULL::uuid,'not_qualified'::text;
+    RETURN;
+  END IF;
 
   RETURN QUERY
   SELECT
@@ -496,6 +561,9 @@ BEGIN
   IF v_session.starts_at IS NOT NULL AND v_now < v_session.starts_at THEN RAISE EXCEPTION 'exam_not_started'; END IF;
   IF v_session.ends_at IS NOT NULL AND v_now > v_session.ends_at THEN RAISE EXCEPTION 'exam_ended'; END IF;
   IF NOT private.student_is_targeted_for_exam(v_session.id,v_student) THEN RAISE EXCEPTION 'student_not_eligible'; END IF;
+  IF (SELECT private.exam_min_target_ordinal(v_session.id)) IS NOT NULL
+    AND private.student_level_ordinal(v_student)
+      < (SELECT private.exam_min_target_ordinal(v_session.id)) THEN RAISE EXCEPTION 'student_not_qualified'; END IF;
 
   PERFORM pg_advisory_xact_lock(hashtextextended(v_session.id || ':' || v_student::text,0));
 
@@ -585,6 +653,8 @@ REVOKE ALL ON FUNCTION private.staff_can_access_subject(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION private.staff_can_access_exam(uuid,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION private.student_is_targeted_for_exam(text,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION private.student_allowed_attempts(text,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.student_level_ordinal(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.exam_min_target_ordinal(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION private.current_school_member_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION private.current_member_role() TO authenticated;
@@ -597,6 +667,8 @@ GRANT EXECUTE ON FUNCTION private.staff_can_access_subject(uuid,uuid) TO authent
 GRANT EXECUTE ON FUNCTION private.staff_can_access_exam(uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION private.student_is_targeted_for_exam(text,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION private.student_allowed_attempts(text,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.student_level_ordinal(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.exam_min_target_ordinal(text) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.resolve_student_member_by_name(text,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.resolve_student_member_by_name(text,text) FROM authenticated;

@@ -31,6 +31,7 @@ ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.question_academic_levels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.question_blanks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.whatsapp_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.member_deletion_audits ENABLE ROW LEVEL SECURITY;
 
 -- Make this integration file idempotent and ensure stale policies cannot survive
 -- a contract change.
@@ -48,7 +49,8 @@ BEGIN
         'exam_sessions','exam_class_targets','exam_offering_targets','exam_placement_tracks',
         'exam_session_links','exam_qr_codes','exam_staff_assignments','exam_student_access',
         'exam_retake_grants','exam_attempts','exam_attempt_responses','exam_integrity_events',
-        'questions','question_academic_levels','question_blanks','whatsapp_groups'
+        'questions','question_academic_levels','question_blanks','whatsapp_groups',
+        'member_deletion_audits'
       ])
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',r.policyname,r.schemaname,r.tablename);
@@ -99,6 +101,9 @@ GRANT USAGE,SELECT ON SEQUENCE public.exam_integrity_events_id_seq TO authentica
 GRANT SELECT ON public.questions,public.question_academic_levels,public.question_blanks
   TO authenticated;
 GRANT SELECT ON public.whatsapp_groups TO authenticated;
+-- Hard-delete audit rows are written service-role-only. Authenticated reads are
+-- admin-only; students have no access surface.
+GRANT SELECT ON public.member_deletion_audits TO authenticated;
 
 -- Trusted server mutations use service_role.
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
@@ -382,5 +387,11 @@ CREATE POLICY whatsapp_student_read ON public.whatsapp_groups
 CREATE POLICY whatsapp_staff_read ON public.whatsapp_groups
   FOR SELECT TO authenticated
   USING (private.staff_can_access_class(private.current_school_member_id(),class_id));
+
+-- ------------------------------------------------------- deletion audit log
+CREATE POLICY member_deletion_audits_admin_only ON public.member_deletion_audits
+  FOR ALL TO authenticated
+  USING (private.is_admin())
+  WITH CHECK (private.is_admin());
 
 COMMIT;
