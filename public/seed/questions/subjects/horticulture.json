@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-horticulture-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "horticulture",
+    "subjectName": "Horticulture and Crop Production",
+    "baseId": 2034000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Plant Production","term":"Propagation","definition":"the production of new plants from seeds or vegetative plant parts"},
+      {"domain":"Nursery Practice","term":"Seedbed","definition":"a prepared area of soil or growing medium in which seeds are sown for germination and early growth"},
+      {"domain":"Nursery Practice","term":"Nursery","definition":"a managed place where young plants are raised and cared for before sale or transplanting"},
+      {"domain":"Crop Establishment","term":"Transplanting","definition":"the transfer of a seedling or young plant from one growing location to another"},
+      {"domain":"Crop Management","term":"Pruning","definition":"the selective removal of plant parts to control shape, health, growth, or productivity"},
+      {"domain":"Soil Management","term":"Mulching","definition":"covering the soil surface with material to conserve moisture, suppress weeds, and protect the soil"},
+      {"domain":"Soil Management","term":"Compost","definition":"decomposed organic material used to improve soil structure and supply nutrients"},
+      {"domain":"Water Management","term":"Irrigation","definition":"the controlled application of water to crops or growing media to meet plant water needs"},
+      {"domain":"Crop Protection","term":"Pest management","definition":"the planned prevention, monitoring, and control of organisms that damage crops"},
+      {"domain":"Postharvest","term":"Harvesting","definition":"the timely collection or removal of mature crop produce from the field or growing system"}
+    ]
+  }
+}
