@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-q-math-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "q-math",
+    "subjectName": "Mathematics Aptitude",
+    "baseId": 2036000,
+    "levels": ["SS1"],
+    "examModes": ["qualifier"],
+    "concepts": [
+      {"domain":"Number","term":"Integer","definition":"a whole number that can be positive, negative, or zero"},
+      {"domain":"Number","term":"Fraction","definition":"a number representing one or more equal parts of a whole"},
+      {"domain":"Number","term":"Percentage","definition":"a quantity expressed as a number of parts out of one hundred"},
+      {"domain":"Number","term":"Ratio","definition":"a comparison of two quantities by division"},
+      {"domain":"Algebra","term":"Algebraic expression","definition":"a mathematical phrase containing numbers, variables, and operations but no equality sign"},
+      {"domain":"Algebra","term":"Equation","definition":"a mathematical statement that two expressions have equal value"},
+      {"domain":"Mensuration","term":"Perimeter","definition":"the total distance around the boundary of a two-dimensional shape"},
+      {"domain":"Mensuration","term":"Area","definition":"the amount of surface enclosed by a two-dimensional shape measured in square units"},
+      {"domain":"Statistics","term":"Average","definition":"a representative value commonly found by dividing the sum of values by their number"},
+      {"domain":"Probability","term":"Probability","definition":"a measure of the chance that an event will happen"}
+    ]
+  }
+}
