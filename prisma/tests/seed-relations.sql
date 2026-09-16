@@ -7,6 +7,10 @@ BEGIN
     RAISE EXCEPTION 'canonical_school_members_missing';
   END IF;
 
+  IF to_regclass('public.exam_subject_targets') IS NULL THEN
+    RAISE EXCEPTION 'exam_subject_targets_missing';
+  END IF;
+
   IF to_regclass('public.academic_profiles') IS NOT NULL
      OR to_regclass('public.student_academic_profiles') IS NOT NULL
      OR to_regclass('public.staff_academic_profiles') IS NOT NULL
@@ -39,6 +43,16 @@ BEGIN
     WHERE s.kind='qualifier'
   ) THEN
     RAISE EXCEPTION 'qualifier_subject_was_offered_as_senior_curriculum';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.exam_subject_targets t
+    JOIN public.exam_sessions e ON e.id=t.session_id
+    JOIN public.subjects s ON s.id=t.subject_id
+    WHERE e.mode <> 'qualifier' OR s.kind <> 'qualifier'
+  ) THEN
+    RAISE EXCEPTION 'exam_subject_target_outside_qualifier_contract';
   END IF;
 
   IF EXISTS (
