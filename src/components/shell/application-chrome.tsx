@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogOut, Settings } from "lucide-react";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { signOutSessionAction } from "@/app/actions/auth";
 import { PrototypeAdminIcon } from "@/components/admin/prototype-admin-icon";
 import {
-  ApplicationNav,
   type ApplicationSurface,
   useApplicationNavItem,
 } from "@/components/shell/application-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,110 +24,121 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import type { AdminTopbarNotification } from "@/types/admin";
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import type { ApplicationNotification } from "@/types/admin";
 
 const btnPrimary = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:bg-neutral-800 hover:shadow-sm active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 focus:ring-neutral-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0";
-const iconBtn = "inline-flex size-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 transition motion-safe:duration-200 hover:-translate-y-px hover:border-neutral-400 hover:bg-neutral-100 hover:text-black hover:shadow-sm active:translate-y-0 active:scale-[.96] focus:outline-none focus:ring-4 focus:ring-neutral-200";
+const iconBtn = "relative inline-flex size-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 transition motion-safe:duration-200 hover:-translate-y-px hover:border-neutral-400 hover:bg-neutral-100 hover:text-black hover:shadow-sm active:translate-y-0 active:scale-[.96] focus:outline-none focus:ring-4 focus:ring-neutral-200";
 const field = "block min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-950 placeholder:text-neutral-400 transition focus:border-black focus:ring-black";
 
-const toneClass: Record<AdminTopbarNotification["tone"], string> = {
+const toneClass: Record<ApplicationNotification["tone"], string> = {
   amber: "bg-amber-50 text-amber-700",
   blue: "bg-blue-50 text-blue-700",
   red: "bg-red-50 text-red-700",
   neutral: "bg-neutral-100 text-neutral-700",
 };
 
-const iconName: Record<AdminTopbarNotification["icon"], "book" | "clock" | "shield" | "qr"> = {
+const iconName: Record<ApplicationNotification["icon"], "book" | "clock" | "shield" | "qr" | "chart" | "school"> = {
   book: "book",
   clock: "clock",
   shield: "shield",
   qr: "qr",
+  chart: "chart",
+  school: "school",
 };
 
-function MobileNavigation({ surface, role }: { surface: ApplicationSurface; role: string }) {
-  const [open, setOpen] = useState(false);
-  const isStudent = surface === "student";
-  const isAdmin = role === "administrator";
-  const title = isStudent ? "Festacol Student" : isAdmin ? "Festacol Administration" : "Festacol Teaching";
-  const description = isStudent ? "Academic workspace" : isAdmin ? "School management" : "Teaching workspace";
+function NotificationsMenu({
+  notifications,
+  surface,
+}: {
+  notifications: ApplicationNotification[];
+  surface: ApplicationSurface;
+}) {
+  const countLabel = notifications.length > 9 ? "9+" : String(notifications.length);
+  const eyebrow = surface === "student" ? "Student updates" : "Activity centre";
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<button type="button" className={`${iconBtn} lg:hidden`} aria-label="Open navigation" />}>
-        <PrototypeAdminIcon name="menu" />
-      </SheetTrigger>
-      <SheetContent
-        side="left"
-        showCloseButton={false}
-        overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="no-scrollbar w-[min(88vw,320px)] max-w-none gap-0 overflow-y-auto border-r border-neutral-200 bg-white p-0 text-neutral-950 shadow-2xl data-[side=left]:data-starting-style:-translate-x-full data-[side=left]:data-ending-style:-translate-x-full lg:hidden"
+    <Popover>
+      <PopoverTrigger
+        render={(
+          <button type="button" className={iconBtn} aria-label={`Notifications, ${notifications.length} current`} />
+        )}
       >
-        <div className="flex items-center justify-between border-b border-neutral-200 p-4">
-          <div>
-            <SheetTitle className="font-display font-bold text-neutral-950">{title}</SheetTitle>
-            <SheetDescription className="text-xs text-neutral-500">{description}</SheetDescription>
-          </div>
-          <SheetClose render={<button type="button" className={iconBtn} aria-label="Close navigation" />}>
-            <PrototypeAdminIcon name="close" />
-          </SheetClose>
-        </div>
-        <ApplicationNav surface={surface} role={role} mobile onNavigate={() => setOpen(false)} />
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function NotificationsMenu({ notifications }: { notifications: AdminTopbarNotification[] }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<button type="button" className={iconBtn} aria-label="Notifications" />}>
         <PrototypeAdminIcon name="bell" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(92vw,360px)] rounded-2xl border border-neutral-200 bg-white p-2 shadow-xl">
-        <div className="border-b border-neutral-100 px-3 pb-3 pt-2">
-          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Activity centre</p>
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <h3 className="font-display text-base font-extrabold">Needs attention</h3>
-            <span className="text-xs font-semibold text-neutral-400">{notifications.length}</span>
+        {notifications.length ? (
+          <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-neutral-950 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
+            {countLabel}
+          </span>
+        ) : null}
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[min(92vw,390px)] gap-0 rounded-2xl border border-neutral-200 bg-white p-0 text-neutral-950 shadow-xl"
+      >
+        <PopoverHeader className="border-b border-neutral-100 px-4 pb-3 pt-4">
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">{eyebrow}</p>
+          <div className="mt-1 flex items-start justify-between gap-4">
+            <div>
+              <PopoverTitle className="font-display text-base font-extrabold">Notifications</PopoverTitle>
+              <PopoverDescription className="mt-1 text-xs leading-5 text-neutral-500">
+                Select a notification to expand its full message.
+              </PopoverDescription>
+            </div>
+            <span className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] font-bold text-neutral-500">
+              {notifications.length}
+            </span>
           </div>
-        </div>
-        <DropdownMenuGroup className="grid gap-1 p-1">
-          {notifications.length ? notifications.map((notification) => (
-            <DropdownMenuItem
-              key={`${notification.href}-${notification.title}`}
-              render={<Link href={notification.href} />}
-              className="group flex gap-3 rounded-xl p-3 transition hover:bg-neutral-50 focus:bg-neutral-50"
-            >
-              <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${toneClass[notification.tone]}`}>
-                <PrototypeAdminIcon name={iconName[notification.icon]} className="size-4 shrink-0" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <strong className="block text-xs text-neutral-900">{notification.title}</strong>
-                <span className="mt-1 block text-[11px] leading-4 text-neutral-500">{notification.detail}</span>
-              </span>
-              <PrototypeAdminIcon name="external" className="size-3.5 shrink-0 text-neutral-300 transition group-hover:text-neutral-600" />
-            </DropdownMenuItem>
-          )) : (
-            <div className="flex gap-3 rounded-xl p-3">
+        </PopoverHeader>
+
+        <div className="no-scrollbar max-h-[min(60dvh,520px)] overflow-y-auto p-2">
+          {notifications.length ? (
+            <div className="flex flex-col gap-1">
+              {notifications.map((notification) => (
+                <Collapsible key={notification.id}>
+                  <CollapsibleTrigger className="group flex w-full items-start gap-3 rounded-xl p-3 text-left outline-none transition hover:bg-neutral-50 focus-visible:ring-4 focus-visible:ring-neutral-200">
+                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${toneClass[notification.tone]}`}>
+                      <PrototypeAdminIcon name={iconName[notification.icon]} className="size-4 shrink-0" />
+                    </span>
+                    <span className="min-w-0 flex-1 pt-0.5">
+                      <strong className="block text-xs leading-5 text-neutral-900">{notification.title}</strong>
+                      <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[.08em] text-neutral-400">
+                        Tap to read message
+                      </span>
+                    </span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="mt-1 size-4 shrink-0 text-neutral-400 transition-transform group-aria-expanded:rotate-180"
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-3 pb-3 pl-[3.75rem] pr-4 text-xs leading-5 text-neutral-600">
+                    {notification.detail}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-3 rounded-xl p-4">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
                 <PrototypeAdminIcon name="check" className="size-4 shrink-0" />
               </span>
               <span>
-                <strong className="block text-xs">No immediate items</strong>
-                <span className="mt-1 block text-[11px] leading-4 text-neutral-500">There is nothing requiring attention right now.</span>
+                <strong className="block text-xs">Nothing needs your attention</strong>
+                <span className="mt-1 block text-[11px] leading-5 text-neutral-500">
+                  Current academic and account activity will appear here when there is something useful to review.
+                </span>
               </span>
             </div>
           )}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -138,7 +153,7 @@ export function ApplicationTopbar({
   role: string;
   profileName: string;
   profileDetail?: string | null;
-  notifications?: AdminTopbarNotification[];
+  notifications?: ApplicationNotification[];
 }) {
   const item = useApplicationNavItem(surface, role);
   const router = useRouter();
@@ -152,7 +167,6 @@ export function ApplicationTopbar({
   return (
     <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 backdrop-blur-xl">
       <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <MobileNavigation surface={surface} role={role} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[10px] font-bold uppercase tracking-[.14em] text-neutral-400">{sectionLabel} / {item?.label ?? "Workspace"}</p>
           <p className="truncate text-sm font-bold">{item?.label ?? "Workspace"}</p>
@@ -190,7 +204,7 @@ export function ApplicationTopbar({
           </Link>
         ) : null}
 
-        {!isStudent ? <NotificationsMenu notifications={notifications} /> : null}
+        <NotificationsMenu notifications={notifications} surface={surface} />
 
         <DropdownMenu>
           <DropdownMenuTrigger
