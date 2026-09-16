@@ -25,8 +25,7 @@ function Host() {
     for (const key of RECORD_KEYS) next.delete(key);
     if (modal === "user-new" && pathname !== "/admin/staff") next.delete("role");
     const query = next.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
-    router.refresh();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
   const examId = params.get("exam");
