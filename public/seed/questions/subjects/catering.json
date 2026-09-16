@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-catering-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "catering",
+    "subjectName": "Catering Craft",
+    "baseId": 2025000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Kitchen Organization","term":"Mise en place","definition":"the preparation and arrangement of ingredients, tools, and work areas before cooking begins"},
+      {"domain":"Cooking Methods","term":"Baking","definition":"cooking food by surrounding it with dry heat, usually in an enclosed oven"},
+      {"domain":"Cooking Methods","term":"Grilling","definition":"cooking food quickly by direct radiant heat from above or below"},
+      {"domain":"Cooking Methods","term":"Steaming","definition":"cooking food with the heat of water vapour without immersing it directly in the liquid"},
+      {"domain":"Menu Planning","term":"Menu","definition":"a planned list of dishes or food items offered for a meal or service period"},
+      {"domain":"Food Service","term":"Portion control","definition":"the consistent measurement and serving of specified quantities of food"},
+      {"domain":"Food Safety","term":"Food hygiene","definition":"practices that reduce contamination and keep food, equipment, and handlers clean and safe"},
+      {"domain":"Presentation","term":"Garnish","definition":"an edible decorative item added to improve the appearance or complement the flavour of a dish"},
+      {"domain":"Hospitality","term":"Food service","definition":"the organized preparation, presentation, and delivery of food and beverages to customers or guests"},
+      {"domain":"Kitchen Production","term":"Stock","definition":"a flavoured liquid prepared by simmering bones, vegetables, or other ingredients for use as a cooking base"}
+    ]
+  }
+}
