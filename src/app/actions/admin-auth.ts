@@ -1,8 +1,8 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
+import { safeStaffDestination } from "@/lib/auth/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // Supabase Auth proves identity. Staff authorization is resolved exclusively
@@ -28,16 +28,10 @@ export async function signInAdminAction(input: { email: string; password: string
     .maybeSingle();
 
   if (!member) {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "This Auth account is not linked to an active staff member." };
   }
 
   revalidatePath("/workspace");
-  return { ok: true, next: input.next && input.next.startsWith("/workspace") ? input.next : "/workspace" };
-}
-
-export async function signOutAdminAction() {
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
-  redirect("/workspace/login");
+  return { ok: true, next: safeStaffDestination(input.next) ?? "/workspace" };
 }

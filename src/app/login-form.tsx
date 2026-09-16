@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   isExamDestination,
   safeStudentDestination,
-} from "@/lib/auth/student-navigation";
+} from "@/lib/auth/navigation";
 
 export function StudentLoginForm({ next }: { next?: string }) {
   const router = useRouter();

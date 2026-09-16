@@ -10,7 +10,7 @@ import {
 import {
   isExamDestination,
   safeStudentDestination,
-} from "@/lib/auth/student-navigation";
+} from "@/lib/auth/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StudentLoginForm } from "./login-form";
 
@@ -31,9 +31,6 @@ export default async function RootPage({
       .eq("status", "active")
       .maybeSingle();
     if (member?.role === "student") redirect(next ?? "/dashboard");
-    // Staff sessions have no student permission: never show the student
-    // login form to them. Preserve the student destination they just tried to
-    // open so the denial explains where to go after switching accounts.
     if (member?.role === "administrator" || member?.role === "teacher") {
       if (next) {
         redirect(

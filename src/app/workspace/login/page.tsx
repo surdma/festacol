@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { safeStaffDestination } from "@/lib/auth/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AdminLoginForm } from "./login-form";
 
@@ -15,13 +16,7 @@ export default async function AdminLoginPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const next = (await searchParams).next;
-  const safeNext =
-    next && next.startsWith("/workspace") && !next.startsWith("//")
-      ? next
-      : undefined;
-  // Role separation: students must never see or reuse the staff login while
-  // signed in as a student; staff go straight to administration.
+  const safeNext = safeStaffDestination((await searchParams).next);
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   if (data.user) {
