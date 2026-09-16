@@ -1,5 +1,5 @@
 import { KeyRound, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
-import { signOutAdminAction } from "@/app/actions/admin-auth";
+import { signOutSessionAction } from "@/app/actions/auth";
 import { AdminPageHeader } from "@/components/admin/admin-ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarBadge, AvatarFallback } from "@/components/ui/avatar";
@@ -107,7 +107,8 @@ export default async function AccountSettingsPage() {
             <h2 id="session-heading" className="mt-1 text-sm font-semibold text-foreground">End this authenticated session</h2>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">Sign out after using a shared school computer or whenever you need to switch staff accounts.</p>
           </div>
-          <form action={signOutAdminAction}>
+          <form action={signOutSessionAction}>
+            <input type="hidden" name="surface" value="staff" />
             <Button type="submit" variant="outline">
               <LogOut data-icon="inline-start" />
               Sign out
