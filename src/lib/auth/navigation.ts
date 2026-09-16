@@ -41,7 +41,8 @@ export function safeStaffDestination(value: string | null | undefined): string |
   if (!target) return undefined;
 
   const inWorkspace = target.pathname === "/workspace" || target.pathname.startsWith("/workspace/");
-  if (!inWorkspace || target.pathname === "/workspace/login") return undefined;
+  const inLogin = target.pathname === "/workspace/login" || target.pathname.startsWith("/workspace/login/");
+  if (!inWorkspace || inLogin) return undefined;
 
   return `${target.pathname}${target.search}${target.hash}`;
 }
