@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-fmath-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "fmath",
+    "subjectName": "Further Mathematics",
+    "baseId": 2008000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Matrices","term":"Matrix","definition":"a rectangular arrangement of numbers or expressions in rows and columns"},
+      {"domain":"Matrices","term":"Determinant","definition":"a scalar value computed from a square matrix that summarizes important matrix properties"},
+      {"domain":"Vectors","term":"Vector","definition":"a quantity with both magnitude and direction"},
+      {"domain":"Functions","term":"Function","definition":"a relation that assigns each input in its domain exactly one output"},
+      {"domain":"Logarithms","term":"Logarithm","definition":"the exponent to which a base must be raised to produce a specified positive number"},
+      {"domain":"Counting","term":"Permutation","definition":"an arrangement of selected objects in which order matters"},
+      {"domain":"Counting","term":"Combination","definition":"a selection of objects in which order does not matter"},
+      {"domain":"Calculus","term":"Differentiation","definition":"the process of finding the rate of change of a function with respect to a variable"},
+      {"domain":"Calculus","term":"Integration","definition":"the process of finding an accumulated quantity or an antiderivative"},
+      {"domain":"Sequences","term":"Sequence","definition":"an ordered list of numbers or terms generated according to a rule"}
+    ]
+  }
+}
