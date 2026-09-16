@@ -1,11 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
 import { AccessDenied } from "@/components/access-denied";
-import { ExamEntryFlow } from "@/components/exam/exam-entry-flow";
 import { ExamWorkspace } from "@/components/exam/exam-workspace";
 import { StudentWizard } from "@/components/exam/student-wizard";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { currentStudent } from "@/lib/auth/current-student";
 import { normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -18,7 +24,9 @@ function ExamUnavailable({ title, message }: { title: string; message: string })
         <CardDescription>{message}</CardDescription>
       </CardHeader>
       <CardContent>
-        <Link href="/" className={buttonVariants({ variant: "outline" })}>Back to home</Link>
+        <Link href="/" className={buttonVariants({ variant: "outline" })}>
+          Back to home
+        </Link>
       </CardContent>
     </Card>
   );
@@ -35,7 +43,10 @@ export default async function StandaloneExamPage({
   if (!token) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamUnavailable title="Invalid exam link" message="This exam link is missing or malformed. Ask your teacher for the complete candidate link or QR code." />
+        <ExamUnavailable
+          title="Invalid exam link"
+          message="This exam link is missing or malformed. Ask your teacher for the complete candidate link or QR code."
+        />
       </div>
     );
   }
@@ -60,7 +71,10 @@ export default async function StandaloneExamPage({
         .eq("auth_user_id", auth.user.id)
         .maybeSingle();
       const row = member as { role?: string; status?: string } | null;
-      if (row?.status === "active" && (row.role === "teacher" || row.role === "administrator")) {
+      if (
+        row?.status === "active" &&
+        (row.role === "teacher" || row.role === "administrator")
+      ) {
         return (
           <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
             <AccessDenied
@@ -75,16 +89,16 @@ export default async function StandaloneExamPage({
       }
     }
 
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamEntryFlow token={token} examTitle={entry.exam.title} />
-      </div>
-    );
+    const examDestination = `/exam?token=${encodeURIComponent(token)}`;
+    redirect(`/?next=${encodeURIComponent(examDestination)}`);
   }
 
-  const { data: access, error: accessError } = await ctx.supabase.rpc("my_exam_access", {
-    p_session_id: entry.exam.id,
-  });
+  const { data: access, error: accessError } = await ctx.supabase.rpc(
+    "my_exam_access",
+    {
+      p_session_id: entry.exam.id,
+    },
+  );
   const accessRow = (Array.isArray(access) ? access[0] : access) as {
     eligible?: boolean;
   } | null;
@@ -105,12 +119,19 @@ export default async function StandaloneExamPage({
   if (sessionError || !session) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamUnavailable title="Exam unavailable" message="Exam session details could not be loaded." />
+        <ExamUnavailable
+          title="Exam unavailable"
+          message="Exam session details could not be loaded."
+        />
       </div>
     );
   }
 
-  const row = session as { id: string; title: string; duration_seconds: number };
+  const row = session as {
+    id: string;
+    title: string;
+    duration_seconds: number;
+  };
   return (
     <div className="mx-auto w-full max-w-7xl px-2 py-4 sm:px-6 lg:px-8">
       <ExamWorkspace
