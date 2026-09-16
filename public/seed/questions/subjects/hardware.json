@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-hardware-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "hardware",
+    "subjectName": "Computer Hardware and GSM Repairs",
+    "baseId": 2033000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Computer Components","term":"Motherboard","definition":"the main circuit board that connects and allows communication among major computer components"},
+      {"domain":"Computer Components","term":"CPU","definition":"the processor that executes program instructions and performs arithmetic, logic, and control operations"},
+      {"domain":"Computer Components","term":"RAM","definition":"volatile working memory used to hold data and instructions that are actively needed by the processor"},
+      {"domain":"Storage","term":"Storage drive","definition":"a device such as an SSD or hard disk used for persistent storage of programs and data"},
+      {"domain":"Power","term":"Power supply","definition":"a device that converts electrical input into regulated voltages required by computer components"},
+      {"domain":"Peripherals","term":"Peripheral","definition":"an external or auxiliary device connected to a computer to provide input, output, storage, or communication"},
+      {"domain":"Diagnostics","term":"Multimeter","definition":"an electronic measuring instrument used to test quantities such as voltage, current, resistance, and continuity"},
+      {"domain":"Repair Skills","term":"Soldering","definition":"the process of joining electronic conductors or components with a molten filler metal"},
+      {"domain":"Electronics","term":"Circuit board","definition":"an insulating board containing conductive tracks and mounted electronic components that form a circuit"},
+      {"domain":"Repair Skills","term":"Connector","definition":"a component that provides a detachable electrical or data connection between devices, cables, or circuit assemblies"}
+    ]
+  }
+}
