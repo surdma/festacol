@@ -44,18 +44,8 @@ export function ExamEntryFlow({ token, examTitle }: { token: string; examTitle: 
     });
   }
 
-  function finish(next: "exam" | "dashboard") {
-    if (next === "dashboard") {
-      router.replace("/dashboard");
-      router.refresh();
-      return;
-    }
-    router.replace(`/exam?token=${encodeURIComponent(token)}`);
-    router.refresh();
-  }
-
   if (configuredSession && !idRevealOpen) {
-    return <StudentWizard token={token} onComplete={finish} />;
+    return <StudentWizard token={token} />;
   }
 
   return (
