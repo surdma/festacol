@@ -43,13 +43,20 @@ export async function loadExamRuntimeSession(
     .maybeSingle();
   if (sessionError || !rawSession) return null;
   const row = rawSession as SessionRow;
+  const isQualifier = row.mode === "qualifier";
 
-  const [offeringTargetResult, classTargetResult, placementResult] = await Promise.all([
+  const [offeringTargetResult, classTargetResult, placementResult, subjectTargetResult] = await Promise.all([
     client.from("exam_offering_targets").select("offering_id").eq("session_id", id),
     client.from("exam_class_targets").select("class_id").eq("session_id", id),
     client.from("exam_placement_tracks").select("track").eq("session_id", id),
+    client.from("exam_subject_targets").select("subject_id").eq("session_id", id),
   ]);
-  if (offeringTargetResult.error || classTargetResult.error || placementResult.error) return null;
+  if (
+    offeringTargetResult.error
+    || classTargetResult.error
+    || placementResult.error
+    || subjectTargetResult.error
+  ) return null;
 
   const offeringIds = ((offeringTargetResult.data ?? []) as { offering_id: string }[]).map((item) => item.offering_id);
   const { data: offeringRows, error: offeringError } = offeringIds.length
@@ -67,29 +74,70 @@ export async function loadExamRuntimeSession(
     : { data: [], error: null };
   if (classesError) return null;
   const classes = (classRows ?? []) as { id: string; level_id: string; academic_year_id: string; arm: string }[];
-  if (!classes.length) return null;
+  if (!isQualifier && !classes.length) return null;
 
-  const levelIds = [...new Set(classes.map((item) => item.level_id))];
-  const { data: levelRows, error: levelError } = await client.from("academic_levels").select("id,name").in("id", levelIds);
-  if (levelError) return null;
-  const levelNames = [...new Set(((levelRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
-  if (levelNames.length !== 1 || !CLASS_LEVELS.has(levelNames[0] as ClassLevel)) return null;
-  const classLevel = levelNames[0] as ClassLevel;
+  let classLevel: ClassLevel = "SS1";
+  if (!isQualifier) {
+    const levelIds = [...new Set(classes.map((item) => item.level_id))];
+    const { data: levelRows, error: levelError } = await client.from("academic_levels").select("id,name").in("id", levelIds);
+    if (levelError) return null;
+    const levelNames = [...new Set(((levelRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
+    if (levelNames.length !== 1 || !CLASS_LEVELS.has(levelNames[0] as ClassLevel)) return null;
+    classLevel = levelNames[0] as ClassLevel;
+  }
 
   const academicYearIds = [...new Set(classes.map((item) => item.academic_year_id))];
-  const { data: yearRows, error: yearError } = await client.from("academic_years").select("id,name").in("id", academicYearIds);
+  const { data: yearRows, error: yearError } = academicYearIds.length
+    ? await client.from("academic_years").select("id,name").in("id", academicYearIds)
+    : { data: [], error: null };
   if (yearError) return null;
-  const yearNames = [...new Set(((yearRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
+  let yearNames = [...new Set(((yearRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
 
   let termName = "";
   if (row.academic_term_id) {
-    const { data: term, error: termError } = await client.from("academic_terms").select("name").eq("id", row.academic_term_id).maybeSingle();
+    const { data: term, error: termError } = await client
+      .from("academic_terms")
+      .select("name,academic_year_id")
+      .eq("id", row.academic_term_id)
+      .maybeSingle();
     if (termError) return null;
-    termName = String((term as { name?: string } | null)?.name ?? "");
+    const termRow = term as { name?: string; academic_year_id?: string } | null;
+    termName = String(termRow?.name ?? "");
+
+    if (!yearNames.length && termRow?.academic_year_id) {
+      const { data: termYear, error: termYearError } = await client
+        .from("academic_years")
+        .select("name")
+        .eq("id", termRow.academic_year_id)
+        .maybeSingle();
+      if (termYearError) return null;
+      const termYearName = String((termYear as { name?: string } | null)?.name ?? "");
+      if (termYearName) yearNames = [termYearName];
+    }
   }
 
-  const subjectIds = [...new Set(offerings.map((item) => item.subject_id))];
-  const classGroup = classes.map((item) => item.arm).filter(Boolean).join(", ");
+  let subjectIds = [...new Set(
+    ((subjectTargetResult.data ?? []) as { subject_id: string }[]).map((item) => item.subject_id),
+  )];
+  if (isQualifier && !subjectIds.length) {
+    // Qualifier sessions created before exam_subject_targets existed have no
+    // recoverable subject selection. Keep those existing links usable by
+    // falling back to the active qualifier bank instead of treating the exam
+    // as missing. New qualifier sessions persist their exact subject targets.
+    const { data: qualifierSubjects, error: qualifierSubjectError } = await client
+      .from("subjects")
+      .select("id")
+      .eq("kind", "qualifier")
+      .eq("active", true);
+    if (qualifierSubjectError) return null;
+    subjectIds = [...new Set(((qualifierSubjects ?? []) as { id: string }[]).map((item) => item.id))];
+  } else if (!isQualifier) {
+    subjectIds = [...new Set(offerings.map((item) => item.subject_id))];
+  }
+
+  const classGroup = isQualifier
+    ? "Placement"
+    : classes.map((item) => item.arm).filter(Boolean).join(", ");
   const placementTracks = ((placementResult.data ?? []) as { track: string }[]).map((item) => displayTrack(item.track));
 
   return {
