@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-arabic-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "arabic",
+    "subjectName": "Arabic",
+    "baseId": 2020000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Grammar","term":"Ism","definition":"an Arabic noun or nominal word that names a person, place, thing, quality, or idea"},
+      {"domain":"Grammar","term":"Fi'l","definition":"an Arabic verb expressing an action or state and normally associated with tense"},
+      {"domain":"Grammar","term":"Harf","definition":"an Arabic particle whose grammatical meaning is completed through its relationship with other words"},
+      {"domain":"Syntax","term":"Jumlah","definition":"an Arabic sentence or complete grammatical construction that communicates a meaning"},
+      {"domain":"Gender","term":"Mudhakkar","definition":"the masculine grammatical gender used for appropriate Arabic nouns and agreement forms"},
+      {"domain":"Gender","term":"Mu'annath","definition":"the feminine grammatical gender used for appropriate Arabic nouns and agreement forms"},
+      {"domain":"Number","term":"Mufrad","definition":"the singular grammatical form referring to one person or thing"},
+      {"domain":"Number","term":"Muthanna","definition":"the dual grammatical form referring to exactly two persons or things"},
+      {"domain":"Number","term":"Jam'","definition":"the plural grammatical form referring to more than two persons or things"},
+      {"domain":"Verb Tense","term":"Past tense","definition":"a verb form used to express an action regarded as completed before the present moment"}
+    ]
+  }
+}
