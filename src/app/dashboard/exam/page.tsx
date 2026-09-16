@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { AccessDenied } from "@/components/access-denied";
 import { ExamIdDialog } from "@/components/exam-id-dialog";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -154,13 +154,12 @@ export default async function HiddenExamPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button
-              render={
-                <Link href={`/?next=${encodeURIComponent(returnHref)}`} />
-              }
+            <Link
+              href={`/?next=${encodeURIComponent(returnHref)}`}
+              className={buttonVariants()}
             >
               Go to sign in
-            </Button>
+            </Link>
           </CardContent>
         </Card>
       );

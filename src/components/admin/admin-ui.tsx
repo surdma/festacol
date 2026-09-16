@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { BookOpenCheck, Search } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -50,9 +50,18 @@ export function AdminFilterLinks({ pathname, param, current, options, preserve =
         const href = search.size ? `${pathname}?${search.toString()}` : pathname;
         const active = current === option.value || (!current && option.value === "all");
         return (
-          <Button key={option.value} size="sm" variant="ghost" render={<Link href={href} />} className={cn("min-h-9 whitespace-nowrap rounded-md px-3 text-xs font-semibold shadow-none hover:bg-neutral-100 hover:text-neutral-950", active && "bg-black text-white hover:bg-black hover:text-white")}>
+          <Link
+            key={option.value}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              buttonVariants({ size: "sm", variant: "ghost" }),
+              "min-h-9 whitespace-nowrap rounded-md px-3 text-xs font-semibold shadow-none hover:bg-neutral-100 hover:text-neutral-950",
+              active && "bg-black text-white hover:bg-black hover:text-white",
+            )}
+          >
             {option.label}
-          </Button>
+          </Link>
         );
       })}
     </div>

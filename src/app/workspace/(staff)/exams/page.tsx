@@ -10,7 +10,6 @@ import {
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
 import { StatusBadge } from "@/components/status-badge";
-import { Button } from "@/components/ui/button";
 import { currentStaff } from "@/lib/auth/staff";
 import { listSessions } from "@/lib/supabase/queries";
 
@@ -55,7 +54,11 @@ export default async function AdminExamsPage({ searchParams }: { searchParams: P
         eyebrow="Assessment operations"
         title="Examinations"
         description={scope.isAdmin ? "Create, distribute, update and audit examinations without exposing raw candidate URLs." : `Scoped to ${scopedNames.join(", ") || "your assigned subject offerings"}${scope.qualifierAccess ? " plus qualifier examinations" : ""}.`}
-        actions={<Button render={<Link href="/workspace/exams?modal=create-exam" />} className={adminPrimaryButtonClass}><Plus className="size-4" />Create exam</Button>}
+        actions={
+          <Link href="/workspace/exams?modal=create-exam" className={adminPrimaryButtonClass}>
+            <Plus data-icon="inline-start" />Create exam
+          </Link>
+        }
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -73,7 +76,7 @@ export default async function AdminExamsPage({ searchParams }: { searchParams: P
         <div className="flex flex-col gap-3 border-b border-neutral-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <AdminFilterLinks pathname="/workspace/exams" param="status" current={status} preserve={{ q: params.q }} options={[{ value: "all", label: "All" }, { value: "open", label: "Open" }, { value: "scheduled", label: "Scheduled" }, { value: "draft", label: "Draft" }, { value: "closed", label: "Closed" }]} />
         </div>
-        {sessions.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Exam</th><th className="px-4 py-3">Audience / subjects</th><th className="px-4 py-3">Attempts</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"><span className="sr-only">Open</span></th></tr></thead><tbody className="divide-y divide-neutral-100">{sessions.map((session) => { const state = examState(session); const count = counts.get(session.id) ?? { total: 0, submitted: 0 }; return <tr key={session.id} className="hover:bg-neutral-50"><td className="px-4 py-3"><strong className="block text-neutral-950">{session.title}</strong><span className="mt-1 block font-mono text-[11px] text-neutral-500">{session.id}</span></td><td className="px-4 py-3"><span className="block text-xs font-semibold text-neutral-800">{session.targetLabels.join(", ") || "Explicit student audience"}</span><span className="mt-1 block max-w-xs text-xs text-neutral-500">{session.subjectNames.length ? session.subjectNames.join(", ") : session.mode}</span></td><td className="px-4 py-3 text-xs text-neutral-600">{count.submitted}/{count.total} submitted</td><td className="px-4 py-3"><StatusBadge tone={state === "open" ? "emerald" : state === "scheduled" ? "blue" : state === "draft" ? "amber" : "neutral"}>{state}</StatusBadge></td><td className="px-4 py-3 text-right"><Button size="icon" variant="outline" render={<Link href={`/workspace/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} />} className={adminIconButtonClass} aria-label={`Open ${session.title}`}><BookOpenCheck className="size-4" /></Button></td></tr>; })}</tbody></table></div> : <div className="p-8 text-sm text-neutral-500">No examinations match the current filters.</div>}
+        {sessions.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Exam</th><th className="px-4 py-3">Audience / subjects</th><th className="px-4 py-3">Attempts</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"><span className="sr-only">Open</span></th></tr></thead><tbody className="divide-y divide-neutral-100">{sessions.map((session) => { const state = examState(session); const count = counts.get(session.id) ?? { total: 0, submitted: 0 }; return <tr key={session.id} className="hover:bg-neutral-50"><td className="px-4 py-3"><strong className="block text-neutral-950">{session.title}</strong><span className="mt-1 block font-mono text-[11px] text-neutral-500">{session.id}</span></td><td className="px-4 py-3"><span className="block text-xs font-semibold text-neutral-800">{session.targetLabels.join(", ") || "Explicit student audience"}</span><span className="mt-1 block max-w-xs text-xs text-neutral-500">{session.subjectNames.length ? session.subjectNames.join(", ") : session.mode}</span></td><td className="px-4 py-3 text-xs text-neutral-600">{count.submitted}/{count.total} submitted</td><td className="px-4 py-3"><StatusBadge tone={state === "open" ? "emerald" : state === "scheduled" ? "blue" : state === "draft" ? "amber" : "neutral"}>{state}</StatusBadge></td><td className="px-4 py-3 text-right"><Link href={`/workspace/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} className={adminIconButtonClass} aria-label={`Open ${session.title}`}><BookOpenCheck /></Link></td></tr>; })}</tbody></table></div> : <div className="p-8 text-sm text-neutral-500">No examinations match the current filters.</div>}
       </section>
     </div>
   );

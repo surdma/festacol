@@ -5,7 +5,7 @@ import { SubjectsManager } from "@/app/workspace/(staff)/settings/subjects-manag
 import { AdminPageHeader } from "@/components/admin/admin-ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -67,14 +67,14 @@ export default async function AcademicSettingsPage() {
         description="Inspect the persisted academic year, terms, levels, subjects and curriculum-rule matrix used by classes and examinations."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" nativeButton={false} render={<Link href="/workspace/data-library" />}>
+            <Link href="/workspace/data-library" className={buttonVariants({ variant: "outline" })}>
               <Database data-icon="inline-start" />
               School data
-            </Button>
-            <Button nativeButton={false} render={<Link href="/workspace/classes" />}>
+            </Link>
+            <Link href="/workspace/classes" className={buttonVariants()}>
               <School data-icon="inline-start" />
               Open classes
-            </Button>
+            </Link>
           </div>
         }
       />

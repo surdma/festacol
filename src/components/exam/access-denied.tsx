@@ -1,11 +1,10 @@
 "use client";
 
+import { AlertTriangle, BookOpenCheck, Clock, Lock, ShieldX } from "lucide-react";
 import Link from "next/link";
-import { useTransition } from "react";
-import { signOutStudentAction } from "@/app/actions/student";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Clock, Lock, ShieldX, AlertTriangle, BookOpenCheck } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export interface ExamAccessDeniedProps {
   title: string;
@@ -24,10 +23,7 @@ export function ExamAccessDenied({
   signInHref,
   signInLabel,
   returnHref,
-  token,
 }: ExamAccessDeniedProps) {
-  const [pending, startTransition] = useTransition();
-
   const icons = {
     expired: Clock,
     ended: Lock,
@@ -40,37 +36,34 @@ export function ExamAccessDenied({
   const IconComponent = icons[reason as keyof typeof icons] ?? icons.default;
 
   return (
-    <Card className="mx-auto max-w-md border-0 shadow-none bg-transparent">
-      <CardHeader className="text-center space-y-4">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-          <IconComponent className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
+    <Card className="mx-auto max-w-md border-0 bg-transparent shadow-none">
+      <CardHeader className="gap-4 text-center">
+        <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-muted">
+          <IconComponent className="size-7 text-muted-foreground" aria-hidden="true" />
         </div>
-        <div className="space-y-1">
+        <div className="grid gap-1">
           <CardTitle className="text-xl font-bold">{title}</CardTitle>
           <CardDescription className="text-sm leading-relaxed">{message}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {signInHref && (
-          <Button
-            render={<Link href={signInHref} />}
-            size="lg"
-            className="w-full min-h-[48px]"
+        {signInHref ? (
+          <Link
+            href={signInHref}
+            className={cn(buttonVariants({ size: "lg" }), "min-h-12 w-full")}
             aria-label={signInLabel || "Continue"}
           >
             {signInLabel || "Continue"}
-          </Button>
-        )}
-        {returnHref && (
-          <Button
-            variant="outline"
-            render={<Link href={returnHref} />}
-            size="lg"
-            className="w-full min-h-[48px]"
+          </Link>
+        ) : null}
+        {returnHref ? (
+          <Link
+            href={returnHref}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-12 w-full")}
           >
             Back to exam
-          </Button>
-        )}
+          </Link>
+        ) : null}
       </CardContent>
     </Card>
   );

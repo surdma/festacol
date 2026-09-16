@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -44,14 +44,14 @@ export default async function DeniedPage({
           <CardDescription>{message}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          <Button render={<Link href="/" />}>Go to student sign in</Button>
-          <Button variant="outline" render={<Link href="/workspace/login" />}>
+          <Link href="/" className={buttonVariants()}>Go to student sign in</Link>
+          <Link href="/workspace/login" className={buttonVariants({ variant: "outline" })}>
             Go to staff sign in
-          </Button>
+          </Link>
           {from ? (
-            <Button variant="ghost" render={<Link href={from} />}>
+            <Link href={from} className={buttonVariants({ variant: "ghost" })}>
               Back to previous page
-            </Button>
+            </Link>
           ) : null}
         </CardContent>
       </Card>
