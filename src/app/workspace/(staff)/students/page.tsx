@@ -1,109 +1,30 @@
 import Link from "next/link";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   AdminEmptyState,
   AdminFilterLinks,
   AdminPageHeader,
   AdminSearchForm,
-  adminIconButtonClass,
   adminPrimaryButtonClass,
   adminSecondaryButtonClass,
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
-import { StudentStatusButton } from "@/components/admin/student-status-button";
-import { StatusBadge } from "@/components/status-badge";
+import { StudentDirectoryTable, type StudentDirectoryTableRow } from "@/components/admin/member-directory-tables";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { currentStaff } from "@/lib/auth/staff";
-import { listClasses, listUsers, type DirectoryUserRow } from "@/lib/supabase/queries";
+import { listClasses, listUsers } from "@/lib/supabase/queries";
 
 interface AttemptIndexRow {
   student_id: string;
   score: number | null;
+  integrity_score: number | null;
   submitted_at: number | null;
   assigned_track: string | null;
 }
 
-interface DirectoryRow {
-  user: DirectoryUserRow;
-  className: string;
-  classLevel: string;
-  field: string;
-  attempts: number;
-  submitted: number;
-  averageScore: number | null;
-  placement: string | null;
-  href: string;
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "ST";
-}
-
 function average(values: number[]) {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
-}
-
-export function StudentDirectory({ rows, hasFilters }: { rows: DirectoryRow[]; hasFilters: boolean }) {
-  if (!rows.length) {
-    return (
-      <section className={adminSurfaceClass}>
-        <AdminEmptyState
-          title={hasFilters ? "No matching students" : "No students yet"}
-          description={hasFilters ? "Change the current academic, status or performance filters." : "Add the first student to begin building the academic directory."}
-          action={hasFilters
-            ? <Button size="sm" variant="outline" render={<Link href="/workspace/students" />}>Clear filters</Button>
-            : <Button size="sm" render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>}
-        />
-      </section>
-    );
-  }
-
-  return (
-    <section className={`${adminSurfaceClass} overflow-hidden`}>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500">
-            <tr>
-              <th className="px-4 py-3">Student</th>
-              <th className="px-4 py-3">Class / field</th>
-              <th className="px-4 py-3">Attempts</th>
-              <th className="px-4 py-3">Average</th>
-              <th className="px-4 py-3">Placement</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100">
-            {rows.map(({ user, className, classLevel, field, attempts, submitted, averageScore, placement, href }) => (
-              <tr key={user.id} className="hover:bg-neutral-50">
-                <td className="px-4 py-3"><Link href={href} className="flex items-center gap-3 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span><span className="min-w-0"><strong className="block truncate text-neutral-950">{user.full_name}</strong><span className="text-xs text-neutral-500">{user.student_number || user.id}</span></span></Link></td>
-                <td className="px-4 py-3"><strong className="block text-sm text-neutral-800">{className}</strong><span className="mt-1 block text-xs text-neutral-500">{classLevel ? `${classLevel} · ${field}` : "No current class"}</span></td>
-                <td className="px-4 py-3"><strong className="tabular-nums">{attempts}</strong><span className="ml-1 text-xs text-neutral-500">({submitted} submitted)</span></td>
-                <td className="px-4 py-3">{averageScore === null ? <span className="text-neutral-400">—</span> : <StatusBadge tone={averageScore >= 70 ? "emerald" : averageScore >= 50 ? "blue" : "amber"}>{averageScore}%</StatusBadge>}</td>
-                <td className="px-4 py-3 text-neutral-700">{placement ?? "—"}</td>
-                <td className="px-4 py-3"><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></td>
-                <td className="px-4 py-3"><div className="flex justify-end gap-2"><StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact /><Button size="icon" variant="outline" render={<Link href={href} />} className={adminIconButtonClass} aria-label={`Open ${user.full_name}`}><MoreHorizontal /></Button></div></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="divide-y divide-neutral-100 md:hidden">
-        {rows.map(({ user, className, field, attempts, averageScore, placement, href }) => (
-          <div key={user.id} className="flex items-center gap-3 p-4">
-            <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-80">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-xs font-bold text-neutral-950">{initials(user.full_name)}</span>
-              <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-neutral-950">{user.full_name}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{className} · {field || "Unassigned"}</span><span className="mt-1 block truncate font-mono text-[11px] text-neutral-400">{user.student_number || user.id}</span><span className="mt-1 block truncate text-[11px] text-neutral-400">{attempts} attempt{attempts === 1 ? "" : "s"}{averageScore === null ? "" : ` · avg ${averageScore}%`}{placement ? ` · ${placement}` : ""}</span></span>
-              <StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge>
-            </Link>
-            <StudentStatusButton studentId={user.id} name={user.full_name} active={user.status === "active"} compact />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 export default async function AdminStudentsPage({
@@ -119,25 +40,28 @@ export default async function AdminStudentsPage({
   const classFilter = String(params.class ?? "all");
   const placementOnly = params.placement === "pending";
   const performance = ["high", "mid", "support", "none"].includes(String(params.performance)) ? String(params.performance) : "all";
-  const { supabase } = await currentStaff();
+  const { supabase, scope } = await currentStaff();
 
   const [users, classes, attemptsResult, totalResult, activeResult] = await Promise.all([
     listUsers(supabase, "student", q),
     listClasses(supabase),
-    supabase.from("exam_attempts").select("student_id,score,submitted_at,assigned_track").limit(5000),
+    supabase.from("exam_attempts").select("student_id,score,integrity_score,submitted_at,assigned_track").limit(5000),
     supabase.from("school_members").select("id", { count: "exact", head: true }).eq("role", "student"),
     supabase.from("school_members").select("id", { count: "exact", head: true }).eq("role", "student").eq("status", "active"),
   ]);
 
-  const classById = new Map(classes.map((item) => [item.id, item]));
+  const classById = new Map<string, { id: string; display_name: string; level_name: string; track_name: string }>(
+    classes.map((item) => [item.id, item]),
+  );
   const attemptRows = (attemptsResult.data ?? []) as AttemptIndexRow[];
   const attemptsByStudent = new Map<string, AttemptIndexRow[]>();
   for (const row of attemptRows) attemptsByStudent.set(row.student_id, [...(attemptsByStudent.get(row.student_id) ?? []), row]);
 
-  const indexed: DirectoryRow[] = users.map((user) => {
+  const indexed: StudentDirectoryTableRow[] = users.map((user) => {
     const studentAttempts = attemptsByStudent.get(user.id) ?? [];
     const submittedAttempts = studentAttempts.filter((attempt) => attempt.submitted_at);
     const scores = submittedAttempts.map((attempt) => Number(attempt.score)).filter(Number.isFinite);
+    const integrity = submittedAttempts.map((attempt) => Number(attempt.integrity_score)).filter(Number.isFinite);
     const latestPlacement = studentAttempts.find((attempt) => attempt.assigned_track)?.assigned_track ?? null;
     const classRow = user.class_id ? classById.get(user.class_id) : undefined;
     const hrefParams = new URLSearchParams();
@@ -150,6 +74,7 @@ export default async function AdminStudentsPage({
     if (placementOnly) hrefParams.set("placement", "pending");
     hrefParams.set("modal", "student");
     hrefParams.set("student", user.id);
+    hrefParams.set("view", "overview");
     return {
       user,
       className: classRow?.display_name ?? "Unassigned",
@@ -158,6 +83,7 @@ export default async function AdminStudentsPage({
       attempts: studentAttempts.length,
       submitted: submittedAttempts.length,
       averageScore: average(scores),
+      averageIntegrity: average(integrity),
       placement: latestPlacement,
       href: `/workspace/students?${hrefParams.toString()}`,
     };
@@ -180,9 +106,6 @@ export default async function AdminStudentsPage({
   const fieldOptions = [...new Set(classes.map((item) => item.track_name))].sort();
   const unassignedCount = indexed.filter((row) => !row.user.class_id).length;
   const placementPendingCount = indexed.filter((row) => !row.placement).length;
-  // Quick chips preserve each other's filter symmetric with the row-href
-  // builder above: toggling Unassigned keeps placement=pending, and toggling
-  // Placement pending keeps class=unassigned.
   const unassignedHref =
     classFilter === "unassigned"
       ? placementOnly
@@ -203,7 +126,7 @@ export default async function AdminStudentsPage({
 
   return (
     <div>
-      <AdminPageHeader eyebrow="Directory" title="Students" description="Search the canonical school member directory, filter by current class/field and performance, then drill into relational exam history." actions={<Button render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
+      <AdminPageHeader eyebrow="Directory" title="Students" description="A relational academic directory with current placement, guardian contact, performance, integrity and progression context." actions={<Button render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
 
       <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <AdminSearchForm query={q} placeholder="Search name or Student ID (FST-XXXXX)" hidden={{ status: filterState.status, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance, placement: placementOnly ? "pending" : undefined }} />
@@ -215,17 +138,28 @@ export default async function AdminStudentsPage({
           {q ? <input type="hidden" name="q" value={q} /> : null}
           {status !== "all" ? <input type="hidden" name="status" value={status} /> : null}
           {placementOnly ? <input type="hidden" name="placement" value="pending" /> : null}
-          <label htmlFor="filter-level" className="grid gap-1.5 text-xs font-semibold text-neutral-600">Level<NativeSelect id="filter-level" name="level" defaultValue={level}><NativeSelectOption value="all">All levels</NativeSelectOption>{["SS1", "SS2", "SS3"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
-          <label htmlFor="filter-field" className="grid gap-1.5 text-xs font-semibold text-neutral-600">Field<NativeSelect id="filter-field" name="field" defaultValue={field}><NativeSelectOption value="all">All fields</NativeSelectOption>{fieldOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
-          <label htmlFor="filter-class" className="grid gap-1.5 text-xs font-semibold text-neutral-600">Class<NativeSelect id="filter-class" name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption><NativeSelectOption value="unassigned">Unassigned / placement-pending</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}</NativeSelectOption>)}</NativeSelect></label>
-          <label htmlFor="filter-performance" className="grid gap-1.5 text-xs font-semibold text-neutral-600">Performance<NativeSelect id="filter-performance" name="performance" defaultValue={performance}><NativeSelectOption value="all">Any performance</NativeSelectOption><NativeSelectOption value="high">70% and above</NativeSelectOption><NativeSelectOption value="mid">50–69%</NativeSelectOption><NativeSelectOption value="support">Below 50%</NativeSelectOption><NativeSelectOption value="none">No submitted exam</NativeSelectOption></NativeSelect></label>
+          <label htmlFor="filter-level" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Level<NativeSelect id="filter-level" name="level" defaultValue={level}><NativeSelectOption value="all">All levels</NativeSelectOption>{["SS1", "SS2", "SS3"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
+          <label htmlFor="filter-field" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Field<NativeSelect id="filter-field" name="field" defaultValue={field}><NativeSelectOption value="all">All fields</NativeSelectOption>{fieldOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
+          <label htmlFor="filter-class" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Class<NativeSelect id="filter-class" name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption><NativeSelectOption value="unassigned">Unassigned / placement-pending</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}</NativeSelectOption>)}</NativeSelect></label>
+          <label htmlFor="filter-performance" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Performance<NativeSelect id="filter-performance" name="performance" defaultValue={performance}><NativeSelectOption value="all">Any performance</NativeSelectOption><NativeSelectOption value="high">70% and above</NativeSelectOption><NativeSelectOption value="mid">50–69%</NativeSelectOption><NativeSelectOption value="support">Below 50%</NativeSelectOption><NativeSelectOption value="none">No submitted exam</NativeSelectOption></NativeSelect></label>
           <div className="flex gap-2"><Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>{hasFilters ? <Button variant="outline" render={<Link href="/workspace/students" />} className={adminSecondaryButtonClass}>Reset</Button> : null}</div>
         </form>
       </section>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs"><Link href={unassignedHref} className={`rounded-full border px-3 py-1.5 font-semibold transition ${classFilter === "unassigned" ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"}`} aria-pressed={classFilter === "unassigned"}>Unassigned{unassignedCount ? ` · ${unassignedCount}` : ""}</Link><Link href={placementHref} className={`rounded-full border px-3 py-1.5 font-semibold transition ${placementOnly ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"}`} aria-pressed={placementOnly}>Placement pending{placementPendingCount ? ` · ${placementPendingCount}` : ""}</Link></div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-neutral-500"><span>{rows.length} shown · {totalResult.count ?? 0} total</span><span>{activeResult.count ?? 0} active · {classes.length} classes · {indexed.filter((row) => row.averageScore !== null).length} with submitted results</span></div>
-      <StudentDirectory rows={rows} hasFilters={hasFilters} />
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs"><Link href={unassignedHref} className={`rounded-full border px-3 py-1.5 font-semibold transition ${classFilter === "unassigned" ? "border-foreground bg-foreground text-background" : "border-border bg-background text-foreground hover:bg-muted"}`} aria-pressed={classFilter === "unassigned"}>Unassigned{unassignedCount ? ` · ${unassignedCount}` : ""}</Link><Link href={placementHref} className={`rounded-full border px-3 py-1.5 font-semibold transition ${placementOnly ? "border-foreground bg-foreground text-background" : "border-border bg-background text-foreground hover:bg-muted"}`} aria-pressed={placementOnly}>Placement pending{placementPendingCount ? ` · ${placementPendingCount}` : ""}</Link></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-muted-foreground"><span>{rows.length} matching · {totalResult.count ?? 0} total</span><span>{activeResult.count ?? 0} active · {classes.length} classes · {indexed.filter((row) => row.averageScore !== null).length} with submitted results</span></div>
+
+      {rows.length ? <StudentDirectoryTable rows={rows} canDelete={scope.isAdmin} /> : (
+        <section className={adminSurfaceClass}>
+          <AdminEmptyState
+            title={hasFilters ? "No matching students" : "No students yet"}
+            description={hasFilters ? "Change the current academic, status or performance filters." : "Add the first student to begin building the academic directory."}
+            action={hasFilters
+              ? <Button size="sm" variant="outline" render={<Link href="/workspace/students" />}>Clear filters</Button>
+              : <Button size="sm" render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>}
+          />
+        </section>
+      )}
     </div>
   );
 }
