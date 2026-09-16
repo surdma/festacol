@@ -61,7 +61,7 @@ export default async function AdminLayout({
         </aside>
 
         <div className="lg:pl-64">
-          <AdminTopbar notifications={notifications} role={role} />
+          <AdminTopbar notifications={notifications} role={role} profileEmail={user.email} />
           <div id="admin-alert" className="hidden" />
           <main
             id="admin-root"
