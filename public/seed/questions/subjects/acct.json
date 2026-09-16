@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-acct-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "acct",
+    "subjectName": "Accounting",
+    "baseId": 2026000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Accounting Elements","term":"Asset","definition":"a resource controlled by a business from which future economic benefits are expected"},
+      {"domain":"Accounting Elements","term":"Liability","definition":"a present obligation of a business arising from past events and expected to require an outflow of resources"},
+      {"domain":"Accounting Elements","term":"Capital","definition":"the owner's financial interest in a business after liabilities are deducted from assets"},
+      {"domain":"Income","term":"Revenue","definition":"income earned from the ordinary activities of a business before related expenses are deducted"},
+      {"domain":"Expenses","term":"Expense","definition":"a cost consumed or incurred in the process of earning revenue during an accounting period"},
+      {"domain":"Double Entry","term":"Debit","definition":"the left-hand side of a ledger account used according to double-entry accounting rules"},
+      {"domain":"Double Entry","term":"Credit","definition":"the right-hand side of a ledger account used according to double-entry accounting rules"},
+      {"domain":"Books of Account","term":"Ledger","definition":"the principal book or record containing individual accounts to which transactions are posted"},
+      {"domain":"Trial Balance","term":"Trial balance","definition":"a list of ledger account balances prepared to test whether total debits equal total credits"},
+      {"domain":"Financial Statements","term":"Statement of financial position","definition":"a financial statement showing a business's assets, liabilities, and equity at a specified date"}
+    ]
+  }
+}

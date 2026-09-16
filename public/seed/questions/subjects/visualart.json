@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-visualart-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "visualart",
+    "subjectName": "Visual Arts",
+    "baseId": 2021000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Elements of Art","term":"Line","definition":"a continuous mark or path that can define edges, direction, movement, or structure in an artwork"},
+      {"domain":"Elements of Art","term":"Shape","definition":"a flat enclosed area defined by boundaries such as lines, colour, or value"},
+      {"domain":"Elements of Art","term":"Form","definition":"a three-dimensional object or the illusion of three-dimensional volume in an artwork"},
+      {"domain":"Elements of Art","term":"Colour","definition":"the visual quality produced by reflected light and described through hue, value, and intensity"},
+      {"domain":"Elements of Art","term":"Texture","definition":"the actual or implied surface quality of an object or artwork"},
+      {"domain":"Drawing","term":"Perspective","definition":"a system for representing three-dimensional depth and spatial relationships on a flat surface"},
+      {"domain":"Design","term":"Composition","definition":"the deliberate arrangement of visual elements within an artwork"},
+      {"domain":"Principles of Design","term":"Balance","definition":"the distribution of visual weight to create a sense of stability in a composition"},
+      {"domain":"Principles of Design","term":"Contrast","definition":"the use of noticeable differences between visual elements to create emphasis or variety"},
+      {"domain":"Three-Dimensional Art","term":"Sculpture","definition":"art created by shaping, carving, modelling, assembling, or casting material in three dimensions"}
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-crs-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "crs",
+    "subjectName": "Christian Religious Studies",
+    "baseId": 2016000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Biblical Foundations","term":"Creation","definition":"the biblical teaching that God is the source and maker of the universe and life"},
+      {"domain":"Biblical Foundations","term":"Covenant","definition":"a solemn relationship or agreement between God and people involving promises and responsibilities"},
+      {"domain":"Old Testament","term":"Prophet","definition":"a person called to communicate God's message, correction, or guidance to people"},
+      {"domain":"Teachings of Jesus","term":"Parable","definition":"a short illustrative story used to communicate a moral or spiritual lesson"},
+      {"domain":"Christian Living","term":"Discipleship","definition":"the commitment to learn from, follow, and live according to the teachings of Jesus Christ"},
+      {"domain":"Christian Doctrine","term":"Salvation","definition":"deliverance from sin and reconciliation with God through divine grace"},
+      {"domain":"Christian Living","term":"Faith","definition":"trust and confidence in God that shapes belief and conduct"},
+      {"domain":"Christian Living","term":"Prayer","definition":"communication with God through worship, confession, thanksgiving, and requests"},
+      {"domain":"Christian Ethics","term":"Forgiveness","definition":"the decision to release resentment and extend mercy toward someone who has caused wrong"},
+      {"domain":"Christian Ethics","term":"Stewardship","definition":"responsible care and use of abilities, resources, and creation entrusted by God"}
+    ]
+  }
+}

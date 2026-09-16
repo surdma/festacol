@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-fashion-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "fashion",
+    "subjectName": "Fashion Design and Garment Making",
+    "baseId": 2031000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Pattern Drafting","term":"Pattern","definition":"a paper or digital template representing garment pieces used as a guide for cutting fabric"},
+      {"domain":"Construction","term":"Seam","definition":"a line where two or more pieces of fabric are joined by stitching"},
+      {"domain":"Construction","term":"Hem","definition":"a finished lower edge made by turning and securing fabric to prevent fraying and improve appearance"},
+      {"domain":"Pattern Drafting","term":"Dart","definition":"a stitched fold that removes excess fabric to shape a garment to body contours"},
+      {"domain":"Fabric Handling","term":"Grainline","definition":"the direction of the fabric yarns that guides correct placement of garment pattern pieces"},
+      {"domain":"Measurement","term":"Body measurement","definition":"a dimension taken from the body and used to draft, select, or alter garment patterns"},
+      {"domain":"Textiles","term":"Textile","definition":"a material made from fibres, yarns, or fabrics for clothing and other uses"},
+      {"domain":"Production","term":"Cutting","definition":"the controlled separation of fabric into garment pieces according to a pattern layout"},
+      {"domain":"Equipment","term":"Sewing machine","definition":"a mechanical or electronic device that forms stitches to join or finish fabric"},
+      {"domain":"Finishing","term":"Garment finishing","definition":"final operations that improve a garment's neatness, durability, fit, and presentation"}
+    ]
+  }
+}

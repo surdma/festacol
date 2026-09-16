@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import type { ActionResult } from "@/app/actions/student";
 import {
   upsertClassAction as upsertCanonicalClassAction,
   upsertClassOfferingAction as upsertCanonicalOfferingAction,
@@ -11,9 +10,18 @@ import {
   seedSubjectCatalogFromFixtureAction,
   syncQuestionBankFromFixtureAction,
 } from "@/app/actions/question-bank";
+import type { ActionResult } from "@/app/actions/student";
 import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/auth/staff";
+import {
+  generateStudentNumber,
+  normalizeStudentNumber,
+  resolveStudentNames,
+  STUDENT_ID_CONFLICT_ERROR,
+  STUDENT_ID_FORMAT_ERROR,
+} from "@/lib/auth/student";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
+import { z } from "zod";
 
 interface StaffContext {
   supabase: Awaited<ReturnType<typeof currentStaff>>["supabase"];
@@ -147,8 +155,8 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       title: input.title.trim().slice(0, 72),
       academic_term_id: (activeTerm as { id?: string } | null)?.id ?? null,
       mode: input.mode,
-      duration_seconds: Math.min(10800, Math.max(30, input.durationSeconds)),
-      question_count: Math.min(150, Math.max(5, input.questionCount)),
+      duration_seconds: Math.min(14400, Math.max(30, input.durationSeconds)),
+      question_count: Math.min(200, Math.max(5, input.questionCount)),
       status: input.status,
       instructions: input.instructions.slice(0, 140),
       starts_at: null,
@@ -190,7 +198,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       return { ok: false, error: error instanceof Error ? error.message : "Exam relationships could not be saved." };
     }
 
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Create failed." };
@@ -222,7 +230,7 @@ export async function updateExamAction(
       updated_at: Date.now(),
     }).eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
@@ -294,7 +302,7 @@ export async function deleteExamAction(id: string): Promise<ActionResult> {
     if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
     const { error } = await ctx.admin.from("exam_sessions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -302,22 +310,66 @@ export async function deleteExamAction(id: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------- students
-export async function upsertUserAction(input: { id?: string; fullName: string; role: string; classId?: string; guardian?: string }): Promise<ActionResult> {
+export interface UpsertUserInput {
+  id?: string;
+  /** Legacy single-field form. Must contain at least two name tokens. */
+  fullName?: string;
+  /** Preferred split form. When either is present both are required. */
+  firstName?: string;
+  lastName?: string;
+  /** Optional editable short ID (FST-XXXXX). Normalized to uppercase. */
+  studentNumber?: string;
+  role: string;
+  /**
+   * Target class. On update, `""` is an explicit unassign (ends active
+   * enrollments); `undefined` leaves enrollments untouched. On create,
+   * `""`/`undefined` creates the student without an enrollment.
+   */
+  classId?: string;
+  guardian?: string;
+}
+
+export async function upsertUserAction(input: UpsertUserInput): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
     if (input.role !== "student") return { ok: false, error: "Staff accounts are provisioned from Staff management." };
     if (input.classId && !(await teacherMayManageClass(ctx, input.classId))) return { ok: false, error: "You are not assigned to this class." };
-    const parts = input.fullName.trim().split(/\s+/).filter(Boolean);
-    const firstName = parts[0] ?? "";
-    const lastName = parts.slice(1).join(" ") || firstName;
-    if (firstName.length < 2) return { ok: false, error: "Enter a valid name." };
+    // Updates that pass classId:"" explicitly unassign the student. Creates
+    // with ""/undefined stay unenrolled, and updates that omit classId leave
+    // enrollments untouched. Teaching staff unassigning a student are scoped
+    // to the student's current class since there is no target class to check.
+    const wantsUnassign = Boolean(input.id) && input.classId === "";
+    const unassignStudentId = wantsUnassign ? String(input.id) : null;
+    if (unassignStudentId && !ctx.scope.isAdmin) {
+      const { data: current } = await ctx.admin.from("class_enrollments").select("class_id").eq("student_id", unassignStudentId).eq("status", "active").limit(1).maybeSingle();
+      const currentClassId = (current as { class_id?: string } | null)?.class_id;
+      if (!currentClassId || !(await teacherMayManageClass(ctx, currentClassId))) {
+        return { ok: false, error: "Student is outside your assigned classes." };
+      }
+    }
+    const names = resolveStudentNames(input);
+    if ("error" in names) return { ok: false, error: names.error };
+    const { firstName, lastName } = names;
 
     const memberId = input.id ?? randomUUID();
     if (input.id) {
       const { data: existing } = await ctx.admin.from("school_members").select("id,role").eq("id", input.id).maybeSingle();
       if (!existing || (existing as { role: string }).role !== "student") return { ok: false, error: "Student was not found." };
     }
-    const payload = {
+
+    const explicitRaw = input.studentNumber?.trim() ?? "";
+    let explicitNumber: string | null = null;
+    if (explicitRaw) {
+      explicitNumber = normalizeStudentNumber(explicitRaw);
+      if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(explicitNumber)) {
+        return { ok: false, error: STUDENT_ID_FORMAT_ERROR };
+      }
+      const { data: clash } = await ctx.admin.from("school_members").select("id").eq("student_number", explicitNumber).maybeSingle();
+      const clashId = (clash as { id?: string } | null)?.id;
+      if (clashId && clashId !== memberId) return { ok: false, error: STUDENT_ID_CONFLICT_ERROR };
+    }
+
+    const basePayload = {
       id: memberId,
       role: "student",
       status: "active",
@@ -326,10 +378,49 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
       guardian: input.guardian?.trim() || null,
       promotion_status: "on-track",
       updated_at: new Date().toISOString(),
-      ...(input.id ? {} : { student_number: `STD-${Date.now().toString(36).toUpperCase()}` }),
     };
-    const { error: memberError } = await ctx.admin.from("school_members").upsert(payload);
-    if (memberError) return { ok: false, error: memberError.message };
+    // Updates without an explicit ID keep the existing student_number.
+    // Creates generate a fresh FST-XXXXX with write-conflict retry (3 attempts).
+    if (explicitNumber) {
+      const { error: memberError } = await ctx.admin
+        .from("school_members")
+        .upsert({ ...basePayload, student_number: explicitNumber });
+      if (memberError) {
+        const conflict =
+          (memberError as { code?: string }).code === "23505" ||
+          /duplicate|already exists/i.test(memberError.message);
+        return { ok: false, error: conflict ? STUDENT_ID_CONFLICT_ERROR : memberError.message };
+      }
+    } else if (input.id) {
+      const { error: memberError } = await ctx.admin.from("school_members").upsert(basePayload);
+      if (memberError) return { ok: false, error: memberError.message };
+    } else {
+      let saved = false;
+      let lastError = "";
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const candidate = generateStudentNumber();
+        const { error } = await ctx.admin
+          .from("school_members")
+          .upsert({ ...basePayload, student_number: candidate });
+        if (!error) {
+          saved = true;
+          break;
+        }
+        lastError = error.message;
+        const conflict =
+          (error as { code?: string }).code === "23505" ||
+          /duplicate|already exists/i.test(error.message);
+        if (!conflict) return { ok: false, error: error.message };
+      }
+      if (!saved) {
+        return {
+          ok: false,
+          error: /duplicate|already exists/i.test(lastError)
+            ? STUDENT_ID_CONFLICT_ERROR
+            : lastError || "Save failed.",
+        };
+      }
+    }
 
     if (input.classId) {
       await ctx.admin.from("class_enrollments").update({ status: "ended", ended_at: new Date().toISOString() }).eq("student_id", memberId).eq("status", "active").neq("class_id", input.classId);
@@ -340,9 +431,14 @@ export async function upsertUserAction(input: { id?: string; fullName: string; r
         ended_at: null,
       }, { onConflict: "student_id,class_id" });
       if (enrollmentError) return { ok: false, error: enrollmentError.message };
+    } else if (wantsUnassign) {
+      // Explicit move to Unassigned: end every active enrollment row. The
+      // member UUID is untouched, so exam attempts stay attached to it.
+      const { error: unassignError } = await ctx.admin.from("class_enrollments").update({ status: "ended", ended_at: new Date().toISOString() }).eq("student_id", memberId).eq("status", "active");
+      if (unassignError) return { ok: false, error: unassignError.message };
     }
-    revalidatePath("/admin/students");
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/students");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -362,10 +458,172 @@ export async function toggleUserAction(id: string, active: boolean): Promise<Act
     }
     const { error } = await ctx.admin.from("school_members").update({ status: active ? "active" : "inactive", updated_at: new Date().toISOString() }).eq("id", row.id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/students");
+    revalidatePath("/workspace/students");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
+  }
+}
+
+// ------------------------------------------------- member hard delete (admin)
+const hardDeleteMemberSchema = z.object({
+  memberId: z.string().uuid("Unknown account."),
+  /** Typed confirmation: the caller must send the literal DELETE string. */
+  confirmation: z.string(),
+  reason: z.string().trim().max(280).optional().default(""),
+});
+
+// Permanent removal of a student or staff account: auth user + member +
+// attempts/results, with the member_deletion_audits row as the only retained
+// record. Administrator-only, service-role-only, ordered so Restrict relations
+// (exam_attempts.session/student, exam_retake_grants.granted_by) never block:
+// retake grants/access rows → attempt responses → integrity events → attempts
+// → subject/teaching/qualification rows → enrollments → member row → auth user
+// → audit row. SetNull relations (created exams, authored questions, access
+// grantor) are left to the database. Deleted attempts are gone by design —
+// the confirm copy must say so.
+export async function hardDeleteMemberAction(input: {
+  memberId: string;
+  confirmation: string;
+  reason?: string;
+}): Promise<ActionResult & { auditId?: string }> {
+  try {
+    const parsed = hardDeleteMemberSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Unknown account." };
+    if (parsed.data.confirmation !== "DELETE") {
+      return { ok: false, error: "Type DELETE to confirm this permanent deletion." };
+    }
+    const ctx = await requireAdmin();
+
+    const { data: target } = await ctx.admin
+      .from("school_members")
+      .select("id,role,status,first_name,last_name,student_number,auth_user_id")
+      .eq("id", parsed.data.memberId)
+      .maybeSingle();
+    const targetRow = target as {
+      id: string;
+      role: string;
+      status: string;
+      first_name: string;
+      last_name: string;
+      student_number: string | null;
+      auth_user_id: string | null;
+    } | null;
+    if (!targetRow) return { ok: false, error: "Account was not found." };
+    if (targetRow.id === ctx.scope.profileId) {
+      return { ok: false, error: "You cannot delete your own administrator account." };
+    }
+    if (targetRow.role === "administrator") {
+      const { count } = await ctx.admin
+        .from("school_members")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "administrator")
+        .eq("status", "active");
+      if ((count ?? 0) <= 1) {
+        return { ok: false, error: "The last active administrator cannot be deleted." };
+      }
+    }
+
+    const { data: attemptRows } = await ctx.admin
+      .from("exam_attempts")
+      .select("id")
+      .eq("student_id", targetRow.id)
+      .limit(2000);
+    const attemptIds = ((attemptRows ?? []) as { id: string }[]).map((row) => row.id);
+
+    async function remove(
+      table: string,
+      column: string,
+      value: string,
+    ): Promise<string | null> {
+      const { error } = await ctx.admin.from(table).delete().eq(column, value);
+      return error ? error.message : null;
+    }
+
+    // 1. Retake grants + per-student access rows (grantor Restrict rows go too).
+    for (const column of ["student_id", "granted_by_id"]) {
+      const grantError = await remove("exam_retake_grants", column, targetRow.id);
+      if (grantError) return { ok: false, error: grantError };
+    }
+    const accessError = await remove("exam_student_access", "student_id", targetRow.id);
+    if (accessError) return { ok: false, error: accessError };
+
+    // 2-3. Attempt children (explicit ahead of the Restrict-guarded attempts).
+    if (attemptIds.length) {
+      for (const table of ["exam_attempt_responses", "exam_integrity_events"]) {
+        const { error } = await ctx.admin.from(table).delete().in("attempt_id", attemptIds);
+        if (error) return { ok: false, error: error.message };
+      }
+    }
+
+    // 4. Attempts (Restrict on session + student, so explicit).
+    const attemptsError = await remove("exam_attempts", "student_id", targetRow.id);
+    if (attemptsError) return { ok: false, error: attemptsError };
+
+    // 5. Subject/teaching/qualification + staff-assignment rows.
+    for (const [table, column] of [
+      ["student_subject_enrollments", "student_id"],
+      ["staff_subject_qualifications", "staff_id"],
+      ["teaching_assignments", "staff_id"],
+      ["exam_staff_assignments", "staff_id"],
+      ["class_enrollments", "student_id"],
+    ] as const) {
+      const relationError = await remove(table, column, targetRow.id);
+      if (relationError) return { ok: false, error: relationError };
+    }
+
+    // 6. Member row.
+    const { error: memberError } = await ctx.admin
+      .from("school_members")
+      .delete()
+      .eq("id", targetRow.id);
+    if (memberError) return { ok: false, error: memberError.message };
+
+    // 7. Auth user (missing Auth account is already the desired end state).
+    let authCleanupFailed = false;
+    if (targetRow.auth_user_id) {
+      const { error: authError } = await ctx.admin.auth.admin.deleteUser(
+        targetRow.auth_user_id,
+      );
+      if (authError && !/not found/i.test(authError.message)) {
+        authCleanupFailed = true;
+      }
+    }
+
+    // 8. Audit row — the only retained record.
+    const { data: audit, error: auditError } = await ctx.admin
+      .from("member_deletion_audits")
+      .insert({
+        target_member_id: targetRow.id,
+        target_role: targetRow.role,
+        target_name: `${targetRow.first_name} ${targetRow.last_name}`.trim(),
+        target_student_number: targetRow.student_number,
+        deleted_by_id: ctx.scope.profileId,
+        reason: authCleanupFailed
+          ? `${parsed.data.reason} [auth cleanup pending]`.trim()
+          : parsed.data.reason,
+        attempt_count: attemptIds.length,
+      })
+      .select("id")
+      .maybeSingle();
+    if (auditError) {
+      return { ok: false, error: `Account deleted but the audit record failed: ${auditError.message}` };
+    }
+    const auditId = (audit as { id?: string } | null)?.id;
+
+    revalidatePath("/workspace/students");
+    revalidatePath("/workspace/staff");
+    revalidatePath("/workspace/classes");
+    if (authCleanupFailed) {
+      return {
+        ok: false,
+        error: "Account records deleted but the Auth login could not be removed. Ask another administrator to retry the login cleanup.",
+        auditId,
+      };
+    }
+    return { ok: true, auditId };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
   }
 }
 
@@ -385,7 +643,7 @@ export async function deleteClassOfferingAction(id: string): Promise<ActionResul
     if ((count ?? 0) > 0) return { ok: false, error: "This offering is used by an examination. End it instead of deleting it." };
     const { error } = await ctx.admin.from("class_subject_offerings").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Offering delete failed." };
@@ -399,7 +657,7 @@ export async function deleteClassAction(id: string): Promise<ActionResult> {
     if ((count ?? 0) > 0) return { ok: false, error: "Move active students before deleting this class." };
     const { error } = await ctx.admin.from("classes").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -416,7 +674,7 @@ export async function upsertWhatsappAction(input: { id?: string; classId: string
       ? await ctx.admin.from("whatsapp_groups").update({ class_id: input.classId, name: input.name, invite_url: input.inviteUrl, updated_at: now }).eq("id", input.id)
       : await ctx.admin.from("whatsapp_groups").insert({ id: `WA-${Date.now().toString(36).toUpperCase()}`, class_id: input.classId, name: input.name, invite_url: input.inviteUrl, created_at: now, updated_at: now });
     if (write.error) return { ok: false, error: write.error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -428,7 +686,7 @@ export async function deleteWhatsappAction(id: string): Promise<ActionResult> {
     const ctx = await requireAdmin();
     const { error } = await ctx.admin.from("whatsapp_groups").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -513,7 +771,7 @@ async function upsertQuestionCore(input: {
       if (error) return { ok: false, error: error.message };
     }
   }
-  revalidatePath("/admin/questions");
+  revalidatePath("/workspace/questions");
   return { ok: true, id };
 }
 
@@ -527,7 +785,7 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
     if (!ctx.scope.isAdmin && question.creator_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
     const { error } = await ctx.admin.from("questions").delete().eq("id", id);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/questions");
+    revalidatePath("/workspace/questions");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -556,7 +814,7 @@ export async function authorizeRewriteAction(attemptId: string): Promise<ActionR
       p_reason: "Authorized from attempt review",
     });
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Retake authorization failed." };
@@ -595,17 +853,53 @@ export async function getUserDetailAction(userId: string) {
     phone: string | null;
     promotion_status: string | null;
   } | null;
-  if (!person) return { user: null, attempts: [] };
-  if (!ctx.scope.isAdmin && person.role !== "student") return { user: null, attempts: [] };
+  if (!person) return { user: null, attempts: [], placementSuggestion: null };
+  if (!ctx.scope.isAdmin && person.role !== "student") return { user: null, attempts: [], placementSuggestion: null };
 
-  const [{ data: enrollment }, { data: attempts }] = await Promise.all([
+  const [{ data: enrollment }, { data: attempts }, { data: placementRows }] = await Promise.all([
     person.role === "student"
       ? ctx.admin.from("class_enrollments").select("class_id").eq("student_id", person.id).eq("status", "active").is("ended_at", null).limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
     person.role === "student"
       ? ctx.admin.from("exam_attempts").select("id,session_id,context_snapshot,score,integrity_score,submitted_at").eq("student_id", person.id).order("created_at", { ascending: false }).limit(50)
       : Promise.resolve({ data: [] }),
+    // Placement auto-suggest: latest submitted qualifier attempt carrying an
+    // assigned_track. Advisory only — promotion stays a separate staff write
+    // through upsertUserAction into a real ss1-<track>-a class.
+    person.role === "student"
+      ? ctx.admin.from("exam_attempts").select("id,session_id,assigned_track,placement_confidence,submitted_at").eq("student_id", person.id).not("assigned_track", "is", null).not("submitted_at", "is", null).order("submitted_at", { ascending: false }).limit(1)
+      : Promise.resolve({ data: [] }),
   ]);
+  const suggestionRow = ((placementRows ?? []) as {
+    id: string;
+    session_id: string;
+    assigned_track: AcademicTrack | null;
+    placement_confidence: number | null;
+    submitted_at: number | null;
+  }[])[0] ?? null;
+  let placementSuggestion: {
+    assignedTrack: AcademicTrack;
+    confidence: number | null;
+    sessionId: string;
+    attemptId: string;
+    submittedAt: number | null;
+  } | null = null;
+  if (suggestionRow?.assigned_track) {
+    const { data: placementSession } = await ctx.admin
+      .from("exam_sessions")
+      .select("mode")
+      .eq("id", suggestionRow.session_id)
+      .maybeSingle();
+    if ((placementSession as { mode?: string } | null)?.mode === "qualifier") {
+      placementSuggestion = {
+        assignedTrack: suggestionRow.assigned_track,
+        confidence: suggestionRow.placement_confidence,
+        sessionId: suggestionRow.session_id,
+        attemptId: suggestionRow.id,
+        submittedAt: suggestionRow.submitted_at,
+      };
+    }
+  }
   return {
     user: {
       ...person,
@@ -613,6 +907,7 @@ export async function getUserDetailAction(userId: string) {
       class_id: (enrollment as { class_id?: string } | null)?.class_id ?? null,
     },
     attempts: attempts ?? [],
+    placementSuggestion,
   };
 }
 
@@ -677,7 +972,7 @@ export async function updateCohostsAction(examIdValue: string, cohosts: string[]
       const { error } = await ctx.admin.from("exam_staff_assignments").insert(staffIds.map((staffId) => ({ session_id: examIdValue, staff_id: staffId, role: "cohost" })));
       if (error) return { ok: false, error: error.message };
     }
-    revalidatePath("/admin/exams");
+    revalidatePath("/workspace/exams");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
@@ -709,8 +1004,8 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
       { onConflict: "staff_id,subject_id" },
     );
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin");
-    revalidatePath("/admin/staff");
+    revalidatePath("/workspace");
+    revalidatePath("/workspace/staff");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -752,7 +1047,7 @@ export async function upsertSubjectAction(input: { id?: string; name: string }):
       ? await ctx.admin.from("subjects").update({ name, updated_at: new Date().toISOString() }).eq("id", id)
       : await ctx.admin.from("subjects").insert({ id, code: subjectCode(name), name, kind: "curriculum", active: true });
     if (write.error) return { ok: false, error: write.error.message };
-    revalidatePath("/admin/settings");
+    revalidatePath("/workspace/settings");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Save failed." };
@@ -764,7 +1059,7 @@ export async function toggleSubjectAction(subjectId: string, active: boolean): P
     const ctx = await requireAdmin();
     const { error } = await ctx.admin.from("subjects").update({ active, updated_at: new Date().toISOString() }).eq("id", subjectId);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/settings");
+    revalidatePath("/workspace/settings");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };

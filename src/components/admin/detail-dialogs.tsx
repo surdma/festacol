@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Copy, ExternalLink, Pencil } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, Mail, MessageCircle, Pencil, Send, Share2 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   authorizeRewriteAction,
   deleteExamAction,
@@ -66,8 +67,10 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
   const [sharePath, setSharePath] = useState("");
   const [qrRevision, setQrRevision] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
   const [pending, startTransition] = useTransition();
+  const qrBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setError(null);
@@ -97,6 +100,14 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
   const audience = relations?.targetLabels.join(", ") || "Explicit audience";
   const subjects = relations?.subjectNames.join(", ")
     || (relations?.placementTracks.length ? `${relations.placementTracks.map(trackLabel).join(", ")} placement pool` : "General / qualifier pool");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const shareUrl = sharePath ? `${origin}${sharePath}` : "";
+  const examTitle = String(session?.title ?? "Exam");
+  const status = String(session?.status ?? "draft");
+  const submittedCount = (data?.attempts ?? []).filter((a) => a.submitted_at).length;
+  const activeCount = (data?.attempts ?? []).length - submittedCount;
+  const canShare = Boolean(shareUrl);
+  const shareText = `${examTitle} — join here ${shareUrl} (Exam ID: ${examId})`;
 
   function act(fn: () => Promise<{ ok: boolean; error?: string; id?: string }>, done?: (id?: string) => void) {
     setError(null);
@@ -108,74 +119,177 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
     });
   }
 
-  async function copyShareLink() {
-    if (!sharePath) return;
-    const absolute = `${window.location.origin}${sharePath}`;
+  async function copyText(value: string, kind: "link" | "id") {
+    if (!value) return;
     try {
-      await navigator.clipboard.writeText(absolute);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      await navigator.clipboard.writeText(value);
+      if (kind === "link") {
+        setCopiedLink(true);
+        window.setTimeout(() => setCopiedLink(false), 1600);
+      } else {
+        setCopiedId(true);
+        window.setTimeout(() => setCopiedId(false), 1600);
+      }
     } catch {
       setError("The browser did not allow clipboard access. Use Open exam link instead.");
     }
   }
 
+  function downloadQr() {
+    const svg = qrBoxRef.current?.querySelector("svg");
+    if (!svg || !shareUrl) return;
+    const serialized = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([serialized], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 640;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      const png = document.createElement("a");
+      png.download = `${examId}-qr.png`;
+      png.href = canvas.toDataURL("image/png");
+      png.click();
+    };
+    image.src = url;
+  }
+
+  async function nativeShare() {
+    if (!shareUrl) return;
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await (navigator as Navigator & { share: (input: { title: string; text: string; url: string }) => Promise<void> }).share({
+          title: examTitle,
+          text: `Join ${examTitle} (Exam ID: ${examId})`,
+          url: shareUrl,
+        });
+      } catch {
+        // User dismissed the sheet — no error surface needed.
+      }
+      return;
+    }
+    await copyText(shareUrl, "link");
+  }
+
+  const whatsappHref = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+  const telegramHref = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(`${examTitle} (Exam ID: ${examId})`)}`;
+  const xHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${examTitle} (Exam ID: ${examId})`)}&url=${encodeURIComponent(shareUrl)}`;
+  const emailHref = `mailto:?subject=${encodeURIComponent(`Exam invitation: ${examTitle}`)}&body=${encodeURIComponent(`Join here: ${shareUrl}\nExam ID: ${examId}`)}`;
+
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-5xl overflow-y-auto">
-        <DialogHeader><DialogTitle>{String(session?.title ?? "Exam detail")}</DialogTitle><DialogDescription className="font-mono">{examId}</DialogDescription></DialogHeader>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3 pr-8">
+            <DialogTitle className="min-w-0">{examTitle}</DialogTitle>
+            {session ? <StatusBadge tone={status === "open" ? "emerald" : status === "draft" ? "amber" : "neutral"}>{status}</StatusBadge> : null}
+          </div>
+          <DialogDescription>{session ? `${audience} · ${subjects}` : "Loading examination…"}</DialogDescription>
+          <div className="flex min-w-0 items-center gap-2">
+            <code className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{examId}</code>
+            <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-xs" onClick={() => void copyText(examId, "id")} aria-label="Copy exam ID">
+              {copiedId ? <Check data-icon="inline-start" className="size-3.5" /> : <Copy data-icon="inline-start" className="size-3.5" />}{copiedId ? "Copied" : "Copy ID"}
+            </Button>
+          </div>
+        </DialogHeader>
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
         {!session ? <p className="text-sm text-muted-foreground">Loading examination…</p> : (
-          <div className="flex flex-col gap-5">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Questions" value={String(session.question_count)} detail={data?.structureLocked ? "paper structure locked" : "editable before first attempt"} />
-              <MetricCard label="Duration" value={`${Math.round(Number(session.duration_seconds) / 60)}m`} detail={audience} />
-              <MetricCard label="Attempts" value={String(data?.attempts.length ?? 0)} detail="latest 100 candidate records" />
-              <MetricCard label="Status" value={String(session.status)} detail={data?.cameraRequired ? "camera required" : "camera optional"} />
-            </div>
+          <div className="min-w-0">
+            <dl className="flex divide-x divide-border border-y border-border py-3">
+              {[
+                ["Questions", String(session.question_count)],
+                ["Duration", `${Math.round(Number(session.duration_seconds) / 60)}m`],
+                ["Attempts", `${submittedCount}/${String(data?.attempts.length ?? 0)}`],
+                ["Camera", data?.cameraRequired ? "Required" : "Off"],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0 flex-1 px-3 first:pl-0 last:pr-0">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</dt>
+                  <dd className="mt-0.5 truncate text-sm font-bold tabular-nums">{value}</dd>
+                </div>
+              ))}
+            </dl>
 
-            <div className="rounded-xl border bg-muted/30 p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Candidate access</p><p className="mt-1 font-mono text-sm font-semibold">{examId}</p><p className="mt-1 break-all text-xs text-muted-foreground">{sharePath || "Preparing opaque access link…"}</p>{qrRevision ? <p className="mt-1 text-[11px] text-muted-foreground">Persisted QR payload revision {qrRevision}</p> : null}</div>
-                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!sharePath} onClick={() => void copyShareLink()}><Copy data-icon="inline-start" />{copied ? "Copied" : "Copy exam link"}</Button><Button size="sm" variant="outline" disabled={!sharePath} render={sharePath ? <a href={sharePath} target="_blank" rel="noreferrer" /> : undefined}><ExternalLink data-icon="inline-start" />Open exam link</Button></div>
+            <div className="grid gap-6 py-5 sm:grid-cols-[180px_minmax(0,1fr)]">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Candidate QR</p>
+                <div ref={qrBoxRef} className="mt-2 grid w-44 place-items-center rounded-lg border border-border bg-white p-3">
+                  {shareUrl ? <QRCodeSVG value={shareUrl} size={152} level="M" aria-label={`QR code for ${examTitle}`} /> : <p className="py-10 text-center text-xs text-muted-foreground">Preparing QR…</p>}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">Scan to open this exam.{qrRevision ? ` Rev ${qrRevision}.` : ""}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" disabled={!canShare} onClick={downloadQr}><Download data-icon="inline-start" />QR PNG</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer" /> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Distribute</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">{sharePath ? "Secure candidate link ready" : "Preparing secure link…"}</span>
+                  <Button type="button" size="sm" variant="outline" disabled={!canShare} onClick={() => void copyText(shareUrl, "link")}>{copiedLink ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}{copiedLink ? "Copied" : "Copy link"}</Button>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Link stays hidden — candidates join via QR or Exam ID.</p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button type="button" size="sm" variant="default" disabled={!canShare} onClick={() => void nativeShare()}><Share2 data-icon="inline-start" />Share</Button>
+                  <span className="text-xs text-muted-foreground">via</span>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via Telegram"><Send /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref} /> : undefined} aria-label="Share via email"><Mail /></Button>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+                  <Button size="sm" variant="outline" onClick={() => openModal({ modal: "exam-edit", exam: examId })}><Pencil data-icon="inline-start" />Edit</Button>
+                  <Button size="sm" variant="ghost" disabled={pending} onClick={() => act(() => setExamStatusAction(examId, status === "open" ? "closed" : "open"))}>{status === "open" ? "Close exam" : "Open exam"}</Button>
+                  <Button size="sm" variant="ghost" disabled={pending} onClick={() => act(() => duplicateExamAction(examId), (id) => { if (id) openModal({ modal: "exam", exam: id }); })}>Duplicate</Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger render={<Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" />}>Delete</AlertDialogTrigger>
+                    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this examination?</AlertDialogTitle><AlertDialogDescription>The session can be deleted only when its relational history permits it. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => act(() => deleteExamAction(examId))}>Delete exam</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                  </AlertDialog>
+                </div>
+                {data?.structureLocked ? <p className="mt-2 text-xs text-muted-foreground">Paper structure locked — first attempt already recorded.</p> : null}
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => openModal({ modal: "exam-edit", exam: examId })}><Pencil data-icon="inline-start" />Edit</Button>
-              <Button size="sm" variant="outline" disabled={pending} onClick={() => act(() => setExamStatusAction(examId, session.status === "open" ? "closed" : "open"))}>{session.status === "open" ? "Close exam" : "Open exam"}</Button>
-              <Button size="sm" variant="outline" disabled={pending} onClick={() => act(() => duplicateExamAction(examId), (id) => { if (id) openModal({ modal: "exam", exam: id }); })}>Duplicate</Button>
-              <AlertDialog>
-                <AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>Delete</AlertDialogTrigger>
-                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this examination?</AlertDialogTitle><AlertDialogDescription>The session can be deleted only when its relational history permits it. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => act(() => deleteExamAction(examId))}>Delete exam</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-              </AlertDialog>
-            </div>
+            <dl className="divide-y divide-border border-y border-border text-sm">
+              <div className="grid gap-1 py-2.5 sm:grid-cols-[160px_minmax(0,1fr)]"><dt className="text-xs text-muted-foreground">Mode</dt><dd className="font-medium capitalize">{String(session.mode)}</dd></div>
+              <div className="grid gap-1 py-2.5 sm:grid-cols-[160px_minmax(0,1fr)]"><dt className="text-xs text-muted-foreground">Integrity threshold</dt><dd className="font-medium">{String(session.warn_after ?? 2)} events</dd></div>
+              <div className="grid gap-1 py-2.5 sm:grid-cols-[160px_minmax(0,1fr)]"><dt className="text-xs text-muted-foreground">Instructions</dt><dd className="font-medium">{String(session.instructions || "None")}</dd></div>
+            </dl>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-              <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Mode</span><strong className="mt-1 block capitalize">{String(session.mode)}</strong></div>
-              <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Subjects</span><strong className="mt-1 block">{subjects}</strong></div>
-              <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Integrity threshold</span><strong className="mt-1 block">{String(session.warn_after ?? 2)} events</strong></div>
-              <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Instructions</span><strong className="mt-1 block line-clamp-2">{String(session.instructions || "None")}</strong></div>
-            </div>
+            {isAdmin ? (
+              <details className="border-b border-border py-3">
+                <summary className="cursor-pointer text-sm font-semibold">Cohost access</summary>
+                <div className="pt-3"><CohostManager examId={examId} initial={relations?.cohostIds ?? []} staff={staff} /></div>
+              </details>
+            ) : null}
 
-            {isAdmin ? <CohostManager examId={examId} initial={relations?.cohostIds ?? []} staff={staff} /> : null}
-
-            <div className="rounded-xl border">
-              <div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Candidate activity</h3></div>
-              <div className="divide-y">
+            <section className="pt-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-bold">Candidate activity</h3>
+                <p className="text-xs text-muted-foreground">{submittedCount} submitted · {activeCount} active</p>
+              </div>
+              <div className="mt-1 divide-y divide-border">
                 {(data?.attempts ?? []).slice(0, 20).map((attempt) => {
                   const context = attemptContext(attempt);
                   const attemptId = String(attempt.id);
                   return (
-                    <button key={attemptId} type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: attemptId })}>
-                      <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{context.studentName || "Candidate"}</strong><span className="mt-1 block text-xs text-muted-foreground">{attempt.submitted_at ? "Submitted" : "In progress"} · attempt {String(attempt.attempt_number ?? 1)}</span></span>
+                    <button key={attemptId} type="button" className="flex w-full items-center gap-3 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: attemptId })}>
+                      <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{context.studentName || "Candidate"}</strong><span className="mt-0.5 block text-xs text-muted-foreground">{attempt.submitted_at ? "Submitted" : "In progress"} · attempt {String(attempt.attempt_number ?? 1)}</span></span>
                       <StatusBadge tone={attempt.submitted_at ? "emerald" : "amber"}>{attempt.submitted_at ? `${String(attempt.score ?? "—")}%` : "live"}</StatusBadge>
                     </button>
                   );
                 })}
-                {data && data.attempts.length === 0 ? <p className="p-5 text-sm text-muted-foreground">No candidates have started this examination.</p> : null}
+                {data && data.attempts.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No candidates have started this examination.</p> : null}
               </div>
-            </div>
+            </section>
           </div>
         )}
       </DialogContent>
@@ -220,7 +334,7 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
         <DialogHeader><DialogTitle>Edit examination</DialogTitle><DialogDescription>{locked ? "Candidate activity exists, so duration and question count are structurally locked." : "Paper structure remains editable until the first candidate starts."}</DialogDescription></DialogHeader>
         {loaded ? <FieldGroup>
           <Field><FieldLabel htmlFor="ee-title">Title</FieldLabel><Input id="ee-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={72} /></Field>
-          <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-duration">Duration (seconds)</FieldLabel><Input id="ee-duration" type="number" disabled={locked} min={30} max={10800} value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))} /></Field><Field><FieldLabel htmlFor="ee-count">Questions</FieldLabel><Input id="ee-count" type="number" disabled={locked} min={5} max={150} value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} /></Field></div>
+          <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-duration">Duration (seconds)</FieldLabel><Input id="ee-duration" type="number" disabled={locked} min={30} max={14400} value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))} /></Field><Field><FieldLabel htmlFor="ee-count">Questions</FieldLabel><Input id="ee-count" type="number" disabled={locked} min={5} max={200} value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} /></Field></div>
           <Field><FieldLabel htmlFor="ee-instructions">Instructions</FieldLabel><Textarea id="ee-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={140} /></Field>
           <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-status">Status</FieldLabel><NativeSelect id="ee-status" value={status} onChange={(event) => setStatus(event.target.value)}>{["draft", "open", "closed"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></Field><Field><FieldLabel htmlFor="ee-warn">Integrity warning threshold</FieldLabel><Input id="ee-warn" type="number" min={1} max={10} value={warnAfter} onChange={(event) => setWarnAfter(Number(event.target.value))} /></Field></div>
           <Field><div className="flex items-center justify-between rounded-xl border p-3"><div><FieldLabel htmlFor="ee-camera">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Require camera permission before the candidate enters the paper.</p></div><Switch id="ee-camera" checked={cameraRequired} onCheckedChange={setCameraRequired} /></div></Field>
@@ -237,7 +351,7 @@ function CohostManager({ examId, initial, staff }: { examId: string; initial: st
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   useEffect(() => setSelected(initial), [initial]);
-  return <div className="rounded-xl border p-4"><p className="text-sm font-semibold">Cohost access</p><p className="mt-1 text-xs text-muted-foreground">Administrators can grant specific staff access outside their normal subject scope.</p><div className="mt-3 flex max-h-40 flex-wrap gap-2 overflow-auto">{staff.map((member) => { const active = selected.includes(member.id); return <Button key={member.id} type="button" size="sm" variant={active ? "default" : "outline"} onClick={() => { setSaved(false); setSelected(active ? selected.filter((id) => id !== member.id) : [...selected, member.id]); }}>{member.full_name}</Button>; })}{staff.length === 0 ? <p className="text-xs text-muted-foreground">No staff records are available.</p> : null}</div><div className="mt-3 flex items-center gap-2"><Button size="sm" disabled={pending} onClick={() => startTransition(async () => { const result = await updateCohostsAction(examId, selected); if (result.ok) setSaved(true); })}>{pending ? "Saving…" : "Save cohosts"}</Button>{saved ? <span className="text-xs text-emerald-600">Saved</span> : null}</div></div>;
+  return <div><p className="text-xs text-muted-foreground">Administrators can grant specific staff access outside their normal subject scope.</p><div className="mt-3 flex max-h-40 flex-wrap gap-2 overflow-auto">{staff.map((member) => { const active = selected.includes(member.id); return <Button key={member.id} type="button" size="sm" variant={active ? "default" : "outline"} onClick={() => { setSaved(false); setSelected(active ? selected.filter((id) => id !== member.id) : [...selected, member.id]); }}>{member.full_name}</Button>; })}{staff.length === 0 ? <p className="text-xs text-muted-foreground">No staff records are available.</p> : null}</div><div className="mt-3 flex items-center gap-2"><Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await updateCohostsAction(examId, selected); if (result.ok) setSaved(true); })}>{pending ? "Saving…" : "Save cohosts"}</Button>{saved ? <span className="text-xs text-emerald-600">Saved</span> : null}</div></div>;
 }
 
 export function UserDetailDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
@@ -249,7 +363,7 @@ export function UserDetailDialog({ userId, onClose }: { userId: string; onClose:
   useEffect(() => { setError(null); void getUserDetailAction(userId).then((detail) => setData(detail as typeof data)).catch(() => setError("Student details could not be loaded.")); }, [userId]);
   const user = data?.user;
   const isStudent = String(user?.role ?? "") === "student";
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{String(user?.full_name ?? "User detail")}</DialogTitle><DialogDescription>{String(user?.role ?? "")} · {String(user?.status ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{user ? <div className="flex flex-col gap-4">
+  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="sm:max-w-4xl"><DialogHeader><DialogTitle>{String(user?.full_name ?? "User detail")}</DialogTitle><DialogDescription>{String(user?.role ?? "")} · {String(user?.status ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{user ? <div className="flex min-w-0 flex-col gap-4">
     <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Class</span><strong className="mt-1 block">{String(user.class_id || "Unassigned")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Guardian</span><strong className="mt-1 block">{String(user.guardian || "Not recorded")}</strong></div><div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Promotion status</span><strong className="mt-1 block">{String(user.promotion_status || "Not recorded")}</strong></div></div>
     {isStudent ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openModal({ modal: "user-edit", student: userId })}><Pencil data-icon="inline-start" />Edit student</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await toggleUserAction(userId, user.status !== "active"); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{user.status === "active" ? "Suspend" : "Reactivate"}</Button></div> : null}
     <div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Exam history</h3></div><div className="divide-y">{(data?.attempts ?? []).map((attempt) => { const context = attemptContext(attempt); const attemptId = String(attempt.id); return <button key={attemptId} type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50" onClick={() => openModal({ modal: "attempt", attempt: attemptId })}><span className="min-w-0"><strong className="block truncate text-sm">{context.sessionTitle || String(attempt.session_id)}</strong><span className="mt-1 block text-xs text-muted-foreground">Integrity {String(attempt.integrity_score ?? "—")}%</span></span><span className="font-semibold tabular-nums">{String(attempt.score ?? "—")}%</span></button>; })}{data && data.attempts.length === 0 ? <p className="p-5 text-sm text-muted-foreground">No attempts yet.</p> : null}</div></div>
@@ -264,8 +378,8 @@ export function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string;
   const [pending, startTransition] = useTransition();
   useEffect(() => { setError(null); void getAttemptDetailAction(attemptId).then((detail) => { setAttempt(detail.attempt as Record<string, unknown> | null); setAnswers(detail.answers as Record<string, unknown>[]); setEvents(detail.events as { type: string; detail?: string; at: number }[]); }).catch(() => setError("Attempt could not be loaded.")); }, [attemptId]);
   const context = attempt ? attemptContext(attempt) : {};
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-5xl overflow-y-auto"><DialogHeader><DialogTitle>{context.studentName || "Attempt"}</DialogTitle><DialogDescription className="font-mono">{attemptId}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{attempt ? <div className="flex flex-col gap-4">
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Score" value={`${String(attempt.score ?? "—")}%`} /><MetricCard label="Integrity" value={`${String(attempt.integrity_score ?? "—")}%`} /><MetricCard label="Answers" value={String(answers.length)} /><MetricCard label="Submission" value={attempt.submitted_at ? "Submitted" : "In progress"} /></div>
+  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="sm:max-w-5xl"><DialogHeader><DialogTitle>{context.studentName || "Attempt"}</DialogTitle><DialogDescription className="font-mono break-all">{attemptId}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{attempt ? <div className="flex min-w-0 flex-col gap-4">
+    <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Score" value={`${String(attempt.score ?? "—")}%`} /><MetricCard label="Integrity" value={`${String(attempt.integrity_score ?? "—")}%`} /><MetricCard label="Answers" value={String(answers.length)} /><MetricCard label="Submission" value={attempt.submitted_at ? "Submitted" : "In progress"} /></div>
     <div className="rounded-xl border p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Exam</p><p className="mt-1 text-sm font-semibold">{context.sessionTitle || String(attempt.session_id)}</p><p className="mt-1 text-xs text-muted-foreground">Attempt {String(attempt.attempt_number ?? 1)}</p></div>
     <div className="rounded-xl border"><div className="border-b px-4 py-3"><h3 className="text-sm font-semibold">Integrity timeline</h3></div><div className="max-h-72 overflow-auto divide-y">{events.length ? events.map((event, index) => <div key={`${event.at}-${index}`} className="px-4 py-3"><div className="flex items-center justify-between gap-3"><strong className="text-sm">{event.type}</strong><span className="text-xs text-muted-foreground">{new Date(Number(event.at)).toLocaleString()}</span></div>{event.detail ? <p className="mt-1 text-xs text-muted-foreground">{event.detail}</p> : null}</div>) : <p className="p-4 text-sm text-muted-foreground">No integrity events recorded.</p>}</div></div>
     <div className="flex flex-wrap gap-2">{attempt.submitted_at ? <Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(async () => { const result = await authorizeRewriteAction(attemptId); if (!result.ok) { setError(result.error ?? "Retake authorization failed."); return; } onClose(); })}>Grant retake</Button> : <p className="text-xs text-muted-foreground">Active attempts are preserved; another attempt can be granted after submission when needed.</p>}</div>
@@ -284,8 +398,8 @@ export function QuestionDetailDialog({ questionId, onClose }: { questionId: numb
   useEffect(() => { setError(null); void Promise.all([getQuestionEditorDetailAction(questionId), getAdminFormOptionsAction()]).then(([detail, options]) => { const nextQuestion = detail.question as Record<string, unknown> | null; setQuestion(nextQuestion); setBlanks(detail.blanks as { blank_key: string; accepted: string[] }[]); const subjectId = String(nextQuestion?.subject_id ?? ""); setSubjectName(options.subjects.find((subject) => subject.id === subjectId)?.name ?? "Subject"); setCanEdit(Boolean(nextQuestion && (options.scope.isAdmin || nextQuestion.creator_id === options.scope.profileId))); }).catch(() => setError("Question could not be loaded.")); }, [questionId]);
   const options = (question?.options ?? []) as string[];
   const correct = (question?.correct_answers ?? []) as string[];
-  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Question #{questionId}</DialogTitle><DialogDescription>{subjectName} · {String(question?.qtype ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{question ? <div className="flex flex-col gap-4 text-sm">
-    <p className="text-base leading-7">{String(question.prompt ?? "")}</p>
+  return <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}><DialogContent className="sm:max-w-3xl"><DialogHeader><DialogTitle>Question #{questionId}</DialogTitle><DialogDescription>{subjectName} · {String(question?.qtype ?? "")}</DialogDescription></DialogHeader>{error ? <p className="text-sm text-destructive">{error}</p> : null}{question ? <div className="flex min-w-0 flex-col gap-4 text-sm">
+    <p className="min-w-0 text-base leading-7 break-words">{String(question.prompt ?? "")}</p>
     {options.length ? <div className="grid gap-2">{options.map((option, index) => <div key={`${index}-${option}`} className={`rounded-lg border px-3 py-2 ${correct.includes(option) ? "border-emerald-300 bg-emerald-50" : ""}`}><span className="mr-2 font-semibold">{String.fromCharCode(65 + index)}.</span>{option}{correct.includes(option) ? <span className="ml-2 text-xs font-semibold text-emerald-700">Correct</span> : null}</div>)}</div> : null}
     {String(question.qtype) === "boolean" ? <div className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">Correct answer</span><strong className="mt-1 block capitalize">{correct[0] ?? "—"}</strong></div> : null}
     {blanks.length ? <div className="grid gap-2">{blanks.map((blank) => <div key={blank.blank_key} className="rounded-lg border p-3"><span className="text-xs text-muted-foreground">{blank.blank_key}</span><strong className="mt-1 block">{blank.accepted.join(" / ")}</strong></div>)}</div> : null}

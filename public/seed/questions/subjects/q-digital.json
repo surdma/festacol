@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-q-digital-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "q-digital",
+    "subjectName": "Digital Technologies",
+    "baseId": 2040000,
+    "levels": ["SS1"],
+    "examModes": ["qualifier"],
+    "concepts": [
+      {"domain":"Computer Basics","term":"Computer","definition":"an electronic device that accepts data, processes it according to instructions, stores information, and produces output"},
+      {"domain":"Computer Basics","term":"Input device","definition":"hardware used to enter data or commands into a computer system"},
+      {"domain":"Computer Basics","term":"Output device","definition":"hardware that presents processed information from a computer to a user or another system"},
+      {"domain":"File Management","term":"File","definition":"a named collection of related digital data stored on a device"},
+      {"domain":"Internet","term":"Internet","definition":"a global system of interconnected computer networks that communicate using standard protocols"},
+      {"domain":"Cyber Safety","term":"Password","definition":"a secret string used with an account or system to help verify a user's identity"},
+      {"domain":"Internet","term":"Web browser","definition":"software used to retrieve, display, and interact with content on the World Wide Web"},
+      {"domain":"Productivity","term":"Spreadsheet","definition":"software that organizes data in cells arranged in rows and columns and supports calculation"},
+      {"domain":"Computational Thinking","term":"Algorithm","definition":"a clear sequence of steps designed to complete a task or solve a problem"},
+      {"domain":"Cyber Safety","term":"Cyber safety","definition":"practices that reduce digital risks and protect people, devices, accounts, and information online"}
+    ]
+  }
+}

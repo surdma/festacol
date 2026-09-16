@@ -37,8 +37,8 @@ export async function deleteClassSafelyAction(classId: string): Promise<ActionRe
 
     const { error } = await supabase.from("classes").delete().eq("id", classId);
     if (error) return { ok: false, error: error.message };
-    revalidatePath("/admin/classes");
-    revalidatePath("/admin/students");
+    revalidatePath("/workspace/classes");
+    revalidatePath("/workspace/students");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Delete failed." };
@@ -87,7 +87,7 @@ export async function upsertSingleClassWhatsappAction(input: {
       ? await supabase.from("whatsapp_groups").update(row).eq("id", input.id)
       : await supabase.from("whatsapp_groups").insert({ ...row, id, created_at: now });
     if (result.error) return { ok: false, error: result.error.message };
-    revalidatePath("/admin/classes");
+    revalidatePath("/workspace/classes");
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "WhatsApp group save failed." };

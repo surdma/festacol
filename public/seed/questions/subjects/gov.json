@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-gov-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "gov",
+    "subjectName": "Government",
+    "baseId": 2015000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Political Concepts","term":"State","definition":"a politically organized population occupying a defined territory under a sovereign government"},
+      {"domain":"Constitution","term":"Constitution","definition":"the body of fundamental principles and rules by which a state is governed"},
+      {"domain":"Institutions","term":"Legislature","definition":"the branch of government responsible primarily for making laws"},
+      {"domain":"Institutions","term":"Executive","definition":"the branch of government responsible for implementing laws and administering public policy"},
+      {"domain":"Institutions","term":"Judiciary","definition":"the branch of government that interprets laws and settles legal disputes"},
+      {"domain":"Systems of Government","term":"Federalism","definition":"a system in which constitutional powers are divided between central and regional governments"},
+      {"domain":"Constitutionalism","term":"Separation of powers","definition":"the distribution of government powers among distinct branches to reduce concentration and abuse"},
+      {"domain":"Constitutionalism","term":"Rule of law","definition":"the principle that public authorities and citizens are equally subject to established law"},
+      {"domain":"Elections","term":"Suffrage","definition":"the legal right of eligible citizens to vote in public elections"},
+      {"domain":"Political Participation","term":"Political party","definition":"an organized group seeking political power through elections in order to influence or control government policy"}
+    ]
+  }
+}

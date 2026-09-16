@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-music-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "music",
+    "subjectName": "Music",
+    "baseId": 2022000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Musical Elements","term":"Rhythm","definition":"the organization of sounds and silences through patterns of duration and accent"},
+      {"domain":"Musical Elements","term":"Melody","definition":"a sequence of pitches perceived as a coherent musical line"},
+      {"domain":"Musical Elements","term":"Harmony","definition":"the combination of simultaneously sounding pitches or chords"},
+      {"domain":"Musical Elements","term":"Tempo","definition":"the speed at which a piece of music is performed"},
+      {"domain":"Musical Elements","term":"Dynamics","definition":"the varying levels of loudness and softness in music"},
+      {"domain":"Musical Elements","term":"Pitch","definition":"the perceived highness or lowness of a musical sound"},
+      {"domain":"Theory","term":"Scale","definition":"an ordered sequence of pitches arranged according to a tonal pattern"},
+      {"domain":"Theory","term":"Chord","definition":"three or more pitches sounded together as a harmonic unit"},
+      {"domain":"Notation","term":"Musical notation","definition":"a system of written symbols used to represent musical sounds and instructions"},
+      {"domain":"Sound","term":"Timbre","definition":"the tone quality that distinguishes one voice or instrument from another even at the same pitch and loudness"}
+    ]
+  }
+}

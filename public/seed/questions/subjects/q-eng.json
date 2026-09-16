@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-q-eng-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "q-eng",
+    "subjectName": "English Studies",
+    "baseId": 2035000,
+    "levels": ["SS1"],
+    "examModes": ["qualifier"],
+    "concepts": [
+      {"domain":"Vocabulary","term":"Synonym","definition":"a word that has the same or nearly the same meaning as another word"},
+      {"domain":"Vocabulary","term":"Antonym","definition":"a word that has the opposite meaning of another word"},
+      {"domain":"Grammar","term":"Subject-verb agreement","definition":"the grammatical matching of a subject and verb in number and person"},
+      {"domain":"Grammar","term":"Tense","definition":"a verb form that helps show the time of an action, event, or state"},
+      {"domain":"Writing","term":"Punctuation","definition":"the use of marks in writing to organize sentences and clarify meaning"},
+      {"domain":"Comprehension","term":"Main idea","definition":"the central point or most important message communicated by a passage"},
+      {"domain":"Comprehension","term":"Inference","definition":"a conclusion reached from evidence and clues that are not stated directly"},
+      {"domain":"Writing","term":"Spelling","definition":"the accepted arrangement of letters used to write a word correctly"},
+      {"domain":"Grammar","term":"Sentence completion","definition":"the task of choosing or supplying language that makes an incomplete sentence grammatically and logically complete"},
+      {"domain":"Vocabulary","term":"Vocabulary","definition":"the set of words a learner understands and can use appropriately"}
+    ]
+  }
+}

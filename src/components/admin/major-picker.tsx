@@ -1,68 +1,111 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { getSubjectCatalogAction } from "@/app/actions/admin-parity";
-import { getMyScopeAction, updateMySubjectsAction } from "@/app/actions/admin";
+import { CheckCircle2, LoaderCircle, Save, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { useTeachingSubjectSettings } from "@/hooks/use-teaching-subject-settings";
+import { cn } from "@/lib/utils";
 
 export function MajorPicker() {
-  const router = useRouter();
-  const [catalog, setCatalog] = useState<{ id: string; name: string }[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    void Promise.all([getSubjectCatalogAction(), getMyScopeAction()])
-      .then(([subjects, scope]) => {
-        setCatalog(subjects);
-        setSelected(scope.subjectIds);
-      })
-      .catch(() => setError("Teaching-subject data could not be loaded."));
-  }, []);
+  const { catalog, selected, loading, pending, error, saved, toggle, save } = useTeachingSubjectSettings();
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return catalog;
+    return catalog.filter((subject) => subject.name.toLowerCase().includes(normalized));
+  }, [catalog, query]);
 
   return (
-    <Card className="border-neutral-800 bg-neutral-950 text-white">
-      <CardHeader>
-        <CardTitle>Teaching subject qualifications</CardTitle>
-        <CardDescription className="text-neutral-400">These subjects define what question banks you may access. Actual class and exam access still requires a teaching or exam assignment.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex max-h-56 flex-wrap gap-2 overflow-auto">
-          {catalog.map((subject) => {
+    <section aria-labelledby="qualification-heading" className="border-y border-border bg-background">
+      <div className="flex flex-col gap-4 border-b border-border px-1 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-3">
+        <div className="max-w-2xl">
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Editable qualification scope</p>
+          <h2 id="qualification-heading" className="mt-1 font-display text-lg font-extrabold text-foreground">Subjects you are qualified to teach</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">This controls subject-level question-bank access. It does not assign you to a class; class-subject assignments are managed separately by an administrator.</p>
+        </div>
+        <Badge variant="outline">{selected.length} selected</Badge>
+      </div>
+
+      <div className="border-b border-border px-1 py-4 sm:px-3">
+        <InputGroup className="h-10 max-w-md">
+          <InputGroupAddon>
+            <Search />
+          </InputGroupAddon>
+          <InputGroupInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a subject…" aria-label="Find a subject" />
+        </InputGroup>
+      </div>
+
+      {loading ? (
+        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 animate-spin" />
+          Loading teaching subjects…
+        </div>
+      ) : filtered.length ? (
+        <div className="max-h-[440px] divide-y divide-border overflow-y-auto">
+          {filtered.map((subject) => {
             const active = selected.includes(subject.id);
             return (
-              <Button
+              <button
                 key={subject.id}
                 type="button"
-                size="sm"
-                variant={active ? "secondary" : "outline"}
-                className={active ? "" : "border-neutral-700 bg-transparent text-neutral-300 hover:bg-neutral-900 hover:text-white"}
-                onClick={() => setSelected(active ? selected.filter((id) => id !== subject.id) : [...selected, subject.id])}
+                aria-pressed={active}
+                className="group flex w-full items-center gap-4 px-1 py-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/30 sm:px-3"
+                onClick={() => toggle(subject.id)}
               >
-                {subject.name}
-              </Button>
+                <span
+                  className={cn(
+                    "grid size-6 shrink-0 place-items-center rounded-full border transition-colors",
+                    active ? "border-foreground bg-foreground text-background" : "border-border bg-background text-transparent",
+                  )}
+                >
+                  <CheckCircle2 className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-sm font-semibold text-foreground">{subject.name}</strong>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{active ? "Included in your teaching qualification" : "Not included in your teaching qualification"}</span>
+                </span>
+                <Badge variant={active ? "secondary" : "outline"}>{active ? "Selected" : "Available"}</Badge>
+              </button>
             );
           })}
         </div>
-        {error ? <p className="text-sm text-red-300" role="alert">{error}</p> : null}
-        <div>
-          <Button
-            variant="secondary"
-            disabled={pending || selected.length === 0}
-            onClick={() => startTransition(async () => {
-              setError(null);
-              const result = await updateMySubjectsAction(selected);
-              if (!result.ok) { setError(result.error ?? "Save failed."); return; }
-              router.refresh();
-            })}
-          >
-            {pending ? "Saving…" : "Save qualifications"}
-          </Button>
+      ) : (
+        <Empty className="min-h-48 border-0">
+          <EmptyHeader>
+            <EmptyTitle>{catalog.length ? "No matching subjects" : "No active subjects"}</EmptyTitle>
+            <EmptyDescription>{catalog.length ? "Try another subject name." : "Ask an administrator to prepare the subject curriculum first."}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+
+      {error ? (
+        <div className="border-t border-border p-4">
+          <Alert variant="destructive">
+            <AlertTitle>Teaching subjects were not updated</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         </div>
-      </CardContent>
-    </Card>
+      ) : null}
+      {saved ? (
+        <div className="border-t border-border p-4">
+          <Alert>
+            <AlertTitle>Teaching subjects updated</AlertTitle>
+            <AlertDescription>Your qualification scope is now using the selected subjects.</AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 border-t border-border bg-muted/20 px-1 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-3">
+        <p className="text-xs leading-5 text-muted-foreground">Changes affect your subject-level access after the save completes.</p>
+        <Button type="button" disabled={pending || loading || selected.length === 0} onClick={save}>
+          {pending ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Save data-icon="inline-start" />}
+          {pending ? "Saving…" : "Save qualifications"}
+        </Button>
+      </div>
+    </section>
   );
 }

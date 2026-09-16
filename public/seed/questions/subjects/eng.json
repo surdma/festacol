@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-eng-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "eng",
+    "subjectName": "English Language",
+    "baseId": 2000000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Grammar","term":"Noun","definition":"a word used to name a person, place, thing, or idea"},
+      {"domain":"Grammar","term":"Verb","definition":"a word that expresses an action, occurrence, or state"},
+      {"domain":"Grammar","term":"Adjective","definition":"a word that describes or modifies a noun or pronoun"},
+      {"domain":"Grammar","term":"Adverb","definition":"a word that modifies a verb, adjective, or another adverb"},
+      {"domain":"Grammar","term":"Pronoun","definition":"a word used in place of a noun or noun phrase"},
+      {"domain":"Grammar","term":"Preposition","definition":"a word showing the relationship of a noun or pronoun to another word"},
+      {"domain":"Grammar","term":"Conjunction","definition":"a word used to join words, phrases, or clauses"},
+      {"domain":"Syntax","term":"Sentence","definition":"a group of words that expresses a complete thought"},
+      {"domain":"Syntax","term":"Clause","definition":"a group of words containing a subject and a predicate"},
+      {"domain":"Writing","term":"Paragraph","definition":"a group of related sentences developed around one main idea"}
+    ]
+  }
+}

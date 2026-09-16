@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-foodnut-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "foodnut",
+    "subjectName": "Food & Nutrition",
+    "baseId": 2011000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Nutrition","term":"Nutrient","definition":"a substance in food that the body needs for energy, growth, repair, or regulation"},
+      {"domain":"Macronutrients","term":"Carbohydrate","definition":"a nutrient that is a major source of energy for the body"},
+      {"domain":"Macronutrients","term":"Protein","definition":"a nutrient made of amino acids that supports growth, repair, and many body functions"},
+      {"domain":"Macronutrients","term":"Fat","definition":"an energy-dense nutrient that also supports insulation, cell structure, and vitamin absorption"},
+      {"domain":"Micronutrients","term":"Vitamin","definition":"an organic micronutrient required in small amounts for normal growth and metabolism"},
+      {"domain":"Micronutrients","term":"Mineral","definition":"an inorganic nutrient needed in small amounts for structural and regulatory body functions"},
+      {"domain":"Diet Planning","term":"Balanced diet","definition":"a diet that supplies appropriate amounts of nutrients and energy for a person's needs"},
+      {"domain":"Food Science","term":"Food preservation","definition":"methods used to slow spoilage and extend the safe storage life of food"},
+      {"domain":"Food Safety","term":"Food hygiene","definition":"practices that keep food, equipment, and handlers clean enough to reduce contamination"},
+      {"domain":"Diet Planning","term":"Meal planning","definition":"the organized selection of meals to meet nutritional, financial, cultural, and practical needs"}
+    ]
+  }
+}

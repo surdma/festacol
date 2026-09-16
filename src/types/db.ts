@@ -336,3 +336,15 @@ export interface WhatsappGroupRow {
   created_at: number;
   updated_at: number;
 }
+
+export interface MemberDeletionAuditRow {
+  id: string;
+  target_member_id: string;
+  target_role: string;
+  target_name: string;
+  target_student_number: string | null;
+  deleted_by_id: string | null;
+  reason: string;
+  attempt_count: number;
+  created_at: string;
+}

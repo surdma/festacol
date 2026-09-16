@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { signInStudentAction } from "@/app/actions/student";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { signInStudentAction } from "@/app/actions/student";
 
-export function StudentLoginForm() {
+export function StudentLoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -23,7 +23,11 @@ export function StudentLoginForm() {
         setError(result.error ?? "Sign in failed.");
         return;
       }
-      router.push("/dashboard");
+      const destination =
+        next && next.startsWith("/dashboard") && !next.startsWith("//")
+          ? next
+          : "/dashboard";
+      router.push(destination);
       router.refresh();
     });
   }
@@ -33,14 +37,31 @@ export function StudentLoginForm() {
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="firstName">First name</FieldLabel>
-          <Input id="firstName" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <Input
+            id="firstName"
+            autoComplete="given-name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="lastName">Last name (password)</FieldLabel>
-          <Input id="lastName" type="password" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <Input
+            id="lastName"
+            type="password"
+            autoComplete="family-name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
         </Field>
-        {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-        <Button type="submit" disabled={pending}>{pending ? "Signing in…" : "Open dashboard"}</Button>
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" disabled={pending}>
+          {pending ? "Signing in…" : "Open dashboard"}
+        </Button>
       </FieldGroup>
     </form>
   );

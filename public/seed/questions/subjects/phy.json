@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-phy-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "phy",
+    "subjectName": "Physics",
+    "baseId": 2006000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Mechanics","term":"Force","definition":"a push or pull that can change an object's state of motion or shape"},
+      {"domain":"Mechanics","term":"Work","definition":"energy transferred when a force causes displacement in the direction of the force"},
+      {"domain":"Energy","term":"Energy","definition":"the capacity of a system to do work or cause change"},
+      {"domain":"Energy","term":"Power","definition":"the rate at which work is done or energy is transferred"},
+      {"domain":"Motion","term":"Velocity","definition":"the rate of change of displacement with time in a specified direction"},
+      {"domain":"Motion","term":"Acceleration","definition":"the rate at which velocity changes with time"},
+      {"domain":"Mechanics","term":"Momentum","definition":"the product of an object's mass and velocity"},
+      {"domain":"Properties of Matter","term":"Pressure","definition":"the normal force acting per unit area of a surface"},
+      {"domain":"Electricity","term":"Electric current","definition":"the rate of flow of electric charge through a conductor"},
+      {"domain":"Electricity","term":"Resistance","definition":"the opposition a material or component offers to the flow of electric current"}
+    ]
+  }
+}

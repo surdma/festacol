@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-comp-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "comp",
+    "subjectName": "Digital Technologies",
+    "baseId": 2003000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Computing","term":"Algorithm","definition":"a finite sequence of ordered steps for solving a problem"},
+      {"domain":"Computer Systems","term":"Hardware","definition":"the physical components of a computer system"},
+      {"domain":"Computer Systems","term":"Software","definition":"programs and instructions that direct a computer to perform tasks"},
+      {"domain":"Computer Systems","term":"Operating system","definition":"system software that manages hardware resources and provides services to applications"},
+      {"domain":"Networking","term":"Network","definition":"a group of connected devices that can exchange data and share resources"},
+      {"domain":"Data","term":"Database","definition":"an organized collection of related data stored for efficient access and management"},
+      {"domain":"Security","term":"Cybersecurity","definition":"the protection of digital systems, networks, and data from unauthorized access or attack"},
+      {"domain":"Data Representation","term":"Binary","definition":"a base-two number system that uses only the digits zero and one"},
+      {"domain":"Productivity","term":"Spreadsheet","definition":"software that organizes data in rows and columns and supports calculation and analysis"},
+      {"domain":"Programming","term":"Programming","definition":"the process of designing and writing instructions that a computer can execute"}
+    ]
+  }
+}

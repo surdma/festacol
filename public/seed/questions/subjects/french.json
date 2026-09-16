@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-french-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "french",
+    "subjectName": "French",
+    "baseId": 2019000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Grammaire","term":"Nom","definition":"mot qui désigne une personne, un animal, un lieu, une chose ou une idée"},
+      {"domain":"Grammaire","term":"Verbe","definition":"mot qui exprime une action, un état ou un événement"},
+      {"domain":"Grammaire","term":"Adjectif","definition":"mot qui apporte une précision ou une qualité à un nom"},
+      {"domain":"Grammaire","term":"Pronom","definition":"mot employé pour remplacer un nom ou un groupe nominal"},
+      {"domain":"Grammaire","term":"Article","definition":"déterminant placé devant un nom pour indiquer notamment son genre et son nombre"},
+      {"domain":"Conjugaison","term":"Présent","definition":"temps verbal principalement utilisé pour une action ou un état situé au moment où l'on parle"},
+      {"domain":"Conjugaison","term":"Passé composé","definition":"temps verbal formé d'un auxiliaire au présent et d'un participe passé pour exprimer un fait accompli"},
+      {"domain":"Conjugaison","term":"Futur simple","definition":"temps verbal utilisé pour présenter une action ou un état à venir"},
+      {"domain":"Grammaire","term":"Accord","definition":"adaptation grammaticale de certains mots selon le genre, le nombre ou la personne"},
+      {"domain":"Syntaxe","term":"Négation","definition":"construction grammaticale qui sert à nier une affirmation ou une action"}
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-marketing-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "marketing",
+    "subjectName": "Marketing",
+    "baseId": 2028000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Marketing Information","term":"Market research","definition":"the systematic collection and analysis of information about customers, competitors, and market conditions"},
+      {"domain":"Market Strategy","term":"Market segmentation","definition":"the division of a broad market into smaller groups with similar needs, characteristics, or behaviours"},
+      {"domain":"Market Strategy","term":"Target market","definition":"the specific group of customers a business chooses to serve with its marketing activities"},
+      {"domain":"Marketing Mix","term":"Product","definition":"a good, service, or idea offered to satisfy a customer need or want"},
+      {"domain":"Marketing Mix","term":"Price","definition":"the amount of money or other value a customer gives in exchange for a product"},
+      {"domain":"Marketing Mix","term":"Place","definition":"the channels and activities used to make a product available to target customers"},
+      {"domain":"Marketing Mix","term":"Promotion","definition":"communication activities used to inform, persuade, or remind customers about an offering"},
+      {"domain":"Brand Management","term":"Branding","definition":"the creation and management of a distinctive identity that differentiates an offering from competitors"},
+      {"domain":"Consumer Markets","term":"Consumer behaviour","definition":"the study of how individuals or groups select, buy, use, and evaluate products"},
+      {"domain":"Selling","term":"Sales","definition":"the process of exchanging a product for payment and managing the customer interaction that supports the transaction"}
+    ]
+  }
+}

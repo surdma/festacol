@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-lit-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "lit",
+    "subjectName": "English Literature",
+    "baseId": 2023000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Prose and Drama","term":"Plot","definition":"the organized sequence of events and actions that make up a literary work"},
+      {"domain":"Prose and Drama","term":"Character","definition":"a person, animal, or figure represented as taking part in the events of a literary work"},
+      {"domain":"Literary Context","term":"Setting","definition":"the time, place, and social environment in which the events of a literary work occur"},
+      {"domain":"Meaning","term":"Theme","definition":"a central idea or insight explored repeatedly through a literary work"},
+      {"domain":"Prose and Drama","term":"Conflict","definition":"a struggle between opposing forces that drives action or tension in a literary work"},
+      {"domain":"Figurative Language","term":"Metaphor","definition":"a direct comparison that describes one thing as another without using like or as"},
+      {"domain":"Figurative Language","term":"Simile","definition":"a comparison between unlike things that commonly uses like or as"},
+      {"domain":"Literary Devices","term":"Irony","definition":"a contrast between what is expected or stated and what actually happens or is meant"},
+      {"domain":"Narrative Technique","term":"Narrator","definition":"the voice or perspective through which a story is told"},
+      {"domain":"Poetry","term":"Stanza","definition":"a grouped set of lines in a poem separated from other groups by space or structure"}
+    ]
+  }
+}

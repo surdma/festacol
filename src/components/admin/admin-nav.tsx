@@ -4,19 +4,31 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PrototypeAdminIcon, type PrototypeAdminIconName } from "@/components/admin/prototype-admin-icon";
 
-const routes: { href: string; label: string; icon: PrototypeAdminIconName }[] = [
-  { href: "/admin", label: "Overview", icon: "home" },
-  { href: "/admin/students", label: "Students", icon: "users" },
-  { href: "/admin/staff", label: "Staff", icon: "staff" },
-  { href: "/admin/exams", label: "Examinations", icon: "book" },
-  { href: "/admin/classes", label: "Classes", icon: "school" },
-  { href: "/admin/questions", label: "Question Bank", icon: "book" },
-  { href: "/admin/reports", label: "Reports", icon: "chart" },
-  { href: "/admin/settings", label: "Settings", icon: "cog" },
+interface AdminRoute {
+  href: string;
+  label: string;
+  icon: PrototypeAdminIconName;
+  administratorOnly?: boolean;
+}
+
+const routes: AdminRoute[] = [
+  { href: "/workspace", label: "Overview", icon: "home" },
+  { href: "/workspace/students", label: "Students", icon: "users" },
+  { href: "/workspace/staff", label: "Staff", icon: "staff", administratorOnly: true },
+  { href: "/workspace/exams", label: "Examinations", icon: "book" },
+  { href: "/workspace/classes", label: "Classes", icon: "school" },
+  { href: "/workspace/questions", label: "Question Bank", icon: "book" },
+  { href: "/workspace/reports", label: "Reports", icon: "chart" },
+  { href: "/workspace/settings", label: "Settings", icon: "cog" },
+  { href: "/workspace/data-library", label: "School Data", icon: "school", administratorOnly: true },
 ];
 
 function isCurrent(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return href === "/workspace" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function visibleRoutes(role?: string) {
+  return routes.filter((route) => !route.administratorOnly || role === "administrator");
 }
 
 export function useAdminNavItem() {
@@ -24,11 +36,11 @@ export function useAdminNavItem() {
   return routes.find((entry) => isCurrent(pathname, entry.href)) ?? routes[0];
 }
 
-export function AdminNav({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
+export function AdminNav({ role, mobile = false, onNavigate }: { role?: string; mobile?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
-    <nav className={mobile ? "space-y-1 p-3" : "flex-1 space-y-1 overflow-y-auto px-3 pb-3"} aria-label={mobile ? "Mobile administration" : "Administration"}>
-      {routes.map((route) => {
+    <nav className={mobile ? "no-scrollbar flex-1 space-y-1 overflow-y-auto p-3" : "no-scrollbar flex-1 space-y-1 overflow-y-auto px-3 pb-3"} aria-label={mobile ? "Mobile administration" : "Administration"}>
+      {visibleRoutes(role).map((route) => {
         const active = isCurrent(pathname, route.href);
         return (
           <Link

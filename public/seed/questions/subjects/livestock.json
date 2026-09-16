@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-livestock-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "livestock",
+    "subjectName": "Livestock Farming",
+    "baseId": 2032000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Breeding","term":"Breed","definition":"a group of domestic animals within a species that share inherited characteristics developed through selection"},
+      {"domain":"Nutrition","term":"Ration","definition":"the total amount and combination of feed provided to an animal over a specified period"},
+      {"domain":"Animal Health","term":"Vaccination","definition":"the administration of a vaccine to stimulate protective immunity against a specific animal disease"},
+      {"domain":"Animal Health","term":"Deworming","definition":"the treatment of livestock to control or remove internal parasitic worms"},
+      {"domain":"Housing","term":"Livestock housing","definition":"a shelter designed to protect farm animals while supporting health, comfort, feeding, and management"},
+      {"domain":"Farm Biosecurity","term":"Biosecurity","definition":"measures used to prevent the introduction and spread of infectious agents on a livestock farm"},
+      {"domain":"Reproduction","term":"Reproduction","definition":"the biological process by which animals produce offspring and continue the population"},
+      {"domain":"Production Efficiency","term":"Feed conversion","definition":"the relationship between the quantity of feed consumed and the animal product or weight gained"},
+      {"domain":"Forage","term":"Pasture","definition":"land covered with grasses or forage plants used for grazing livestock"},
+      {"domain":"Farm Management","term":"Record keeping","definition":"the systematic recording of livestock health, production, breeding, financial, and management information"}
+    ]
+  }
+}

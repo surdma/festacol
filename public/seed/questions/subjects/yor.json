@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-yor-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "yor",
+    "subjectName": "Yoruba",
+    "baseId": 2018000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Èdè","term":"Alífábẹ́ẹ̀tì Yorùbá","definition":"ètò àwọn lẹ́tà tí a ń lò láti kọ èdè Yorùbá"},
+      {"domain":"Ohùn","term":"Àmì ohùn","definition":"àmì tí ó ń fi gíga tàbí ìsàlẹ̀ ohùn hàn nínú ọ̀rọ̀ Yorùbá"},
+      {"domain":"Lítírésọ̀","term":"Òwe","definition":"gbólóhùn kúkúrú ọlọ́gbọ́n tí ó ní ìtumọ̀ jinlẹ̀ àti ẹ̀kọ́"},
+      {"domain":"Ìbánisọ̀rọ̀","term":"Ìkíni","definition":"ọ̀nà tí a fi ń kí ènìyàn gẹ́gẹ́ bí àkókò, iṣẹ́, tàbí ipò"},
+      {"domain":"Àṣà","term":"Àṣà àtọwọ́dọ́wọ́","definition":"ìmọ̀ àti ìṣe tí a ń gbé láti ìran kan sí ìran mìíràn nípasẹ̀ ọ̀rọ̀ àti ìṣe"},
+      {"domain":"Lítírésọ̀","term":"Àlọ́","definition":"ìtàn àròsọ tí a máa ń sọ fún ìdárayá àti ìkọ́ni"},
+      {"domain":"Gírámà","term":"Orúkọ","definition":"ọ̀rọ̀ tí a fi ń pe ènìyàn, ibi, ẹranko, ohun, tàbí èrò"},
+      {"domain":"Gírámà","term":"Ọ̀rọ̀-ìṣe","definition":"ọ̀rọ̀ tí ó ń sọ iṣẹ́ tàbí ohun tí ń ṣẹlẹ̀"},
+      {"domain":"Gírámà","term":"Gbólóhùn","definition":"àkójọpọ̀ ọ̀rọ̀ tí ó ní ìtumọ̀ péye"},
+      {"domain":"Àṣà","term":"Àṣà","definition":"àwọn ìgbàgbọ́, ìṣe, èdè, àti iye tí ẹgbẹ́ ènìyàn ń pín pọ̀"}
+    ]
+  }
+}

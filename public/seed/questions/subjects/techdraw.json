@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-techdraw-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "techdraw",
+    "subjectName": "Technical Drawing",
+    "baseId": 2013000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Projection","term":"Orthographic projection","definition":"a method of representing an object with separate perpendicular views such as front, plan, and side"},
+      {"domain":"Projection","term":"Isometric drawing","definition":"a pictorial drawing in which the three principal axes are equally inclined and dimensions can be shown along them"},
+      {"domain":"Drawing Practice","term":"Scale","definition":"the fixed ratio between a drawing measurement and the corresponding real measurement"},
+      {"domain":"Drawing Practice","term":"Dimensioning","definition":"the process of adding measurements and related information needed to define the size and position of features"},
+      {"domain":"Drawing Practice","term":"Line type","definition":"a standardized style of line used to communicate a particular meaning on a technical drawing"},
+      {"domain":"Sections","term":"Section view","definition":"a view that reveals internal features by imagining part of an object cut away"},
+      {"domain":"Architectural Drawing","term":"Plan","definition":"a horizontal view of an object or building as seen from above"},
+      {"domain":"Architectural Drawing","term":"Elevation","definition":"a vertical view showing one face of an object or building"},
+      {"domain":"Instruments","term":"Compass","definition":"a drawing instrument used to construct circles and arcs or transfer distances"},
+      {"domain":"Instruments","term":"Protractor","definition":"an instrument used to measure and construct angles"}
+    ]
+  }
+}

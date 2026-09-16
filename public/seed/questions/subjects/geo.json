@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-geo-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "geo",
+    "subjectName": "Geography",
+    "baseId": 2012000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Mapwork","term":"Latitude","definition":"angular distance north or south of the Equator measured in degrees"},
+      {"domain":"Mapwork","term":"Longitude","definition":"angular distance east or west of the Prime Meridian measured in degrees"},
+      {"domain":"Climatology","term":"Climate","definition":"the long-term average pattern of weather conditions in a place"},
+      {"domain":"Climatology","term":"Weather","definition":"the short-term condition of the atmosphere at a particular place and time"},
+      {"domain":"Geomorphology","term":"Erosion","definition":"the wearing away and removal of earth materials by agents such as water, wind, or ice"},
+      {"domain":"Population","term":"Population density","definition":"the number of people living per unit area of land"},
+      {"domain":"Settlement","term":"Urbanization","definition":"the growth in the proportion of a population living in towns and cities"},
+      {"domain":"Mapwork","term":"Map scale","definition":"the relationship between a distance on a map and the corresponding distance on the ground"},
+      {"domain":"Hydrology","term":"Watershed","definition":"a highland or divide separating the drainage basins of neighbouring river systems"},
+      {"domain":"Biogeography","term":"Vegetation","definition":"the plant cover that grows naturally or is cultivated in a particular area"}
+    ]
+  }
+}
