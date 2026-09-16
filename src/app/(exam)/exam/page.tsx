@@ -92,7 +92,7 @@ export default async function StandaloneExamPage({
   if (accessError || !accessRow?.eligible) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <StudentWizard token={token} onComplete={() => undefined} />
+        <StudentWizard token={token} />
       </div>
     );
   }
