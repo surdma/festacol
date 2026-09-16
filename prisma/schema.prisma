@@ -271,6 +271,7 @@ model Subject {
   offerings       ClassSubjectOffering[]
   qualifications  StaffSubjectQualification[]
   questions       Question[]
+  examTargets     ExamSubjectTarget[]
 
   @@index([kind, active, name])
   @@map("subjects")
@@ -384,6 +385,7 @@ model ExamSession {
   creator          SchoolMember?         @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
   classTargets     ExamClassTarget[]
   offeringTargets  ExamOfferingTarget[]
+  subjectTargets   ExamSubjectTarget[]
   placementTracks  ExamPlacementTrack[]
   accessLink       ExamSessionLink?
   staffAssignments ExamStaffAssignment[]
@@ -419,6 +421,19 @@ model ExamOfferingTarget {
   @@id([sessionId, offeringId])
   @@index([offeringId])
   @@map("exam_offering_targets")
+}
+
+model ExamSubjectTarget {
+  sessionId String   @map("session_id")
+  subjectId String   @map("subject_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subject Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@id([sessionId, subjectId])
+  @@index([subjectId])
+  @@map("exam_subject_targets")
 }
 
 model ExamPlacementTrack {
