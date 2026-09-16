@@ -115,7 +115,7 @@ function FixtureDetailSheet({ item, counts, pending, activeSource, load }: {
         <Eye data-icon="inline-start" />
         Inspect
       </SheetTrigger>
-      <SheetContent className="w-[min(96vw,560px)] max-w-none overflow-y-auto">
+      <SheetContent className="overflow-y-auto data-[side=right]:w-[min(96vw,560px)] data-[side=right]:sm:max-w-[560px]">
         <SheetHeader className="border-b border-border">
           <div className="flex flex-wrap items-center gap-2 pr-8">
             <Badge variant="outline">Schema v{item.schemaVersion}</Badge>
