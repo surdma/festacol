@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toggleSubjectAction, upsertSubjectAction } from "@/app/actions/admin";
 import { seedSubjectCatalogFromBankAction } from "@/app/actions/seed-bank";
+import { toast } from "@/components/ui/toast";
 
 export interface SubjectSettingsRow {
   id: string;
@@ -22,11 +23,15 @@ export function useSubjectCatalogSettings() {
     startTransition(async () => {
       const result = await operation();
       if (!result.ok) {
-        setFeedback({ tone: "error", message: result.error ?? "The subject catalogue could not be updated." });
+        const message = result.error ?? "The subject catalogue could not be updated.";
+        setFeedback({ tone: "error", message });
+        toast.add({ type: "error", title: "Subject catalogue was not updated", description: message, priority: "high" });
         return;
       }
       if (options?.resetName) setName("");
-      if (options?.success) setFeedback({ tone: "success", message: options.success });
+      const message = options?.success ?? "The subject catalogue was updated.";
+      setFeedback({ tone: "success", message });
+      toast.add({ type: "success", title: "Subject catalogue updated", description: message });
       router.refresh();
     });
   }
