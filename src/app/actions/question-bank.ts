@@ -5,7 +5,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff } from "@/lib/auth/staff";
-import { QUESTION_FIXTURE_FILES, QUESTION_FIXTURE_SCHEMA_VERSION } from "@/lib/fixture-sources";
+import { loadQuestionBankFixture } from "@/lib/question-fixture-loader";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
 
@@ -28,11 +28,6 @@ interface SubjectFixture {
   subjects: FixtureSubject[];
 }
 
-interface QuestionFixture {
-  schemaVersion: number;
-  questions: Record<string, unknown>[];
-}
-
 const TRACK_DB: Record<FixtureCurriculumRule["track"], AcademicTrack> = {
   SCIENCE: "science",
   HUMANITIES: "humanities",
@@ -49,21 +44,6 @@ async function requireAdmin() {
 
 async function loadJson<T>(name: string): Promise<T> {
   return JSON.parse(await readFile(path.join(process.cwd(), "public", "seed", name), "utf8")) as T;
-}
-
-async function loadQuestionBankFixture(): Promise<QuestionFixture> {
-  const fixtures = await Promise.all(
-    QUESTION_FIXTURE_FILES.map((name) => loadJson<QuestionFixture>(name)),
-  );
-  for (const [index, fixture] of fixtures.entries()) {
-    if (fixture.schemaVersion !== QUESTION_FIXTURE_SCHEMA_VERSION || !Array.isArray(fixture.questions)) {
-      throw new Error(`Unsupported question fixture ${QUESTION_FIXTURE_FILES[index]}.`);
-    }
-  }
-  return {
-    schemaVersion: QUESTION_FIXTURE_SCHEMA_VERSION,
-    questions: fixtures.flatMap((fixture) => fixture.questions),
-  };
 }
 
 export async function seedSubjectCatalogFromFixtureAction(): Promise<ActionResult & { count?: number }> {
@@ -248,6 +228,7 @@ export async function syncQuestionBankFromFixtureAction(): Promise<ActionResult 
     }
 
     revalidatePath("/admin/questions");
+    revalidatePath("/admin/data-library");
     return { ok: true, count };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Question fixture sync failed." };
