@@ -97,11 +97,12 @@ jobs:
 
       - name: Assert canonical migration history
         run: |
-          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 4
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 5
           test -f prisma/migrations/20260915190000_initial/migration.sql
           test -f prisma/migrations/20260915220633/migration.sql
           test -f prisma/migrations/20260915220829/migration.sql
           test -f prisma/migrations/20260916000000_member_deletion_audit/migration.sql
+          test -f prisma/migrations/20260916165000_exam_subject_targets/migration.sql
           test ! -e supabase/schema.sql
           test "$(find supabase -maxdepth 1 -type f -name '[0-9][0-9]-*.sql' | wc -l)" -eq 0
           test "$(find scripts -maxdepth 1 -type f \( -name '*.chunk*' -o -name '.sandbox*' -o -name '.pr13-*' \) | wc -l)" -eq 0
@@ -145,6 +146,8 @@ jobs:
             if to_regprocedure('public.my_exam_access(text)') is null then raise exception 'my_exam_access_missing'; end if;
             if to_regprocedure('public.allocate_my_exam_attempt(text)') is null then raise exception 'attempt_allocator_missing'; end if;
             if to_regprocedure('public.grant_exam_retake(text,uuid,integer,text)') is null then raise exception 'retake_rpc_missing'; end if;
+            if to_regclass('public.exam_subject_targets') is null then raise exception 'exam_subject_targets_missing'; end if;
+            if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_subject_targets' and policyname='exam_subject_targets_access_read') then raise exception 'exam_subject_targets_rls_missing'; end if;
             if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_responses') then raise exception 'attempt_response_rls_missing'; end if;
           end $$;
           SQL
