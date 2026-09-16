@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 import { currentStaff } from "@/lib/auth/staff";
+import { getExamLink } from "@/lib/exam-links";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export interface ExamAccessLinkResult {
@@ -9,10 +10,6 @@ export interface ExamAccessLinkResult {
   path?: string;
   qrRevision?: number;
   error?: string;
-}
-
-function accessPath(token: string) {
-  return `/dashboard/exam?token=${encodeURIComponent(token)}`;
 }
 
 function newToken() {
@@ -75,7 +72,7 @@ export async function getExamAccessLinkAction(examIdValue: string): Promise<Exam
       token = String(created.token);
     }
 
-    const path = accessPath(token);
+    const path = getExamLink(token);
     const { data: currentQr, error: qrReadError } = await admin
       .from("exam_qr_codes")
       .select("id,revision,rendered_data")
