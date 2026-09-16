@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MoreHorizontal, Rows3 } from "lucide-react";
 import { AdminTablePagination, useAdminTablePagination } from "@/components/admin/admin-table-pagination";
+import { adminIconButtonClass } from "@/components/admin/admin-ui";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -14,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { adminIconButtonClass } from "@/components/admin/admin-ui";
 import type { QuestionRow } from "@/types/db";
 
 export interface QuestionDirectoryRow extends QuestionRow {
@@ -57,13 +58,9 @@ export function QuestionDirectoryTable({ rows }: { rows: QuestionDirectoryRow[] 
             <Rows3 className="size-4" aria-hidden="true" />
             {selected.size} question{selected.size === 1 ? "" : "s"} selected
           </div>
-          <button
-            type="button"
-            onClick={() => setSelected(new Set())}
-            className="text-xs font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background"
-          >
+          <Button type="button" size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
             Clear selection
-          </button>
+          </Button>
         </div>
       ) : null}
 
