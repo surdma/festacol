@@ -7,7 +7,7 @@ import { DataMaintenance } from "@/components/admin/data-library/data-maintenanc
 import { FixtureLibrary } from "@/components/admin/data-library/fixture-library";
 import { StorageOverview } from "@/components/admin/data-library/storage-overview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -41,9 +41,9 @@ export default async function SchoolDataLibraryPage() {
         title="School study content"
         description="Publish approved study content, clear old records with exact counts first, or see what is stored where."
         actions={
-          <Button variant="outline" nativeButton={false} render={<Link href="/workspace/settings" />}>
+          <Link href="/workspace/settings" className={buttonVariants({ variant: "outline" })}>
             Back to settings
-          </Button>
+          </Link>
         }
       />
 
