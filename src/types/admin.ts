@@ -1,10 +1,16 @@
-export type AdminTopbarNotificationIcon = "book" | "clock" | "shield" | "qr";
-export type AdminTopbarNotificationTone = "amber" | "blue" | "red" | "neutral";
+export type ApplicationNotificationIcon =
+  | "book"
+  | "clock"
+  | "shield"
+  | "qr"
+  | "chart"
+  | "school";
+export type ApplicationNotificationTone = "amber" | "blue" | "red" | "neutral";
 
-export interface AdminTopbarNotification {
-  href: string;
+export interface ApplicationNotification {
+  id: string;
   title: string;
   detail: string;
-  icon: AdminTopbarNotificationIcon;
-  tone: AdminTopbarNotificationTone;
+  icon: ApplicationNotificationIcon;
+  tone: ApplicationNotificationTone;
 }
