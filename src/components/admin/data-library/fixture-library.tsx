@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/table";
 import { useSchoolDataLibrary } from "@/hooks/use-school-data-library";
 
-type DatabaseCounts = { subjects: number; classes: number; questions: number };
+type DatabaseCounts = { subjects: number; levels?: number; classes: number; questions: number };
 
 function databaseCount(source: SchoolDataSource, counts: DatabaseCounts) {
   if (source === "subjects") return counts.subjects;
@@ -59,9 +59,9 @@ function dependencyState(source: SchoolDataSource, counts: DatabaseCounts) {
       ? { ready: true, label: "Subjects available" }
       : { ready: false, label: "Load subjects first" };
   }
-  return counts.subjects > 0 && counts.classes > 0
-    ? { ready: true, label: "Subjects & structure available" }
-    : { ready: false, label: "Load dependencies first" };
+  if (counts.subjects <= 0) return { ready: false, label: "Load subjects first" };
+  if ((counts.levels ?? 0) <= 0) return { ready: false, label: "Prepare academic levels first" };
+  return { ready: true, label: "Subjects & academic levels available" };
 }
 
 function dependencyName(source: SchoolDataSource) {
@@ -263,7 +263,7 @@ export function FixtureLibrary({ manifest, counts }: { manifest: SchoolDataManif
 
       <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
         <ArrowRight className="mt-0.5 size-3.5 shrink-0" />
-        Load in sequence: subject curriculum → academic structure → question bank. Staff-created questions remain outside fixture ownership.
+        Load in sequence: subject curriculum → academic levels/structure → question bank. Staff-created questions remain outside fixture ownership.
       </div>
     </section>
   );
