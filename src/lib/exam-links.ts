@@ -1,6 +1,6 @@
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,96}$/u;
 
-export function getExamLink(token: string, base = "/dashboard/exam"): string {
+export function getExamLink(token: string, base = "/exam"): string {
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
