@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Activity, BookOpenCheck, ExternalLink, GraduationCap, MessageCircle, Pencil, School, ShieldCheck, Users } from "lucide-react";
+import { Activity, BookOpen, BookOpenCheck, ExternalLink, GraduationCap, MessageCircle, Pencil, School, ShieldCheck, Users } from "lucide-react";
 import { isAdminAction } from "@/app/actions/admin";
 import { deleteClassSafelyAction, getClassAcademicRecordAction, getStudentAcademicRecordAction } from "@/app/actions/academic-records";
+import { listClassOfferingOptionsAction, upsertClassOfferingAction, type ClassOfferingOption } from "@/app/actions/academic-structure";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -101,6 +102,83 @@ function RelationshipPill({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ClassOfferingManager({ classId, isAdmin }: { classId: string; isAdmin: boolean }) {
+  const router = useRouter();
+  const [options, setOptions] = useState<ClassOfferingOption[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  async function refresh() {
+    const result = await listClassOfferingOptionsAction(classId).catch(() => null);
+    if (!result) {
+      setError("Subject offerings could not be loaded.");
+      return;
+    }
+    setOptions(result.options);
+  }
+
+  useEffect(() => {
+    setError(null);
+    setOptions(null);
+    void refresh();
+  }, [classId]);
+
+  function toggle(option: ClassOfferingOption) {
+    setError(null);
+    startTransition(async () => {
+      const result = await upsertClassOfferingAction({
+        id: option.offeringId ?? undefined,
+        classId,
+        subjectId: option.subjectId,
+        status: option.status === "active" ? "ended" : "active",
+      });
+      if (!result.ok) {
+        setError(result.error ?? "Update failed.");
+        return;
+      }
+      await refresh();
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="overflow-hidden rounded-2xl border">
+      <div className="border-b bg-muted/20 px-4 py-3">
+        <h3 className="font-semibold">Subject offerings</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Active offerings appear as selectable subjects in the exam wizard. {isAdmin ? "Activate or end subjects for this class." : "Only administrators can change offerings."}</p>
+      </div>
+      {error ? <p className="border-b bg-destructive/5 p-4 text-sm text-destructive" role="alert">{error}</p> : null}
+      <div className="divide-y">
+        {options
+          ? options.length
+            ? options.map((option) => (
+              <div key={option.subjectId} className="flex items-center gap-3 p-4">
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-sm">{option.subjectName}</strong>
+                  <span className="mt-1.5 flex flex-wrap gap-1.5">
+                    <StatusBadge tone={option.participation === "required" ? "blue" : "neutral"}>{option.participation}</StatusBadge>
+                    <StatusBadge tone={option.status === "active" ? "emerald" : "neutral"}>{option.status ?? "Not offered"}</StatusBadge>
+                  </span>
+                </span>
+                {isAdmin ? (
+                  <Button
+                    size="sm"
+                    variant={option.status === "active" ? "outline" : "default"}
+                    disabled={pending}
+                    onClick={() => toggle(option)}
+                  >
+                    {option.status === "active" ? "End" : "Activate"}
+                  </Button>
+                ) : null}
+              </div>
+            ))
+            : <p className="p-5 text-sm text-muted-foreground">No curriculum subjects are configured for this class level and track. Load the subject catalog from the data library first.</p>
+          : <p className="p-5 text-sm text-muted-foreground">Loading offerings…</p>}
+      </div>
+    </section>
+  );
+}
+
 export function StudentAcademicRecordDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
   const openRecord = useRecordNavigation();
   const [record, setRecord] = useState<StudentRecord | null>(null);
@@ -140,8 +218,8 @@ export function StudentAcademicRecordDialog({ userId, onClose }: { userId: strin
 
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-6xl overflow-y-auto p-0">
-        <DialogHeader className="border-b bg-neutral-950 px-5 py-5 text-white sm:px-7 sm:py-6">
+      <DialogContent className="gap-0 p-0 sm:max-w-6xl [&_button[data-slot=dialog-close]]:border-neutral-700 [&_button[data-slot=dialog-close]]:bg-neutral-900 [&_button[data-slot=dialog-close]]:text-white [&_button[data-slot=dialog-close]]:hover:bg-neutral-800 [&_button[data-slot=dialog-close]]:hover:text-white">
+        <DialogHeader className="rounded-t-2xl border-b bg-neutral-950 px-5 py-5 text-white sm:px-7 sm:py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <DialogDescription className="text-neutral-400">Academic student record · {userId}</DialogDescription>
@@ -152,11 +230,11 @@ export function StudentAcademicRecordDialog({ userId, onClose }: { userId: strin
           </div>
         </DialogHeader>
 
-        <div className="p-5 sm:p-7">
+        <div className="min-w-0 p-5 sm:p-7">
           {error ? <p className="mb-4 text-sm text-destructive" role="alert">{error}</p> : null}
           {!record ? <RecordLoading label="student record" /> : !user ? <p className="rounded-xl border p-5 text-sm text-muted-foreground">Student record is unavailable.</p> : (
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="flex min-w-0 flex-col gap-6">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <MetricCard label="Current class" value={String(classRow?.display_name ?? "Unassigned")} detail={classRow ? `${String(classRow.level_name)} · ${String(classRow.track_name)}` : "Assign a current class to connect cohort reporting."} />
                 <MetricCard label="Exam attempts" value={String(attempts.length)} detail={`${submitted.length} submitted · ${live.length} live · ${retakes.length} retake`} />
                 <MetricCard label="Average score" value={submitted.length ? `${averageScore}%` : "—"} detail="Submitted attempts" />
@@ -264,19 +342,19 @@ export function ClassAcademicRecordDialog({ classId, onClose }: { classId: strin
 
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-6xl overflow-y-auto p-0">
-        <DialogHeader className="border-b px-5 py-5 sm:px-7">
+      <DialogContent className="gap-0 p-0 sm:max-w-6xl">
+        <DialogHeader className="rounded-t-2xl border-b px-5 py-5 sm:px-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div><DialogDescription>Class academic record</DialogDescription><DialogTitle className="mt-1 font-display text-2xl font-extrabold">{String(classRow?.display_name ?? "Class record")}</DialogTitle><p className="mt-2 text-sm text-muted-foreground">{String(classRow?.level_name ?? "")} · {String(classRow?.track_name ?? "")} · {String(classRow?.room || "Room not assigned")}</p></div>
             {classRow && isAdmin ? <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => openRecord("class-edit", { key: "class", value: classId })}><Pencil data-icon="inline-start" />Edit class</Button>{whatsapp ? <Button variant="outline" onClick={openWhatsappEditor}><MessageCircle data-icon="inline-start" />Manage WhatsApp</Button> : <Button variant="outline" onClick={() => openRecord("whatsapp-new", { key: "class", value: classId })}><MessageCircle data-icon="inline-start" />Connect WhatsApp</Button>}</div> : null}
           </div>
         </DialogHeader>
 
-        <div className="p-5 sm:p-7">
+        <div className="min-w-0 p-5 sm:p-7">
           {error ? <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{error}</p> : null}
           {!record ? <RecordLoading label="class record" /> : !classRow ? <p className="rounded-xl border p-5 text-sm text-muted-foreground">Class record is unavailable.</p> : (
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="flex min-w-0 flex-col gap-6">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <MetricCard label="Students" value={String(students.length)} detail={`${activeStudents.length} active`} />
                 <MetricCard label="Capacity" value={String(capacity)} detail={`${remaining} remaining place${remaining === 1 ? "" : "s"}`} />
                 <MetricCard label="Occupancy" value={`${occupancy}%`} detail={`${activeStudents.length}/${capacity || "—"}`} />
@@ -290,12 +368,17 @@ export function ClassAcademicRecordDialog({ classId, onClose }: { classId: strin
               <Tabs defaultValue="roster">
                 <TabsList variant="line" className="max-w-full overflow-x-auto">
                   <TabsTrigger value="roster"><Users data-icon="inline-start" />Students</TabsTrigger>
+                  <TabsTrigger value="subjects"><BookOpen data-icon="inline-start" />Subjects</TabsTrigger>
                   <TabsTrigger value="exams"><BookOpenCheck data-icon="inline-start" />Examinations</TabsTrigger>
                   <TabsTrigger value="communication"><MessageCircle data-icon="inline-start" />Communication</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="roster" className="pt-4">
                   <section className="overflow-hidden rounded-2xl border"><div className="border-b bg-muted/20 px-4 py-3"><h3 className="font-semibold">Current class roster</h3><p className="mt-1 text-xs text-muted-foreground">Current membership is resolved through active class-enrolment rows.</p></div><div className="divide-y">{students.length ? students.map((student) => <button key={String(student.id)} type="button" className="flex w-full items-center gap-3 p-4 text-left hover:bg-muted/30" onClick={() => openRecord("student", { key: "student", value: String(student.id) })}><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-xs font-bold">{initials(String(student.full_name ?? "Student"))}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{String(student.full_name)}</strong><span className="text-xs text-muted-foreground">{String(student.id)}</span></span><StatusBadge tone={student.status === "active" ? "emerald" : "neutral"}>{String(student.status)}</StatusBadge></button>) : <p className="p-5 text-sm text-muted-foreground">No students are currently enrolled in this class.</p>}</div></section>
+                </TabsContent>
+
+                <TabsContent value="subjects" className="pt-4">
+                  <ClassOfferingManager classId={classId} isAdmin={isAdmin} />
                 </TabsContent>
 
                 <TabsContent value="exams" className="pt-4">

@@ -39,7 +39,7 @@ export function useAdminNavItem() {
 export function AdminNav({ role, mobile = false, onNavigate }: { role?: string; mobile?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
-    <nav className={mobile ? "space-y-1 p-3" : "flex-1 space-y-1 overflow-y-auto px-3 pb-3"} aria-label={mobile ? "Mobile administration" : "Administration"}>
+    <nav className={mobile ? "no-scrollbar flex-1 space-y-1 overflow-y-auto p-3" : "no-scrollbar flex-1 space-y-1 overflow-y-auto px-3 pb-3"} aria-label={mobile ? "Mobile administration" : "Administration"}>
       {visibleRoutes(role).map((route) => {
         const active = isCurrent(pathname, route.href);
         return (

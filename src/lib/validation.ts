@@ -15,8 +15,8 @@ export const examCreateSchema = z.object({
   classGroup: z.string().max(40).default("General"),
   mode: z.enum(["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"]),
   subjects: z.array(z.string()).default([]),
-  durationSeconds: z.number().int().min(30).max(10800),
-  questionCount: z.number().int().min(5).max(150),
+  durationSeconds: z.number().int().min(30).max(14400),
+  questionCount: z.number().int().min(5).max(200),
   status: z.enum(["open", "draft", "closed"]).default("draft"),
   instructions: z.string().max(140).default(""),
 });

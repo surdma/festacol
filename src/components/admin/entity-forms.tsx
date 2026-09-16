@@ -42,7 +42,7 @@ function Shell({ title, description, open, onClose, submit, pending, error, chil
 }) {
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-2xl overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader><DialogTitle>{title}</DialogTitle>{description ? <DialogDescription>{description}</DialogDescription> : null}</DialogHeader>
         <FieldGroup>{children}</FieldGroup>
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

@@ -1,11 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import {
-  ArrowRight,
-  Database,
+  BookOpenText,
+  CalendarDays,
   Eye,
-  FileJson2,
-  GitBranch,
+  Layers,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
@@ -34,237 +35,309 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useSchoolDataLibrary } from "@/hooks/use-school-data-library";
+import { useSchoolDataLibrary, type PublishedCounts } from "@/hooks/use-school-data-library";
 
-type DatabaseCounts = { subjects: number; levels?: number; classes: number; questions: number };
+const STEP_META: Record<SchoolDataSource, { step: number; unit: string; icon: typeof BookOpenText; whatItDoes: string }> = {
+  subjects: {
+    step: 1,
+    unit: "subjects",
+    icon: BookOpenText,
+    whatItDoes: "Adds every approved subject and tags each one for the right classes and study areas.",
+  },
+  "academic-structure": {
+    step: 2,
+    unit: "classes",
+    icon: CalendarDays,
+    whatItDoes: "Sets up the school year, terms and class arms, then links subjects to each class.",
+  },
+  "question-bank": {
+    step: 3,
+    unit: "questions",
+    icon: Layers,
+    whatItDoes: "Adds ready-made exam questions for each subject. Work is saved in small batches so you can watch it finish.",
+  },
+};
 
-function databaseCount(source: SchoolDataSource, counts: DatabaseCounts) {
+function publishedCount(source: SchoolDataSource, counts: PublishedCounts) {
   if (source === "subjects") return counts.subjects;
   if (source === "academic-structure") return counts.classes;
   return counts.questions;
 }
 
-function dependencyState(source: SchoolDataSource, counts: DatabaseCounts) {
-  if (source === "subjects") return { ready: true, label: "No dependency" };
+function readinessState(source: SchoolDataSource, counts: PublishedCounts) {
+  if (source === "subjects") return { ready: true, label: "Ready to publish" };
   if (source === "academic-structure") {
     return counts.subjects > 0
-      ? { ready: true, label: "Subjects available" }
-      : { ready: false, label: "Load subjects first" };
+      ? { ready: true, label: "Subject list is ready" }
+      : { ready: false, label: "Publish the subject list first" };
   }
-  if (counts.subjects <= 0) return { ready: false, label: "Load subjects first" };
-  if ((counts.levels ?? 0) <= 0) return { ready: false, label: "Prepare academic levels first" };
-  return { ready: true, label: "Subjects & academic levels available" };
+  if (counts.subjects <= 0) return { ready: false, label: "Publish the subject list first" };
+  if ((counts.levels ?? 0) <= 0) return { ready: false, label: "Set up classes first" };
+  return { ready: true, label: "Subjects and classes are ready" };
 }
 
-function dependencyName(source: SchoolDataSource) {
-  if (source === "subjects") return "Subject curriculum";
-  if (source === "academic-structure") return "Academic structure";
-  return "Question bank";
-}
-
-function LoadConfirmation({ item, ready, pending, running, load }: {
+function PublishConfirmation({
+  item,
+  ready,
+  running,
+  queued,
+  confirmLabel,
+  onConfirm,
+}: {
   item: SchoolDataManifestItem;
   ready: boolean;
-  pending: boolean;
   running: boolean;
-  load: (source: SchoolDataSource) => void;
+  queued: boolean;
+  confirmLabel: string;
+  onConfirm: (source: SchoolDataSource) => void;
 }) {
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button type="button" disabled={pending || !ready} />}>
+      <AlertDialogTrigger render={<Button type="button" disabled={!ready} />}>
         {running ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}
-        {running ? "Loading…" : "Load fixture"}
+        {running ? "Publishing…" : queued ? "Queued…" : confirmLabel}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Load {item.title.toLowerCase()}?</AlertDialogTitle>
+          <AlertDialogTitle>Publish {item.title.toLowerCase()}?</AlertDialogTitle>
           <AlertDialogDescription>
-            This loads the approved bundled fixture into the production school database. {item.safeguard}
+            This adds the approved school content to the live school records. {item.safeguard}
+            {queued ? " It is already waiting and will run by itself." : ""}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction disabled={pending} onClick={() => load(item.source)}>Load fixture</AlertDialogAction>
+          <AlertDialogCancel>Not now</AlertDialogCancel>
+          <AlertDialogAction disabled={!ready} onClick={() => onConfirm(item.source)}>
+            {queued ? "Keep it queued" : "Publish now"}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   );
 }
 
-function FixtureDetailSheet({ item, counts, pending, activeSource, load }: {
+function ContentPreviewSheet({
+  item,
+  counts,
+  running,
+  queued,
+  confirmLabel,
+  onConfirm,
+}: {
   item: SchoolDataManifestItem;
-  counts: DatabaseCounts;
-  pending: boolean;
-  activeSource: SchoolDataSource | null;
-  load: (source: SchoolDataSource) => void;
+  counts: PublishedCounts;
+  running: boolean;
+  queued: boolean;
+  confirmLabel: string;
+  onConfirm: (source: SchoolDataSource) => void;
 }) {
-  const dependency = dependencyState(item.source, counts);
-  const running = pending && activeSource === item.source;
+  const meta = STEP_META[item.source];
+  const published = publishedCount(item.source, counts);
+  const readiness = readinessState(item.source, counts);
+  const [open, setOpen] = useState(false);
+
+  function handleConfirm(source: SchoolDataSource) {
+    // Dismiss the preview first so the save progress on the main page is visible.
+    setOpen(false);
+    onConfirm(source);
+  }
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger render={<Button type="button" size="sm" variant="outline" />}>
         <Eye data-icon="inline-start" />
-        Inspect
+        Preview
       </SheetTrigger>
       <SheetContent className="overflow-y-auto data-[side=right]:w-[min(96vw,560px)] data-[side=right]:sm:max-w-[560px]">
         <SheetHeader className="border-b border-border">
           <div className="flex flex-wrap items-center gap-2 pr-8">
-            <Badge variant="outline">Schema v{item.schemaVersion}</Badge>
-            <Badge variant={dependency.ready ? "secondary" : "destructive"}>{dependency.ready ? "Ready" : "Blocked"}</Badge>
+            <Badge variant="outline">Step {meta.step}</Badge>
+            <Badge variant={readiness.ready ? "secondary" : "destructive"}>
+              {readiness.ready ? "Ready" : "Waiting"}
+            </Badge>
           </div>
           <SheetTitle className="mt-2 font-display text-xl font-extrabold">{item.title}</SheetTitle>
           <SheetDescription>{item.description}</SheetDescription>
         </SheetHeader>
 
         <div className="flex flex-col gap-6 px-4 pb-4">
-          <section>
-            <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Fixture identity</p>
-            <dl className="mt-3 divide-y divide-border border-y border-border text-sm">
-              <div className="grid gap-1 py-3 sm:grid-cols-[130px_1fr]"><dt className="text-muted-foreground">Identifier</dt><dd className="break-all font-medium text-foreground">{item.identifier}</dd></div>
-              <div className="grid gap-1 py-3 sm:grid-cols-[130px_1fr]"><dt className="text-muted-foreground">Bundled records</dt><dd className="font-medium tabular-nums text-foreground">{item.bundledRecords}</dd></div>
-              <div className="grid gap-1 py-3 sm:grid-cols-[130px_1fr]"><dt className="text-muted-foreground">Database records</dt><dd className="font-medium tabular-nums text-foreground">{databaseCount(item.source, counts)}</dd></div>
-              <div className="grid gap-1 py-3 sm:grid-cols-[130px_1fr]"><dt className="text-muted-foreground">Composition</dt><dd className="font-medium text-foreground">{item.detail}</dd></div>
-            </dl>
+          <section className="rounded-xl border border-border bg-muted/20 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Publishing status</p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
+              {published}<span className="text-base font-semibold text-muted-foreground">/{item.bundledRecords}</span>
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {published} of {item.bundledRecords} {meta.unit} published in the school records.
+            </p>
+            <Progress value={item.bundledRecords ? Math.min(100, (published / item.bundledRecords) * 100) : 0} className="mt-3" />
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.detail}</p>
           </section>
 
           <section>
-            <div className="flex items-center gap-2"><FileJson2 className="size-4 text-muted-foreground" /><h3 className="text-sm font-semibold text-foreground">Source files</h3></div>
-            <div className="mt-3 divide-y divide-border border-y border-border">
-              {item.files.map((file) => <p key={file} className="break-all py-2.5 font-mono text-xs text-muted-foreground">{file}</p>)}
-            </div>
-          </section>
-
-          <section>
-            <div className="flex items-center gap-2"><GitBranch className="size-4 text-muted-foreground" /><h3 className="text-sm font-semibold text-foreground">Dependency order</h3></div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {item.dependsOn.length ? item.dependsOn.map((source) => <Badge key={source} variant="outline">{dependencyName(source)}</Badge>) : <Badge variant="secondary">First in sequence</Badge>}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{dependency.label}</p>
-          </section>
-
-          <section>
-            <div className="flex items-center gap-2"><Database className="size-4 text-muted-foreground" /><h3 className="text-sm font-semibold text-foreground">Affected database relations</h3></div>
-            <div className="mt-3 flex flex-wrap gap-2">{item.affects.map((table) => <Badge key={table} variant="outline">{table}</Badge>)}</div>
+            <h3 className="text-sm font-semibold text-foreground">What happens when you publish</h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{meta.whatItDoes}</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{readiness.label}. Publish in order: subject list → school session &amp; classes → exam questions.</p>
           </section>
 
           <Alert>
             <ShieldCheck />
-            <AlertTitle>Load safeguard</AlertTitle>
+            <AlertTitle>Safe to publish again</AlertTitle>
             <AlertDescription>{item.safeguard}</AlertDescription>
           </Alert>
 
-          {!dependency.ready ? (
+          {!readiness.ready ? (
             <Alert variant="destructive">
-              <GitBranch />
-              <AlertTitle>Dependency is not ready</AlertTitle>
-              <AlertDescription>{dependency.label}. Load the preceding fixture before this source.</AlertDescription>
+              <AlertTitle>Please wait</AlertTitle>
+              <AlertDescription>{readiness.label} before publishing this section.</AlertDescription>
             </Alert>
           ) : null}
         </div>
 
         <SheetFooter className="border-t border-border bg-muted/20">
-          <LoadConfirmation item={item} ready={dependency.ready} pending={pending} running={running} load={load} />
+          <PublishConfirmation
+            item={item}
+            ready={readiness.ready}
+            running={running}
+            queued={queued}
+            confirmLabel={confirmLabel}
+            onConfirm={handleConfirm}
+          />
         </SheetFooter>
       </SheetContent>
     </Sheet>
   );
 }
 
-export function FixtureLibrary({ manifest, counts }: { manifest: SchoolDataManifestItem[]; counts: DatabaseCounts }) {
-  const { pending, activeSource, feedback, load } = useSchoolDataLibrary();
+export function FixtureLibrary({ manifest, counts }: { manifest: SchoolDataManifestItem[]; counts: PublishedCounts }) {
+  const { activeSource, queuedSources, feedback, progress, liveCounts, load } = useSchoolDataLibrary(counts);
+  const ordered = [...manifest].sort((a, b) => STEP_META[a.source].step - STEP_META[b.source].step);
+  const runningItem = activeSource ? ordered.find((entry) => entry.source === activeSource) : undefined;
 
   return (
-    <section aria-labelledby="fixture-manifest-heading">
-      <div className="flex flex-col gap-2 pb-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Approved fixture manifest</p>
-          <h2 id="fixture-manifest-heading" className="mt-1 font-display text-lg font-extrabold text-foreground">Data sources & load order</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Inspect the exact bundled files and their dependencies before loading them. Database counts are live; bundled counts come from the JSON fixtures.</p>
-        </div>
-        <Badge variant="outline">{manifest.length} logical sources</Badge>
-      </div>
-
+    <section aria-labelledby="study-content-heading">
+      <h2 id="study-content-heading" className="sr-only">Publish in order</h2>
       {feedback ? (
         <Alert variant={feedback.tone === "error" ? "destructive" : "default"} className="mb-4">
-          <Database />
-          <AlertTitle>{feedback.tone === "error" ? "Fixture load failed" : "Fixture load completed"}</AlertTitle>
+          <ShieldCheck />
+          <AlertTitle>{feedback.tone === "error" ? "Publishing did not finish" : "Publishing finished"}</AlertTitle>
           <AlertDescription>{feedback.message}</AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="border-y border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Source</TableHead>
-              <TableHead>Schema</TableHead>
-              <TableHead className="text-right">Bundled</TableHead>
-              <TableHead className="text-right">Database</TableHead>
-              <TableHead className="hidden lg:table-cell">Dependency</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {manifest.map((item, index) => {
-              const current = databaseCount(item.source, counts);
-              const dependency = dependencyState(item.source, counts);
-              const running = pending && activeSource === item.source;
-              return (
-                <TableRow key={item.source}>
-                  <TableCell className="min-w-[220px] whitespace-normal py-4">
-                    <div className="flex items-start gap-3">
-                      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-background font-mono text-[11px] font-bold text-muted-foreground">{index + 1}</span>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-foreground">{item.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell><Badge variant="outline">v{item.schemaVersion}</Badge></TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">{item.bundledRecords}</TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">{current}</TableCell>
-                  <TableCell className="hidden lg:table-cell"><Badge variant={dependency.ready ? "secondary" : "destructive"}>{dependency.label}</Badge></TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <FixtureDetailSheet item={item} counts={counts} pending={pending} activeSource={activeSource} load={load} />
-                      <AlertDialog>
-                        <AlertDialogTrigger render={<Button type="button" size="sm" disabled={pending || !dependency.ready} />}>
-                          {running ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}
-                          <span className="hidden xl:inline">{running ? "Loading…" : current ? "Refresh" : "Load"}</span>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Load {item.title.toLowerCase()}?</AlertDialogTitle>
-                            <AlertDialogDescription>This applies the approved fixture to production records. {item.safeguard}</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction disabled={pending} onClick={() => load(item.source)}>Continue</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <ol className="flex flex-col gap-4">
+        {ordered.map((item) => {
+          const meta = STEP_META[item.source];
+          const Icon = meta.icon;
+          const published = publishedCount(item.source, liveCounts);
+          const readiness = readinessState(item.source, liveCounts);
+          const running = activeSource === item.source;
+          const queued = queuedSources.includes(item.source);
+          const percent = item.bundledRecords ? Math.min(100, Math.round((published / item.bundledRecords) * 100)) : 0;
+          const complete = published >= item.bundledRecords && item.bundledRecords > 0;
+          const confirmLabel = published > 0 ? "Update" : "Publish";
+          const liveProgress = running ? progress : null;
+          const livePercent =
+            liveProgress?.total && liveProgress.done !== null
+              ? Math.min(100, Math.round((liveProgress.done / liveProgress.total) * 100))
+              : null;
 
-      <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
-        <ArrowRight className="mt-0.5 size-3.5 shrink-0" />
-        Load in sequence: subject curriculum → academic levels/structure → question bank. Staff-created questions remain outside fixture ownership.
-      </div>
+          return (
+            <li key={item.source} className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-muted/30 text-muted-foreground">
+                    <Icon className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-[.12em] text-muted-foreground">Step {meta.step}</span>
+                      <Badge variant={complete ? "secondary" : readiness.ready ? "outline" : "destructive"}>
+                        {complete ? "Complete" : running ? "Publishing" : queued ? "Queued" : readiness.ready ? "Ready" : "Waiting"}
+                      </Badge>
+                    </div>
+                    <h3 className="mt-1 font-display text-base font-extrabold text-foreground">{item.title}</h3>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">{item.description}</p>
+                    {!readiness.ready && !complete ? (
+                      <p className="mt-1 text-xs font-medium text-destructive">{readiness.label}.</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="shrink-0 rounded-xl border border-border bg-muted/20 px-4 py-3 text-left lg:text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Published</p>
+                  <p className="mt-0.5 text-2xl font-extrabold tabular-nums text-foreground">
+                    {published}<span className="text-sm font-semibold text-muted-foreground">/{item.bundledRecords}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">{meta.unit} in school records</p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                {running && liveProgress ? (
+                  <div className="rounded-xl border border-border bg-muted/20 p-3" role="status" aria-live="polite">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="inline-flex items-center gap-2 font-semibold text-foreground">
+                        <LoaderCircle className="size-3.5 animate-spin" />
+                        {liveProgress.label}
+                      </span>
+                      <span className="font-semibold tabular-nums text-muted-foreground">
+                        {livePercent !== null ? `${livePercent}%` : "Working…"}
+                      </span>
+                    </div>
+                    <Progress
+                      value={livePercent}
+                      className="mt-2"
+                    />
+                    <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">
+                      Keep this page open while the school records are being updated. The numbers above refresh by themselves.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Progress value={percent} />
+                    <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+                      {published}/{item.bundledRecords} {meta.unit} published{complete ? " — all done" : ""}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                <div className="min-w-0">
+                  <p className="text-xs leading-5 text-muted-foreground">{item.detail}</p>
+                  {queued && !running ? (
+                    <p className="mt-1 text-xs font-medium text-foreground">
+                      Waiting — runs by itself{runningItem ? ` after ${runningItem.title.toLowerCase()}` : ""}.
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ContentPreviewSheet
+                    item={item}
+                    counts={liveCounts}
+                    running={running}
+                    queued={queued}
+                    confirmLabel={confirmLabel}
+                    onConfirm={load}
+                  />
+                  <PublishConfirmation
+                    item={item}
+                    ready={readiness.ready}
+                    running={running}
+                    queued={queued}
+                    confirmLabel={confirmLabel}
+                    onConfirm={load}
+                  />
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      <p className="mt-4 text-xs leading-5 text-muted-foreground">
+        Publish in order: subject list → school session &amp; classes → exam questions. Work already published is kept safe when you update a section.
+      </p>
     </section>
   );
 }

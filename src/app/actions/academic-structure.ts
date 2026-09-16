@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listClasses } from "@/lib/supabase/queries";
 import type { AcademicTrack, OfferingStatus } from "@/types/db";
 
 const TRACKS = new Set<AcademicTrack>(["science", "humanities", "business"]);
@@ -79,6 +80,67 @@ export async function upsertClassAction(input: {
     return { ok: true, id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Class save failed." };
+  }
+}
+
+export interface ClassOfferingOption {
+  subjectId: string;
+  subjectName: string;
+  participation: "required" | "elective";
+  offeringId: string | null;
+  status: string | null;
+}
+
+export interface ClassOfferingOptions {
+  classId: string;
+  displayName: string;
+  options: ClassOfferingOption[];
+}
+
+// Curriculum subjects a class may offer (from subject_curriculum_rules for
+// the class level + track) alongside the current offering state. Drives the
+// class record Subjects tab and, indirectly, the exam wizard subject list.
+export async function listClassOfferingOptionsAction(classId: string): Promise<ClassOfferingOptions | null> {
+  try {
+    const current = await currentStaff();
+    if (!current.scope.profileId) throw new Error("Staff sign-in required.");
+    const admin = createSupabaseAdminClient();
+    const [classes, { data: classRow }] = await Promise.all([
+      listClasses(admin),
+      admin.from("classes").select("id,level_id,track").eq("id", classId).maybeSingle(),
+    ]);
+    const cls = classRow as { id: string; level_id: string; track: string } | null;
+    if (!cls) return null;
+    const displayName = classes.find((row) => row.id === classId)?.display_name ?? "Class";
+    const [{ data: rules }, { data: offerings }] = await Promise.all([
+      admin.from("subject_curriculum_rules").select("subject_id,participation").eq("level_id", cls.level_id).eq("track", cls.track),
+      admin.from("class_subject_offerings").select("id,subject_id,status").eq("class_id", classId),
+    ]);
+    const ruleRows = (rules ?? []) as { subject_id: string; participation: "required" | "elective" }[];
+    if (!ruleRows.length) return { classId, displayName, options: [] };
+    const { data: subjects } = await admin
+      .from("subjects")
+      .select("id,name")
+      .in("id", ruleRows.map((row) => row.subject_id))
+      .eq("kind", "curriculum")
+      .eq("active", true);
+    const nameBySubject = new Map(((subjects ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+    const offeringBySubject = new Map(
+      ((offerings ?? []) as { id: string; subject_id: string; status: string }[]).map((row) => [row.subject_id, row]),
+    );
+    const options = ruleRows
+      .filter((row) => nameBySubject.has(row.subject_id))
+      .map((row) => ({
+        subjectId: row.subject_id,
+        subjectName: nameBySubject.get(row.subject_id) ?? "Subject",
+        participation: row.participation,
+        offeringId: offeringBySubject.get(row.subject_id)?.id ?? null,
+        status: offeringBySubject.get(row.subject_id)?.status ?? null,
+      }))
+      .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
+    return { classId, displayName, options };
+  } catch {
+    return null;
   }
 }
 

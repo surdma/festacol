@@ -108,42 +108,42 @@ export async function getSchoolDataManifestAction(): Promise<SchoolDataManifestI
   return [
     {
       source: "subjects",
-      title: "Subject curriculum",
-      description: "Canonical subjects plus level, study-track and required/elective curriculum relationships.",
+      title: "Subject list",
+      description: "Approved school subjects with their class levels, study areas and compulsory/elective tags.",
       schemaVersion: subjects.schemaVersion,
       identifier: subjects.fixtureId,
       files: ["public/seed/subjects.json"],
       bundledRecords: subjects.subjects.length,
-      detail: `${subjects.tracks.length} study tracks · ${subjects.levels.length} senior levels`,
+      detail: `${subjects.tracks.length} study areas · ${subjects.levels.length} senior classes`,
       dependsOn: [],
       affects: ["subjects", "subject_curriculum_rules"],
-      safeguard: "Existing subject identities are matched by code and curriculum rules are rebuilt from the approved fixture.",
+      safeguard: "Subjects are matched by code, so existing classes and questions keep working. Class tags are rebuilt from the approved list.",
     },
     {
       source: "academic-structure",
-      title: "Academic structure",
-      description: "Academic year, terms, senior levels, classes and the subject offerings attached to each class.",
+      title: "School session & classes",
+      description: "School year, terms, senior classes and the subjects offered in each class.",
       schemaVersion: classes.schemaVersion,
       identifier: classes.fixtureId,
       files: ["public/seed/classes.json"],
       bundledRecords: classes.classes.length,
-      detail: `${classes.terms.length} terms · ${classes.levels.length} levels · ${offeringCount} class offerings`,
+      detail: `${classes.terms.length} terms · ${classes.levels.length} class levels · ${offeringCount} class-subject links`,
       dependsOn: ["subjects"],
       affects: ["academic_years", "academic_terms", "academic_levels", "classes", "class_subject_offerings"],
-      safeguard: "The loader refuses to create class offerings when referenced curriculum subjects are missing.",
+      safeguard: "Classes are only linked to subjects that already exist, so publish the subject list first.",
     },
     {
       source: "question-bank",
-      title: "Question bank",
-      description: "The answer-aware senior-secondary and qualifier bank, including one discoverable baseline fixture per active subject.",
+      title: "Exam questions",
+      description: "Ready-made exam questions for senior classes, including one starter question per active subject.",
       schemaVersion: questionBank.schemaVersion,
       identifier: baseQuestionId,
       files: questionBank.files.map((file) => `public/seed/${file}`),
       bundledRecords: questionBank.questions.length,
-      detail: `${questionBank.files.length} JSON files · senior and qualifier inventory`,
+      detail: `${questionBank.files.length} prepared files · senior and entrance questions`,
       dependsOn: ["subjects", "academic-structure"],
       affects: ["questions", "question_academic_levels", "question_blanks"],
-      safeguard: "Fixture rows use creator_id = null; a staff-authored question with a matching id blocks replacement instead of being overwritten.",
+      safeguard: "Prepared questions never replace questions written by staff. A matching staff question blocks the update instead.",
     },
   ];
 }
@@ -153,7 +153,6 @@ async function syncAcademicStructureFromFixtureAction(): Promise<ActionResult & 
     const admin = await requireAdministrator();
     const fixture = await loadClassFixture();
     const now = new Date().toISOString();
-
     const { error: yearError } = await admin.from("academic_years").upsert({
       name: fixture.academicYear.name,
       status: PERIOD_STATUS_DB[fixture.academicYear.status],
@@ -203,7 +202,7 @@ async function syncAcademicStructureFromFixtureAction(): Promise<ActionResult & 
     const subjectIdByCode = new Map(subjects.filter((subject) => subject.active && subject.kind === "curriculum").map((subject) => [subject.code, subject.id]));
     const missingCodes = offeringCodes.filter((code) => !subjectIdByCode.has(code));
     if (missingCodes.length) {
-      return { ok: false, error: `Load the subject curriculum first. Missing subjects: ${missingCodes.join(", ")}.` };
+      return { ok: false, error: `Publish the subject list first. Missing subjects: ${missingCodes.join(", ")}.` };
     }
 
     const classRows = fixture.classes.map((item) => {
@@ -235,14 +234,24 @@ async function syncAcademicStructureFromFixtureAction(): Promise<ActionResult & 
       if (offeringError) return { ok: false, error: offeringError.message };
     }
 
-    revalidatePath("/admin/data-library");
     revalidatePath("/admin/settings");
     revalidatePath("/admin/settings/academic");
     revalidatePath("/admin/classes");
-    return { ok: true, count: fixture.classes.length, detail: `${fixture.levels.length} senior levels and ${fixture.terms.length} terms prepared.` };
+    return { ok: true, count: fixture.classes.length, detail: `${fixture.levels.length} class levels and ${fixture.terms.length} terms are ready.` };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "The academic structure could not be loaded." };
+    return { ok: false, error: error instanceof Error ? error.message : "The class list could not be published." };
   }
+}
+
+export async function getSchoolDataCountsAction(): Promise<{ subjects: number; levels: number; classes: number; questions: number }> {
+  const admin = await requireAdministrator();
+  const [{ count: subjects }, { count: levels }, { count: classes }, { count: questions }] = await Promise.all([
+    admin.from("subjects").select("id", { count: "exact", head: true }).eq("active", true),
+    admin.from("academic_levels").select("id", { count: "exact", head: true }).eq("active", true),
+    admin.from("classes").select("id", { count: "exact", head: true }).eq("status", "active"),
+    admin.from("questions").select("id", { count: "exact", head: true }).eq("status", "active"),
+  ]);
+  return { subjects: subjects ?? 0, levels: levels ?? 0, classes: classes ?? 0, questions: questions ?? 0 };
 }
 
 export async function loadSchoolDataSourceAction(source: SchoolDataSource): Promise<ActionResult & { count?: number; detail?: string }> {
@@ -250,14 +259,12 @@ export async function loadSchoolDataSourceAction(source: SchoolDataSource): Prom
     await requireAdministrator();
     if (source === "subjects") {
       const result = await seedSubjectCatalogFromFixtureAction();
-      if (result.ok) revalidatePath("/admin/data-library");
-      return { ...result, detail: result.ok ? "Subject curriculum and study-track rules are up to date." : undefined };
+      return { ...result, detail: result.ok ? "Subject list and class tags are up to date." : undefined };
     }
     if (source === "academic-structure") return syncAcademicStructureFromFixtureAction();
     if (source === "question-bank") {
       const result = await syncQuestionBankFromFixtureAction();
-      if (result.ok) revalidatePath("/admin/data-library");
-      return { ...result, detail: result.ok ? "Prepared questions are up to date while staff-authored questions remain protected." : undefined };
+      return { ...result, detail: result.ok ? "Prepared exam questions are up to date. Questions written by staff were left untouched." : undefined };
     }
     return { ok: false, error: "Choose a supported school data source." };
   } catch (error) {

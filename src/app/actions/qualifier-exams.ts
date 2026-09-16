@@ -46,31 +46,42 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
     const placementTracks = [...new Set(input.placementTracks.filter((track) => PLACEMENT_TRACKS.has(track)))];
     if (title.length < 3) return { ok: false, error: "Enter an exam title of at least 3 characters." };
     if (!subjectIds.length) return { ok: false, error: "Choose at least one qualifier subject." };
-    if (!studentIds.length) return { ok: false, error: "Choose at least one incoming candidate." };
     if (!placementTracks.length) return { ok: false, error: "Choose at least one placement outcome." };
-    if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 30 || input.durationSeconds > 10800) {
-      return { ok: false, error: "Duration must be between 30 seconds and 3 hours." };
+    if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 30 || input.durationSeconds > 14400) {
+      return { ok: false, error: "Duration must be between 30 seconds and 4 hours." };
     }
-    if (!Number.isInteger(input.questionCount) || input.questionCount < 5 || input.questionCount > 150) {
-      return { ok: false, error: "Question count must be between 5 and 150." };
+    if (!Number.isInteger(input.questionCount) || input.questionCount < 5 || input.questionCount > 200) {
+      return { ok: false, error: "Question count must be between 5 and 200." };
     }
     if (!Number.isInteger(input.warnAfter) || input.warnAfter < 1 || input.warnAfter > 10) {
       return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
     }
 
     const admin = createSupabaseAdminClient();
-    const [{ data: subjects, error: subjectError }, { data: students, error: studentError }, { data: year, error: yearError }] = await Promise.all([
+    const [{ data: subjects, error: subjectError }, { data: year, error: yearError }] = await Promise.all([
       admin.from("subjects").select("id,code,name,kind,active").in("id", subjectIds).eq("active", true).eq("kind", "qualifier"),
-      admin.from("school_members").select("id").in("id", studentIds).eq("role", "student").eq("status", "active"),
       admin.from("academic_years").select("id").eq("status", "active").limit(1).maybeSingle(),
     ]);
-    if (subjectError || studentError || yearError) {
-      return { ok: false, error: subjectError?.message ?? studentError?.message ?? yearError?.message ?? "Qualifier setup could not be verified." };
+    let students: { id: string }[] = [];
+    if (studentIds.length) {
+      const { data: studentRows, error: studentError } = await admin
+        .from("school_members")
+        .select("id")
+        .in("id", studentIds)
+        .eq("role", "student")
+        .eq("status", "active");
+      if (studentError) {
+        return { ok: false, error: studentError.message ?? "Qualifier setup could not be verified." };
+      }
+      students = (studentRows ?? []) as { id: string }[];
+    }
+    if (subjectError || yearError) {
+      return { ok: false, error: subjectError?.message ?? yearError?.message ?? "Qualifier setup could not be verified." };
     }
     if ((subjects ?? []).length !== subjectIds.length) {
       return { ok: false, error: "Every selected subject must be an active qualifier subject." };
     }
-    if ((students ?? []).length !== studentIds.length) {
+    if (students.length !== studentIds.length) {
       return { ok: false, error: "One or more selected candidates are no longer active students." };
     }
     if (!year) {
@@ -122,17 +133,19 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
       );
       if (trackError) throw trackError;
 
-      const { error: accessError } = await admin.from("exam_student_access").insert(
-        studentIds.map((studentId) => ({
-          session_id: id,
-          student_id: studentId,
-          decision: "allow",
-          granted_by_id: current.scope.profileId,
-          max_attempts_override: 1,
-          reason: "Incoming SS1 placement candidate",
-        })),
-      );
-      if (accessError) throw accessError;
+      if (studentIds.length) {
+        const { error: accessError } = await admin.from("exam_student_access").insert(
+          studentIds.map((studentId) => ({
+            session_id: id,
+            student_id: studentId,
+            decision: "allow",
+            granted_by_id: current.scope.profileId,
+            max_attempts_override: 1,
+            reason: "Incoming SS1 placement candidate",
+          })),
+        );
+        if (accessError) throw accessError;
+      }
     } catch (error) {
       await admin.from("exam_sessions").delete().eq("id", id);
       return { ok: false, error: error instanceof Error ? error.message : "Qualifier audience could not be saved." };

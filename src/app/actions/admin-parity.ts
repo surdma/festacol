@@ -160,8 +160,8 @@ export async function getAdminFormOptionsAction() {
 
 function validateExamShape(input: ExamCreationInput): string | null {
   if (input.title.trim().length < 3) return "Enter an exam title of at least 3 characters.";
-  if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 30 || input.durationSeconds > 10800) return "Duration must be between 30 seconds and 3 hours.";
-  if (!Number.isInteger(input.questionCount) || input.questionCount < 5 || input.questionCount > 150) return "Question count must be between 5 and 150.";
+  if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 30 || input.durationSeconds > 14400) return "Duration must be between 30 seconds and 4 hours.";
+  if (!Number.isInteger(input.questionCount) || input.questionCount < 5 || input.questionCount > 200) return "Question count must be between 5 and 200.";
   if (!Number.isInteger(input.warnAfter) || input.warnAfter < 1 || input.warnAfter > 10) return "Integrity warning threshold must be between 1 and 10.";
   if (input.mode === "waec" && input.classLevel !== "SS3") return "WAEC examinations are configured for SS3.";
 
@@ -169,7 +169,6 @@ function validateExamShape(input: ExamCreationInput): string | null {
   if (input.mode === "qualifier") {
     if (input.classLevel !== "SS1") return "Qualifier questions use the incoming SS1 readiness level.";
     if (!subjectIds.length || subjectIds.length > 6) return "Choose between 1 and 6 qualifier subjects.";
-    if (!input.studentIds.length) return "Choose at least one incoming candidate.";
     if (!input.placementTracks.length) return "Choose at least one placement outcome.";
     return null;
   }
@@ -283,8 +282,8 @@ export async function updateExamParityAction(
     if (detail.attempts.length > 0 && (patch.durationSeconds !== Number(session.duration_seconds) || patch.questionCount !== Number(session.question_count))) {
       return { ok: false, error: "Paper structure is locked after the first allocated attempt." };
     }
-    if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 10800) return { ok: false, error: "Duration must be between 30 seconds and 3 hours." };
-    if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 150) return { ok: false, error: "Question count must be between 5 and 150." };
+    if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 14400) return { ok: false, error: "Duration must be between 30 seconds and 4 hours." };
+    if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 200) return { ok: false, error: "Question count must be between 5 and 200." };
     return updateExamAction(id, patch);
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };

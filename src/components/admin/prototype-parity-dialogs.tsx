@@ -34,7 +34,7 @@ export function WhatsappGlobalDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-w-2xl overflow-y-auto rounded-2xl border-neutral-200 bg-white shadow-2xl">
+      <DialogContent className="border-neutral-200 bg-white shadow-2xl sm:max-w-2xl">
         <DialogHeader><p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Class communication</p><DialogTitle className="font-display text-xl font-extrabold text-neutral-950">Add WhatsApp group</DialogTitle><DialogDescription>Select the class and save its official invite link. The relationship remains in production storage.</DialogDescription></DialogHeader>
         <FieldGroup>
           <Field><FieldLabel htmlFor="wg-class">Class</FieldLabel><NativeSelect id="wg-class" className={selectClass} value={classId} onChange={(event) => setClassId(event.target.value)}><NativeSelectOption value="">Choose class</NativeSelectOption>{classes.map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.name}</NativeSelectOption>)}</NativeSelect></Field>

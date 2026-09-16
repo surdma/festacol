@@ -23,12 +23,18 @@ import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import type { AcademicTrack } from "@/types/db";
 
 const STEPS = ["Setup", "Audience", "Paper", "Integrity", "Review"] as const;
+const DURATION_MIN_SECONDS = 30;
+const DURATION_MAX_SECONDS = 14400;
+const QUESTION_MIN_COUNT = 5;
+const QUESTION_MAX_COUNT = 200;
 const MODES = ["qualifier", "bece", "waec", "neco", "jamb", "mixed", "single"] as const;
 const SINGLE_SUBJECT_MODES = new Set<ExamCreationInput["mode"]>(["single", "waec", "bece", "neco", "jamb"]);
 const inputClass = "h-11 rounded-lg border-neutral-300 bg-white text-neutral-950 focus-visible:border-black focus-visible:ring-black/20";
@@ -62,7 +68,7 @@ const initialForm: ExamCreationInput = {
   placementTracks: ["science", "humanities", "business"],
   durationSeconds: 3600,
   questionCount: 50,
-  status: "draft",
+  status: "open",
   instructions: "",
   cameraRequired: false,
   warnAfter: 2,
@@ -70,6 +76,15 @@ const initialForm: ExamCreationInput = {
 
 function candidateSearchText(candidate: CandidateOption) {
   return `${candidate.name} ${candidate.studentNumber ?? ""} ${candidate.className ?? "unassigned"}`.toLowerCase();
+}
+
+function formatDuration(seconds: number) {
+  if (seconds < 60) return `${seconds} sec`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
 }
 
 export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -226,7 +241,6 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
     }
     if (current === 1) {
       if (form.mode === "qualifier") {
-        if (!form.studentIds.length) return "Choose at least one incoming candidate.";
         if (!form.placementTracks.length) return "Choose at least one placement outcome.";
       } else if (!form.classIds.length) {
         return "Choose at least one target class.";
@@ -239,8 +253,8 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
       if (form.mode !== "qualifier" && form.subjectIds.some((subjectId) => !form.offeringIds.some((id) => offerings.find((offering) => offering.id === id)?.subjectId === subjectId))) {
         return "Every selected subject needs an active offering in the target classes.";
       }
-      if (!Number.isInteger(form.durationSeconds) || form.durationSeconds < 30 || form.durationSeconds > 10800) return "Duration must be between 30 seconds and 3 hours.";
-      if (!Number.isInteger(form.questionCount) || form.questionCount < 5 || form.questionCount > 150) return "Question count must be between 5 and 150.";
+      if (!Number.isInteger(form.durationSeconds) || form.durationSeconds < DURATION_MIN_SECONDS || form.durationSeconds > DURATION_MAX_SECONDS) return "Duration must be between 30 seconds and 4 hours.";
+      if (!Number.isInteger(form.questionCount) || form.questionCount < QUESTION_MIN_COUNT || form.questionCount > QUESTION_MAX_COUNT) return "Question count must be between 5 and 200.";
     }
     if (current === 3 && (!Number.isInteger(form.warnAfter) || form.warnAfter < 1 || form.warnAfter > 10)) return "Integrity warning threshold must be between 1 and 10.";
     return null;
@@ -279,7 +293,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
 
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value && !pending) onClose(); }}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border-neutral-200 bg-white shadow-2xl data-[side=right]:sm:max-w-5xl sm:max-w-5xl">
+      <DialogContent className="border-neutral-200 bg-white shadow-2xl sm:max-w-5xl">
         <DialogHeader>
           <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
             <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Create examination</p>
@@ -315,11 +329,11 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
           <FieldGroup>
             <Field>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div><FieldLabel>Incoming candidates ({form.studentIds.length} selected)</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Unassigned active students are shown first. Enable enrolled students only when correcting or retesting an existing record.</p></div>
+                <div><FieldLabel>Incoming candidates ({form.studentIds.length} selected)</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Pre-register known candidates, or leave empty for open entry. New students join with the exam link and their first + last name, and are enrolled automatically.</p></div>
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><Switch checked={showEnrolledCandidates} onCheckedChange={setShowEnrolledCandidates} />Show enrolled students</label>
               </div>
               <InputGroup className="mt-3 h-10"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput value={candidateQuery} onChange={(event) => setCandidateQuery(event.target.value)} placeholder="Search name or student number…" aria-label="Search candidates" /></InputGroup>
-              <div className="mt-3 max-h-72 divide-y divide-border overflow-y-auto border-y border-border">
+              <div className="mt-3 max-h-72 divide-y divide-border overflow-x-hidden overflow-y-auto border-y border-border">
                 {visibleCandidates.map((candidate) => {
                   const checked = form.studentIds.includes(candidate.id);
                   return (
@@ -353,12 +367,12 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <Field><FieldLabel>Target classes ({form.classIds.length} selected)</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Subjects in the next step are derived from the active offerings of the classes you choose here.</p></Field>
               <Field><FieldLabel htmlFor="w-track-filter">Study track filter</FieldLabel><NativeSelect id="w-track-filter" className={selectClass} value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as "all" | AcademicTrack)}><NativeSelectOption value="all">All tracks</NativeSelectOption><NativeSelectOption value="science">Science</NativeSelectOption><NativeSelectOption value="humanities">Humanities</NativeSelectOption><NativeSelectOption value="business">Business</NativeSelectOption></NativeSelect></Field>
             </div>
-            <div className="grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid max-h-72 gap-2 overflow-x-hidden overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
               {activeClasses.map((item) => {
                 const checked = form.classIds.includes(item.id);
                 return <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-muted/40"><Checkbox checked={checked} onCheckedChange={() => toggleClass(item.id)} /><span className="min-w-0"><strong className="block truncate text-sm">{item.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{item.trackName}</span></span></label>;
               })}
-              {!activeClasses.length ? <p className="col-span-full py-8 text-center text-sm text-muted-foreground">No active classes match this level, track and staff scope.</p> : null}
+              {!activeClasses.length ? <p className="col-span-full py-8 text-center text-sm text-muted-foreground">No active classes match this level, track and staff scope. Subject offerings may not be configured yet — ask an administrator to activate them from the class record.</p> : null}
             </div>
           </FieldGroup>
         ) : null}
@@ -373,12 +387,48 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
                   const recommended = form.mode === "qualifier" && ["q-math", "q-bst"].includes(subject.code);
                   return <label key={subject.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-muted/40"><Checkbox checked={checked} onCheckedChange={() => toggleSubject(subject.id)} /><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{subject.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{subject.code}{recommended ? " · preset" : ""}</span></span></label>;
                 })}
-                {form.mode !== "qualifier" && !normalSubjects.length ? <p className="col-span-full py-6 text-sm text-muted-foreground">Choose target classes first. Their active subject offerings will appear here.</p> : null}
+                {form.mode !== "qualifier" && !normalSubjects.length ? <p className="col-span-full py-6 text-sm text-muted-foreground">{form.classIds.length ? "None of the selected classes offer subjects yet. An administrator can activate subject offerings from the class record → Subjects tab." : "Choose target classes first. Their active subject offerings will appear here."}</p> : null}
               </div>
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="w-dur">Duration (minutes)</FieldLabel><Input id="w-dur" className={inputClass} type="number" min={1} max={180} value={Math.round(form.durationSeconds / 60)} onChange={(event) => set("durationSeconds", Math.max(60, Number(event.target.value) * 60))} /></Field><Field><FieldLabel htmlFor="w-count">Question count</FieldLabel><Input id="w-count" className={inputClass} type="number" min={5} max={150} value={form.questionCount} onChange={(event) => set("questionCount", Number(event.target.value))} /></Field></div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field>
+                <div className="flex items-center justify-between gap-2"><FieldLabel>Duration</FieldLabel><Badge variant="secondary" className="tabular-nums">{formatDuration(form.durationSeconds)}</Badge></div>
+                <Slider aria-label="Exam duration" min={DURATION_MIN_SECONDS} max={DURATION_MAX_SECONDS} step={30} value={[form.durationSeconds]} onValueChange={(value) => set("durationSeconds", Array.isArray(value) ? (value[0] ?? DURATION_MIN_SECONDS) : value)} />
+                <div className="flex justify-between text-xs text-muted-foreground"><span>30 sec</span><span>4 hrs</span></div>
+              </Field>
+              <Field>
+                <div className="flex items-center justify-between gap-2"><FieldLabel>Questions</FieldLabel><Badge variant="secondary" className="tabular-nums">{form.questionCount} questions</Badge></div>
+                <Slider aria-label="Question count" min={QUESTION_MIN_COUNT} max={QUESTION_MAX_COUNT} step={1} value={[form.questionCount]} onValueChange={(value) => set("questionCount", Array.isArray(value) ? (value[0] ?? QUESTION_MIN_COUNT) : value)} />
+                <div className="flex justify-between text-xs text-muted-foreground"><span>5</span><span>200</span></div>
+              </Field>
+            </div>
             <Field><FieldLabel htmlFor="w-inst">Candidate instructions</FieldLabel><Textarea id="w-inst" className="min-h-24 rounded-lg border-neutral-300" value={form.instructions} onChange={(event) => set("instructions", event.target.value)} maxLength={140} placeholder={form.mode === "qualifier" ? "Complete every section. Your result will support senior-school placement." : "Read every question carefully before submitting."} /></Field>
-            <Field><FieldLabel htmlFor="w-status">Initial status</FieldLabel><NativeSelect id="w-status" className={selectClass} value={form.status} onChange={(event) => set("status", event.target.value as ExamCreationInput["status"])}>{(["draft", "open", "closed"] as const).map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect></Field>
+            <Field>
+              <FieldLabel>Exam availability</FieldLabel>
+              <RadioGroup
+                aria-label="Exam availability"
+                value={form.status === "closed" ? "closed" : "open"}
+                onValueChange={(value) => set("status", value === "closed" ? "closed" : "open")}
+                className="grid grid-cols-2 gap-2"
+              >
+                {([
+                  { value: "open", title: "Open", hint: "Candidates can enter now" },
+                  { value: "closed", title: "Closed", hint: "Blocks new entries" },
+                ] as const).map((option) => (
+                  <label
+                    key={option.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40 has-data-checked:border-neutral-950 has-data-checked:bg-neutral-950 has-data-checked:text-white"
+                  >
+                    <RadioGroupItem value={option.value} />
+                    <span className="min-w-0">
+                      <strong className="block text-sm">{option.title}</strong>
+                      <span className="mt-0.5 block text-xs opacity-70">{option.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </RadioGroup>
+              <p className="mt-1 text-xs text-muted-foreground">Open exams admit candidates through the QR code, exam link, or Exam ID. Closed exams stop new entries.</p>
+            </Field>
           </FieldGroup>
         ) : null}
 
@@ -392,11 +442,11 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
 
         {step === 4 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><BookOpenCheck className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Paper</p><strong className="mt-1 block text-sm">{form.questionCount} questions · {Math.round(form.durationSeconds / 60)} min</strong><p className="mt-1 text-xs text-neutral-500">{selectedSubjectNames.join(", ") || "No subjects"}</p></div>
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><Users className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Audience</p><strong className="mt-1 block text-sm">{form.mode === "qualifier" ? `${form.studentIds.length} candidate${form.studentIds.length === 1 ? "" : "s"}` : `${form.classIds.length} class${form.classIds.length === 1 ? "" : "es"}`}</strong><p className="mt-1 line-clamp-2 text-xs text-neutral-500">{form.mode === "qualifier" ? selectedCandidateNames.slice(0, 4).join(", ") : selectedClassNames.join(", ")}</p></div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><BookOpenCheck className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Paper</p><strong className="mt-1 block text-sm">{form.questionCount} questions · {formatDuration(form.durationSeconds)}</strong><p className="mt-1 text-xs text-neutral-500">{selectedSubjectNames.join(", ") || "No subjects"}</p></div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><Users className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Audience</p><strong className="mt-1 block text-sm">{form.mode === "qualifier" ? (form.studentIds.length ? `${form.studentIds.length} candidate${form.studentIds.length === 1 ? "" : "s"}` : "Open entry") : `${form.classIds.length} class${form.classIds.length === 1 ? "" : "es"}`}</strong><p className="mt-1 line-clamp-2 text-xs text-neutral-500">{form.mode === "qualifier" ? (form.studentIds.length ? selectedCandidateNames.slice(0, 4).join(", ") : "New students enroll with first + last name") : selectedClassNames.join(", ")}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><GraduationCap className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">{form.mode === "qualifier" ? "Placement outcomes" : "Study scope"}</p><strong className="mt-1 block text-sm">{form.mode === "qualifier" ? form.placementTracks.map((track) => trackLabels[track]).join(" · ") : form.classLevel}</strong><p className="mt-1 text-xs text-neutral-500">{modeLabels[form.mode]}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><CheckCircle2 className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Question coverage</p><strong className="mt-1 block text-sm">{coverage?.count ?? 0} eligible</strong><p className="mt-1 text-xs text-neutral-500">Validated against mode, subject and question level</p></div>
-            <div className="rounded-xl border border-neutral-200 p-4 sm:col-span-2 lg:col-span-4"><p className="text-xs font-medium text-neutral-500">Ready to create</p><strong className="mt-1 block text-base">{form.title}</strong><p className="mt-1 text-sm text-neutral-500">{form.mode === "qualifier" ? "Candidates receive explicit access; no senior class is assigned by this exam." : `${form.classLevel} · ${form.offeringIds.length} concrete offering target${form.offeringIds.length === 1 ? "" : "s"}`} · {form.status}</p></div>
+            <div className="rounded-xl border border-neutral-200 p-4 sm:col-span-2 lg:col-span-4"><p className="text-xs font-medium text-neutral-500">Ready to create</p><strong className="mt-1 block text-base">{form.title}</strong><p className="mt-1 text-sm text-neutral-500">{form.mode === "qualifier" ? "Candidates receive explicit access and open the paper with the QR code, exam link, or Exam ID; no senior class is assigned by this exam." : `${form.classLevel} · ${form.offeringIds.length} concrete offering target${form.offeringIds.length === 1 ? "" : "s"}`} · {form.status}</p><p className="mt-2 text-xs text-neutral-500">Students enter through the QR code, exam link, or Exam ID shown on the exam detail after creation.</p></div>
           </div>
         ) : null}
 

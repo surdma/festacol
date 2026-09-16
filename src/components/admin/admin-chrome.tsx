@@ -66,7 +66,7 @@ function MobileNavigation({ role }: { role: string }) {
       <SheetTrigger render={<button type="button" className={`${iconBtn} lg:hidden`} aria-label="Open navigation" />}>
         <PrototypeAdminIcon name="menu" />
       </SheetTrigger>
-      <SheetContent side="left" showCloseButton={false} overlayClassName="bg-black/40 backdrop-blur-sm" className="w-[min(88vw,320px)] max-w-none gap-0 border-r border-neutral-200 bg-white p-0 text-neutral-950 shadow-2xl data-[side=left]:data-starting-style:-translate-x-full data-[side=left]:data-ending-style:-translate-x-full lg:hidden">
+      <SheetContent side="left" showCloseButton={false} overlayClassName="bg-black/40 backdrop-blur-sm" className="no-scrollbar w-[min(88vw,320px)] max-w-none gap-0 overflow-y-auto border-r border-neutral-200 bg-white p-0 text-neutral-950 shadow-2xl data-[side=left]:data-starting-style:-translate-x-full data-[side=left]:data-ending-style:-translate-x-full lg:hidden">
         <div className="flex items-center justify-between border-b border-neutral-200 p-4">
           <div>
             <SheetTitle className="font-display font-bold text-neutral-950">{isAdmin ? "Festacol Administration" : "Festacol Teaching"}</SheetTitle>
