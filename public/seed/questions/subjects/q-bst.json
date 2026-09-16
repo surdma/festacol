@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-q-bst-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "q-bst",
+    "subjectName": "Basic Science & Technology",
+    "baseId": 2037000,
+    "levels": ["SS1"],
+    "examModes": ["qualifier"],
+    "concepts": [
+      {"domain":"Biology","term":"Cell","definition":"the smallest structural and functional unit of a living organism"},
+      {"domain":"Physics","term":"Force","definition":"a push or pull that can change the motion or shape of an object"},
+      {"domain":"Physics","term":"Energy","definition":"the capacity to do work or cause a physical change"},
+      {"domain":"Chemistry","term":"Matter","definition":"anything that has mass and occupies space"},
+      {"domain":"Ecology","term":"Ecosystem","definition":"living organisms interacting with one another and with the non-living parts of their environment"},
+      {"domain":"Technology","term":"Simple machine","definition":"a basic mechanical device that changes the size or direction of a force"},
+      {"domain":"Electricity","term":"Electric circuit","definition":"a complete conducting path through which electric current can flow"},
+      {"domain":"Earth Science","term":"Soil","definition":"the upper layer of earth containing mineral particles, organic matter, water, air, and living organisms"},
+      {"domain":"Measurement","term":"Measurement","definition":"the process of comparing a physical quantity with an accepted standard unit"},
+      {"domain":"Technology","term":"Technology","definition":"the practical application of knowledge, tools, and processes to solve human problems"}
+    ]
+  }
+}
