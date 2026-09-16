@@ -1,12 +1,12 @@
 "use client";
 
 import { CheckCircle2, GraduationCap, School } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   completeExamOnboardingAction,
   getExamOnboardingDataAction,
   type ExamOnboardingData,
-  type ExamOnboardingNext,
 } from "@/app/actions/exam-onboarding";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,11 +15,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
-
-export interface StudentWizardProps {
-  token: string;
-  onComplete: (next: Exclude<ExamOnboardingNext, "configure">) => void;
-}
 
 type Step = "level" | "path" | "class" | "confirm";
 type PathChoice = "class" | "placement";
@@ -35,7 +30,8 @@ function classLabel(item: { levelName: string; track: string; arm: string }) {
   return `${item.levelName} ${trackLabel(item.track)} · Arm ${item.arm}`;
 }
 
-export function StudentWizard({ token, onComplete }: StudentWizardProps) {
+export function StudentWizard({ token }: { token: string }) {
+  const router = useRouter();
   const [data, setData] = useState<ExamOnboardingData | null>(null);
   const [step, setStep] = useState<Step>("level");
   const [levelId, setLevelId] = useState("");
@@ -144,7 +140,15 @@ export function StudentWizard({ token, onComplete }: StudentWizardProps) {
         setError(result.error ?? "Your school setup could not be confirmed.");
         return;
       }
-      if (result.next) onComplete(result.next);
+      if (result.next === "dashboard") {
+        router.replace("/dashboard");
+        router.refresh();
+        return;
+      }
+      if (result.next === "exam") {
+        router.replace(`/exam?token=${encodeURIComponent(token)}`);
+        router.refresh();
+      }
     });
   }
 
