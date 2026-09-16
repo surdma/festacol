@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-q-business-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "q-business",
+    "subjectName": "Business Readiness",
+    "baseId": 2039000,
+    "levels": ["SS1"],
+    "examModes": ["qualifier"],
+    "concepts": [
+      {"domain":"Business Arithmetic","term":"Profit","definition":"the positive difference when total revenue is greater than total cost"},
+      {"domain":"Business Arithmetic","term":"Loss","definition":"the negative result when total cost is greater than total revenue"},
+      {"domain":"Business Finance","term":"Capital","definition":"money or other resources invested to start or operate a business"},
+      {"domain":"Business Finance","term":"Revenue","definition":"money earned by a business from selling goods, services, or other ordinary activities"},
+      {"domain":"Business Finance","term":"Expense","definition":"a cost incurred in running a business or earning revenue"},
+      {"domain":"Personal Finance","term":"Saving","definition":"setting aside part of current income for future use"},
+      {"domain":"Personal Finance","term":"Budget","definition":"a plan showing expected income and how money will be allocated to expenses and goals"},
+      {"domain":"Business Relations","term":"Customer","definition":"a person or organization that buys or uses a business's goods or services"},
+      {"domain":"Markets","term":"Market","definition":"a setting or arrangement in which buyers and sellers interact to exchange goods or services"},
+      {"domain":"Enterprise","term":"Entrepreneurship","definition":"the process of identifying an opportunity and organizing resources to create and manage a venture"}
+    ]
+  }
+}
