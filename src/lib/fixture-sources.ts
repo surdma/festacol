@@ -9,3 +9,5 @@ export const QUESTION_FIXTURE_FILES = [
   "questions/qualifier-business.json",
   "questions/qualifier-digital.json",
 ] as const;
+
+export const QUESTION_FIXTURE_DIRECTORIES = ["questions/subjects"] as const;
