@@ -5,6 +5,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff } from "@/lib/auth/staff";
+import { QUESTION_FIXTURE_FILES, QUESTION_FIXTURE_SCHEMA_VERSION } from "@/lib/fixture-sources";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
 
@@ -39,16 +40,6 @@ const TRACK_DB: Record<FixtureCurriculumRule["track"], AcademicTrack> = {
 };
 const PARTICIPATION_DB = { REQUIRED: "required", ELECTIVE: "elective" } as const;
 const KIND_DB = { CURRICULUM: "curriculum", QUALIFIER: "qualifier" } as const;
-const QUESTION_FIXTURE_SCHEMA_VERSION = 4;
-const QUESTION_FIXTURE_FILES = [
-  "questions.json",
-  "questions/qualifier-english.json",
-  "questions/qualifier-mathematics.json",
-  "questions/qualifier-basic-science.json",
-  "questions/qualifier-humanities.json",
-  "questions/qualifier-business.json",
-  "questions/qualifier-digital.json",
-] as const;
 
 async function requireAdmin() {
   const current = await currentStaff();
