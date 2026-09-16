@@ -61,8 +61,7 @@ function mobileRoutesFor(surface: ApplicationSurface, role?: string) {
   const routes = routesFor(surface, role);
 
   if (surface === "student") {
-    const primary = routes.filter((route) => route.href !== "/dashboard/profile");
-    return { primary: primary.slice(0, 5), overflow: primary.slice(5) };
+    return { primary: routes.slice(0, 5), overflow: routes.slice(5) };
   }
 
   const preferredHrefs = role === "administrator"
@@ -157,13 +156,19 @@ export function MobileBottomNavigation({
   const [moreOpen, setMoreOpen] = useState(false);
   const { primary, overflow } = mobileRoutesFor(surface, role);
   const overflowActive = overflow.some((route) => isCurrent(pathname, route.href));
+  const controlCount = primary.length + (overflow.length ? 1 : 0);
 
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur-xl lg:hidden"
       aria-label="Mobile application navigation"
     >
-      <div className={cn("mx-auto grid max-w-xl", overflow.length ? "grid-cols-5" : "grid-cols-4")}>
+      <div
+        className={cn(
+          "mx-auto grid max-w-xl",
+          controlCount === 5 ? "grid-cols-5" : controlCount === 4 ? "grid-cols-4" : controlCount === 3 ? "grid-cols-3" : "grid-cols-2",
+        )}
+      >
         {primary.map((route) => (
           <MobileNavLink
             key={route.href}
