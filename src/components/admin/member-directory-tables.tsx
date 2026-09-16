@@ -268,10 +268,12 @@ export function StudentDirectoryTable({ rows, canDelete }: { rows: StudentDirect
                   <TableCell><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></TableCell>
                   <TableCell className="pr-4 text-right">
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button size="icon" variant="ghost" aria-label={`Actions for ${user.full_name}`} />}><MoreHorizontal /></DropdownMenuTrigger>
+                      <DropdownMenuTrigger render={<Button size="icon" variant="ghost" aria-label={`Actions for ${user.full_name}`} />}>
+                        <MoreHorizontal aria-hidden="true" />
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>Student actions</DropdownMenuLabel>
                         <DropdownMenuGroup>
+                          <DropdownMenuLabel>Student actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => router.push(row.href)}><Eye />Preview record</DropdownMenuItem>
                           {canDelete ? <DropdownMenuItem onClick={() => openEdit(user.id)}><Pencil />Edit student</DropdownMenuItem> : null}
                         </DropdownMenuGroup>
@@ -415,10 +417,12 @@ export function StaffDirectoryTable({ rows, canDelete }: { rows: StaffDirectoryT
                   <TableCell><StatusBadge tone={user.status === "active" ? "emerald" : "neutral"}>{user.status}</StatusBadge></TableCell>
                   <TableCell className="pr-4 text-right">
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button size="icon" variant="ghost" aria-label={`Actions for ${user.full_name}`} />}><MoreHorizontal /></DropdownMenuTrigger>
+                      <DropdownMenuTrigger render={<Button size="icon" variant="ghost" aria-label={`Actions for ${user.full_name}`} />}>
+                        <MoreHorizontal aria-hidden="true" />
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                         <DropdownMenuGroup>
+                          <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => manageStaff(user.id)}><Pencil />Manage scope</DropdownMenuItem>
                           {teaching.length ? <DropdownMenuItem onClick={() => manageStaff(user.id)}><BookOpenCheck />Teaching assignments</DropdownMenuItem> : null}
                           {canDelete ? <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(row)}><Trash2 />Delete account</DropdownMenuItem> : null}
