@@ -22,6 +22,7 @@ export type ApplicationSurface = "student" | "staff";
 interface ApplicationRoute {
   href: string;
   label: string;
+  mobileLabel?: string;
   icon: PrototypeAdminIconName;
   administratorOnly?: boolean;
 }
@@ -30,7 +31,7 @@ const staffRoutes: ApplicationRoute[] = [
   { href: "/workspace", label: "Overview", icon: "home" },
   { href: "/workspace/students", label: "Students", icon: "users" },
   { href: "/workspace/staff", label: "Staff", icon: "staff", administratorOnly: true },
-  { href: "/workspace/exams", label: "Examinations", icon: "book" },
+  { href: "/workspace/exams", label: "Examinations", mobileLabel: "Exams", icon: "book" },
   { href: "/workspace/classes", label: "Classes", icon: "school" },
   { href: "/workspace/questions", label: "Question Bank", icon: "book" },
   { href: "/workspace/reports", label: "Reports", icon: "chart" },
@@ -41,8 +42,8 @@ const staffRoutes: ApplicationRoute[] = [
 const studentRoutes: ApplicationRoute[] = [
   { href: "/dashboard", label: "Dashboard", icon: "home" },
   { href: "/dashboard/analytics", label: "Analytics", icon: "chart" },
-  { href: "/dashboard/history", label: "Exam history", icon: "book" },
-  { href: "/dashboard/progress", label: "Progress & promotion", icon: "school" },
+  { href: "/dashboard/history", label: "Exam history", mobileLabel: "History", icon: "book" },
+  { href: "/dashboard/progress", label: "Progress & promotion", mobileLabel: "Progress", icon: "school" },
   { href: "/dashboard/profile", label: "Profile", icon: "users" },
 ];
 
@@ -140,7 +141,7 @@ function MobileNavLink({
       <span className="grid size-8 place-items-center rounded-xl transition group-aria-[current=page]:bg-neutral-950 group-aria-[current=page]:text-white">
         <PrototypeAdminIcon name={route.icon} className="size-5 shrink-0" />
       </span>
-      <span className="max-w-full truncate">{route.label}</span>
+      <span className="max-w-full truncate">{route.mobileLabel ?? route.label}</span>
     </Link>
   );
 }
