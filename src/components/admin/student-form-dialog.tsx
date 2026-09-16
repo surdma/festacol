@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { ArrowRightLeft, UserRoundPlus } from "lucide-react";
 import { getUserDetailAction, upsertUserAction } from "@/app/actions/admin";
 import { getAdminFormOptionsAction } from "@/app/actions/admin-parity";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { toast } from "@/components/ui/toast";
 
 interface ClassOption { id: string; name: string }
 
@@ -51,14 +53,23 @@ export function StudentFormDialog({ open, onClose, userId }: { open: boolean; on
     setError(null);
     startTransition(async () => {
       const result = await upsertUserAction({ id: userId, fullName, role: "student", classId, guardian });
-      if (!result.ok) { setError(result.error ?? "Student save failed."); return; }
+      if (!result.ok) {
+        const message = result.error ?? "Student save failed.";
+        setError(message);
+        toast.add({ type: "error", title: "Student was not saved", description: message, priority: "high" });
+        return;
+      }
+      const description = movingClass
+        ? `${fullName.trim()} was moved to ${classId ? className.get(classId) ?? "the selected class" : "unassigned"}.`
+        : userId ? `${fullName.trim()} was updated.` : `${fullName.trim()} was added.`;
+      toast.add({ type: "success", title: movingClass ? "Student moved" : userId ? "Student updated" : "Student added", description });
       onClose();
       router.refresh();
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
+    <Dialog open={open} onOpenChange={(value) => { if (!value && !pending) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="mb-2 grid size-10 place-items-center rounded-xl bg-foreground text-background">{userId ? <ArrowRightLeft /> : <UserRoundPlus />}</div>
@@ -86,9 +97,9 @@ export function StudentFormDialog({ open, onClose, userId }: { open: boolean; on
           </Field>
         </FieldGroup>
 
-        {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+        {error ? <Alert variant="destructive"><AlertTitle>Student was not saved</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={pending} onClick={onClose}>Cancel</Button>
           <Button disabled={pending || fullName.trim().length < 2} onClick={save}>{pending ? "Saving…" : movingClass ? "Move student" : userId ? "Update student" : "Add student"}</Button>
         </DialogFooter>
       </DialogContent>
