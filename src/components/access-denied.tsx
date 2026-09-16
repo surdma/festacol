@@ -11,11 +11,11 @@ import {
 import { safeStaffDestination, safeStudentDestination } from "@/lib/auth/navigation";
 
 function switchTarget(signInHref: string) {
-  const staffNext = safeStaffDestination(signInHref);
-  if (staffNext) return { surface: "staff" as const, next: staffNext };
+  if (signInHref === "/workspace/login" || signInHref === "/workspace" || signInHref.startsWith("/workspace/")) {
+    return { surface: "staff" as const, next: safeStaffDestination(signInHref) };
+  }
 
-  const studentNext = safeStudentDestination(signInHref);
-  return { surface: "student" as const, next: studentNext };
+  return { surface: "student" as const, next: safeStudentDestination(signInHref) };
 }
 
 export function AccessDenied({
