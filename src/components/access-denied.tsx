@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { signOutStudentAction } from "@/app/actions/student";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -47,13 +47,13 @@ export function AccessDenied({
         <Button onClick={switchAccount} disabled={pending}>
           {pending ? "Signing out…" : "Sign out and switch account"}
         </Button>
-        <Button variant="outline" render={<Link href={signInHref} />}>
+        <Link href={signInHref} className={buttonVariants({ variant: "outline" })}>
           {signInLabel}
-        </Button>
+        </Link>
         {returnHref ? (
-          <Button variant="ghost" render={<Link href={returnHref} />}>
+          <Link href={returnHref} className={buttonVariants({ variant: "ghost" })}>
             Back to previous page
-          </Button>
+          </Link>
         ) : null}
       </CardContent>
     </Card>
