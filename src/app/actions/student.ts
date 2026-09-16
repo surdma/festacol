@@ -70,7 +70,7 @@ export async function signInLinkedStudent(
       authUserId = legacySignIn.data.user.id;
       email = legacySignIn.data.user.email ?? legacy.email;
       if (!(await claimStudentAuthIdentity(member.memberId, authUserId))) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         return {
           ok: false,
           error: "This student record is already linked to another login.",
@@ -85,7 +85,7 @@ export async function signInLinkedStudent(
         },
       );
       if (updateError) return { ok: false, error: updateError.message };
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     } else {
       email = studentEmailForMember(member.memberId);
       const { data: created, error: createError } =
