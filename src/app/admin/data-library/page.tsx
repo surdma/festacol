@@ -15,14 +15,15 @@ export default async function SchoolDataLibraryPage() {
   const { supabase, scope } = await currentStaff();
   if (!scope.isAdmin) redirect("/admin/settings");
 
-  const [manifest, { count: subjects }, { count: classes }, { count: questions }] = await Promise.all([
+  const [manifest, { count: subjects }, { count: levels }, { count: classes }, { count: questions }] = await Promise.all([
     getSchoolDataManifestAction(),
     supabase.from("subjects").select("id", { count: "exact", head: true }).eq("active", true),
+    supabase.from("academic_levels").select("id", { count: "exact", head: true }).eq("active", true),
     supabase.from("classes").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("questions").select("id", { count: "exact", head: true }).eq("status", "active"),
   ]);
 
-  const counts = { subjects: subjects ?? 0, classes: classes ?? 0, questions: questions ?? 0 };
+  const counts = { subjects: subjects ?? 0, levels: levels ?? 0, classes: classes ?? 0, questions: questions ?? 0 };
   const bundledTotal = manifest.reduce((total, item) => total + item.bundledRecords, 0);
 
   return (
@@ -49,7 +50,7 @@ export default async function SchoolDataLibraryPage() {
         </div>
         <div className="border-b border-border px-4 py-4 sm:border-r sm:border-b-0">
           <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Database structure</p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{counts.subjects} subjects · {counts.classes} classes</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{counts.subjects} subjects · {counts.levels} levels · {counts.classes} classes</p>
         </div>
         <div className="px-4 py-4">
           <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Question inventory</p>
