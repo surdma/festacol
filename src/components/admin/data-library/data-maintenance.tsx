@@ -1,8 +1,8 @@
 "use client";
 
-import { BookOpenCheck, CircleAlert, MessageCircleOff, RotateCcw, Trash2 } from "lucide-react";
+import { BookOpenCheck, MessageCircleOff, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
 import type { AdminDataScope } from "@/app/actions/admin-data-controls";
-import { useSchoolDataMaintenance } from "@/hooks/use-school-data-maintenance";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +14,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useSchoolDataMaintenance } from "@/hooks/use-school-data-maintenance";
 
 const CONTROLS: {
   scope: AdminDataScope;
@@ -67,31 +69,42 @@ export function DataMaintenance() {
   const { pending, activeScope, feedback, clear } = useSchoolDataMaintenance();
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-red-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-red-100 bg-red-50/60 p-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="max-w-3xl">
-          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-red-700">Maintenance</p>
-          <h2 className="mt-1 font-display text-lg font-extrabold text-neutral-950">Clear selected school records</h2>
-          <p className="mt-1 text-sm leading-6 text-neutral-600">These actions are for resetting specific operational records. Each action states what will be removed and what will remain.</p>
-        </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700"><CircleAlert className="size-3.5" />Administrator only</span>
-      </div>
+    <section aria-labelledby="maintenance-actions-heading">
+      <Alert variant="destructive" className="mb-4">
+        <TriangleAlert />
+        <AlertTitle>These actions remove production records</AlertTitle>
+        <AlertDescription>Each operation is deliberately narrow, but it cannot be reversed from this interface. Read the preserved-data statement before continuing.</AlertDescription>
+      </Alert>
 
-      {feedback ? <div className={`m-5 rounded-2xl border p-4 text-sm ${feedback.tone === "error" ? "border-red-200 bg-red-50 text-red-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`} role="status">{feedback.message}</div> : null}
+      {feedback ? (
+        <Alert variant={feedback.tone === "error" ? "destructive" : "default"} className="mb-4">
+          <AlertTitle>{feedback.tone === "error" ? "Maintenance action failed" : "Maintenance action completed"}</AlertTitle>
+          <AlertDescription>{feedback.message}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="grid gap-px bg-neutral-200 md:grid-cols-2">
+      <h2 id="maintenance-actions-heading" className="sr-only">Maintenance actions</h2>
+      <div className="divide-y divide-border border-y border-border">
         {CONTROLS.map((control) => {
           const Icon = control.icon;
           const running = pending && activeScope === control.scope;
           return (
-            <article key={control.scope} className="bg-white p-5">
-              <span className="grid size-10 place-items-center rounded-xl bg-neutral-100 text-neutral-700"><Icon className="size-4" /></span>
-              <h3 className="mt-4 text-sm font-bold text-neutral-950">{control.title}</h3>
-              <p className="mt-2 text-xs leading-5 text-neutral-600">{control.detail}</p>
-              <p className="mt-2 text-xs leading-5 text-neutral-400">{control.preserved}</p>
+            <div key={control.scope} className="grid gap-4 px-1 py-5 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:items-center sm:px-3">
+              <span className="grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground">
+                <Icon className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="text-sm font-semibold text-foreground">{control.title}</strong>
+                  <Badge variant="destructive">Destructive</Badge>
+                </div>
+                <p className="mt-1 text-sm leading-5 text-muted-foreground">{control.detail}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground"><span className="font-semibold text-foreground">Preserves:</span> {control.preserved}</p>
+              </div>
               <AlertDialog>
-                <AlertDialogTrigger render={<Button type="button" variant="outline" disabled={pending} className="mt-4 rounded-xl border-red-200 text-red-700 hover:bg-red-50" />}>
-                  <Trash2 className="size-4" />{running ? "Working…" : control.title}
+                <AlertDialogTrigger render={<Button type="button" size="sm" variant="destructive" disabled={pending} />}>
+                  <Trash2 data-icon="inline-start" />
+                  {running ? "Working…" : "Run action"}
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
@@ -104,7 +117,7 @@ export function DataMaintenance() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </article>
+            </div>
           );
         })}
       </div>
