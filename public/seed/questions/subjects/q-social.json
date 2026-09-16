@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-q-social-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "q-social",
+    "subjectName": "Humanities Readiness",
+    "baseId": 2038000,
+    "levels": ["SS1"],
+    "examModes": ["qualifier"],
+    "concepts": [
+      {"domain":"Society","term":"Culture","definition":"the shared beliefs, practices, values, language, and ways of life of a group of people"},
+      {"domain":"Society","term":"Family","definition":"a social group connected by kinship, marriage, adoption, or enduring care relationships"},
+      {"domain":"Society","term":"Community","definition":"a group of people connected by place, interests, identity, or shared social relationships"},
+      {"domain":"Civics","term":"Government","definition":"the institutions and processes through which authority is exercised and public affairs are managed"},
+      {"domain":"Civics","term":"Citizenship","definition":"legal membership of a state together with corresponding rights and responsibilities"},
+      {"domain":"History","term":"History","definition":"the study and interpretation of past human events using evidence"},
+      {"domain":"Geography","term":"Map","definition":"a scaled representation of all or part of the earth's surface using symbols"},
+      {"domain":"Environment","term":"Environment","definition":"the natural and human-made surroundings that influence living things and human activity"},
+      {"domain":"Social Skills","term":"Cooperation","definition":"working together toward a shared goal or mutual benefit"},
+      {"domain":"Social Skills","term":"Conflict resolution","definition":"the process of addressing disagreement through communication and peaceful problem-solving"}
+    ]
+  }
+}
