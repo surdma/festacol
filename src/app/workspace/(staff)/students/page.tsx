@@ -10,7 +10,7 @@ import {
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
 import { StudentDirectoryTable, type StudentDirectoryTableRow } from "@/components/admin/member-directory-tables";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { currentStaff } from "@/lib/auth/staff";
 import { listClasses, listUsers } from "@/lib/supabase/queries";
@@ -126,7 +126,16 @@ export default async function AdminStudentsPage({
 
   return (
     <div>
-      <AdminPageHeader eyebrow="Directory" title="Students" description="A relational academic directory with current placement, guardian contact, performance, integrity and progression context." actions={<Button render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>} />
+      <AdminPageHeader
+        eyebrow="Directory"
+        title="Students"
+        description="A relational academic directory with current placement, guardian contact, performance, integrity and progression context."
+        actions={
+          <Link href="/workspace/students?modal=user-new&role=student" className={adminPrimaryButtonClass}>
+            <Plus data-icon="inline-start" />Add student
+          </Link>
+        }
+      />
 
       <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <AdminSearchForm query={q} placeholder="Search name or Student ID (FST-XXXXX)" hidden={{ status: filterState.status, level: filterState.level, field: filterState.field, class: filterState.class, performance: filterState.performance, placement: placementOnly ? "pending" : undefined }} />
@@ -142,7 +151,10 @@ export default async function AdminStudentsPage({
           <label htmlFor="filter-field" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Field<NativeSelect id="filter-field" name="field" defaultValue={field}><NativeSelectOption value="all">All fields</NativeSelectOption>{fieldOptions.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></label>
           <label htmlFor="filter-class" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Class<NativeSelect id="filter-class" name="class" defaultValue={classFilter}><NativeSelectOption value="all">All classes</NativeSelectOption><NativeSelectOption value="unassigned">Unassigned / placement-pending</NativeSelectOption>{classes.filter((item) => item.status === "active").map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.display_name}</NativeSelectOption>)}</NativeSelect></label>
           <label htmlFor="filter-performance" className="grid gap-1.5 text-xs font-semibold text-muted-foreground">Performance<NativeSelect id="filter-performance" name="performance" defaultValue={performance}><NativeSelectOption value="all">Any performance</NativeSelectOption><NativeSelectOption value="high">70% and above</NativeSelectOption><NativeSelectOption value="mid">50–69%</NativeSelectOption><NativeSelectOption value="support">Below 50%</NativeSelectOption><NativeSelectOption value="none">No submitted exam</NativeSelectOption></NativeSelect></label>
-          <div className="flex gap-2"><Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>{hasFilters ? <Button variant="outline" render={<Link href="/workspace/students" />} className={adminSecondaryButtonClass}>Reset</Button> : null}</div>
+          <div className="flex gap-2">
+            <Button type="submit" className={adminPrimaryButtonClass}>Apply</Button>
+            {hasFilters ? <Link href="/workspace/students" className={adminSecondaryButtonClass}>Reset</Link> : null}
+          </div>
         </form>
       </section>
 
@@ -155,8 +167,8 @@ export default async function AdminStudentsPage({
             title={hasFilters ? "No matching students" : "No students yet"}
             description={hasFilters ? "Change the current academic, status or performance filters." : "Add the first student to begin building the academic directory."}
             action={hasFilters
-              ? <Button size="sm" variant="outline" render={<Link href="/workspace/students" />}>Clear filters</Button>
-              : <Button size="sm" render={<Link href="/workspace/students?modal=user-new&role=student" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Button>}
+              ? <Link href="/workspace/students" className={buttonVariants({ size: "sm", variant: "outline" })}>Clear filters</Link>
+              : <Link href="/workspace/students?modal=user-new&role=student" className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />Add student</Link>}
           />
         </section>
       )}
