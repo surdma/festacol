@@ -6,7 +6,6 @@ import {
   adminSecondaryButtonClass,
   adminSurfaceClass,
 } from "@/components/admin/admin-ui";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { currentStaff } from "@/lib/auth/staff";
 import { listClasses } from "@/lib/supabase/queries";
@@ -88,8 +87,8 @@ export default async function AdminClassesPage() {
         title="Classes & communication"
         description="Each class belongs to an academic level and one of the Science, Humanities or Business fields. Subject participation is configured independently through class subject offerings."
         actions={scope.isAdmin ? <>
-          <Button render={<Link href="/workspace/classes?modal=class-new" />} className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New class</Button>
-          <Button render={<Link href="/workspace/classes?modal=whatsapp-new" />} variant="outline" className={adminSecondaryButtonClass}><QrCode data-icon="inline-start" />Connect WhatsApp</Button>
+          <Link href="/workspace/classes?modal=class-new" className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New class</Link>
+          <Link href="/workspace/classes?modal=whatsapp-new" className={adminSecondaryButtonClass}><QrCode data-icon="inline-start" />Connect WhatsApp</Link>
         </> : null}
       />
 
