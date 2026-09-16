@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { seedSubjectCatalogFromFixtureAction, syncQuestionBankFromFixtureAction } from "@/app/actions/question-bank";
 import { currentStaff } from "@/lib/auth/staff";
-import { QUESTION_FIXTURE_FILES, QUESTION_FIXTURE_SCHEMA_VERSION } from "@/lib/fixture-sources";
+import { loadQuestionBankFixture } from "@/lib/question-fixture-loader";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type SchoolDataSource = "subjects" | "academic-structure" | "question-bank";
@@ -54,12 +54,6 @@ interface ClassFixture {
   }[];
 }
 
-interface QuestionFixture {
-  schemaVersion: number;
-  questionSetId?: string;
-  questions: unknown[];
-}
-
 const TRACK_DB: Record<Track, "science" | "humanities" | "business"> = {
   SCIENCE: "science",
   HUMANITIES: "humanities",
@@ -98,24 +92,18 @@ async function loadClassFixture(): Promise<ClassFixture> {
 export async function getSchoolDataManifestAction(): Promise<SchoolDataManifestItem[]> {
   await requireAdministrator();
 
-  const [subjects, classes, ...questionFixtures] = await Promise.all([
+  const [subjects, classes, questionBank] = await Promise.all([
     loadJson<SubjectFixture>("subjects.json"),
     loadClassFixture(),
-    ...QUESTION_FIXTURE_FILES.map((file) => loadJson<QuestionFixture>(file)),
+    loadQuestionBankFixture(),
   ]);
 
   if (subjects.schemaVersion !== 5 || !subjects.subjects?.length || !subjects.fixtureId) {
     throw new Error("The prepared subject fixture is unavailable or unsupported.");
   }
-  for (const [index, fixture] of questionFixtures.entries()) {
-    if (fixture.schemaVersion !== QUESTION_FIXTURE_SCHEMA_VERSION || !Array.isArray(fixture.questions)) {
-      throw new Error(`Unsupported question fixture ${QUESTION_FIXTURE_FILES[index]}.`);
-    }
-  }
 
   const offeringCount = classes.classes.reduce((total, item) => total + item.offerings.length, 0);
-  const questionCount = questionFixtures.reduce((total, fixture) => total + fixture.questions.length, 0);
-  const baseQuestionId = questionFixtures[0]?.questionSetId ?? "festacol-question-bank";
+  const baseQuestionId = questionBank.questionSetId ?? "festacol-question-bank";
 
   return [
     {
@@ -147,12 +135,12 @@ export async function getSchoolDataManifestAction(): Promise<SchoolDataManifestI
     {
       source: "question-bank",
       title: "Question bank",
-      description: "The answer-aware senior-secondary bank plus six qualifier subject supplements loaded as one logical source.",
-      schemaVersion: QUESTION_FIXTURE_SCHEMA_VERSION,
+      description: "The answer-aware senior-secondary and qualifier bank, including one discoverable baseline fixture per active subject.",
+      schemaVersion: questionBank.schemaVersion,
       identifier: baseQuestionId,
-      files: QUESTION_FIXTURE_FILES.map((file) => `public/seed/${file}`),
-      bundledRecords: questionCount,
-      detail: `${QUESTION_FIXTURE_FILES.length} JSON files · senior and qualifier inventory`,
+      files: questionBank.files.map((file) => `public/seed/${file}`),
+      bundledRecords: questionBank.questions.length,
+      detail: `${questionBank.files.length} JSON files · senior and qualifier inventory`,
       dependsOn: ["subjects", "academic-structure"],
       affects: ["questions", "question_academic_levels", "question_blanks"],
       safeguard: "Fixture rows use creator_id = null; a staff-authored question with a matching id blocks replacement instead of being overwritten.",
