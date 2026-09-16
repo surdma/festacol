@@ -2,16 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
-import { signInLinkedStudent } from "@/app/actions/student";
 import { currentStudent } from "@/lib/auth/current-student";
-import {
-  provisionNewStudentAccount,
-  resolveExistingStudentIdentity,
-} from "@/lib/auth/student";
 import { normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { studentLoginSchema } from "@/lib/validation";
 
 export type ExamOnboardingNext = "configure" | "exam" | "dashboard";
 
@@ -27,12 +21,6 @@ export interface ExamEntryContext {
 export type ExamEntryContextResult =
   | { ok: true; exam: ExamEntryContext }
   | { ok: false; error: string };
-
-export interface BeginExamOnboardingResult extends ActionResult {
-  next?: ExamOnboardingNext;
-  studentNumber?: string | null;
-  provisioned?: boolean;
-}
 
 export interface ExamOnboardingLevel {
   id: string;
@@ -99,10 +87,6 @@ interface ClassRow {
   level_id: string;
   track: string;
   arm: string;
-}
-
-function collapseName(value: string) {
-  return value.trim().replace(/\s+/g, " ");
 }
 
 function accessMessage(reason: string | null | undefined) {
@@ -256,74 +240,6 @@ async function normalExamOutcome(sessionId: string): Promise<CompleteExamOnboard
 
 export async function getExamEntryContextAction(token: string): Promise<ExamEntryContextResult> {
   return loadExamEntryContext(token);
-}
-
-export async function beginExamOnboardingAction(input: {
-  token: string;
-  firstName: string;
-  lastName: string;
-}): Promise<BeginExamOnboardingResult> {
-  const parsed = studentLoginSchema.safeParse({ firstName: input.firstName, lastName: input.lastName });
-  if (!parsed.success) return { ok: false, error: "Enter first and last name." };
-  const entry = await loadExamEntryContext(input.token);
-  if (!entry.ok) return entry;
-
-  const supabase = await createSupabaseServerClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (auth.user) {
-    const { data: signedInMember } = await supabase
-      .from("school_members")
-      .select("role")
-      .eq("auth_user_id", auth.user.id)
-      .eq("status", "active")
-      .maybeSingle();
-    const role = (signedInMember as { role?: string } | null)?.role;
-    if (role === "teacher" || role === "administrator") {
-      return { ok: false, error: "You are signed in with a staff account. Sign out before entering an exam as a student." };
-    }
-  }
-
-  const firstName = collapseName(parsed.data.firstName);
-  const lastName = collapseName(parsed.data.lastName);
-  let provisioned = false;
-  let member: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>;
-
-  try {
-    member = await resolveExistingStudentIdentity(firstName, lastName);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Student sign-in failed.";
-    if (!message.startsWith("No active student record matches")) return { ok: false, error: message };
-    try {
-      member = await provisionNewStudentAccount(firstName, lastName);
-      provisioned = true;
-    } catch (provisionError) {
-      return {
-        ok: false,
-        error: provisionError instanceof Error ? provisionError.message : "Student sign-in failed.",
-      };
-    }
-  }
-
-  const admin = createSupabaseAdminClient();
-  const { data: accessRow } = await admin
-    .from("exam_student_access")
-    .select("decision")
-    .eq("session_id", entry.exam.id)
-    .eq("student_id", member.memberId)
-    .maybeSingle();
-  if ((accessRow as { decision?: string } | null)?.decision === "deny") {
-    return { ok: false, error: "This examination is not assigned to you." };
-  }
-
-  const signedIn = await signInLinkedStudent(member);
-  if (!signedIn.ok) return signedIn;
-  revalidatePath("/exam");
-  return {
-    ok: true,
-    next: "configure",
-    studentNumber: member.studentNumber,
-    provisioned,
-  };
 }
 
 export async function getExamOnboardingDataAction(token: string): Promise<ExamOnboardingDataResult> {
