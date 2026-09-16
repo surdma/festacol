@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "questionSetId": "festacol-baseline-agric-2026-09",
+  "generator": {
+    "version": 1,
+    "subjectCode": "agric",
+    "subjectName": "Agriculture",
+    "baseId": 2007000,
+    "levels": ["SS1", "SS2", "SS3"],
+    "examModes": ["single", "mixed", "waec", "neco", "jamb"],
+    "concepts": [
+      {"domain":"Soil Science","term":"Soil fertility","definition":"the capacity of soil to supply nutrients and suitable conditions for healthy plant growth"},
+      {"domain":"Crop Production","term":"Crop rotation","definition":"the planned growing of different crops on the same land in a sequence across seasons"},
+      {"domain":"Water Management","term":"Irrigation","definition":"the artificial application of water to soil or crops when rainfall is insufficient"},
+      {"domain":"Animal Production","term":"Livestock","definition":"domesticated farm animals kept for food, labour, income, or other useful products"},
+      {"domain":"Crop Protection","term":"Pest","definition":"an organism that damages crops, livestock, stored products, or farm resources"},
+      {"domain":"Soil Management","term":"Fertilizer","definition":"a natural or manufactured material applied to soil or plants to supply essential nutrients"},
+      {"domain":"Plant Growth","term":"Germination","definition":"the process by which a viable seed begins growth and develops into a seedling"},
+      {"domain":"Farm Business","term":"Farm management","definition":"the planning, organization, and control of farm resources to achieve production goals"},
+      {"domain":"Conservation","term":"Soil erosion","definition":"the removal and transport of topsoil by water, wind, or human activity"},
+      {"domain":"Mechanization","term":"Agricultural mechanization","definition":"the use of machines and mechanical power to carry out farm operations efficiently"}
+    ]
+  }
+}
