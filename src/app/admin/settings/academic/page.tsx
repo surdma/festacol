@@ -1,9 +1,9 @@
-import { ArrowRight, BookOpenCheck, CalendarDays, Database, School } from "lucide-react";
+import { BookOpenCheck, CalendarDays, Database, School } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SubjectsManager } from "@/app/admin/settings/subjects-manager";
 import { AdminPageHeader } from "@/components/admin/admin-ui";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -175,13 +175,9 @@ export default async function AcademicSettingsPage() {
         <Alert className="mt-4">
           <BookOpenCheck />
           <AlertTitle>Curriculum rules are fixture-managed</AlertTitle>
-          <AlertDescription>Use School Data to reload the approved subject curriculum. Class-specific offerings remain managed from Classes.</AlertDescription>
-          <AlertAction>
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/admin/data-library" />}>
-              Open School Data
-              <ArrowRight data-icon="inline-end" />
-            </Button>
-          </AlertAction>
+          <AlertDescription>
+            Use <Link href="/admin/data-library">School Data</Link> to reload the approved subject curriculum. Class-specific offerings remain managed from Classes.
+          </AlertDescription>
         </Alert>
       </section>
 
@@ -192,13 +188,9 @@ export default async function AcademicSettingsPage() {
       <Alert className="mt-6">
         <CalendarDays />
         <AlertTitle>Class offerings are configured separately</AlertTitle>
-        <AlertDescription>Classes combine the active academic year, senior level and study track with concrete subject offerings. Keeping that workflow in Classes avoids duplicate settings state.</AlertDescription>
-        <AlertAction>
-          <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/admin/classes" />}>
-            Open classes
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </AlertAction>
+        <AlertDescription>
+          Classes combine the active academic year, senior level and study track with concrete subject offerings. Keep that workflow in <Link href="/admin/classes">Classes</Link> to avoid duplicate settings state.
+        </AlertDescription>
       </Alert>
     </div>
   );
