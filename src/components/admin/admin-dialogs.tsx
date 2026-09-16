@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StaffScopeDialog } from "@/components/admin/staff-provision-dialog";
 import { ClassAcademicRecordDialog } from "./academic-record-dialogs";
@@ -19,8 +19,16 @@ function Host() {
   const pathname = usePathname();
   const router = useRouter();
   const modal = params.get("modal");
+  const [closingModal, setClosingModal] = useState<string | null>(null);
+
+  useEffect(() => {
+    setClosingModal(null);
+  }, [modal]);
 
   function close() {
+    // Hide the current surface immediately. Query-string cleanup can then run
+    // without making the close animation wait on an App Router navigation.
+    setClosingModal(modal);
     const next = new URLSearchParams(params.toString());
     next.delete("modal");
     for (const key of RECORD_KEYS) next.delete(key);
@@ -29,6 +37,7 @@ function Host() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
+  const activeModal = closingModal === modal ? null : modal;
   const examId = params.get("exam");
   const studentId = params.get("student");
   const staffId = params.get("staff");
@@ -40,23 +49,23 @@ function Host() {
 
   return (
     <>
-      <ExamWizard open={modal === "create-exam"} onClose={close} />
-      {modal === "exam" && examId ? <ExamDetailDialog examId={examId} onClose={close} /> : null}
-      {modal === "exam-edit" && examId ? <ExamEditDialog examId={examId} onClose={close} /> : null}
-      {modal === "student" && studentId ? <StudentDossierDialog userId={studentId} onClose={close} /> : null}
-      {modal === "staff" && staffId ? <UserDetailDialog userId={staffId} onClose={close} /> : null}
-      {modal === "staff-edit" && staffId ? <StaffScopeDialog staffId={staffId} onClose={close} /> : null}
-      {modal === "attempt" && attemptId ? <AttemptDetailDialog attemptId={attemptId} onClose={close} /> : null}
-      {modal === "question" && questionId ? <QuestionDetailDialog questionId={Number(questionId)} onClose={close} /> : null}
-      {modal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
-      {modal === "user-new" ? newUserRole === "student" ? <StudentFormDialog open onClose={close} /> : <UserFormDialog open presetRole={newUserRole} onClose={close} /> : null}
-      {modal === "user-edit" && studentId ? <StudentFormDialog open userId={studentId} onClose={close} /> : null}
-      {modal === "class-new" ? <ClassFormDialog open onClose={close} /> : null}
-      {modal === "class-edit" && classId ? <ClassFormDialog open classId={classId} onClose={close} /> : null}
-      {modal === "question-new" ? <QuestionFormDialog open onClose={close} /> : null}
-      {modal === "question-edit" && questionId ? <QuestionFormDialog open questionId={Number(questionId)} onClose={close} /> : null}
-      {modal === "whatsapp-new" ? <WhatsappFormDialog open classId={classId ?? undefined} onClose={close} /> : null}
-      {modal === "whatsapp-edit" && groupId ? <WhatsappFormDialog open classId={classId ?? undefined} groupId={groupId} onClose={close} /> : null}
+      <ExamWizard open={activeModal === "create-exam"} onClose={close} />
+      {activeModal === "exam" && examId ? <ExamDetailDialog examId={examId} onClose={close} /> : null}
+      {activeModal === "exam-edit" && examId ? <ExamEditDialog examId={examId} onClose={close} /> : null}
+      {activeModal === "student" && studentId ? <StudentDossierDialog userId={studentId} onClose={close} /> : null}
+      {activeModal === "staff" && staffId ? <UserDetailDialog userId={staffId} onClose={close} /> : null}
+      {activeModal === "staff-edit" && staffId ? <StaffScopeDialog staffId={staffId} onClose={close} /> : null}
+      {activeModal === "attempt" && attemptId ? <AttemptDetailDialog attemptId={attemptId} onClose={close} /> : null}
+      {activeModal === "question" && questionId ? <QuestionDetailDialog questionId={Number(questionId)} onClose={close} /> : null}
+      {activeModal === "class" && classId ? <ClassAcademicRecordDialog classId={classId} onClose={close} /> : null}
+      {activeModal === "user-new" ? newUserRole === "student" ? <StudentFormDialog open onClose={close} /> : <UserFormDialog open presetRole={newUserRole} onClose={close} /> : null}
+      {activeModal === "user-edit" && studentId ? <StudentFormDialog open userId={studentId} onClose={close} /> : null}
+      {activeModal === "class-new" ? <ClassFormDialog open onClose={close} /> : null}
+      {activeModal === "class-edit" && classId ? <ClassFormDialog open classId={classId} onClose={close} /> : null}
+      {activeModal === "question-new" ? <QuestionFormDialog open onClose={close} /> : null}
+      {activeModal === "question-edit" && questionId ? <QuestionFormDialog open questionId={Number(questionId)} onClose={close} /> : null}
+      {activeModal === "whatsapp-new" ? <WhatsappFormDialog open classId={classId ?? undefined} onClose={close} /> : null}
+      {activeModal === "whatsapp-edit" && groupId ? <WhatsappFormDialog open classId={classId ?? undefined} groupId={groupId} onClose={close} /> : null}
     </>
   );
 }
