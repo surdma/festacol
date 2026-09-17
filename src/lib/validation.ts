@@ -5,6 +5,26 @@ export const studentLoginSchema = z.object({
   lastName: z.string().trim().min(2, "Enter the student last name.").max(40),
 });
 
+export const examHelpRequestSchema = z.object({
+  token: z.string().trim().min(32, "A valid examination link is required.").max(96),
+  requesterName: z
+    .string()
+    .trim()
+    .min(2, "Enter the candidate name.")
+    .max(80, "Candidate name is too long."),
+  category: z.enum([
+    "examination_access",
+    "candidate_identity",
+    "device_browser",
+    "other_examination_support",
+  ]),
+  message: z
+    .string()
+    .trim()
+    .min(6, "Describe the examination support you need.")
+    .max(500, "Keep the support message within 500 characters."),
+});
+
 export const examIdSchema = z.object({
   examId: z.string().trim().min(3, "Enter a valid Exam ID.").max(32),
 });
@@ -22,3 +42,4 @@ export const examCreateSchema = z.object({
 });
 
 export type StudentLoginInput = z.infer<typeof studentLoginSchema>;
+export type ExamHelpRequestCategory = z.infer<typeof examHelpRequestSchema>["category"];
