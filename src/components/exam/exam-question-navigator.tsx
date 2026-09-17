@@ -91,7 +91,12 @@ export function ExamQuestionNavigator({
                     type="button"
                     variant="outline"
                     size="icon-lg"
-                    onClick={() => onJump(index)}
+                    onClick={(event) => {
+                      onJump(index);
+                      const sheet = event.currentTarget.closest('[data-slot="sheet-content"]');
+                      const closeButton = sheet?.querySelector<HTMLButtonElement>('[data-slot="sheet-close"]');
+                      closeButton?.click();
+                    }}
                     aria-current={current ? "step" : undefined}
                     aria-label={label}
                     className={cn(
