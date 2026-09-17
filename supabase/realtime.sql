@@ -320,6 +320,47 @@ ON public.exam_attempts
 FOR EACH ROW
 EXECUTE FUNCTION private.broadcast_exam_attempt_lifecycle();
 
+-- Candidate support requests are durable rows. Broadcast only to the staff member who
+-- created the examination; the bell can reconstruct the same message from the durable row.
+CREATE OR REPLACE FUNCTION private.broadcast_exam_support_request()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public,private,realtime
+AS $$
+DECLARE
+  v_session_title text;
+BEGIN
+  SELECT e.title INTO v_session_title
+  FROM public.exam_sessions e
+  WHERE e.id = NEW.session_id;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'eventId', 'support:' || NEW.id::text,
+      'requestId', NEW.id,
+      'sessionId', NEW.session_id,
+      'sessionTitle', coalesce(v_session_title, 'Examination'),
+      'requesterName', NEW.requester_name,
+      'category', NEW.category,
+      'message', NEW.message,
+      'createdAt', NEW.created_at
+    ),
+    'exam_help_requested',
+    'staff:' || NEW.recipient_staff_id::text || ':exam',
+    true
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS exam_support_request_realtime_notify ON public.exam_support_requests;
+CREATE TRIGGER exam_support_request_realtime_notify
+AFTER INSERT ON public.exam_support_requests
+FOR EACH ROW
+EXECUTE FUNCTION private.broadcast_exam_support_request();
+
 -- ---------------------------------------------------------------- authorization
 -- Supabase owns realtime.messages and already enables RLS on it. Only policies are managed here.
 DROP POLICY IF EXISTS festacol_realtime_receive ON realtime.messages;
