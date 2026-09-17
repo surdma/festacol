@@ -254,7 +254,13 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
     percent: item.total ? Math.round((item.correct / item.total) * 100) : 0,
   }));
 
-  const canReviewAnswers = answersMayBeRevealed(runtime.session, effectiveStatus(runtime.session));
+  const currentStatus = effectiveStatus(runtime.session);
+  const canReviewAnswers = currentStatus === "draft"
+    || currentStatus === "open"
+    || currentStatus === "closed"
+    || currentStatus === "scheduled"
+    ? answersMayBeRevealed(runtime.session, currentStatus)
+    : false;
   let review: ExamResultReviewItem[] = [];
   if (canReviewAnswers && paper.length) {
     const questionIds = paper.map((question) => question.id);
