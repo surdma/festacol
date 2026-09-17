@@ -131,13 +131,32 @@ Candidate-facing result and analytics surfaces return/show only aggregate server
 
 Trusted server persistence may retain grading details for staff/audit operations, protected by the existing RLS/service-role boundary.
 
+## Server-authoritative attempt time
+
+A manipulated browser must not be able to extend the examination or influence timing-derived metrics.
+
+The production contract therefore treats attempt time as server-owned:
+
+- the deadline is derived from persisted `started_at + durationSeconds`, capped by the configured session `endsAt`;
+- candidate save payloads contain responses, position, question timings and flags only — never authoritative remaining/elapsed time;
+- every save returns the trusted server clock so the UI may only reconcile its displayed timer downward;
+- server grading uses server-derived elapsed time for pace/reasoning/placement inputs;
+- response/question IDs are checked against the immutable allocated `question_ids`;
+- response payload size and save shape are validated at the Server Action boundary;
+- direct authenticated Data API writes to `exam_attempts` runtime fields and `exam_attempt_responses` are revoked;
+- trusted Server Actions perform those writes with the service role only after current-student ownership, paper-membership and expiry checks;
+- saves beyond the small final-network grace window are rejected and the attempt proceeds to server finalization;
+- paper restore uses conditional active-attempt writes so a concurrent submission cannot reopen a stale writable paper.
+
+This RLS hardening is additive policy/security work only; it requires no Prisma schema migration and does not expose any new candidate data.
+
 ## Runtime behavior preserved
 
 Focus Capsule keeps the established exam state machine and server authority:
 
 - allocation / resume through `allocate_my_exam_attempt`;
 - immutable question IDs for resumed attempts;
-- server-reconciled remaining time;
+- server-authoritative remaining/elapsed time derived from attempt start and session deadline;
 - local response continuity while offline;
 - debounced autosave plus periodic forced save;
 - forced save on background transition;
@@ -199,12 +218,15 @@ Primary production changes:
 - `src/components/exam/exam-camera-panel.tsx` — compact capsule camera variant;
 - `src/types/exam.ts` — explicit `ExamPaperQuestionDTO` security boundary;
 - `src/lib/questions.ts` — explicit paper allow-list projection;
-- `src/app/actions/exam-state.ts` — safe paper action contract; server grading remains authoritative;
+- `src/app/actions/exam-state.ts` — safe paper contract, validated server-authoritative progress writes and server-only grading;
 - `src/app/actions/exam-experience.ts` — aggregate candidate result only; no answer-key payload;
 - `src/components/exam/exam-results.tsx` — aggregate result presentation only;
+- `supabase/rls.sql` — removes direct candidate attempt/response mutation while preserving open-attempt response reads;
+- `scripts/validate-exam-client-boundary.mjs` — guards answer-key, clock-authority and direct-write boundaries;
+- `.github/workflows/nextjs-quality.yml` — verifies the effective Postgres privilege/policy boundary;
 - `src/app/dashboard/analytics/page.tsx` — aggregate analytics only; no correct-answer rendering.
 
-No schema, migration or RPC signature change is required.
+No Prisma schema migration or RPC signature change is required. The Supabase RLS/grant contract is tightened so exam mutation remains server-owned.
 
 ## Validation gate
 

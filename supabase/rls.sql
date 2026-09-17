@@ -77,21 +77,21 @@ GRANT SELECT ON public.exam_sessions,public.exam_class_targets,public.exam_offer
   public.exam_staff_assignments,public.exam_student_access,public.exam_retake_grants,
   public.exam_attempts TO authenticated;
 
--- Candidate runtime state lives directly on exam_attempts. Students can update
--- only transient runtime columns while an attempt is open.
-GRANT UPDATE(
+-- Candidate attempt/runtime mutation is server-owned. Revoke legacy direct
+-- browser writes so a modified client cannot extend time, rewrite the allocated
+-- paper, or submit response changes outside the validated Server Action path.
+REVOKE UPDATE(
   current_index,remaining_seconds,elapsed_active_seconds,last_active_at,
   paper_fingerprint,question_ids,updated_at
-) ON public.exam_attempts TO authenticated;
+) ON public.exam_attempts FROM authenticated;
 
--- Students never receive write privilege for grading fields. After submission,
--- the row-level student SELECT policy also stops exposing response rows so
--- correct_answer cannot leak after server-side grading.
+-- Students may read their ungraded responses while the attempt is open, but
+-- response mutation is also server-owned. This prevents direct Data API writes
+-- from bypassing paper membership and server-authoritative expiry checks.
 GRANT SELECT ON public.exam_attempt_responses TO authenticated;
-GRANT INSERT(attempt_id,question_id,response_text,response_values,seconds,flagged,updated_at)
-  ON public.exam_attempt_responses TO authenticated;
-GRANT UPDATE(response_text,response_values,seconds,flagged,updated_at)
-  ON public.exam_attempt_responses TO authenticated;
+REVOKE INSERT(attempt_id,question_id,response_text,response_values,seconds,flagged,updated_at),
+  UPDATE(response_text,response_values,seconds,flagged,updated_at)
+  ON public.exam_attempt_responses FROM authenticated;
 
 GRANT SELECT,INSERT ON public.exam_integrity_events TO authenticated;
 GRANT USAGE,SELECT ON SEQUENCE public.exam_integrity_events_id_seq TO authenticated;
@@ -247,16 +247,6 @@ CREATE POLICY exam_qr_codes_access_read ON public.exam_qr_codes
 CREATE POLICY exam_attempts_student_read ON public.exam_attempts
   FOR SELECT TO authenticated
   USING (student_id = private.current_school_member_id());
-CREATE POLICY exam_attempts_student_runtime_update ON public.exam_attempts
-  FOR UPDATE TO authenticated
-  USING (
-    student_id = private.current_school_member_id()
-    AND submitted_at IS NULL
-  )
-  WITH CHECK (
-    student_id = private.current_school_member_id()
-    AND submitted_at IS NULL
-  );
 CREATE POLICY exam_attempts_staff_read ON public.exam_attempts
   FOR SELECT TO authenticated
   USING (private.staff_can_access_exam(private.current_school_member_id(),session_id));
@@ -265,41 +255,6 @@ CREATE POLICY attempt_responses_student_read_open ON public.exam_attempt_respons
   FOR SELECT TO authenticated
   USING (
     graded_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.exam_attempts a
-      WHERE a.id = exam_attempt_responses.attempt_id
-        AND a.student_id = private.current_school_member_id()
-        AND a.submitted_at IS NULL
-    )
-  );
-CREATE POLICY attempt_responses_student_insert_open ON public.exam_attempt_responses
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    correct IS NULL
-    AND correct_answer IS NULL
-    AND graded_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.exam_attempts a
-      WHERE a.id = exam_attempt_responses.attempt_id
-        AND a.student_id = private.current_school_member_id()
-        AND a.submitted_at IS NULL
-    )
-  );
-CREATE POLICY attempt_responses_student_update_open ON public.exam_attempt_responses
-  FOR UPDATE TO authenticated
-  USING (
-    graded_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.exam_attempts a
-      WHERE a.id = exam_attempt_responses.attempt_id
-        AND a.student_id = private.current_school_member_id()
-        AND a.submitted_at IS NULL
-    )
-  )
-  WITH CHECK (
-    correct IS NULL
-    AND correct_answer IS NULL
-    AND graded_at IS NULL
     AND EXISTS (
       SELECT 1 FROM public.exam_attempts a
       WHERE a.id = exam_attempt_responses.attempt_id

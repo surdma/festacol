@@ -93,6 +93,21 @@ Candidate result and analytics UI must not render or receive per-question correc
 - utilities may be sticky/absolute but must remain reachable on short viewports;
 - the question capsule stays the dominant central surface.
 
+## Server authority hardening
+
+Focus Capsule must not make the browser authoritative for examination state.
+
+- save payloads never supply trusted `remainingSeconds` or `elapsedActiveSeconds`;
+- the server derives deadline/elapsed from persisted attempt start plus exam duration/session end;
+- server saves validate paper membership, index bounds and payload size;
+- server grading uses the trusted elapsed value;
+- authenticated candidates have no direct UPDATE privilege on attempt runtime fields and no direct INSERT/UPDATE privilege on response rows;
+- the Server Action uses the service role only after ownership and active-attempt checks;
+- saves after expiry/closure cannot introduce late answers;
+- concurrent submitted attempts cannot be reopened by paper restore.
+
+The browser may calculate answered/incomplete/progress presentation state, but it never calculates correctness, score, placement or answer keys.
+
 ## Edge cases
 
 Explicitly preserve or handle:

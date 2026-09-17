@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, CircleAlert, ListChecks, RotateCcw } from "lucide-react";
 import { getExamResultAction } from "@/app/actions/exam-experience";
 import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
-import { getExamPaperAction, saveProgressAction, submitExamAction, type SubmitSummary } from "@/app/actions/exam-state";
+import { getExamPaperAction, saveProgressAction, submitExamAction, type SaveProgressResult, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { ExamPreflight } from "@/components/exam/exam-preflight";
 import { ExamResults } from "@/components/exam/exam-results";
@@ -20,7 +20,7 @@ import type { ExamExperienceContext, ExamPaperQuestionDTO, ExamResultSummary } f
 type Q = ExamPaperQuestionDTO;
 type Phase = "preflight" | "loading" | "load-failed" | "exam" | "processing" | "submission-failed" | "submitted" | "locked";
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
-type PersistResult = { ok: true } | { ok: false; error: string };
+type PersistResult = SaveProgressResult;
 
 type BackgroundSnapshot = {
   hiddenAt: number;
@@ -124,17 +124,27 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     setSyncStatus(typeof navigator !== "undefined" && navigator.onLine ? "pending" : "offline");
   }, []);
 
-  const persist = useCallback(async (nextRemaining: number, force = false): Promise<PersistResult> => {
+  const persist = useCallback(async (force = false): Promise<PersistResult> => {
     const pendingSave = saveInFlightRef.current;
     if (pendingSave) {
       const pendingResult = await pendingSave;
       if (!pendingResult.ok) return pendingResult;
       if (!force && lastSavedVersionRef.current === dirtyVersionRef.current) return pendingResult;
     }
-    if (!force && lastSavedVersionRef.current === dirtyVersionRef.current) return { ok: true };
+    if (!force && lastSavedVersionRef.current === dirtyVersionRef.current) {
+      return {
+        ok: true,
+        remainingSeconds: remainingRef.current,
+        elapsedActiveSeconds: elapsedRef.current,
+      };
+    }
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setSyncStatus("offline");
-      return { ok: false, error: "You are offline. Keep this exam open while Festacol waits to reconnect." };
+      return {
+        ok: false,
+        code: "unavailable",
+        error: "You are offline. Keep this exam open while Festacol waits to reconnect.",
+      };
     }
 
     captureTiming();
@@ -147,15 +157,21 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
           responses: state.responses,
           currentIndex: state.index,
           questionTimings: timingsRef.current,
-          remainingSeconds: Math.max(0, Math.round(nextRemaining)),
-          elapsedActiveSeconds: Math.max(0, elapsedRef.current),
           flagged: state.flagged,
         });
         if (!result.ok) {
-          setSyncStatus("error");
+          setSyncStatus(result.code === "expired" ? "pending" : "error");
           setSaveError(result.error);
           return result;
         }
+
+        // The server clock is authoritative. The browser may only move its
+        // displayed timer downward to the trusted value returned by the save.
+        const authoritativeRemaining = Math.min(remainingRef.current, result.remainingSeconds);
+        remainingRef.current = authoritativeRemaining;
+        setRemaining(authoritativeRemaining);
+        elapsedRef.current = result.elapsedActiveSeconds;
+
         lastSavedVersionRef.current = version;
         if (dirtyVersionRef.current === version) {
           setSyncStatus("saved");
@@ -163,12 +179,12 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         } else {
           setSyncStatus("pending");
         }
-        return { ok: true };
+        return result;
       } catch {
         const message = "Your progress could not reach the examination service. Keep this exam open and retry when the connection returns.";
         setSyncStatus(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
         setSaveError(message);
-        return { ok: false, error: message };
+        return { ok: false, code: "unavailable", error: message };
       }
     })();
     saveInFlightRef.current = operation;
@@ -248,16 +264,22 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     captureTiming("");
 
     try {
-      const saved = await persist(reason === "time-expired" ? 0 : remainingRef.current, true);
+      const saved = await persist(true);
+      let submissionReason = reason;
       if (!saved.ok) {
-        setProcessingError(reason === "time-expired"
-          ? "Time has ended, but Festacol cannot reach the examination service. Reconnect and retry final submission without closing this page."
-          : saved.error);
-        setPhase("submission-failed");
-        return;
+        if (saved.code === "expired") {
+          submissionReason = "time-expired";
+          setProcessingReason("time-expired");
+        } else {
+          setProcessingError(reason === "time-expired"
+            ? "Time has ended, but Festacol cannot reach the examination service. Reconnect and retry final submission without closing this page."
+            : saved.error);
+          setPhase("submission-failed");
+          return;
+        }
       }
 
-      const result = await submitExamAction(session.id, reason);
+      const result = await submitExamAction(session.id, submissionReason);
       if (!result.ok || !result.summary) {
         if (result.error?.toLocaleLowerCase("en").includes("already submitted")) {
           const recovered = await fetchRichResult();
@@ -315,7 +337,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     };
     const onOnline = () => {
       setOnline(true);
-      if (timerActive && !document.hidden) void persist(remainingRef.current, true);
+      if (timerActive && !document.hidden) void persist(true);
     };
     const onOffline = () => {
       setOnline(false);
@@ -338,7 +360,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   useEffect(() => {
     if (!timerActive || dirtyTick === 0) return;
     const timeout = window.setTimeout(() => {
-      if (!document.hidden) void persist(remainingRef.current);
+      if (!document.hidden) void persist();
     }, 1200);
     return () => window.clearTimeout(timeout);
   }, [dirtyTick, persist, timerActive]);
@@ -346,7 +368,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   useEffect(() => {
     if (!timerActive) return;
     const interval = window.setInterval(() => {
-      if (!document.hidden) void persist(remainingRef.current, true);
+      if (!document.hidden) void persist(true);
     }, 10_000);
     return () => window.clearInterval(interval);
   }, [persist, timerActive]);
@@ -367,7 +389,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
           questionId,
           questionSeconds: questionId ? timingsRef.current[questionId] ?? 0 : 0,
         };
-        void persist(remainingRef.current, true);
+        void persist(true);
         return;
       }
 
@@ -386,7 +408,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         activeTimingRef.current = { qid: snapshot.questionId, since: Date.now() };
       }
       recordIntegrity("background-resume-reconciled", `${Math.round(wallSeconds)}s counted while away`);
-      if (reconciledRemaining > 0) void persist(reconciledRemaining, true);
+      if (reconciledRemaining > 0) void persist(true);
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);

@@ -85,15 +85,66 @@ if (!stateAction.includes("scoreAttempt")) {
   violations.push("src/app/actions/exam-state.ts: expected server-side grading path is missing");
 }
 
+for (const token of ["patch.remainingSeconds", "patch.elapsedActiveSeconds"]) {
+  if (stateAction.includes(token)) {
+    violations.push(`src/app/actions/exam-state.ts: browser-controlled clock token remains ${JSON.stringify(token)}`);
+  }
+}
+for (const required of [
+  "authoritativeAttemptClock",
+  "progressPatchSchema",
+  "submitReasonSchema",
+  'admin.from("exam_attempts").update',
+  'admin.from("exam_attempt_responses")',
+]) {
+  if (!stateAction.includes(required)) {
+    violations.push(`src/app/actions/exam-state.ts: trusted exam-state boundary is missing ${JSON.stringify(required)}`);
+  }
+}
+
+const workspace = await source("src/components/exam/exam-workspace.tsx");
+for (const token of ["remainingSeconds: Math.max", "elapsedActiveSeconds: Math.max"]) {
+  if (workspace.includes(token)) {
+    violations.push(`src/components/exam/exam-workspace.tsx: candidate save payload still supplies authoritative clock field ${JSON.stringify(token)}`);
+  }
+}
+
 const rls = await source("supabase/rls.sql");
 for (const required of [
-  "correct IS NULL",
-  "correct_answer IS NULL",
-  "graded_at IS NULL",
   "attempt_responses_student_read_open",
+  "REVOKE UPDATE(",
+  "ON public.exam_attempts FROM authenticated",
+  "REVOKE INSERT(attempt_id,question_id,response_text,response_values,seconds,flagged,updated_at)",
+  "ON public.exam_attempt_responses FROM authenticated",
+  "questions_staff_read",
+  "question_levels_staff_read",
+  "question_blanks_staff_read",
 ]) {
   if (!rls.includes(required)) {
-    violations.push(`supabase/rls.sql: candidate response grading boundary is missing ${JSON.stringify(required)}`);
+    violations.push(`supabase/rls.sql: candidate data boundary is missing ${JSON.stringify(required)}`);
+  }
+}
+for (const forbidden of [
+  "exam_attempts_student_runtime_update",
+  "attempt_responses_student_insert_open",
+  "attempt_responses_student_update_open",
+  "questions_student_read",
+  "question_levels_student_read",
+  "question_blanks_student_read",
+]) {
+  if (rls.includes(forbidden)) {
+    violations.push(`supabase/rls.sql: direct candidate mutation/answer-key policy remains ${JSON.stringify(forbidden)}`);
+  }
+}
+
+const questionPolicyStart = rls.indexOf("-- ------------------------------------------------------------- question bank");
+const questionPolicyEnd = rls.indexOf("-- --------------------------------------------------------------- communication", questionPolicyStart);
+if (questionPolicyStart < 0 || questionPolicyEnd < 0) {
+  violations.push("supabase/rls.sql: question-bank policy boundary is missing");
+} else {
+  const questionPolicies = rls.slice(questionPolicyStart, questionPolicyEnd);
+  if (/student_is_targeted_for_exam|student_read/iu.test(questionPolicies)) {
+    violations.push("supabase/rls.sql: student-readable question-bank policy would expose answer-bearing rows");
   }
 }
 

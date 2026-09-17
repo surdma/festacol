@@ -169,6 +169,24 @@ jobs:
             if to_regclass('public.exam_support_requests') is null then raise exception 'exam_support_requests_missing'; end if;
             if not exists (select 1 from pg_class where oid='public.exam_support_requests'::regclass and relrowsecurity) then raise exception 'exam_support_requests_rls_missing'; end if;
             if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_responses') then raise exception 'attempt_response_rls_missing'; end if;
+            if has_column_privilege('authenticated','public.exam_attempts','remaining_seconds','UPDATE')
+              or has_column_privilege('authenticated','public.exam_attempts','elapsed_active_seconds','UPDATE')
+              or has_column_privilege('authenticated','public.exam_attempts','last_active_at','UPDATE')
+              or has_column_privilege('authenticated','public.exam_attempts','paper_fingerprint','UPDATE')
+              or has_column_privilege('authenticated','public.exam_attempts','question_ids','UPDATE')
+            then raise exception 'candidate_attempt_runtime_write_privilege_present'; end if;
+            if has_column_privilege('authenticated','public.exam_attempt_responses','attempt_id','INSERT')
+              or has_column_privilege('authenticated','public.exam_attempt_responses','response_text','UPDATE')
+            then raise exception 'candidate_response_direct_write_privilege_present'; end if;
+            if exists (
+              select 1 from pg_policies
+              where schemaname='public'
+                and policyname in (
+                  'exam_attempts_student_runtime_update',
+                  'attempt_responses_student_insert_open',
+                  'attempt_responses_student_update_open'
+                )
+            ) then raise exception 'candidate_direct_write_policy_present'; end if;
             if not exists (select 1 from pg_policies where schemaname='realtime' and tablename='messages' and policyname='festacol_realtime_receive') then raise exception 'realtime_receive_policy_missing'; end if;
             if not exists (select 1 from pg_policies where schemaname='realtime' and tablename='messages' and policyname='festacol_realtime_presence_track') then raise exception 'realtime_presence_policy_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_attempt_retake_source_link' and not tgisinternal) then raise exception 'retake_source_link_trigger_missing'; end if;
