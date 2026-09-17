@@ -1,201 +1,218 @@
 # Phase 03 — Write Examination
 
 Date: 2026-09-17
-Status: PLANNED — seven-option wireframe selection gate
+Status: PLANNED — dense seven-option wireframe selection gate
 Target PR: #18
 Planning owner: `festacol-planner`
 Production owner after selection: `festacol-frontend-engineer`
 
-## Product decision
+## Product direction
 
-Phase 03 begins only after Phase 02 **Ready to Write** hands the candidate into an allocated/restored examination paper.
+The first Phase 03 board was intentionally discarded after product-owner review. It was too sparse for a real computer-based examination workspace and underrepresented the information density required during an active examination.
 
-This phase is the actual writing environment. Its design goal is not to expose application mechanics; it is to keep the candidate oriented around three things:
+The replacement board must show a **complete examination workstation on every concept page**. The student should be able to understand the current question, their progress, remaining time, candidate/exam identity, save/network condition, camera state when required, and all navigation/review controls from one coherent workspace.
 
-1. the current question;
-2. the remaining examination time;
-3. a safe way to move, answer, flag and recover progress.
-
-The question must remain the visual priority. Timer, save state, camera state and navigation are supporting instruments, not competing dashboards.
+Density is intentional. The constraint is not “minimal UI”; it is **high information density without generic dashboard/card composition**.
 
 ## Verified runtime contract
 
-The current production path is:
+The live path remains:
 
 `ExamWorkspace`
 → `getExamPaperAction`
 → `allocate_my_exam_attempt`
-→ persisted/restored paper state
-→ live `QuestionCard`
-→ autosave through `saveProgressAction`
+→ restored/allocated `ExamStateDTO`
+→ `QuestionCard`
+→ `saveProgressAction`
 → Phase 04 Review & Submit.
 
-Phase 03 planning is constrained by the existing server/runtime behavior rather than a prototype-only data model.
+No Phase 03 wireframe may create new client authority for timing, persistence, access, scoring, placement, retakes, or integrity.
 
-### Real question capabilities
+## Complete examination anatomy
 
-`QuestionDTO` currently supports:
+Every A–G concept must visibly provide placeholders for the following real surfaces.
 
-- `single` — one answer;
-- `multi` — multiple answers, including configured required-selection count;
-- `boolean` — true/false;
-- `fill` — one blank;
-- `fill-multi` — multiple blanks.
+### Candidate and exam identity
 
-Question content can also contain:
+- examination title;
+- examination mode;
+- academic session and term;
+- subject / mixed-subject context;
+- candidate full name;
+- student number when present;
+- class label;
+- active-attempt state.
 
-- a reading passage;
-- a question illustration/media asset with an enlarge action;
-- subject and optional domain metadata;
-- question-specific instruction text.
+### Time and progress
 
-No Phase 03 concept may invent unsupported essay grading, drawing canvases, scratch-work uploads, live chat, AI hints, answer correctness while writing, or other capabilities that are not in the current contract.
+- persistent server-calculated time remaining;
+- question position (`Question N of M`);
+- answered count;
+- unanswered / incomplete count;
+- flagged count;
+- overall progress indicator;
+- subject/section stepper for mixed papers where applicable.
 
-## Existing examination behavior to preserve
+### Question work area
 
-Every selected Phase 03 implementation must preserve:
+- subject;
+- optional domain;
+- question type;
+- question-specific instruction;
+- question prompt;
+- response control;
+- conditional reading-passage region;
+- conditional diagram / media region with enlarge affordance;
+- representative adaptation note for single, multi, true/false, fill and fill-multi questions.
 
-- server-calculated remaining time and automatic expiration;
-- restored active attempts with saved responses/current question/flags/timing;
-- quiet autosave after edits and periodic forced persistence;
-- offline state without destroying the on-screen response;
-- reconciliation of elapsed/remaining time after leaving and returning to the page;
-- flag/unflag current question;
-- clear current response;
-- previous/next navigation;
+### Navigation and response controls
+
+- previous;
+- next;
+- flag/unflag;
+- clear response;
 - direct question jump;
-- answered/incomplete/unanswered/visited/flagged states;
-- mixed-subject grouping where the paper actually contains multiple subjects;
-- configured focus/clipboard integrity recording;
-- required camera monitoring only when `cameraRequired === true`;
-- deliberate transition to Phase 04 Review & Submit;
-- automatic finalization when time reaches zero.
+- full question navigator;
+- navigator filters for all/open/flagged;
+- answered / incomplete / visited / flagged / current legend;
+- explicit Review & Submit handoff.
 
-## Product principles
+### Reliability / integrity instruments
 
-### 1. Question first
+- autosave state;
+- network state;
+- offline/save-failure placeholder;
+- focus-monitoring / clipboard-guard status when configured;
+- fullscreen status when configured;
+- webcam placeholder and live status when `cameraRequired === true`;
+- camera source placeholder when multiple devices exist.
 
-The prompt and answer controls get the strongest visual hierarchy. A candidate should never have to visually search past status panels before reading the question.
+## Webcam requirement
 
-### 2. Time is visible, not alarming by default
+The brainstorm intentionally shows a webcam placeholder on every concept so spatial composition can be evaluated before selection.
 
-The countdown remains persistent and readable. It becomes more urgent only near configured warning thresholds; it must not dominate the page for most of the examination.
+The production rule remains conditional:
 
-### 3. Saving is quiet
+- if `cameraRequired === false`, the entire camera surface disappears;
+- if `cameraRequired === true`, the camera stays visible but secondary to the question;
+- microphone is not requested or represented.
 
-A healthy save state should be subtle. Only offline/error states deserve expanded attention. Do not turn autosave into a constant notification system.
+## Design rules
 
-### 4. Navigation is predictable
+### Dense, not dashboard-like
 
-Previous, Next, Flag and Review must remain findable on phone, tablet and desktop. Direct question jump must be available without permanently sacrificing the question area on small screens.
+A dense exam surface may use one or two cards where the content benefits from containment, especially the question paper or webcam preview. It must not become a dashboard composed of many unrelated rounded cards.
 
-### 5. Conditional monitoring stays peripheral
+Prefer:
 
-If camera monitoring is required, its live status/preview must remain compact and secondary to the paper. If camera is not required, no camera component exists.
+- rails;
+- ruled sections;
+- partitioned asides;
+- strips;
+- instrument bars;
+- paper surfaces;
+- fixed question maps;
+- bottom consoles;
+- chapter/section dividers;
+- flat bordered regions.
 
-### 6. Question types share one examination grammar
+Avoid:
 
-Single choice, multi-select, true/false, fill blanks, passage and media questions should feel like variants of one paper—not six unrelated mini-apps.
+- bento grids;
+- KPI tiles;
+- generic admin cards;
+- repeated rounded panels;
+- decorative gradients;
+- marketing layouts;
+- enormous empty whitespace;
+- giant decorative phase numbers or concept-letter watermarks.
 
-## Phase boundary
+### Question remains primary
 
-Phase 03 includes:
+Density must not demote the question. Prompt and response controls receive the largest usable central region on every desktop concept.
 
-- live question presentation;
-- response entry;
-- question navigation;
-- flag/clear controls;
-- timer/save/connectivity/camera status needed while writing;
-- the action that moves into Review & Submit.
+### Camera stays peripheral
 
-Phase 03 does **not** redesign:
+The webcam can occupy a real persistent placeholder, but it must never be larger or visually louder than the question work area.
 
-- Phase 02 readiness/onboarding;
-- the Phase 04 review screen or final confirmation modal;
-- Phase 05 results;
-- scoring, placement calculation or answer-review policy;
-- staff authoring or exam configuration.
+### Navigation must be visible
 
-## Wireframe comparison gate
+Unlike the first board, every desktop concept must visibly show both:
 
-Before high-fidelity Phase 03 implementation, create exactly seven low-fidelity concepts A–G. They must compare **interaction architecture and spatial composition**, not colors or card styles.
+1. a progress/section stepper; and
+2. a direct question navigator.
 
-### A — Question Paper + Answer Rail
+On small screens these may collapse to a Sheet/Drawer interaction, but the wireframe must indicate where those controls move.
 
-A large examination sheet owns most of the viewport. A thin OMR-inspired vertical rail carries question numbers/status, while timer/save state behave like printed paper marks rather than app widgets.
+## Seven dense spatial architectures
 
-### B — Focus Tunnel
+### A — Three-Zone Exam Desk
 
-Only the current question and its answer choices occupy the main field. Timer/progress becomes a thin beam at the top and the full navigator stays behind an explicit question-index control. Maximum concentration, minimum permanent chrome.
+Left rail: candidate/exam details + section stepper.  
+Center: primary question paper.  
+Right rail: timer/progress + webcam + navigator + Review.
 
-### C — Ledger Spread
+### B — Paper + Instrument Spine
 
-A bound two-page writing spread. Passage/media/context uses the left page when present; the active question and answer controls use the right page. Without passage content, the left page becomes a restrained paper index/subject context rather than empty dashboard space.
+Wide question paper dominates the page. A narrow permanent instrument spine combines timer, save/network, camera and compact navigator. Exam metadata runs in a top strip and question progress runs below the paper.
 
-### D — Desk Stack
+### C — Dual-Aside Command Layout
 
-The current question is the top sheet in a physical stack. Previous/next questions are implied by sheet edges, Flag behaves like a paper clip/tab, and a small examination ticket carries time/save state.
+Left aside: exam map, subjects and progress.  
+Center: question/response paper.  
+Right aside: candidate identity, webcam/integrity, timer and final-review control.
 
-### E — Subject Chapters
+### D — Passage / Diagram Studio
 
-The paper is organized as visible subject/section chapters. A mixed paper exposes chapter bands and per-subject position; a single-subject paper expands one chapter. The current question remains central while the chapter structure explains where the candidate is.
+For context-heavy examinations. Left context pane handles passage/media, center question pane handles response, and a right utility spine carries webcam, timer, progress and navigator. Non-passage questions replace the context pane with exam details and question-type support.
 
-### F — Answer Book Margin
+### E — Navigator-First Cockpit
 
-A ruled examination-book page with a strong numbered margin. Question number, status and flag live in the margin; the prompt and response flow in the main writing column; the bottom margin becomes the compact direct-jump index.
+A visible large question map forms the left edge, the center is the question paper, and the right utility column holds webcam plus candidate/exam facts. A top instrument strip carries timer/save and subject stepper.
 
-### G — Exam Instrument
+### F — Full-Width Paper + Bottom Console
 
-A deliberately utilitarian, keyboard-friendly examination workstation. A narrow instrument strip holds time/save/connectivity, the question occupies the central field, and navigation is expressed as precise controls rather than cards or decorative paper metaphors.
+No permanent sidebars. A dense top identity/instrument strip includes candidate, exam, timer and webcam thumbnail. The question gets full width. Progress stepper, navigator, status legend and navigation controls become a substantial bottom console.
 
-## Anti-generic constraints
+### G — Adaptive Exam Matrix
 
-The seven concepts must not collapse into repeated:
+A structured desktop matrix with a compact candidate/webcam column, large central question region, right navigator column and top/bottom instrument bands. It is the most configurable option but must remain flat and utilitarian rather than card-based.
 
-- dashboard cards;
-- left-content/right-sidebar shells;
-- sticky header + card body + footer bars with only cosmetic variation;
-- repeated rounded containers;
-- identical question layouts with different labels;
-- large camera/status panels competing with the question;
-- dense admin-style metadata.
-
-Each concept should still be recognizable if all text is blurred.
-
-## Wireframe artifact contract
+## Low-fidelity artifact contract
 
 `docs/design/exam/phase-03-write-examination/brainstorm.html` must:
 
 - contain exactly seven concepts A–G;
-- give each concept at least `100dvh`;
-- use vertical `scroll-snap-type: y mandatory` and `scroll-snap-align: start`;
-- include fixed A–G comparison navigation;
-- stay intentionally grayscale/low fidelity;
-- represent the current question, answer controls, timer, save state, flagging, direct navigation and Review transition;
-- annotate passage/media, multi-select/fill, offline, camera-required and active-attempt behavior without turning all of them into permanent panels;
-- remain usable down to 360px and at short desktop viewport heights;
-- preserve visible keyboard focus and approximately 44px primary hit targets;
+- contain **no giant translucent A–G markers, phase numerals or other watermark text**;
+- give every concept at least `100dvh`;
+- use `scroll-snap-type: y mandatory` and `scroll-snap-align: start`;
+- retain a small fixed A–G navigation control;
+- remain grayscale/low fidelity;
+- make every screen dense enough to show the complete exam anatomy above;
+- include a visible webcam placeholder in every concept, annotated as conditional in production;
+- include both a question stepper/progress surface and a direct navigator in every concept;
+- include candidate/exam details in every concept;
+- include a main question surface plus current answer controls;
+- represent passage/media and alternate response-type adaptations;
+- remain usable at 360×640, 375×812, 768×1024, 1280×800 and short desktop heights;
+- preserve visible keyboard focus and ~44px principal targets;
 - honor `prefers-reduced-motion`;
-- contain no production backend simulation and make no production `src/**` changes.
+- use static representative content only and no fake backend logic.
 
 ## Selection gate
 
 Phase 03 production UI remains blocked until the product owner selects **A, B, C, D, E, F, G, or an explicit hybrid**.
 
-After selection, the chosen concept must be re-authored in the current Next.js / React / shadcn Base Nova / Tailwind stack and independently validated against the real `ExamWorkspace` state machine.
+The selected concept must then be re-authored in React/shadcn/Tailwind and mapped to the existing `ExamWorkspace`, `ExamQuestionNavigator`, `QuestionCard`, `ExamCameraPanel`, timer, save and integrity behaviors.
 
-## Acceptance criteria for eventual production implementation
+## Production acceptance criteria after selection
 
-- the question/prompt is the strongest visual object at all target viewports;
-- all current question types render correctly;
-- passage/media questions remain readable without breaking navigation;
-- keyboard operation and focus visibility are preserved;
-- timer remains persistent and legible without unnecessary alarm;
-- healthy autosave is quiet; offline/save failure is actionable;
-- flag, clear, previous, next and direct jump remain discoverable;
-- current/answered/incomplete/visited/flagged states remain understandable;
-- required camera is compact and absent when not configured;
-- active attempt restore does not lose responses, flags, question position or server-calculated time;
-- the Review action clearly hands off to Phase 04;
-- no new client-side authority replaces server persistence, timing or integrity behavior;
-- phone/tablet/desktop and short-viewport browser validation passes before completion is claimed.
+- question remains the primary work surface;
+- every supported question type fits without creating a separate visual product;
+- webcam disappears completely when not configured;
+- dense desktop information does not create inaccessible mobile overflow;
+- timer, progress, save/network, candidate/exam identity and navigator stay discoverable;
+- direct jump, flag, clear, previous, next and Review remain real controls;
+- active attempt restoration preserves responses, position, flags and server time;
+- offline/save error and camera interruption remain actionable;
+- keyboard/focus, responsive, reduced-motion, console/network and real authenticated browser checks pass before `COMPLETE`.

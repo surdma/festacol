@@ -1,110 +1,138 @@
 # Phase 03 — Write Examination brainstorm command
 
-Status: planned — low-fidelity A–G selection board
-Prerequisite: Phase 02 Concept B remains the selected Ready to Write direction.
+Status: redesign round — dense A–G selection board
+Prerequisite: Phase 02 Concept B remains selected and watermark-free.
 Governing plan: `docs/plans/2026-09-17-phase-03-write-examination.md`
+
+## Skills used
+
+Use the current:
+
+- `using-superpowers`;
+- `ui-ux-pro-max`;
+- `product-designer`;
+- `frontend-design`.
+
+The design must follow the real repository contract, accessibility/touch requirements, responsive hierarchy and intentional product-composition guidance from those skills.
 
 ## Generation brief
 
 ```text
-/using-superpowers
-/ui-ux-pro-max
-/product-designer
-/frontend-design
+Design ONLY Phase 03: "Write Examination" for Festacol.
 
-Design ONLY Phase 03: "Write Examination" for Festacol's student examination journey.
+The first Phase 03 board is rejected as too sparse. Rebuild it from scratch.
 
-CONTEXT
-The candidate has passed identity and Ready to Write. Their attempt is now allocated or restored. This is the live examination workspace.
+GOAL
+Every concept must look and behave like a complete high-density computer-based examination workstation, not a minimal demo and not a generic admin/dashboard UI.
 
-PRIMARY USER GOAL
-Read the current question, answer confidently, move through the paper, and know that work is safe.
+REQUIRED ON EVERY A–G SCREEN
 
-REAL QUESTION CONTRACT
-Support all existing variants:
-- single choice;
-- multiple choice with required selection count;
-- true / false;
-- fill in one blank;
-- fill in multiple blanks;
-- reading passage attached to a question;
-- question illustration/media with enlarge;
-- subject/domain metadata and question-specific instruction.
+IDENTITY / EXAM
+- examination title
+- mode
+- academic session + term
+- subject / mixed-subject context
+- candidate name
+- student number placeholder
+- class
+- active attempt indicator
 
-REAL RUNTIME BEHAVIOR TO REPRESENT
-- persistent server-calculated countdown;
-- automatic expiration/finalization;
-- autosave and periodic persistence;
-- offline/save failure recovery without clearing the on-screen response;
-- previous / next;
-- direct question jump;
-- flag / unflag;
-- clear current response;
-- answered / incomplete / unanswered / visited / flagged states;
-- mixed-subject grouping when present;
-- compact required-camera state only when configured;
-- deliberate transition to Review & Submit.
+TIME / PROGRESS
+- persistent countdown
+- Question N of M
+- answered count
+- open/incomplete count
+- flagged count
+- progress bar / progress meter
+- subject/section question stepper
 
-DO NOT INVENT
-- essay grading;
-- scratch-work upload;
-- drawing/whiteboard answers;
-- AI hints;
-- correctness feedback while writing;
-- microphone monitoring;
-- live chat;
-- unsupported proctoring/biometrics.
+QUESTION WORK
+- question subject
+- optional domain
+- question type
+- instruction line
+- prompt
+- answer controls
+- conditional passage area
+- conditional diagram/image area + enlarge affordance
+- adaptation indication for single, multi-select, true/false, fill and fill-multi
 
-DESIGN PRINCIPLES
-1. The question is the strongest visual object.
-2. Timer is always legible but quiet until time pressure is real.
-3. Healthy save state is subtle; failures become actionable.
-4. Navigation is predictable and reachable.
-5. Camera, when required, stays peripheral.
-6. All question types belong to one examination grammar.
-7. Do not redesign Phase 04 review/submit; only provide the handoff action.
+NAVIGATION
+- previous
+- next
+- flag/unflag
+- clear
+- direct jump
+- full navigator
+- navigator filters: All / Open / Flagged
+- state legend: current / answered / incomplete / visited / flagged
+- Review & Submit action
 
-LOW-FIDELITY BOARD
-Create exactly seven genuinely different full-screen concepts:
-A — Question Paper + Answer Rail
-B — Focus Tunnel
-C — Ledger Spread
-D — Desk Stack
-E — Subject Chapters
-F — Answer Book Margin
-G — Exam Instrument
+RELIABILITY / INTEGRITY
+- autosave state
+- online/offline state
+- save failure placeholder
+- focus/clipboard monitoring state when configured
+- fullscreen state when configured
+- WEB CAM PLACEHOLDER on every concept so layout can be evaluated
+- webcam annotated: conditional in production; no microphone
+- optional camera-source placeholder
 
-ANTI-GENERIC RULES
-Do not produce seven versions of cards, dashboards, sticky-header + panel + footer, left-content/right-sidebar, or rounded app shells. Every concept must have a distinct spatial grammar before labels are read.
+COMPOSITION
+A few cards are acceptable when justified, especially the main question paper or webcam preview.
+Do NOT construct the screen as a grid of generic rounded cards.
+Use rails, flat partitions, asides, paper surfaces, instrument strips, chapter bars, bottom consoles and ruled regions.
 
-WIREFRAME REQUIREMENTS
-- grayscale only;
-- exactly seven A–G concepts;
-- each concept at least 100dvh;
-- vertical mandatory scroll snap;
-- fixed A–G navigation;
-- visible keyboard focus;
-- approximately 44px action targets;
-- responsive down to 360px;
-- short-viewport handling;
-- prefers-reduced-motion support;
-- representative question/answer controls are static wireframe content, not fake backend logic;
-- annotate how passage/media, multi-select/fill, offline, camera-required and resume adapt each concept without making every exception permanently visible.
+NO WATERMARKS
+No giant translucent A–G letters.
+No giant phase number.
+No ghost typography behind content.
 
-SELECTION GATE
-Do not implement production Phase 03 React/Next.js UI. Stop after the A–G comparison board so the product owner can select a direction or explicit hybrid.
+SEVEN DIFFERENT ARCHITECTURES
+A — Three-Zone Exam Desk
+B — Paper + Instrument Spine
+C — Dual-Aside Command Layout
+D — Passage / Diagram Studio
+E — Navigator-First Cockpit
+F — Full-Width Paper + Bottom Console
+G — Adaptive Exam Matrix
+
+RESPONSIVE
+- desktop can use one or two asides
+- tablet may collapse one utility region
+- mobile puts the question first and moves navigator/details/webcam to explicit sheets/drawers
+- no horizontal scrolling
+- ~44px touch targets
+- visible focus
+- reduced motion
+- dense desktop content must still work at short viewport heights
+
+REAL CONTRACT
+Support only current Festacol behavior:
+single, multi, boolean, fill, fill-multi, passage/media, timer, autosave, offline recovery, flagging, direct jump, camera when required, focus/clipboard integrity recording, fullscreen prompt and Review & Submit handoff.
+
+Do not invent essay grading, scratch-work upload, live chat, AI hints, answer correctness during the exam, microphone monitoring or biometrics.
+
+OUTPUT
+Replace:
+docs/design/exam/phase-03-write-examination/brainstorm.html
+
+Stop after the A–G comparison artifact. Do not implement Phase 03 production React yet.
 ```
 
 ## Review checklist
 
-- exactly seven A–G concepts;
-- each has a materially different information architecture/spatial metaphor;
-- question remains dominant in every concept;
-- all real question variants can fit each concept;
-- timer/save/nav/flag/review are represented without admin-dashboard density;
-- camera is conditional and peripheral;
-- direct jump remains possible on desktop and small screens;
-- passage/media do not break the layout;
-- responsive, focus and reduced-motion intent are visible;
-- no unsupported product capability is implied;
-- no production `src/**`, Prisma, Supabase, migration or fixture change is part of this brainstorm.
+- exactly seven concepts;
+- zero watermark/ghost concept identifiers;
+- each screen is visibly dense;
+- every screen includes webcam placeholder;
+- every screen includes candidate/exam facts;
+- every screen includes timer/progress/stepper;
+- every screen includes question navigator + legend;
+- every screen includes main question and answer controls;
+- every screen includes previous/next/flag/clear/review;
+- every screen indicates passage/media and alternate question-type adaptation;
+- concepts remain structurally different when text is blurred;
+- no generic dashboard/bento/card-wall treatment;
+- responsive/focus/reduced-motion intent is present;
+- no production `src/**` change belongs to the Phase 03 brainstorm.

@@ -117,18 +117,11 @@ export function ExamPreflight({
 
             <div className="grid lg:grid-cols-2">
               <article className="relative flex min-h-[39rem] flex-col border-b bg-gradient-to-r from-background via-background to-muted/30 p-6 sm:p-9 lg:min-h-[42rem] lg:border-b-0 lg:border-r lg:p-12">
-                <div
-                  className="pointer-events-none absolute right-6 top-16 font-serif text-[8.5rem] leading-[0.7] text-foreground/[0.07] sm:text-[11rem] lg:right-10 lg:text-[13rem]"
-                  aria-hidden="true"
-                >
-                  02
-                </div>
-
                 <div className="relative max-w-xl">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     Examination booklet · {modeLabel(session.mode)}
                   </p>
-                  <h1 className="mt-20 max-w-lg font-serif text-4xl font-medium leading-[0.94] tracking-[-0.045em] sm:text-5xl lg:mt-24 lg:text-6xl">
+                  <h1 className="mt-8 max-w-lg font-serif text-4xl font-medium leading-[0.94] tracking-[-0.045em] sm:mt-10 sm:text-5xl lg:text-6xl">
                     {session.title}
                   </h1>
                   <p className="mt-4 max-w-lg text-sm font-medium leading-6 text-muted-foreground">

@@ -19,7 +19,7 @@ The governing product rule remains: **the system handles complexity; the student
 The production surface must preserve the selected wireframe's **actual spatial grammar**, not merely borrow booklet styling:
 
 - **literal flat two-page spread** with a visible center fold; no external application header, rounded dashboard shell, or sidebar composition;
-- **left page** — oversized `02`, examination title, and exactly four primary facts: **Candidate, Class, Questions, Duration**. Subjects, academic period, availability, attempt/resume state and qualifier tracks remain secondary text only when useful;
+- **left page** — examination title and exactly four primary facts: **Candidate, Class, Questions, Duration**. Subjects, academic period, availability, attempt/resume state and qualifier tracks remain secondary text only when useful. No translucent phase numeral or other watermark is used;
 - **facing page** — exactly three primary rules: navigate/flag, quiet autosave, and review/finalization. Examination-creator instructions stay available through restrained progressive disclosure;
 - **readiness stamp** — healthy device/connection state is represented by the stamp, not a diagnostics panel;
 - **conditional camera** — nothing renders when `cameraRequired === false`; when true, camera permission and a small live preview stay inside the facing page and appear only on demand;

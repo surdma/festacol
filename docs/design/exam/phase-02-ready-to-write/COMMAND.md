@@ -15,6 +15,7 @@ The A–G comparison gate is closed for Phase 02. The wireframe board remains hi
 Concept B is a composition contract, not a loose theme reference:
 
 - use a **flat two-page examination spread** with a visible center fold;
+- use no large translucent phase number, ghost concept letter, or other watermark-like decorative text;
 - no external app header, rounded dashboard shell, sidebar, progress rail, or multi-screen preparation sequence;
 - left page keeps exactly four primary facts: **Candidate, Class, Questions, Duration**;
 - right page keeps exactly three primary rules, a readiness stamp, and only restrained progressive disclosure for school-authored instructions;

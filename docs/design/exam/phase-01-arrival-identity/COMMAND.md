@@ -50,6 +50,7 @@ Do not make seven color variants of the same card.
 LOW-FIDELITY RULES
 - Wireframe only: grayscale, simple borders/surfaces, representative text and abstract shapes.
 - Avoid polished brand imagery, decorative gradients and production-level visual finishing.
+- Do not use large translucent phase numbers, giant A–G concept letters, ghost typography, or other watermark-like background text.
 - Each concept occupies at least 100dvh.
 - The document uses `scroll-snap-type: y mandatory` and every concept uses `scroll-snap-align: start` so one option snaps to one screen.
 - Provide an unobtrusive fixed A–G navigation rail.

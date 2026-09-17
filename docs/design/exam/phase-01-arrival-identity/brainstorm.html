@@ -139,20 +139,7 @@
     .btn.secondary { background: transparent; color: inherit; }
     .dark .btn { background: #fff; color: #111; border-color: #fff; }
     .dark .btn.secondary { background: transparent; color: #fff; border-color: #777; }
-
-    .option-id {
-      position: absolute;
-      top: 72px;
-      right: 64px;
-      font-size: clamp(60px, 9vw, 136px);
-      line-height: 1;
-      letter-spacing: -.08em;
-      color: rgba(0,0,0,.08);
-      pointer-events: none;
-    }
-    .dark .option-id { color: rgba(255,255,255,.08); }
-
-    .wire-note {
+.wire-note {
       position: absolute;
       bottom: 16px;
       left: 18px;
@@ -183,9 +170,7 @@
     .editorial-side { align-self: stretch; border-right: 1px solid #aaa; padding-right: 28px; display: flex; flex-direction: column; justify-content: space-between; }
     .editorial-title { max-width: 900px; }
     .editorial-form { margin-top: 46px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; border-top: 1px solid #111; padding-top: 20px; }
-    .edition-number { font-size: clamp(72px,12vw,180px); line-height: .7; letter-spacing: -.09em; color: #d9d9d4; }
-
-    /* D — restrained gamified map */
+/* D — restrained gamified map */
     .journey-layout { width: min(1240px,100%); margin: auto; display: grid; grid-template-columns: 1fr 390px; gap: clamp(30px,6vw,90px); align-items: center; }
     .map { position: relative; min-height: 560px; border: 1px solid #aaa; background-image: linear-gradient(#e8e8e4 1px,transparent 1px),linear-gradient(90deg,#e8e8e4 1px,transparent 1px); background-size: 42px 42px; }
     .path { position: absolute; left: 18%; right: 15%; top: 50%; border-top: 2px dashed #555; transform: rotate(-12deg); }
@@ -280,7 +265,6 @@
 
   <!-- A: Admission Pass -->
   <section class="concept" id="a" aria-labelledby="a-title">
-    <div class="option-id" aria-hidden="true">A</div>
     <div class="ticket-layout">
       <div class="ticket-main">
         <div>
@@ -314,7 +298,6 @@
 
   <!-- B: Secure Checkpoint -->
   <section class="concept dark" id="b" aria-labelledby="b-title">
-    <div class="option-id" aria-hidden="true">B</div>
     <div class="checkpoint-layout">
       <div class="checkpoint-left">
         <div>
@@ -351,12 +334,10 @@
 
   <!-- C: Academic Editorial -->
   <section class="concept" id="c" aria-labelledby="c-title">
-    <div class="option-id" aria-hidden="true">C</div>
     <div class="editorial-layout">
       <aside class="editorial-side">
         <div>
           <p class="eyebrow">Concept C · Academic Editorial</p>
-          <div class="edition-number" aria-hidden="true">01</div>
         </div>
         <div>
           <p class="small"><strong>Festacol Assessment Office</strong></p>
@@ -387,7 +368,6 @@
 
   <!-- D: Journey Map -->
   <section class="concept" id="d" aria-labelledby="d-title">
-    <div class="option-id" aria-hidden="true">D</div>
     <div class="journey-layout">
       <div>
         <p class="eyebrow">Concept D · Guided Journey</p>
@@ -419,7 +399,6 @@
 
   <!-- E: Candidate Desk -->
   <section class="concept" id="e" aria-labelledby="e-title">
-    <div class="option-id" aria-hidden="true">E</div>
     <div class="desk-layout">
       <header class="desk-banner">
         <div><p class="eyebrow">Concept E · Candidate Desk</p><h2 id="e-title" style="margin-bottom:0">Sit down. Check the paper. Sign in.</h2></div>
@@ -453,7 +432,6 @@
 
   <!-- F: Focus Tunnel -->
   <section class="concept" id="f" aria-labelledby="f-title">
-    <div class="option-id" aria-hidden="true">F</div>
     <div class="tunnel-layout">
       <aside class="tunnel-steps" aria-label="Exam entry steps">
         <div class="tunnel-step current"><span class="tunnel-dot">1</span><span>Identify<br><small>Current</small></span></div>
@@ -484,7 +462,6 @@
 
   <!-- G: Quiet Command Console -->
   <section class="concept dark" id="g" aria-labelledby="g-title">
-    <div class="option-id" aria-hidden="true">G</div>
     <div class="console-layout">
       <section class="console-pane">
         <div>
