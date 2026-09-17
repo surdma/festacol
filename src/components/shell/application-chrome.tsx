@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { signOutSessionAction } from "@/app/actions/auth";
 import { PrototypeAdminIcon } from "@/components/admin/prototype-admin-icon";
 import {
@@ -11,11 +11,6 @@ import {
   useApplicationNavItem,
 } from "@/components/shell/application-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,12 +31,13 @@ import type { ApplicationNotification } from "@/types/admin";
 const btnPrimary = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-px hover:bg-neutral-800 hover:shadow-sm active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 focus:ring-neutral-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0";
 const iconBtn = "relative inline-flex size-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 transition motion-safe:duration-200 hover:-translate-y-px hover:border-neutral-400 hover:bg-neutral-100 hover:text-black hover:shadow-sm active:translate-y-0 active:scale-[.96] focus:outline-none focus:ring-4 focus:ring-neutral-200";
 const field = "block min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-950 placeholder:text-neutral-400 transition focus:border-black focus:ring-black";
+const NOTIFICATION_PREVIEW_LIMIT = 5;
 
 const toneClass: Record<ApplicationNotification["tone"], string> = {
-  amber: "bg-amber-50 text-amber-700",
-  blue: "bg-blue-50 text-blue-700",
-  red: "bg-red-50 text-red-700",
-  neutral: "bg-neutral-100 text-neutral-700",
+  amber: "bg-warning/10 text-warning-foreground",
+  blue: "bg-info/10 text-info-foreground",
+  red: "bg-destructive/10 text-destructive",
+  neutral: "bg-muted text-muted-foreground",
 };
 
 const iconName: Record<ApplicationNotification["icon"], "book" | "clock" | "shield" | "qr" | "chart" | "school"> = {
@@ -60,18 +56,22 @@ function NotificationsMenu({
   notifications: ApplicationNotification[];
   surface: ApplicationSurface;
 }) {
-  const countLabel = notifications.length > 9 ? "9+" : String(notifications.length);
+  const visible = notifications.slice(0, NOTIFICATION_PREVIEW_LIMIT);
+  const hiddenCount = Math.max(0, notifications.length - visible.length);
+  const countLabel = hiddenCount ? `${NOTIFICATION_PREVIEW_LIMIT}+` : String(visible.length);
   const eyebrow = surface === "student" ? "Student updates" : "Activity centre";
+  const historyHref = surface === "student" ? "/dashboard/history" : "/workspace/students";
+  const historyLabel = surface === "student" ? "Open exam history" : "Open student records";
 
   return (
     <Popover>
       <PopoverTrigger
         render={(
-          <button type="button" className={iconBtn} aria-label={`Notifications, ${notifications.length} current`} />
+          <button type="button" className={iconBtn} aria-label={`Current updates, ${notifications.length} signal${notifications.length === 1 ? "" : "s"}`} />
         )}
       >
         <PrototypeAdminIcon name="bell" />
-        {notifications.length ? (
+        {visible.length ? (
           <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-neutral-950 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
             {countLabel}
           </span>
@@ -80,62 +80,62 @@ function NotificationsMenu({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[min(92vw,390px)] gap-0 rounded-2xl border border-neutral-200 bg-white p-0 text-neutral-950 shadow-xl"
+        className="w-[min(92vw,410px)] gap-0 rounded-2xl border border-border bg-popover p-0 text-popover-foreground shadow-xl"
       >
-        <PopoverHeader className="border-b border-neutral-100 px-4 pb-3 pt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">{eyebrow}</p>
+        <PopoverHeader className="border-b border-border px-4 pb-3 pt-4">
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">{eyebrow}</p>
           <div className="mt-1 flex items-start justify-between gap-4">
             <div>
-              <PopoverTitle className="font-display text-base font-extrabold">Notifications</PopoverTitle>
-              <PopoverDescription className="mt-1 text-xs leading-5 text-neutral-500">
-                Select a notification to expand its full message.
+              <PopoverTitle className="font-display text-base font-extrabold">Now</PopoverTitle>
+              <PopoverDescription className="mt-1 text-xs leading-5 text-muted-foreground">
+                A short list of current signals. Long-term activity stays in the durable record, not in this popover.
               </PopoverDescription>
             </div>
-            <span className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] font-bold text-neutral-500">
-              {notifications.length}
-            </span>
+            {visible.length ? (
+              <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                {hiddenCount ? `${visible.length} shown` : visible.length}
+              </span>
+            ) : null}
           </div>
         </PopoverHeader>
 
-        <div className="no-scrollbar max-h-[min(60dvh,520px)] overflow-y-auto p-2">
-          {notifications.length ? (
-            <div className="flex flex-col gap-1">
-              {notifications.map((notification) => (
-                <Collapsible key={notification.id}>
-                  <CollapsibleTrigger className="group flex w-full items-start gap-3 rounded-xl p-3 text-left outline-none transition hover:bg-neutral-50 focus-visible:ring-4 focus-visible:ring-neutral-200">
-                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${toneClass[notification.tone]}`}>
-                      <PrototypeAdminIcon name={iconName[notification.icon]} className="size-4 shrink-0" />
-                    </span>
-                    <span className="min-w-0 flex-1 pt-0.5">
-                      <strong className="block text-xs leading-5 text-neutral-900">{notification.title}</strong>
-                      <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[.08em] text-neutral-400">
-                        Tap to read message
-                      </span>
-                    </span>
-                    <ChevronDown
-                      aria-hidden="true"
-                      className="mt-1 size-4 shrink-0 text-neutral-400 transition-transform group-aria-expanded:rotate-180"
-                    />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="px-3 pb-3 pl-[3.75rem] pr-4 text-xs leading-5 text-neutral-600">
-                    {notification.detail}
-                  </CollapsibleContent>
-                </Collapsible>
+        <div className="p-2">
+          {visible.length ? (
+            <div className="divide-y divide-border">
+              {visible.map((notification) => (
+                <div key={notification.id} className="flex min-h-14 items-start gap-3 rounded-xl px-3 py-3">
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${toneClass[notification.tone]}`}>
+                    <PrototypeAdminIcon name={iconName[notification.icon]} className="size-4 shrink-0" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block text-xs leading-5 text-foreground">{notification.title}</strong>
+                    <span className="mt-0.5 block text-[11px] leading-5 text-muted-foreground">{notification.detail}</span>
+                  </span>
+                </div>
               ))}
             </div>
           ) : (
             <div className="flex gap-3 rounded-xl p-4">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-success/10 text-success">
                 <PrototypeAdminIcon name="check" className="size-4 shrink-0" />
               </span>
               <span>
-                <strong className="block text-xs">Nothing needs your attention</strong>
-                <span className="mt-1 block text-[11px] leading-5 text-neutral-500">
-                  Current academic and account activity will appear here when there is something useful to review.
+                <strong className="block text-xs">You’re caught up</strong>
+                <span className="mt-1 block text-[11px] leading-5 text-muted-foreground">
+                  Festacol will surface only current items that need attention here.
                 </span>
               </span>
             </div>
           )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <span className="text-[11px] leading-4 text-muted-foreground">
+            {hiddenCount ? `+${hiddenCount} more current signal${hiddenCount === 1 ? "" : "s"} available in the workspace.` : "Historical records are kept outside the bell."}
+          </span>
+          <Link href={historyHref} className="shrink-0 rounded-lg px-2 py-2 text-xs font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+            {historyLabel}
+          </Link>
         </div>
       </PopoverContent>
     </Popover>
