@@ -59,6 +59,14 @@ type Phase = "preflight" | "loading" | "load-failed" | "exam" | "review" | "proc
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
 type PersistResult = { ok: true } | { ok: false; error: string };
 
+type BackgroundSnapshot = {
+  hiddenAt: number;
+  remaining: number;
+  elapsed: number;
+  questionId: string;
+  questionSeconds: number;
+};
+
 function formatDuration(seconds: number) {
   const total = Math.max(0, Math.round(seconds));
   const hours = Math.floor(total / 3600);
@@ -153,6 +161,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const bootstrappedRef = useRef(false);
   const milestonesRef = useRef(new Set<number>());
   const previousCameraStatusRef = useRef(camera.status);
+  const backgroundRef = useRef<BackgroundSnapshot | null>(null);
   stateRef.current = { responses, index, flagged };
 
   const captureTiming = useCallback((nextQuestionId?: string) => {
@@ -361,7 +370,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     };
     const onOnline = () => {
       setOnline(true);
-      if (timerActive) void persist(remainingRef.current, true);
+      if (timerActive && !document.hidden) void persist(remainingRef.current, true);
     };
     const onOffline = () => {
       setOnline(false);
@@ -383,23 +392,60 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
 
   useEffect(() => {
     if (!timerActive || dirtyTick === 0) return;
-    const timeout = window.setTimeout(() => void persist(remainingRef.current), 1200);
+    const timeout = window.setTimeout(() => {
+      if (!document.hidden) void persist(remainingRef.current);
+    }, 1200);
     return () => window.clearTimeout(timeout);
   }, [dirtyTick, persist, timerActive]);
 
   useEffect(() => {
     if (!timerActive) return;
-    const save = () => void persist(remainingRef.current, true);
-    const interval = window.setInterval(save, 10_000);
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void persist(remainingRef.current, true);
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, [persist, timerActive]);
+
+  useEffect(() => {
+    if (!timerActive) {
+      backgroundRef.current = null;
+      return;
+    }
     const onVisibilityChange = () => {
-      if (document.hidden) save();
+      if (document.hidden) {
+        captureTiming();
+        const questionId = activeTimingRef.current.qid;
+        backgroundRef.current = {
+          hiddenAt: Date.now(),
+          remaining: remainingRef.current,
+          elapsed: elapsedRef.current,
+          questionId,
+          questionSeconds: questionId ? timingsRef.current[questionId] ?? 0 : 0,
+        };
+        void persist(remainingRef.current, true);
+        return;
+      }
+
+      const snapshot = backgroundRef.current;
+      backgroundRef.current = null;
+      if (!snapshot) return;
+      const wallSeconds = Math.max(0, (Date.now() - snapshot.hiddenAt) / 1000);
+      if (wallSeconds < 0.5) return;
+
+      const reconciledRemaining = Math.max(0, snapshot.remaining - wallSeconds);
+      remainingRef.current = reconciledRemaining;
+      timer.syncRemaining(reconciledRemaining);
+      elapsedRef.current = snapshot.elapsed + wallSeconds;
+      if (snapshot.questionId) {
+        timingsRef.current[snapshot.questionId] = snapshot.questionSeconds + wallSeconds;
+        activeTimingRef.current = { qid: snapshot.questionId, since: Date.now() };
+      }
+      recordIntegrity("background-resume-reconciled", `${Math.round(wallSeconds)}s counted while away`);
+      if (reconciledRemaining > 0) void persist(reconciledRemaining, true);
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [persist, timerActive]);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [captureTiming, persist, recordIntegrity, timer.syncRemaining, timerActive]);
 
   useEffect(() => {
     if (!timerActive) return;
