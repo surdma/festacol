@@ -3,7 +3,7 @@
 import { CheckCircle2, Clock3, FileCheck2, LockKeyhole, RotateCcw } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ExamResultReviewItem, ExamResultSummary } from "@/types/exam";
 
@@ -148,7 +148,7 @@ export function ExamResults({
                 {summary.subjectStats.map((subject) => (
                   <Progress key={subject.subjectId} value={subject.percent} aria-label={`${subject.subject}: ${subject.percent}%`}>
                     <ProgressLabel>{subject.subject}</ProgressLabel>
-                    <ProgressValue>{subject.correct}/{subject.total} · {subject.percent}%</ProgressValue>
+                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">{subject.correct}/{subject.total} · {subject.percent}%</span>
                     <p className="w-full text-xs text-muted-foreground">{formatDuration(subject.seconds)} active time</p>
                   </Progress>
                 ))}
@@ -162,10 +162,12 @@ export function ExamResults({
             <h2 className="text-sm font-semibold">Assessment indicators</h2>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Progress value={summary.paceIndex} aria-label={`Pace index ${summary.paceIndex}`}>
-                <ProgressLabel>Pace</ProgressLabel><ProgressValue>{Math.round(summary.paceIndex)}</ProgressValue>
+                <ProgressLabel>Pace</ProgressLabel>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.round(summary.paceIndex)}</span>
               </Progress>
               <Progress value={summary.reasoningIndex} aria-label={`Reasoning index ${summary.reasoningIndex}`}>
-                <ProgressLabel>Reasoning</ProgressLabel><ProgressValue>{Math.round(summary.reasoningIndex)}</ProgressValue>
+                <ProgressLabel>Reasoning</ProgressLabel>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.round(summary.reasoningIndex)}</span>
               </Progress>
             </div>
           </section>
