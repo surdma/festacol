@@ -190,7 +190,7 @@ export function ExamHelpDialog({
               </Button>
               <Button type="submit" disabled={pending}>
                 {pending ? <Spinner data-icon="inline-start" /> : null}
-                {pending ? "Sending request…" : "Send to examination teacher"}
+                {pending ? "Sending request…" : "Send to examination creator"}
               </Button>
             </DialogFooter>
           </form>
