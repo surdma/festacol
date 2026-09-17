@@ -19,6 +19,7 @@ interface AttemptQueueRow {
   started_at: number | null;
   submitted_at: number | null;
   score: number | null;
+  updated_at: number;
 }
 
 interface IntegrityQueueRow {
@@ -74,7 +75,7 @@ export async function getAdminTopbarNotifications(
     supabase.from("exam_sessions").select("id,title,status,created_by_id").limit(200),
     supabase
       .from("exam_attempts")
-      .select("id,session_id,student_id,attempt_number,started_at,submitted_at,score")
+      .select("id,session_id,student_id,attempt_number,started_at,submitted_at,score,updated_at")
       .order("updated_at", { ascending: false })
       .limit(500),
     supabase.from("exam_integrity_events").select("attempt_id").limit(500),
@@ -108,74 +109,85 @@ export async function getAdminTopbarNotifications(
   const activeClasses = classes.filter((item) => item.status === "active");
   const groupedClasses = new Set(groups.map((group) => group.class_id));
   const missingGroups = scope.isAdmin ? activeClasses.filter((item) => !groupedClasses.has(item.id)) : [];
-  const recentLifecycle = attempts
-    .filter((attempt) => Boolean(attempt.started_at))
-    .toSorted((left, right) => Math.max(Number(right.submitted_at ?? 0), Number(right.started_at ?? 0)) - Math.max(Number(left.submitted_at ?? 0), Number(left.started_at ?? 0)))
-    .slice(0, 4);
+
+  const lifecycleGroups = new Map<string, AttemptQueueRow[]>();
+  for (const attempt of attempts) {
+    if (!attempt.started_at) continue;
+    const state = attempt.submitted_at ? "submitted" : "started";
+    const key = `${attempt.session_id}:${state}`;
+    lifecycleGroups.set(key, [...(lifecycleGroups.get(key) ?? []), attempt]);
+  }
+  const recentLifecycleGroups = [...lifecycleGroups.entries()]
+    .map(([key, rows]) => ({
+      key,
+      rows: rows.toSorted((left, right) => Number(right.updated_at ?? 0) - Number(left.updated_at ?? 0)),
+      at: Math.max(...rows.map((row) => Number(row.updated_at ?? row.submitted_at ?? row.started_at ?? 0))),
+    }))
+    .toSorted((left, right) => right.at - left.at)
+    .slice(0, 2);
 
   const items: ApplicationNotification[] = [];
-  for (const attempt of recentLifecycle) {
-    const sessionTitle = sessionTitles.get(attempt.session_id) ?? "Examination";
-    const studentName = studentNames.get(attempt.student_id) ?? "Student";
-    const attemptNumber = Math.max(1, Number(attempt.attempt_number ?? 1));
-    if (attempt.submitted_at) {
-      const scoreDetail = attempt.score === null ? "The recorded result is available in the examination workspace." : `Recorded score: ${Math.round(attempt.score)}%.`;
-      items.push({
-        id: `exam-submission-${attempt.id}`,
-        title: `${studentName} submitted ${sessionTitle}`,
-        detail: `Attempt #${attemptNumber} is complete. ${scoreDetail}`,
-        icon: "chart",
-        tone: "blue",
-      });
-    } else {
-      items.push({
-        id: `exam-start-${attempt.id}`,
-        title: `${studentName} started ${sessionTitle}`,
-        detail: `Attempt #${attemptNumber} is currently in progress. Open Examinations to see Supabase Realtime Presence for active candidates.`,
-        icon: "clock",
-        tone: "blue",
-      });
-    }
-  }
-  if (drafts.length) {
-    items.push({
-      id: "draft-exams",
-      title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`,
-      detail:
-        "There are unpublished examinations in your current staff scope. Review their questions, targeting, duration and controls before deciding whether they are ready to publish.",
-      icon: "book",
-      tone: "amber",
-    });
-  }
-  if (activeAttempts.length) {
-    items.push({
-      id: "active-attempts",
-      title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`,
-      detail:
-        "Candidates currently have active examination attempts that have not been submitted. Open Examinations to see which sessions currently have connected candidates.",
-      icon: "clock",
-      tone: "blue",
-    });
-  }
+
   if (integrityAttempts.size) {
     items.push({
       id: "integrity-events",
-      title: `${integrityAttempts.size} submitted attempt${integrityAttempts.size === 1 ? " has" : "s have"} integrity events`,
-      detail:
-        "One or more submitted attempts include recorded integrity events. Review the attempt-level integrity history before making any academic or administrative decision.",
+      title: `${integrityAttempts.size} submitted attempt${integrityAttempts.size === 1 ? " has" : "s have"} integrity activity`,
+      detail: "Integrity events are preserved in the candidate record. Review the affected attempts before making an academic or administrative decision.",
       icon: "shield",
       tone: "red",
     });
   }
+
+  for (const group of recentLifecycleGroups) {
+    const latest = group.rows[0];
+    const submitted = Boolean(latest.submitted_at);
+    const sessionTitle = sessionTitles.get(latest.session_id) ?? "Examination";
+    const latestStudent = studentNames.get(latest.student_id) ?? "Student";
+    const count = group.rows.length;
+    const plural = count === 1 ? "" : "s";
+    const score = latest.score === null ? "" : ` Latest recorded score: ${Math.round(latest.score)}%.`;
+    items.push({
+      id: `exam-lifecycle-${group.key}`,
+      title: submitted
+        ? `${count} submission${plural} · ${sessionTitle}`
+        : `${count} active attempt${plural} · ${sessionTitle}`,
+      detail: submitted
+        ? `${latestStudent} is the latest candidate to submit.${score} Open the student record for the complete durable timeline.`
+        : `${latestStudent} is the latest candidate to start. Supabase Presence shows who is connected now in Examinations.`,
+      icon: submitted ? "chart" : "clock",
+      tone: "blue",
+    });
+  }
+
+  if (!recentLifecycleGroups.some((group) => group.rows.some((attempt) => !attempt.submitted_at)) && activeAttempts.length) {
+    items.push({
+      id: "active-attempts",
+      title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`,
+      detail: "Open Examinations to see which sessions currently have connected candidates through Supabase Realtime Presence.",
+      icon: "clock",
+      tone: "blue",
+    });
+  }
+
+  if (drafts.length) {
+    items.push({
+      id: "draft-exams",
+      title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`,
+      detail: "Review questions, targeting, duration and controls before publishing these examinations.",
+      icon: "book",
+      tone: "amber",
+    });
+  }
+
   if (missingGroups.length) {
     items.push({
       id: "missing-whatsapp-groups",
       title: `${missingGroups.length} active class${missingGroups.length === 1 ? "" : "es"} lack WhatsApp QR access`,
-      detail:
-        "These active classes do not yet have a linked WhatsApp group record. Complete the class communication setup before distributing parent or student QR access.",
+      detail: "Complete the class communication setup before distributing parent or student QR access.",
       icon: "qr",
       tone: "neutral",
     });
   }
-  return items;
+
+  return items.slice(0, 6);
 }
