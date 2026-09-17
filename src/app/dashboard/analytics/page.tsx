@@ -6,12 +6,10 @@ import { FadeUp, Stagger } from "@/components/motion";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { answersMayBeRevealed } from "@/lib/assessment";
 import { currentStudent } from "@/lib/auth/current-student";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { attemptsForStudent } from "@/lib/supabase/queries";
@@ -41,14 +39,13 @@ export default async function AnalyticsPage() {
   const admin = createSupabaseAdminClient();
   const { data: answers } = await admin
     .from("exam_attempt_responses")
-    .select("question_id,correct,correct_answer")
+    .select("question_id,correct")
     .eq("attempt_id", latest.id)
     .not("graded_at", "is", null)
     .order("question_id");
   const answerRows = (answers ?? []) as {
     question_id: number;
     correct: boolean | null;
-    correct_answer: string | null;
   }[];
   const questionIds = answerRows.map((row) => row.question_id);
   const { data: questions } = questionIds.length
@@ -87,20 +84,6 @@ export default async function AnalyticsPage() {
     subject: subjectName.get(subjectId) ?? "Subject",
     percent: value.total ? Math.round((value.correct / value.total) * 100) : 0,
   }));
-
-  const { data: sessionData } = await ctx.supabase
-    .from("exam_sessions")
-    .select("status,ends_at")
-    .eq("id", latest.session_id)
-    .maybeSingle();
-  const session = sessionData as {
-    status: string;
-    ends_at: number | null;
-  } | null;
-  const revealed = answersMayBeRevealed(
-    { endsAt: session?.ends_at ?? null } as never,
-    (session?.status ?? undefined) as "open" | "draft" | "closed" | undefined,
-  );
 
   return (
     <FadeUp className="flex flex-col gap-4">
@@ -147,26 +130,6 @@ export default async function AnalyticsPage() {
             </div>
           ))}
         </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Answer review</CardTitle>
-          <CardDescription>
-            {revealed
-              ? "Review unlocked."
-              : "Answers remain locked until the session closes."}
-          </CardDescription>
-        </CardHeader>
-        {revealed ? (
-          <CardContent className="flex flex-col gap-2">
-            {answerRows.map((detail, index) => (
-              <p key={detail.question_id} className="border-b py-1 text-sm">
-                Question {index + 1}: {detail.correct ? "Correct" : "Incorrect"}{" "}
-                — answer: {detail.correct_answer ?? "Not available"}
-              </p>
-            ))}
-          </CardContent>
-        ) : null}
       </Card>
     </FadeUp>
   );

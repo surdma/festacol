@@ -1,246 +1,237 @@
 # Phase 03 — Write Examination
 
 Date: 2026-09-17
-Status: PLANNED — third-round ten-concept wireframe selection gate
+Status: IMPLEMENTED — Focus Capsule selected; production validation pending
 Target PR: #18
-Planning owner: `festacol-planner`
-Production owner after selection: `festacol-frontend-engineer`
+Selected direction: **F — Focus Capsule**
 
-## Product correction
+## Product decision
 
-The previous seven-concept Phase 03 board is superseded.
+Phase 03 is no longer open for A–J selection.
 
-It became too information-dense for the student task. The live examination does not need to expose every exam record, integrity state, status legend, and recovery instrument at the same time. The new direction uses **progressive disclosure** and a calmer, more mature examination hierarchy.
+The selected live examination direction is **Focus Capsule (F)**. Production must preserve the selected wireframe's spatial grammar rather than reinterpret it as a generic examination dashboard:
 
-The student should primarily see:
+- one dominant rounded question capsule;
+- compact supporting instruments around the capsule instead of large permanent sidebars;
+- desktop question rail on the left;
+- compact conditional webcam on the right;
+- calm progress milestones above the question;
+- **Prev**, icon-only **Flag**, **Next** as the writing controls;
+- mobile/tablet fixed bottom navigation;
+- mobile/tablet question navigator expands from the bottom as a Sheet;
+- diagram/media questions stay first-class through the existing enlarge-capable question media surface;
+- final submission is a deliberate **Submit exam** action, not a separate dense review page.
 
-1. the current question;
-2. the answer controls;
+## Student-facing hierarchy
+
+The writing surface permanently exposes only:
+
+1. short examination title and current subject;
+2. current question position;
 3. remaining time;
-4. current position/progress;
-5. **Prev** and **Next**;
-6. an icon-only flag action;
-7. the question navigator;
-8. a small webcam surface only when monitoring is required;
-9. a clear route to **Submit exam**.
+4. save/sync state;
+5. completion progress;
+6. current question and response controls;
+7. Prev / icon Flag / Next;
+8. question navigator access;
+9. compact webcam only when required;
+10. Submit exam.
 
-Everything else is secondary.
+Class/session/student-number grids, detailed integrity telemetry, camera-source controls, attempt metadata and other secondary information stay outside the primary writing hierarchy unless an error requires action.
 
-## Verified runtime boundary
+## Meaningful completion actions
 
-The real runtime still supports:
+The wireframe's generic Finish / Check steps are not production controls.
 
-- server-calculated timer and expiry;
-- autosave / restore;
-- single, multi-select, boolean, fill and fill-multi responses;
-- reading passages;
-- question media / diagrams with enlarge;
-- direct question jump;
-- flagging;
-- conditional camera monitoring;
-- final submission through the existing review/submission state.
+Production uses:
 
-This redesign is a **wireframe/product exploration only**. It does not alter `ExamWorkspace`, persistence, timing, access, scoring, integrity or submission contracts.
+- **Go to unanswered (N)** while unresolved questions remain;
+- **All questions answered** when the paper is complete;
+- **Submit exam** as the deliberate final action.
 
-## Simplified persistent information
+Submit opens one confirmation surface containing only decision-relevant information:
 
-### Always visible
-
-- short exam title;
-- current subject;
-- question position;
+- answered / total;
+- unresolved count;
+- flagged count;
 - remaining time;
-- overall completion/progress;
-- save state;
-- current question and response;
-- Prev / Next;
-- icon-only Flag;
-- navigator affordance;
-- Submit exam affordance.
+- reconnect guidance when offline;
+- **Continue writing**;
+- **Go to unanswered** when needed;
+- final **Submit exam**.
 
-### Contextual / on demand
+There is no Clear response action and no separate student-facing Review phase.
 
-- full exam metadata;
-- student number and class;
-- session / term;
-- attempt metadata;
-- detailed connectivity diagnostics;
-- integrity policy details;
-- camera-source switching;
-- detailed navigator legend.
+## Responsive contract
 
-These may exist behind an info trigger, popover, drawer or secondary sheet, but must not occupy permanent desktop real estate.
+### Desktop / large screens
 
-## Navigation simplification
+- centered Focus Capsule;
+- small scrollable question rail orbiting the left edge;
+- compact webcam / completion utility orbiting the right edge;
+- Prev / Flag / Next and completion actions inside the capsule footer.
 
-The wireframe must not show:
+### Tablet and mobile
 
-- **Clear response**;
-- a text-labelled Flag button;
-- **Review & Submit** as the primary phrase;
-- **Next question**;
-- a permanent dense status legend.
+- question capsule receives nearly all available width;
+- webcam remains a compact header instrument and must never take over the screen;
+- fixed safe-area-aware bottom navigation contains:
+  - Prev;
+  - icon-only Flag;
+  - Questions;
+  - Next;
+  - Submit;
+- Questions opens a bottom Sheet capped below full viewport height;
+- Sheet contains the real question navigator and restores focus/position after a jump.
 
-Visible movement controls are simply:
+## Question contract
 
-- **Prev**
-- icon-only flag
-- **Next**
+The current production question types remain supported:
 
-A separate **Submit exam** action initiates the finish process.
+- single answer;
+- multiple answer with required-selection count;
+- true / false;
+- fill one blank;
+- fill multiple blanks;
+- reading passage;
+- question image / diagram / figure with enlarge interaction.
 
-## Webcam
+The Focus Capsule changes presentation only. It must not add correctness feedback while the examination is active.
 
-Every concept includes a small webcam placeholder so the composition can be assessed.
+## Security boundary — candidate must never receive answer keys
 
-Production rule remains:
+This implementation strengthens the existing boundary.
 
-- camera surface disappears completely when `cameraRequired === false`;
-- when required, camera remains secondary to the question;
-- no microphone UI.
+### Candidate paper
 
-## Diagram and media provision
+A dedicated `ExamPaperQuestionDTO` is the only question shape allowed into candidate components. It contains presentation fields only and **cannot contain**:
 
-Every concept must demonstrate a credible place for:
+- `answer`;
+- accepted blank-answer lists;
+- correct-answer arrays;
+- explanations used for marking;
+- scoring metadata.
 
-- inline question diagrams;
-- larger diagrams / figures;
-- reading passages;
-- enlarge/view controls.
+`sanitizePaper` uses an explicit allow-list projection instead of object spread. Adding a new internal scoring field to `QuestionDTO` therefore cannot silently expose it to the browser.
 
-The question layout must remain coherent when no diagram or passage exists.
+### Grading
 
-## Mature gamification
+Correct answers are loaded through the server-side service-role question loader and grading remains entirely inside the Server Action/server library path:
 
-Gamification must support orientation and completion rather than entertainment.
+`submitExamAction`
+→ full server-only paper
+→ `scoreAttempt`
+→ persisted grading / aggregate result.
 
-Allowed patterns:
+No candidate component imports or executes `scoreAttempt`, answer matching or correctness logic.
 
-- calm progress trails;
-- question checkpoints;
-- section milestones;
-- completion rings;
-- subtle “section complete” states;
-- a finish-line endpoint;
-- a three-stage submit checkpoint.
+### Candidate result surfaces
 
-Do **not** add:
+Candidate-facing result and analytics surfaces return/show only aggregate server-computed metrics. Per-question correct answers and answer-review payloads are not returned to the candidate client, even after the examination closes.
 
-- points;
-- XP;
-- leaderboards;
-- competitive ranks;
-- streak pressure;
-- cartoon badges;
-- confetti during the active exam;
-- correctness feedback before submission.
+Trusted server persistence may retain grading details for staff/audit operations, protected by the existing RLS/service-role boundary.
 
-## Submission journey
+## Runtime behavior preserved
 
-Each concept must include a restrained gamified finish interaction.
+Focus Capsule keeps the established exam state machine and server authority:
 
-The intended product sequence is:
+- allocation / resume through `allocate_my_exam_attempt`;
+- immutable question IDs for resumed attempts;
+- server-reconciled remaining time;
+- local response continuity while offline;
+- debounced autosave plus periodic forced save;
+- forced save on background transition;
+- elapsed-time reconciliation after returning to the tab;
+- flag persistence;
+- camera ended/restored integrity events when monitoring is configured;
+- automatic time-expiry submission;
+- duplicate-submit recovery;
+- submission retry without losing the visible response state;
+- no-attempt / locked flow;
+- server result restoration after an already-submitted response.
 
-1. **Finish** — candidate deliberately enters the submit checkpoint;
-2. **Check** — show only unresolved/flagged counts, not a dense review dashboard;
-3. **Submit exam** — final irreversible confirmation.
+## Edge-state requirements
 
-The visual metaphor can vary by concept (finish line, seal, checkpoint, completion ring, final stop), but it must remain academically serious.
+### Offline while writing
 
-This is still a representation of the existing final-submission contract; it does not invent a new scoring or reward service.
+The current on-screen response remains intact. Save state visibly changes to Offline and reconnect forces persistence.
 
-## Visual direction
+### Manual submission while offline
 
-The next board should feel:
+Submit confirmation stays available for orientation but final submission is disabled until connectivity returns.
 
-- mature;
-- modern;
-- calm under pressure;
-- exam-specific;
-- spacious but not empty;
-- rounded where containment improves clarity;
-- tactile without becoming skeuomorphic;
-- distinct from admin/dashboard UI.
+### Time expires while offline
 
-Rounded borders are encouraged for:
+The attempt enters the existing submission-recovery state. The candidate is instructed to keep the page open and retry once connected.
 
-- the primary question surface;
-- webcam preview;
-- navigator dock/drawer;
-- submit checkpoint;
-- compact progress/timer surfaces.
+### Save failure
 
-Avoid turning the entire page into a collection of rounded cards.
+A prominent but non-destructive alert is shown; the paper remains usable and the current response is not cleared.
 
-## Ten spatial concepts
+### Camera interruption
 
-### A — Focus Rail
+The compact webcam changes to an actionable retry/error state without covering the question. Integrity records the interruption/restoration.
 
-Slim numbered navigator rail + expansive question canvas + compact camera/timer column.
+### Camera not configured
 
-### B — Horizon Paper
+No camera UI exists.
 
-Full-width question paper with top progress horizon and floating bottom Prev/Flag/Next dock.
+### Missing current question
 
-### C — Diagram Studio
+The capsule shows an explicit unavailable-question alert while navigator access remains usable.
 
-Large media/diagram stage beside a focused answer panel, with navigator and camera tucked into edge utilities.
+### First / last question
 
-### D — Chapter Path
+Prev / Next are disabled at their respective boundary. Submission remains a separate action rather than replacing Next.
 
-Subject/section milestones form a calm horizontal journey above the question; finishing the last milestone leads naturally to Submit.
+### Incomplete multi-part answer
 
-### E — Paper Stack
+The existing response-status contract marks the item incomplete so it appears in the unresolved navigator/Go-to-unanswered path.
 
-Current question appears as the front sheet of a restrained stack; question map is represented by sheet-edge tabs and a compact camera pod.
+## Production files
 
-### F — Focus Capsule
+Primary production changes:
 
-A centered, rounded question capsule dominates the screen; supporting tools orbit its edges without forming sidebars.
+- `src/components/exam/exam-focus-capsule.tsx` — selected Focus Capsule experience;
+- `src/components/exam/exam-workspace.tsx` — live state machine now renders Focus Capsule and removes the old review/clear flow;
+- `src/components/exam/question-card.tsx` — answer-safe Focus visual variant and existing media/diagram support;
+- `src/components/exam/exam-question-navigator.tsx` — consumes the explicit candidate-safe paper type;
+- `src/components/exam/exam-camera-panel.tsx` — compact capsule camera variant;
+- `src/types/exam.ts` — explicit `ExamPaperQuestionDTO` security boundary;
+- `src/lib/questions.ts` — explicit paper allow-list projection;
+- `src/app/actions/exam-state.ts` — safe paper action contract; server grading remains authoritative;
+- `src/app/actions/exam-experience.ts` — aggregate candidate result only; no answer-key payload;
+- `src/components/exam/exam-results.tsx` — aggregate result presentation only;
+- `src/app/dashboard/analytics/page.tsx` — aggregate analytics only; no correct-answer rendering.
 
-### G — Timeline Exam
+No schema, migration or RPC signature change is required.
 
-Question milestones form a vertical progress timeline. The current question lives beside it; Submit is the final timeline stop.
+## Validation gate
 
-### H — Split Horizon
+Before this phase can be called COMPLETE:
 
-Question/diagram context occupies the upper field; answers occupy the lower field; navigation lives in a thin right edge and controls float at the bottom.
+- source/type security audit proves candidate paper/result types contain no answer key;
+- repository fixture/runtime-schema/Prisma/Supabase integration gates pass;
+- TypeScript passes;
+- production build passes;
+- Biome passes;
+- independent review finds no blocking security/responsive/state defect;
+- authenticated browser Dogfood exercises:
+  - new attempt;
+  - active-attempt resume;
+  - single/multi/boolean/fill/fill-multi;
+  - passage + diagram/media;
+  - mobile 360×640 and 375×812;
+  - tablet 768×1024;
+  - desktop 1280×800;
+  - short viewport;
+  - bottom-sheet navigator;
+  - camera required / not required / interrupted;
+  - offline save/reconnect;
+  - submit with unresolved questions;
+  - submit with all questions answered;
+  - timer expiry;
+  - duplicate-submit recovery;
+  - keyboard/focus and reduced motion.
 
-### I — Studio Dock
-
-Large question workspace with a modular bottom dock for navigator, camera, progress and Prev/Next. Desktop has no permanent sidebar.
-
-### J — Finish Line
-
-A modern completion-oriented layout where the paper stays central and the bottom progress trail visibly ends at the Submit exam checkpoint.
-
-## Full-screen wireframe contract
-
-`docs/design/exam/phase-03-write-examination/brainstorm.html` must:
-
-- contain exactly **10** concepts A–J;
-- use no watermark / giant concept letter / phase numeral;
-- make each concept exactly one full snapped design viewport with `min-height: 100dvh`;
-- use `scroll-snap-type: y mandatory` and `scroll-snap-align: start`;
-- include a small fixed A–J comparison navigator;
-- use the entire available screen for the concept rather than placing a small mockup in the middle;
-- remain grayscale / low-fidelity, but use mature radius, spacing, hierarchy and subtle depth;
-- show only the simplified persistent information above;
-- include diagram/media provision in all ten concepts;
-- include webcam provision in all ten concepts, marked conditional in production;
-- include **Prev** and **Next** on all ten concepts;
-- include icon-only Flag on all ten concepts;
-- contain no Clear response action;
-- contain no visible Review action;
-- contain no “Next question” label;
-- include a Submit exam / finish checkpoint in all ten concepts;
-- include mature progress gamification in all ten concepts;
-- remain usable at 360×640, 375×812, 768×1024, 1280×800 and short viewports;
-- preserve visible focus, reasonable touch targets and reduced-motion support;
-- remain static design evidence, not fake production logic.
-
-## Selection gate
-
-No Phase 03 production redesign is approved until the product owner selects **A, B, C, D, E, F, G, H, I, J, or an explicit hybrid**.
-
-After selection, production translation must use the existing React/shadcn/Tailwind stack and preserve the real exam runtime contract.
+CI alone is not browser integration evidence.

@@ -17,9 +17,9 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseExamQuestionContent } from "@/lib/exam-question-content";
 import { cn } from "@/lib/utils";
-import type { QuestionDTO } from "@/types/exam";
+import type { ExamPaperQuestionDTO } from "@/types/exam";
 
-type Q = Omit<QuestionDTO, "answer">;
+type Q = ExamPaperQuestionDTO;
 
 export type QuestionResponseStatus = "answered" | "incomplete" | "unanswered";
 
@@ -92,10 +92,10 @@ function typeLabel(type: Q["type"]) {
   return "Fill in the blank";
 }
 
-function QuestionMedia({ src, alt }: { src: string; alt: string }) {
+function QuestionMedia({ src, alt, focus = false }: { src: string; alt: string; focus?: boolean }) {
   return (
     <Dialog>
-      <div className="overflow-hidden rounded-xl border bg-muted/20">
+      <div className={cn("overflow-hidden rounded-xl border bg-muted/20", focus && "rounded-2xl bg-primary/5")}>
         <div className="relative aspect-[16/9] w-full bg-background">
           <Image src={src} alt={alt} fill sizes="(max-width: 1024px) 100vw, 720px" className="object-contain p-4" />
         </div>
@@ -126,12 +126,14 @@ export function QuestionCard({
   total,
   response,
   onChange,
+  variant = "default",
 }: {
   q: Q;
   index: number;
   total: number;
   response: unknown;
   onChange: (value: unknown) => void;
+  variant?: "default" | "focus";
 }) {
   const status = responseStatus(q, response);
   const content = parseExamQuestionContent(q.prompt);
@@ -140,44 +142,58 @@ export function QuestionCard({
 
   return (
     <article aria-labelledby={`question-${q.id}-title`} className="min-w-0">
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+      <header className={cn("mb-5 flex flex-wrap items-start justify-between gap-3 border-b pb-4", variant === "focus" && "mb-6 border-b-0 pb-0")}>
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <div className={cn("flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground", variant === "focus" && "text-[11px] uppercase tracking-[0.08em]")}>
             <span>Question {index + 1} of {total}</span>
             <span aria-hidden="true">·</span>
             <span>{q.subject}</span>
             {q.domain ? <><span aria-hidden="true">·</span><span>{q.domain}</span></> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="neutral">{typeLabel(q.type)}</StatusBadge>
-            <StatusBadge tone={status === "answered" ? "emerald" : status === "incomplete" ? "amber" : "neutral"}>
-              {status === "answered" ? (
-                <><Check data-icon="inline-start" />Answered</>
-              ) : status === "incomplete" ? (
-                <><Minus data-icon="inline-start" />Incomplete</>
-              ) : (
-                <><Circle data-icon="inline-start" />Not answered</>
-              )}
-            </StatusBadge>
-          </div>
+          {variant === "focus" ? (
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border bg-primary/5 px-2.5 py-1 text-[10px] font-semibold text-primary">{typeLabel(q.type)}</span>
+              <span className={cn(
+                "rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                status === "answered" && "bg-success/10 text-success-foreground",
+                status === "incomplete" && "bg-warning/25 text-warning-foreground",
+                status === "unanswered" && "bg-muted text-muted-foreground",
+              )}>
+                {status === "answered" ? "Answered" : status === "incomplete" ? "Incomplete" : "Open"}
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone="neutral">{typeLabel(q.type)}</StatusBadge>
+              <StatusBadge tone={status === "answered" ? "emerald" : status === "incomplete" ? "amber" : "neutral"}>
+                {status === "answered" ? (
+                  <><Check data-icon="inline-start" />Answered</>
+                ) : status === "incomplete" ? (
+                  <><Minus data-icon="inline-start" />Incomplete</>
+                ) : (
+                  <><Circle data-icon="inline-start" />Not answered</>
+                )}
+              </StatusBadge>
+            </div>
+          )}
         </div>
       </header>
 
       <div className={cn("grid min-w-0 gap-6", passageLayout && "xl:grid-cols-[minmax(18rem,.85fr)_minmax(0,1.15fr)] xl:items-start")}>
         {content.passage ? (
-          <aside className="rounded-xl border bg-muted/20 p-5 xl:sticky xl:top-24" aria-label="Reading passage">
+          <aside className={cn("rounded-xl border bg-muted/20 p-5 xl:sticky xl:top-24", variant === "focus" && "rounded-2xl bg-primary/5")} aria-label="Reading passage">
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Reading passage</p>
             <div className="whitespace-pre-line text-[15px] leading-7 text-foreground">{content.passage}</div>
           </aside>
         ) : null}
 
         <div className="min-w-0">
-          {content.media ? <div className="mb-6"><QuestionMedia src={content.media.src} alt={content.media.alt} /></div> : null}
+          {content.media ? <div className="mb-6"><QuestionMedia src={content.media.src} alt={content.media.alt} focus={variant === "focus"} /></div> : null}
 
           {q.instruction ? (
             <p className="mb-3 text-sm font-semibold leading-6 text-muted-foreground">{q.instruction}</p>
           ) : null}
-          <h2 id={`question-${q.id}-title`} className="max-w-4xl text-lg font-semibold leading-8 tracking-[-0.01em] text-foreground sm:text-xl sm:leading-9">
+          <h2 id={`question-${q.id}-title`} className={cn("max-w-4xl text-lg font-semibold leading-8 tracking-[-0.01em] text-foreground sm:text-xl sm:leading-9", variant === "focus" && "text-xl leading-8 sm:text-2xl sm:leading-10 lg:text-[1.7rem] lg:leading-[1.45]")}>
             {content.question}
           </h2>
 
@@ -192,8 +208,9 @@ export function QuestionCard({
                       key={option}
                       htmlFor={id}
                       className={cn(
-                        "flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 transition-colors focus-within:border-foreground focus-within:ring-3 focus-within:ring-ring/20",
-                        selected ? "border-foreground bg-muted/60" : "bg-background hover:bg-muted/30",
+                        "flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 transition-colors focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/15",
+                        variant === "focus" && "rounded-2xl px-4 py-4 sm:min-h-16 sm:text-[15px]",
+                        selected ? "border-primary bg-primary/5" : "bg-background hover:bg-muted/30",
                       )}
                     >
                       <RadioGroupItem id={id} value={option} className="mt-1" />
@@ -216,8 +233,9 @@ export function QuestionCard({
                       key={option}
                       htmlFor={id}
                       className={cn(
-                        "flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 transition-colors focus-within:border-foreground focus-within:ring-3 focus-within:ring-ring/20",
-                        selected ? "border-foreground bg-muted/60" : "bg-background hover:bg-muted/30",
+                        "flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 transition-colors focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/15",
+                        variant === "focus" && "rounded-2xl px-4 py-4 sm:min-h-16 sm:text-[15px]",
+                        selected ? "border-primary bg-primary/5" : "bg-background hover:bg-muted/30",
                       )}
                     >
                       <Checkbox
@@ -254,8 +272,9 @@ export function QuestionCard({
                       key={choice.value}
                       htmlFor={id}
                       className={cn(
-                        "flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border p-4 text-base font-semibold transition-colors focus-within:border-foreground focus-within:ring-3 focus-within:ring-ring/20",
-                        selected ? "border-foreground bg-muted/60" : "bg-background hover:bg-muted/30",
+                        "flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border p-4 text-base font-semibold transition-colors focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/15",
+                        variant === "focus" && "rounded-2xl",
+                        selected ? "border-primary bg-primary/5" : "bg-background hover:bg-muted/30",
                       )}
                     >
                       <RadioGroupItem id={id} value={choice.value} />
@@ -267,7 +286,7 @@ export function QuestionCard({
             ) : null}
 
             {q.type === "fill" || q.type === "fill-multi" ? (
-              <div className="rounded-xl border bg-muted/10 p-4 text-base leading-10 sm:p-5">
+              <div className={cn("rounded-xl border bg-muted/10 p-4 text-base leading-10 sm:p-5", variant === "focus" && "rounded-2xl bg-primary/5")}>
                 {(q.fillTemplate ?? []).map((part, partIndex) => {
                   const key = part.key ?? `b${partIndex}`;
                   if (!part.blank) return <span key={`${key}-text`}>{part.text} </span>;

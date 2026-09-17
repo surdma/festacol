@@ -36,7 +36,7 @@ interface ExamCameraPanelProps {
   onStart: () => void;
   onSelectDevice: (deviceId: string) => void;
   compact?: boolean;
-  variant?: "default" | "booklet";
+  variant?: "default" | "booklet" | "capsule";
 }
 
 function statusLabel(status: ExamCameraStatus) {
@@ -57,7 +57,7 @@ function CameraPreview({
   status: ExamCameraStatus;
   stream: MediaStream | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  presentation: "compact" | "default" | "booklet";
+  presentation: "compact" | "default" | "booklet" | "capsule";
 }) {
   return (
     <div
@@ -66,6 +66,7 @@ function CameraPreview({
         presentation === "compact" && "aspect-[4/3] w-24 rounded-lg",
         presentation === "default" && "aspect-video w-full border-y",
         presentation === "booklet" && "aspect-[4/3] w-32 border border-border bg-background sm:w-36",
+        presentation === "capsule" && "aspect-[4/3] w-16 rounded-xl border border-border bg-background sm:w-20 xl:w-full",
       )}
     >
       {status === "active" && stream ? (
@@ -87,7 +88,9 @@ function CameraPreview({
               "absolute flex items-center gap-1.5 bg-background/90 font-semibold text-foreground shadow-sm",
               presentation === "compact"
                 ? "left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[9px]"
-                : "left-3 top-3 rounded-full px-2.5 py-1 text-[11px]",
+                : presentation === "capsule"
+                  ? "left-1 top-1 rounded-full px-1.5 py-0.5 text-[8px]"
+                  : "left-3 top-3 rounded-full px-2.5 py-1 text-[11px]",
             )}
           >
             <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
@@ -95,7 +98,7 @@ function CameraPreview({
           </div>
         </>
       ) : (
-        <div className="flex size-full min-h-24 items-center justify-center text-muted-foreground">
+        <div className={cn("flex size-full items-center justify-center text-muted-foreground", presentation === "capsule" ? "min-h-12" : "min-h-24")}>
           {status === "requesting" ? (
             <Spinner className="size-5" />
           ) : (
@@ -129,6 +132,47 @@ export function ExamCameraPanel({
   }, [stream]);
 
   if (!required) return null;
+
+  if (variant === "capsule") {
+    return (
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Required webcam">
+        <div className="flex items-center gap-2 p-1.5 xl:flex-col xl:items-stretch xl:p-2">
+          <CameraPreview status={status} stream={stream} videoRef={videoRef} presentation="capsule" />
+          <div className="min-w-0 flex-1 xl:px-1 xl:pb-1">
+            <div className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  status === "active" ? "bg-success" : status === "requesting" ? "bg-warning" : "bg-destructive",
+                )}
+                aria-hidden="true"
+              />
+              <p className="truncate text-[9px] font-semibold sm:text-[10px]">{status === "active" ? "Camera live" : statusLabel(status)}</p>
+            </div>
+            <p className="mt-0.5 hidden text-[9px] leading-4 text-muted-foreground xl:block">
+              Required monitoring · no microphone
+            </p>
+          </div>
+          {status !== "active" ? (
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              onClick={onStart}
+              disabled={status === "requesting"}
+              aria-label="Retry required camera"
+              className="shrink-0"
+            >
+              {status === "requesting" ? <Spinner /> : <RefreshCw />}
+            </Button>
+          ) : null}
+        </div>
+        {error && status !== "active" ? (
+          <p className="border-t px-2 py-1.5 text-[9px] leading-4 text-destructive xl:text-[10px]">{error}</p>
+        ) : null}
+      </section>
+    );
+  }
 
   if (variant === "booklet") {
     return (

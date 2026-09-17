@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { responseStatus } from "@/components/exam/question-card";
 import { cn } from "@/lib/utils";
-import type { QuestionDTO } from "@/types/exam";
+import type { ExamPaperQuestionDTO } from "@/types/exam";
 
-type Q = Omit<QuestionDTO, "answer">;
+type Q = ExamPaperQuestionDTO;
 type NavigatorFilter = "all" | "unanswered" | "flagged";
 
 interface ExamQuestionNavigatorProps {

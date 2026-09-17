@@ -1,17 +1,15 @@
 "use server";
 
 import { z } from "zod";
-import { answersMayBeRevealed, effectiveStatus, paperFromQuestionIds } from "@/lib/assessment";
+import { paperFromQuestionIds } from "@/lib/assessment";
 import { currentStudent } from "@/lib/auth/current-student";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   ExamExperienceContext,
-  ExamResultReviewItem,
   ExamResultSummary,
   ExamSubjectPerformance,
-  QuestionDTO,
 } from "@/types/exam";
 
 const sessionIdSchema = z.string().trim().min(1).max(64).transform((value) => value.toUpperCase());
@@ -45,7 +43,6 @@ interface ResultResponseRow {
   response_values: string[];
   seconds: number;
   correct: boolean | null;
-  correct_answer: string | null;
 }
 
 export type ExamExperienceResult =
@@ -72,25 +69,6 @@ function accessError(reason: string | null): string {
   return "This examination is unavailable for your account.";
 }
 
-function decodeResponse(row: ResultResponseRow): unknown {
-  if (Array.isArray(row.response_values) && row.response_values.length > 0) {
-    return row.response_values.map(String);
-  }
-  if (typeof row.response_text !== "string") return null;
-  const value = row.response_text.trim();
-  if (!value) return "";
-  if (value === "true" || value === "false") return value === "true";
-  if (value.startsWith("{") && value.endsWith("}")) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
-    } catch {
-      // A normal text response may contain braces. Keep it as text when it is not JSON.
-    }
-  }
-  return row.response_text;
-}
-
 function responseIsAnswered(row: ResultResponseRow | undefined): boolean {
   if (!row) return false;
   if (Array.isArray(row.response_values) && row.response_values.some((value) => String(value).trim().length > 0)) {
@@ -110,13 +88,6 @@ function responseIsAnswered(row: ResultResponseRow | undefined): boolean {
     }
   }
   return true;
-}
-
-function serializeAnswer(question: QuestionDTO | undefined): string {
-  const answer = (question as { answer?: unknown } | undefined)?.answer;
-  if (Array.isArray(answer)) return answer.map(String).join(", ");
-  if (answer && typeof answer === "object") return JSON.stringify(answer);
-  return String(answer ?? "");
 }
 
 export async function getExamExperienceContextAction(sessionId: string): Promise<ExamExperienceResult> {
@@ -215,7 +186,7 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
   const admin = createSupabaseAdminClient();
   const { data: responseData, error: responseError } = await admin
     .from("exam_attempt_responses")
-    .select("question_id,response_text,response_values,seconds,correct,correct_answer")
+    .select("question_id,response_text,response_values,seconds,correct")
     .eq("attempt_id", attempt.id);
   if (responseError) return { ok: false, error: "Your question results could not be loaded." };
   const responseRows = (responseData ?? []) as ResultResponseRow[];
@@ -254,43 +225,6 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
     percent: item.total ? Math.round((item.correct / item.total) * 100) : 0,
   }));
 
-  const currentStatus = effectiveStatus(runtime.session);
-  const canReviewAnswers = currentStatus === "draft"
-    || currentStatus === "open"
-    || currentStatus === "closed"
-    || currentStatus === "scheduled"
-    ? answersMayBeRevealed(runtime.session, currentStatus)
-    : false;
-  let review: ExamResultReviewItem[] = [];
-  if (canReviewAnswers && paper.length) {
-    const questionIds = paper.map((question) => question.id);
-    const { data: explanationRows } = await admin
-      .from("questions")
-      .select("id,explanation")
-      .in("id", questionIds);
-    const explanationById = new Map(
-      ((explanationRows ?? []) as { id: number; explanation: string | null }[]).map((row) => [Number(row.id), row.explanation ?? ""]),
-    );
-    review = paper.map((question, index) => {
-      const response = responseByQuestion.get(question.id);
-      const item: ExamResultReviewItem = {
-        questionId: question.id,
-        questionNumber: index + 1,
-        subject: question.subject,
-        type: question.type,
-        prompt: question.prompt,
-        response: response ? decodeResponse(response) : null,
-        correctAnswer: response?.correct_answer || serializeAnswer(question),
-        correct: response?.correct ?? null,
-        seconds: Math.max(0, Number(response?.seconds ?? 0)),
-      };
-      if (question.domain) item.domain = question.domain;
-      const explanation = explanationById.get(question.id)?.trim();
-      if (explanation) item.explanation = explanation;
-      return item;
-    });
-  }
-
   const placement = attempt.assigned_track
     ? {
         assignedTrack: displayTrack(attempt.assigned_track),
@@ -313,8 +247,6 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
     paceIndex: Math.max(0, Number(attempt.pace_index ?? 0)),
     reasoningIndex: Math.max(0, Number(attempt.reasoning_index ?? 0)),
     subjectStats,
-    canReviewAnswers,
-    review,
   };
   if (placement) summary.placement = placement;
 

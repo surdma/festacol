@@ -1,61 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  CircleAlert,
-  Cloud,
-  CloudOff,
-  Flag,
-  ListChecks,
-  Menu,
-  RotateCcw,
-  Save,
-  Send,
-  TriangleAlert,
-  Wifi,
-} from "lucide-react";
+import { Check, CircleAlert, ListChecks, RotateCcw } from "lucide-react";
 import { getExamResultAction } from "@/app/actions/exam-experience";
 import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
 import { getExamPaperAction, saveProgressAction, submitExamAction, type SubmitSummary } from "@/app/actions/exam-state";
-import { ExamStatusWatch } from "@/components/exam-status-watch";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { ExamPreflight } from "@/components/exam/exam-preflight";
-import { ExamQuestionNavigator } from "@/components/exam/exam-question-navigator";
 import { ExamResults } from "@/components/exam/exam-results";
-import { QuestionCard, responseStatus } from "@/components/exam/question-card";
+import { ExamFocusCapsule } from "@/components/exam/exam-focus-capsule";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { useExamTimer, useIntegrityRecorder } from "@/hooks/use-exam";
 import { useExamCamera } from "@/hooks/use-exam-camera";
-import { cn } from "@/lib/utils";
-import type { ExamExperienceContext, ExamResultSummary, QuestionDTO } from "@/types/exam";
+import type { ExamExperienceContext, ExamPaperQuestionDTO, ExamResultSummary } from "@/types/exam";
 
-type Q = Omit<QuestionDTO, "answer">;
-type Phase = "preflight" | "loading" | "load-failed" | "exam" | "review" | "processing" | "submission-failed" | "submitted" | "locked";
+type Q = ExamPaperQuestionDTO;
+type Phase = "preflight" | "loading" | "load-failed" | "exam" | "processing" | "submission-failed" | "submitted" | "locked";
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
 type PersistResult = { ok: true } | { ok: false; error: string };
 
@@ -66,27 +29,6 @@ type BackgroundSnapshot = {
   questionId: string;
   questionSeconds: number;
 };
-
-function formatDuration(seconds: number) {
-  const total = Math.max(0, Math.round(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-
-function SyncIndicator({ status }: { status: SyncStatus }) {
-  const content = status === "saving"
-    ? { icon: <Spinner className="size-3.5" />, label: "Saving…" }
-    : status === "saved"
-      ? { icon: <Check className="size-3.5" />, label: "Saved" }
-      : status === "offline"
-        ? { icon: <CloudOff className="size-3.5" />, label: "Offline" }
-        : status === "error"
-          ? { icon: <TriangleAlert className="size-3.5" />, label: "Save issue" }
-          : { icon: <Cloud className="size-3.5" />, label: "Sync pending" };
-  return <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">{content.icon}{content.label}</span>;
-}
 
 function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" }) {
   return (
@@ -342,7 +284,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     }
   }, [camera, captureTiming, fetchRichResult, persist, session.id]);
 
-  const timerActive = phase === "exam" || phase === "review";
+  const timerActive = phase === "exam";
   const timer = useExamTimer(remaining, () => void submitFinal("time-expired"), timerActive);
   remainingRef.current = timer.remaining;
   const { record: recordIntegrity } = useIntegrityRecorder(timerActive ? session.id : "", {
@@ -487,11 +429,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     markDirty();
   }, [captureTiming, index, markDirty, paper]);
 
-  const currentQuestion = paper[index];
-  const currentQuestionId = String(currentQuestion?.id ?? "");
-  const answeredCount = useMemo(() => paper.filter((question) => responseStatus(question, responses[String(question.id)]) === "answered").length, [paper, responses]);
-  const openQuestions = useMemo(() => paper.map((question, itemIndex) => ({ question, itemIndex })).filter(({ question }) => responseStatus(question, responses[String(question.id)]) !== "answered"), [paper, responses]);
-  const flaggedSet = useMemo(() => new Set(flagged), [flagged]);
+  const currentQuestionId = String(paper[index]?.id ?? "");
 
   const updateResponse = useCallback((value: unknown) => {
     if (!currentQuestionId) return;
@@ -503,12 +441,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     if (!currentQuestionId) return;
     setResponses((current) => Object.hasOwn(current, currentQuestionId) ? current : { ...current, [currentQuestionId]: "" });
     setFlagged((current) => current.includes(currentQuestionId) ? current.filter((item) => item !== currentQuestionId) : [...current, currentQuestionId]);
-    markDirty();
-  }, [currentQuestionId, markDirty]);
-
-  const clearCurrentResponse = useCallback(() => {
-    if (!currentQuestionId) return;
-    setResponses((current) => ({ ...current, [currentQuestionId]: "" }));
     markDirty();
   }, [currentQuestionId, markDirty]);
 
@@ -641,215 +573,46 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         </Alert>
         <div className="mt-6 flex flex-wrap gap-2 border-t pt-5">
           <Button type="button" onClick={() => void submitFinal(processingReason)}><RotateCcw data-icon="inline-start" />Retry submission</Button>
-          {processingReason === "manual" && timer.remaining > 0 ? <Button type="button" variant="outline" onClick={() => setPhase("review")}>Return to review</Button> : null}
+          {processingReason === "manual" && timer.remaining > 0 ? <Button type="button" variant="outline" onClick={() => setPhase("exam")}>Return to exam</Button> : null}
         </div>
       </main>
     );
   }
 
-  const timerTone = timer.remaining <= 300 ? "border-destructive/20 bg-destructive/10 text-destructive" : timer.remaining <= 600 ? "border-warning-border bg-warning text-warning-foreground" : "border-border bg-background text-foreground";
-  const questionNavigator = (
-    <ExamQuestionNavigator
-      paper={paper}
-      currentIndex={index}
-      responses={responses}
-      flagged={flagged}
-      visited={visited}
-      onJump={(nextIndex) => { goToQuestion(nextIndex); setPhase("exam"); }}
-    />
-  );
+  if (phase === "exam") {
+    return (
+      <ExamFocusCapsule
+        context={context}
+        paper={paper}
+        currentIndex={index}
+        responses={responses}
+        flagged={flagged}
+        visited={visited}
+        timerText={timer.format()}
+        timerRemaining={timer.remaining}
+        syncStatus={syncStatus}
+        online={online}
+        timeNotice={timeNotice}
+        saveError={saveError}
+        camera={{
+          status: camera.status,
+          stream: camera.stream,
+          devices: camera.devices,
+          deviceId: camera.deviceId,
+          error: camera.error,
+          onStart: () => void camera.start(),
+          onSelectDevice: (deviceId) => void camera.selectDevice(deviceId),
+        }}
+        onJump={goToQuestion}
+        onPrevious={() => goToQuestion(index - 1)}
+        onNext={() => goToQuestion(index + 1)}
+        onToggleFlag={toggleCurrentFlag}
+        onChangeResponse={updateResponse}
+        onSubmit={() => void submitFinal("manual")}
+      />
+    );
+  }
 
-  return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-        <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-5 lg:px-6">
-          <div className="min-w-0 flex-1">
-            <p className="hidden text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground sm:block">Festacol Assessment</p>
-            <p className="truncate text-sm font-semibold sm:text-base">{session.title}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{context.subjectNames.join(" · ") || context.candidate.classLabel}</p>
-          </div>
+  return null;
 
-          <div className="hidden items-center gap-4 md:flex">
-            <SyncIndicator status={syncStatus} />
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Wifi className="size-3.5" aria-hidden="true" />{online ? "Connected" : "Offline"}</span>
-          </div>
-
-          <Sheet>
-            <SheetTrigger render={<Button type="button" variant="outline" size="icon-lg" className="xl:hidden" aria-label="Open question navigator" />}>
-              <Menu />
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[min(92vw,24rem)] sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Questions</SheetTitle>
-                <SheetDescription>Jump to unanswered or flagged questions without losing your current response.</SheetDescription>
-              </SheetHeader>
-              <div className="min-h-0 flex-1 px-4 pb-4">{questionNavigator}</div>
-            </SheetContent>
-          </Sheet>
-
-          <div className={cn("shrink-0 rounded-lg border px-3 py-1.5 text-right", timerTone)}>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-75">Time left</p>
-            <p className="font-mono text-base font-semibold leading-5 tabular-nums sm:text-lg" aria-live="off">{timer.format()}</p>
-          </div>
-        </div>
-      </header>
-
-      {timeNotice ? (
-        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6" aria-live="polite">
-          <Alert><CircleAlert /><AlertTitle>{timeNotice}</AlertTitle><AlertDescription>Review your open questions and continue working. The timer remains active.</AlertDescription></Alert>
-        </div>
-      ) : null}
-
-      <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6"><ExamStatusWatch sessionId={session.id} /></div>
-
-      {context.cameraRequired ? (
-        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6 xl:hidden">
-          <ExamCameraPanel
-            required
-            compact
-            status={camera.status}
-            stream={camera.stream}
-            devices={camera.devices}
-            deviceId={camera.deviceId}
-            error={camera.error}
-            onStart={() => void camera.start()}
-            onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
-          />
-        </div>
-      ) : null}
-
-      {!online || saveError || (context.cameraRequired && camera.status !== "active") ? (
-        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6">
-          <Alert variant={!online || saveError ? "destructive" : "default"}>
-            {!online ? <CloudOff /> : context.cameraRequired && camera.status !== "active" ? <TriangleAlert /> : <Save />}
-            <AlertTitle>{!online ? "Connection interrupted" : saveError ? "Progress needs to sync" : "Camera attention required"}</AlertTitle>
-            <AlertDescription>
-              {!online ? "Keep this page open. Your current on-screen answers remain in place and Festacol will retry when the connection returns." : saveError ?? "The required camera is not active. Reconnect it while continuing to keep your exam responses on screen."}
-            </AlertDescription>
-          </Alert>
-        </div>
-      ) : null}
-
-      {phase === "exam" ? (
-        <div className="mx-auto grid w-full max-w-[1600px] xl:grid-cols-[minmax(0,1fr)_19rem]">
-          <main className="min-w-0 px-3 pb-28 pt-5 sm:px-5 sm:pt-7 lg:px-8 xl:px-10">
-            {currentQuestion ? (
-              <div className="mx-auto w-full max-w-5xl">
-                <QuestionCard q={currentQuestion} index={index} total={paper.length} response={responses[currentQuestionId]} onChange={updateResponse} />
-              </div>
-            ) : (
-              <Alert variant="destructive"><AlertTitle>Question unavailable</AlertTitle><AlertDescription>This question could not be rendered. Use the navigator to move to another question.</AlertDescription></Alert>
-            )}
-          </main>
-
-          <aside className="hidden min-h-0 border-l xl:block" aria-label="Examination utilities">
-            <div className="sticky top-16 flex max-h-[calc(100dvh-4rem)] flex-col gap-4 overflow-hidden p-4">
-              {context.cameraRequired ? (
-                <ExamCameraPanel
-                  required
-                  status={camera.status}
-                  stream={camera.stream}
-                  devices={camera.devices}
-                  deviceId={camera.deviceId}
-                  error={camera.error}
-                  onStart={() => void camera.start()}
-                  onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
-                />
-              ) : null}
-              <div className="min-h-0 flex-1">{questionNavigator}</div>
-              <Button type="button" variant="outline" size="lg" onClick={() => setPhase("review")}>
-                <ListChecks data-icon="inline-start" />Review & submit
-              </Button>
-            </div>
-          </aside>
-
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:px-5 xl:right-[19rem]">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="lg" disabled={index === 0} onClick={() => goToQuestion(index - 1)}>
-                <ArrowLeft data-icon="inline-start" /><span className="hidden sm:inline">Previous</span>
-              </Button>
-              <Button type="button" variant={flaggedSet.has(currentQuestionId) ? "secondary" : "outline"} size="lg" onClick={toggleCurrentFlag} aria-pressed={flaggedSet.has(currentQuestionId)}>
-                <Flag data-icon="inline-start" />{flaggedSet.has(currentQuestionId) ? "Flagged" : "Flag"}
-              </Button>
-              <Button type="button" variant="ghost" size="lg" disabled={!currentQuestion || responseStatus(currentQuestion, responses[currentQuestionId]) === "unanswered"} onClick={clearCurrentResponse}>Clear</Button>
-              <div className="ml-auto flex gap-2">
-                {index < paper.length - 1 ? (
-                  <Button type="button" size="lg" onClick={() => goToQuestion(index + 1)}>Next<ArrowRight data-icon="inline-end" /></Button>
-                ) : (
-                  <Button type="button" size="lg" onClick={() => setPhase("review")}><ListChecks data-icon="inline-start" />Review answers</Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {phase === "review" ? (
-        <main className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
-          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-            <section aria-labelledby="submission-review-title">
-              <p className="text-sm font-semibold text-muted-foreground">Submission review</p>
-              <h1 id="submission-review-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Check unresolved questions before you submit.</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Submission is final. Use the lists below to jump directly to questions that still need attention, or return to the exam and continue normally.</p>
-
-              <div className="mt-7 grid grid-cols-3 gap-4 border-y py-5">
-                <div><p className="text-xs text-muted-foreground">Answered</p><p className="mt-1 text-xl font-semibold tabular-nums">{answeredCount}/{paper.length}</p></div>
-                <div><p className="text-xs text-muted-foreground">Open</p><p className="mt-1 text-xl font-semibold tabular-nums">{openQuestions.length}</p></div>
-                <div><p className="text-xs text-muted-foreground">Flagged</p><p className="mt-1 text-xl font-semibold tabular-nums">{flagged.length}</p></div>
-              </div>
-
-              <section className="mt-7" aria-labelledby="unanswered-title">
-                <h2 id="unanswered-title" className="text-sm font-semibold">Unanswered or incomplete</h2>
-                {openQuestions.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {openQuestions.map(({ question, itemIndex }) => <Button key={question.id} type="button" variant="outline" size="sm" onClick={() => { goToQuestion(itemIndex); setPhase("exam"); }}>Question {itemIndex + 1}</Button>)}
-                  </div>
-                ) : <p className="mt-2 text-sm text-muted-foreground">Every question has a complete response.</p>}
-              </section>
-
-              <section className="mt-6" aria-labelledby="flagged-title">
-                <h2 id="flagged-title" className="text-sm font-semibold">Flagged for review</h2>
-                {flagged.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {paper.map((question, itemIndex) => flaggedSet.has(String(question.id)) ? <Button key={question.id} type="button" variant="outline" size="sm" onClick={() => { goToQuestion(itemIndex); setPhase("exam"); }}><Flag data-icon="inline-start" />Question {itemIndex + 1}</Button> : null)}
-                  </div>
-                ) : <p className="mt-2 text-sm text-muted-foreground">No questions are currently flagged.</p>}
-              </section>
-
-              <div className="mt-8 flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <Button type="button" variant="outline" size="lg" onClick={() => setPhase("exam")}><ArrowLeft data-icon="inline-start" />Return to Exam</Button>
-                <AlertDialog>
-                  <AlertDialogTrigger render={<Button type="button" size="lg" />}>
-                    <Send data-icon="inline-start" />Submit Final Answers
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Submit your final answers?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action is final. {openQuestions.length ? `${openQuestions.length} question${openQuestions.length === 1 ? " is" : "s are"} still unanswered or incomplete. ` : ""}You have {formatDuration(timer.remaining)} remaining.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => void submitFinal("manual")}>Submit Final Answers</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </section>
-
-            <aside className="border-y py-4 lg:sticky lg:top-24">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Before submitting</p>
-              <ul className="mt-3 flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
-                <li>Confirm every response you want marked is visible in the navigator.</li>
-                <li>Flagging a question does not remove its answer.</li>
-                <li>Unanswered questions remain unanswered after final submission.</li>
-                <li>The timer continues while you review.</li>
-              </ul>
-            </aside>
-          </div>
-        </main>
-      ) : null}
-    </div>
-  );
 }

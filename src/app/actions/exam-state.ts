@@ -7,10 +7,10 @@ import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload, sanitizePaper } from "@/lib/questions";
 import { effectiveStatus, hashText, paperForStudent, paperFromQuestionIds, scoreAttempt } from "@/lib/assessment";
 import type { AcademicTrack } from "@/types/db";
-import type { ExamSessionDTO, QuestionDTO } from "@/types/exam";
+import type { ExamPaperQuestionDTO, ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
 export type PaperStatus =
-  | { status: "ready"; paper: Omit<QuestionDTO, "answer">[]; remainingSeconds: number; currentIndex: number; responses: Record<string, unknown>; flagged: string[]; cameraRequired: boolean }
+  | { status: "ready"; paper: ExamPaperQuestionDTO[]; remainingSeconds: number; currentIndex: number; responses: Record<string, unknown>; flagged: string[]; cameraRequired: boolean }
   | { status: "locked"; score: number | null }
   | { status: "unavailable"; error: string };
 
