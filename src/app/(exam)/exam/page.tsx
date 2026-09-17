@@ -3,7 +3,7 @@ import { getExamExperienceContextAction } from "@/app/actions/exam-experience";
 import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
 import { AccessDenied } from "@/components/access-denied";
 import { ExamEntryUnavailable } from "@/components/exam/exam-entry-unavailable";
-import { ExamWorkspaceEntry } from "@/components/exam/exam-workspace-entry";
+import { ExamWorkspace } from "@/components/exam/exam-workspace";
 import { StudentWizard } from "@/components/exam/student-wizard";
 import { RealtimeNotificationSync } from "@/components/shell/realtime-notification-sync";
 import { Toaster } from "@/components/ui/toast";
@@ -76,6 +76,7 @@ export default async function StandaloneExamPage({
   );
   const accessRow = (Array.isArray(access) ? access[0] : access) as {
     eligible?: boolean;
+    denial_reason?: string | null;
   } | null;
 
   if (accessError) {
@@ -88,7 +89,12 @@ export default async function StandaloneExamPage({
   }
 
   if (!accessRow?.eligible) {
-    return <StudentWizard token={token} />;
+    return (
+      <StudentWizard
+        token={token}
+        denialReason={accessRow?.denial_reason ?? null}
+      />
+    );
   }
 
   const experience = await getExamExperienceContextAction(entry.exam.id);
@@ -114,7 +120,7 @@ export default async function StandaloneExamPage({
         examSessionId={entry.exam.id}
         activeAttemptId={activeAttemptId}
       />
-      <ExamWorkspaceEntry key={workspaceKey} context={experience.data} />
+      <ExamWorkspace key={workspaceKey} context={experience.data} />
     </Toaster>
   );
 }

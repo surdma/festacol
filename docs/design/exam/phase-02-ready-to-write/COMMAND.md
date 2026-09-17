@@ -12,36 +12,38 @@ The A–G comparison gate is closed for Phase 02. The wireframe board remains hi
 
 ## Production translation contract
 
-The selected production direction must:
+Concept B is a composition contract, not a loose theme reference:
 
-- use one responsive booklet/spread that stacks cleanly on narrow screens;
-- bind paper facts to the real `ExamExperienceContext` rather than representative wireframe data;
-- show useful examination data including title, mode, subjects, candidate/class information, academic period, duration, question count, availability, attempts and qualifier placement tracks where applicable;
-- keep essential answering/navigation/saving/timing/review guidance on the same surface;
-- show examination-creator instructions and only the integrity/randomization guidance actually configured for the session;
-- render camera setup only when persisted exam configuration resolves to `cameraRequired === true`;
-- request webcam permission only after the candidate chooses **Allow camera** and never request microphone permission;
-- keep missing class / SS1 placement as a conditional booklet insert rather than a separate progress wizard;
-- keep Start/Resume behind `getExamPaperAction` / `allocate_my_exam_attempt`;
-- preserve offline, camera-denied/unavailable/disconnected, attempt-limit and resume behavior;
-- leave the live question workspace outside Phase 02 scope.
+- use a **flat two-page examination spread** with a visible center fold;
+- no external app header, rounded dashboard shell, sidebar, progress rail, or multi-screen preparation sequence;
+- left page keeps exactly four primary facts: **Candidate, Class, Questions, Duration**;
+- right page keeps exactly three primary rules, a readiness stamp, and only restrained progressive disclosure for school-authored instructions;
+- secondary real exam metadata may appear only as small supporting text and must not become additional panels;
+- camera is absent when not required; when required it is a small on-demand booklet element with no microphone request;
+- placement candidates do not answer level/path/class questions; one direct placement continuation is enough;
+- normal candidates with no enrollment choose only their existing class;
+- Start/Resume remains behind `getExamPaperAction` / `allocate_my_exam_attempt`;
+- the live question workspace remains Phase 03 scope.
 
-## Implemented source
+## Corrected source target
 
-Production commit: `1cf2e2a84eaba69f9bd35d482566eb7fd191b34a`
+- `src/components/exam/exam-preflight.tsx` — literal Concept B spread, four facts, three rules, readiness stamp and perforated Start/Resume strip;
+- `src/components/exam/exam-camera-panel.tsx` — compact booklet camera variant while preserving existing live-exam camera behavior;
+- `src/components/exam/student-wizard.tsx` — narrow academic insert with direct placement continuation or one class selector;
+- `src/components/exam/exam-workspace.tsx` — one pre-exam state for new and active attempts; no legacy preparation stages;
+- `src/app/(exam)/exam/page.tsx` — routes denial reason into the minimal academic insert and eligible candidates directly into `ExamWorkspace`;
+- `src/components/exam/exam-workspace-entry.tsx` — removed as obsolete compatibility glue.
 
-- `src/components/exam/exam-preflight.tsx` — selected high-fidelity booklet, real exam configuration, instructions, readiness and Start/Resume strip;
-- `src/components/exam/exam-camera-panel.tsx` — on-demand required-camera permission/preview and live-exam camera state; returns `null` when camera is not required;
-- `src/components/exam/student-wizard.tsx` — academic exceptions re-authored as a booklet insert without the old progress rail;
-- `src/components/exam/exam-workspace-entry.tsx` — active no-camera attempts receive the same booklet before Resume;
-- `src/app/(exam)/exam/page.tsx` — routes eligible candidates into the selected Phase 02 entry surface and distinguishes access-service failure from academic configuration.
-
-No schema/RPC change was required. `my_exam_access`, academic server actions, `allocate_my_exam_attempt`, persistence, integrity, scoring, submission and retake contracts remain authoritative.
+No schema/RPC change is required. Server access, academic persistence, attempt allocation, autosave, integrity, scoring, submission and retake contracts stay authoritative.
 
 ## Validation
 
-GitHub Actions **Next.js Quality** run #819 (`35256435740`) passed the implementation head, including schema/fixture integration, Prisma migration validation, Supabase/RLS/Realtime integration, TypeScript, production build and Biome.
+The earlier implementation passed CI but failed product fidelity review against the selected Concept B wireframe. The correction must be revalidated as a new implementation.
 
-Vercel reported the implementation preview **Ready**.
+Required evidence:
+- source/static validation;
+- repository Next.js Quality workflow;
+- independent review;
+- browser dogfood when a valid authenticated examination session and browser runner are available.
 
-Browser-level authenticated Dogfood remains outstanding: the current execution environment does not provide the required `agent-browser` binary, cannot resolve the preview hostname from its container, and had no valid exam token/student session to exercise Phase 02. Do not report `COMPLETE` until the real browser paths and responsive/accessibility states in the governing plan are exercised.
+Do not report Phase 02 `COMPLETE` from CI alone.

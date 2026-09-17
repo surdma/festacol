@@ -23,7 +23,7 @@ import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
 import { getExamPaperAction, saveProgressAction, submitExamAction, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamStatusWatch } from "@/components/exam-status-watch";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
-import { ExamPreflight, type ExamPreflightStage } from "@/components/exam/exam-preflight";
+import { ExamPreflight } from "@/components/exam/exam-preflight";
 import { ExamQuestionNavigator } from "@/components/exam/exam-question-navigator";
 import { ExamResults } from "@/components/exam/exam-results";
 import { QuestionCard, responseStatus } from "@/components/exam/question-card";
@@ -129,11 +129,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const router = useRouter();
   const { session } = context;
   const noAttemptRemaining = !context.access.activeAttemptId && context.access.usedAttempts >= context.access.allowedAttempts;
-  const monitoredResume = Boolean(context.access.activeAttemptId && context.cameraRequired);
-  const [phase, setPhase] = useState<Phase>(
-    monitoredResume ? "preflight" : context.access.activeAttemptId ? "loading" : noAttemptRemaining ? "locked" : "preflight",
-  );
-  const [preflightStage, setPreflightStage] = useState<ExamPreflightStage>(monitoredResume ? "readiness" : "overview");
+  const [phase, setPhase] = useState<Phase>(noAttemptRemaining ? "locked" : "preflight");
   const [paper, setPaper] = useState<Q[]>([]);
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, unknown>>({});
@@ -143,7 +139,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("saved");
   const [online, setOnline] = useState(true);
   const [cameraSupported, setCameraSupported] = useState(true);
-  const [fullscreenSupported, setFullscreenSupported] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -358,17 +353,13 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   useEffect(() => {
     if (bootstrappedRef.current) return;
     bootstrappedRef.current = true;
-    if (context.access.activeAttemptId && !context.cameraRequired) {
-      void loadPaper();
-      return;
-    }
     if (noAttemptRemaining) {
       void (async () => {
         const hasResult = await fetchRichResult();
         setPhase(hasResult ? "submitted" : "locked");
       })();
     }
-  }, [context.access.activeAttemptId, context.cameraRequired, fetchRichResult, loadPaper, noAttemptRemaining]);
+  }, [fetchRichResult, noAttemptRemaining]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setSlowLoad(true), 10000);
@@ -379,7 +370,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     const syncCapabilities = () => {
       setOnline(navigator.onLine);
       setCameraSupported(Boolean(navigator.mediaDevices?.getUserMedia));
-      setFullscreenSupported(Boolean(document.fullscreenEnabled));
     };
     const onOnline = () => {
       setOnline(true);
@@ -541,12 +531,9 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     return (
       <ExamPreflight
         context={context}
-        stage={preflightStage}
-        onStageChange={(next) => { setError(null); setPreflightStage(next); }}
         camera={camera}
         online={online}
         cameraSupported={cameraSupported}
-        fullscreenSupported={fullscreenSupported}
         onStart={() => void startFromFinalCheckpoint()}
         starting={busy}
         error={error}

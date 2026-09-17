@@ -36,6 +36,7 @@ interface ExamCameraPanelProps {
   onStart: () => void;
   onSelectDevice: (deviceId: string) => void;
   compact?: boolean;
+  variant?: "default" | "booklet";
 }
 
 function statusLabel(status: ExamCameraStatus) {
@@ -51,20 +52,20 @@ function CameraPreview({
   status,
   stream,
   videoRef,
-  compact,
+  presentation,
 }: {
   status: ExamCameraStatus;
   stream: MediaStream | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  compact: boolean;
+  presentation: "compact" | "default" | "booklet";
 }) {
   return (
     <div
       className={cn(
         "relative shrink-0 overflow-hidden bg-muted",
-        compact
-          ? "aspect-[4/3] w-24 rounded-lg"
-          : "aspect-video w-full border-y",
+        presentation === "compact" && "aspect-[4/3] w-24 rounded-lg",
+        presentation === "default" && "aspect-video w-full border-y",
+        presentation === "booklet" && "aspect-[4/3] w-32 border border-border bg-background sm:w-36",
       )}
     >
       {status === "active" && stream ? (
@@ -84,15 +85,12 @@ function CameraPreview({
           <div
             className={cn(
               "absolute flex items-center gap-1.5 bg-background/90 font-semibold text-foreground shadow-sm",
-              compact
+              presentation === "compact"
                 ? "left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[9px]"
                 : "left-3 top-3 rounded-full px-2.5 py-1 text-[11px]",
             )}
           >
-            <span
-              className="size-1.5 rounded-full bg-success"
-              aria-hidden="true"
-            />
+            <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
             Live
           </div>
         </>
@@ -119,6 +117,7 @@ export function ExamCameraPanel({
   onStart,
   onSelectDevice,
   compact = false,
+  variant = "default",
 }: ExamCameraPanelProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -131,72 +130,101 @@ export function ExamCameraPanel({
 
   if (!required) return null;
 
+  if (variant === "booklet") {
+    return (
+      <section className="border-t border-dashed border-border pt-4" aria-labelledby="booklet-camera-title">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 max-w-md">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Camera required</p>
+            <h3 id="booklet-camera-title" className="mt-1 text-sm font-semibold">{statusLabel(status)}</h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {status === "active"
+                ? "The live camera is ready. Keep it active while you write."
+                : "Allow the camera when you are ready to begin. Festacol does not request microphone access."}
+            </p>
+          </div>
+
+          {status !== "active" ? (
+            <Button type="button" size="sm" variant="outline" onClick={onStart} disabled={status === "requesting"}>
+              {status === "requesting" ? <Spinner data-icon="inline-start" /> : <Camera data-icon="inline-start" />}
+              {status === "requesting" ? "Starting camera…" : status === "idle" ? "Allow camera" : "Retry camera"}
+            </Button>
+          ) : (
+            <span className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Check className="size-4" aria-hidden="true" />
+              Ready
+            </span>
+          )}
+        </div>
+
+        {status === "active" && stream ? (
+          <div className="mt-4 flex flex-wrap items-start gap-4">
+            <CameraPreview status={status} stream={stream} videoRef={videoRef} presentation="booklet" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs leading-5 text-muted-foreground">This small preview is the camera view used for this examination.</p>
+              {devices.length > 1 ? (
+                <Select value={deviceId} onValueChange={(value) => onSelectDevice(String(value))}>
+                  <SelectTrigger className="mt-3 w-full" size="sm" aria-label="Camera source">
+                    <SelectValue placeholder="Choose camera" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {devices.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>{device.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {error && status !== "active" ? (
+          <Alert variant="destructive" className="mt-4">
+            <TriangleAlert />
+            <AlertTitle>Camera needs attention</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+      </section>
+    );
+  }
+
   if (compact) {
     return (
-      <section
-        className="flex items-center gap-3 rounded-xl border bg-background p-2.5"
-        aria-label="Live webcam status"
-      >
-        <CameraPreview
-          status={status}
-          stream={stream}
-          videoRef={videoRef}
-          compact
-        />
+      <section className="flex items-center gap-3 rounded-xl border bg-background p-2.5" aria-label="Live webcam status">
+        <CameraPreview status={status} stream={stream} videoRef={videoRef} presentation="compact" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span
               className={cn(
                 "size-2 shrink-0 rounded-full",
-                status === "active"
-                  ? "bg-success"
-                  : status === "requesting"
-                    ? "bg-warning"
-                    : "bg-destructive",
+                status === "active" ? "bg-success" : status === "requesting" ? "bg-warning" : "bg-destructive",
               )}
               aria-hidden="true"
             />
-            <p className="truncate text-xs font-semibold">
-              {statusLabel(status)}
-            </p>
+            <p className="truncate text-xs font-semibold">{statusLabel(status)}</p>
           </div>
           <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
-            {status === "active"
-              ? "Required camera monitoring is active."
-              : error ?? "Restore the required camera before continuing."}
+            {status === "active" ? "Required camera monitoring is active." : error ?? "Restore the required camera before continuing."}
           </p>
         </div>
         {status !== "active" ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            onClick={onStart}
-            disabled={status === "requesting"}
-            aria-label="Retry camera"
-          >
+          <Button type="button" size="icon-sm" variant="outline" onClick={onStart} disabled={status === "requesting"} aria-label="Retry camera">
             {status === "requesting" ? <Spinner /> : <RefreshCw />}
           </Button>
         ) : (
-          <ShieldCheck
-            className="size-5 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
+          <ShieldCheck className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
         )}
       </section>
     );
   }
 
-  const showPreview =
-    status === "requesting" ||
-    status === "active" ||
-    status === "disconnected";
+  const showPreview = status === "requesting" || status === "active" || status === "disconnected";
 
   return (
-    <section
-      className="border-y border-border/80 bg-muted/10"
-      aria-labelledby="camera-ready-title"
-    >
+    <section className="border-y border-border/80 bg-muted/10" aria-labelledby="camera-ready-title">
       <div className="flex flex-wrap items-start justify-between gap-4 py-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-full border bg-background">
@@ -213,12 +241,8 @@ export function ExamCameraPanel({
             )}
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Camera required
-            </p>
-            <h3 id="camera-ready-title" className="mt-1 text-sm font-semibold">
-              {statusLabel(status)}
-            </h3>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Camera required</p>
+            <h3 id="camera-ready-title" className="mt-1 text-sm font-semibold">{statusLabel(status)}</h3>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
               {status === "active"
                 ? "The live camera is ready and must remain active while you write this examination."
@@ -228,22 +252,9 @@ export function ExamCameraPanel({
         </div>
 
         {status !== "active" ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onStart}
-            disabled={status === "requesting"}
-          >
-            {status === "requesting" ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <Camera data-icon="inline-start" />
-            )}
-            {status === "requesting"
-              ? "Requesting camera…"
-              : status === "idle"
-                ? "Allow camera"
-                : "Retry camera"}
+          <Button type="button" variant="outline" onClick={onStart} disabled={status === "requesting"}>
+            {status === "requesting" ? <Spinner data-icon="inline-start" /> : <Camera data-icon="inline-start" />}
+            {status === "requesting" ? "Requesting camera…" : status === "idle" ? "Allow camera" : "Retry camera"}
           </Button>
         ) : (
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -254,29 +265,19 @@ export function ExamCameraPanel({
       </div>
 
       {showPreview ? (
-        <CameraPreview
-          status={status}
-          stream={stream}
-          videoRef={videoRef}
-          compact={false}
-        />
+        <CameraPreview status={status} stream={stream} videoRef={videoRef} presentation="default" />
       ) : null}
 
       {devices.length > 1 && status === "active" ? (
         <div className="border-t px-4 py-3">
-          <Select
-            value={deviceId}
-            onValueChange={(value) => onSelectDevice(String(value))}
-          >
+          <Select value={deviceId} onValueChange={(value) => onSelectDevice(String(value))}>
             <SelectTrigger className="w-full" aria-label="Camera source">
               <SelectValue placeholder="Choose camera" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 {devices.map((device) => (
-                  <SelectItem key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </SelectItem>
+                  <SelectItem key={device.deviceId} value={device.deviceId}>{device.label}</SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>
