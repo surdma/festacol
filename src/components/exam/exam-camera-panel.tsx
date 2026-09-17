@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Camera, CameraOff, RefreshCw, ShieldCheck } from "lucide-react";
+import { Camera, CameraOff, Check, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -130,14 +130,26 @@ export function ExamCameraPanel({
 
       <div className="flex flex-col gap-3 border-t p-3.5">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className={cn("size-2 rounded-full", status === "active" ? "bg-success" : status === "requesting" ? "bg-warning" : "bg-destructive")} aria-hidden="true" />
+          <div className="flex min-w-0 items-start gap-2.5">
+            <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border", status === "active" ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}>
+              {status === "active" ? (
+                <Check className="size-3.5" aria-hidden="true" />
+              ) : status === "requesting" ? (
+                <Spinner className="size-3.5" />
+              ) : status === "denied" || status === "unavailable" ? (
+                <CameraOff className="size-3.5" aria-hidden="true" />
+              ) : status === "disconnected" ? (
+                <TriangleAlert className="size-3.5" aria-hidden="true" />
+              ) : (
+                <Camera className="size-3.5" aria-hidden="true" />
+              )}
+            </span>
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{statusLabel(required, status)}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {status === "active" ? "Your live preview stays active while you take this examination." : "Festacol does not request microphone access for this exam."}
+              </p>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {status === "active" ? "Your live preview stays active while you take this examination." : "Festacol does not request microphone access for this exam."}
-            </p>
           </div>
           {status === "active" ? <ShieldCheck className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
         </div>

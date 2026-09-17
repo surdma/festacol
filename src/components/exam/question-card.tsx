@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Maximize2 } from "lucide-react";
+import { Check, Circle, Maximize2, Minus } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -151,7 +151,13 @@ export function QuestionCard({
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone="neutral">{typeLabel(q.type)}</StatusBadge>
             <StatusBadge tone={status === "answered" ? "emerald" : status === "incomplete" ? "amber" : "neutral"}>
-              {status === "answered" ? "Answered" : status === "incomplete" ? "Incomplete" : "Not answered"}
+              {status === "answered" ? (
+                <><Check data-icon="inline-start" />Answered</>
+              ) : status === "incomplete" ? (
+                <><Minus data-icon="inline-start" />Incomplete</>
+              ) : (
+                <><Circle data-icon="inline-start" />Not answered</>
+              )}
             </StatusBadge>
           </div>
         </div>

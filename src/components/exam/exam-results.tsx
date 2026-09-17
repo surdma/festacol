@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock3, FileCheck2, LockKeyhole, RotateCcw } from "lucide-react";
+import { Check, CheckCircle2, Clock3, FileCheck2, LockKeyhole, Minus, RotateCcw, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
@@ -38,7 +38,13 @@ function ReviewItem({ item }: { item: ExamResultReviewItem }) {
           {item.domain ? <><span aria-hidden="true">·</span><span>{item.domain}</span></> : null}
         </div>
         <StatusBadge tone={state === "correct" ? "emerald" : state === "incorrect" ? "red" : "neutral"}>
-          {state === "correct" ? "Correct" : state === "incorrect" ? "Incorrect" : "Unanswered"}
+          {state === "correct" ? (
+            <><Check data-icon="inline-start" />Correct</>
+          ) : state === "incorrect" ? (
+            <><X data-icon="inline-start" />Incorrect</>
+          ) : (
+            <><Minus data-icon="inline-start" />Unanswered</>
+          )}
         </StatusBadge>
       </div>
       <h3 id={`result-question-${item.questionId}`} className="mt-3 text-sm font-semibold leading-6 sm:text-base">{item.prompt}</h3>
@@ -129,10 +135,10 @@ export function ExamResults({
           </div>
 
           {summary.placement ? (
-            <section className="mt-7 rounded-xl border bg-muted/20 p-4">
+            <section className="mt-7 border-y py-4" aria-label="Placement outcome">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Placement outcome</p>
               <p className="mt-2 text-lg font-semibold">{summary.placement.assignedTrack}</p>
-              <p className="mt-1 text-sm text-muted-foreground">Confidence {summary.placement.confidence}%</p>
+              <p className="mt-1 text-sm tabular-nums text-muted-foreground">Confidence {summary.placement.confidence}%</p>
             </section>
           ) : null}
 

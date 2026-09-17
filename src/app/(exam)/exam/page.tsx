@@ -7,13 +7,7 @@ import { ExamWorkspace } from "@/components/exam/exam-workspace";
 import { StudentWizard } from "@/components/exam/student-wizard";
 import { RealtimeNotificationSync } from "@/components/shell/realtime-notification-sync";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Toaster } from "@/components/ui/toast";
 import { currentStudent } from "@/lib/auth/current-student";
 import { normalizeExamToken } from "@/lib/exam-links";
@@ -21,17 +15,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function ExamUnavailable({ title, message }: { title: string; message: string }) {
   return (
-    <Card className="mx-auto w-full max-w-md">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{message}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Link href="/" className={buttonVariants({ variant: "outline" })}>
+    <section aria-label={title} className="mx-auto w-full max-w-xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Festacol Assessment</p>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{message}</p>
+      <Separator className="mt-6" />
+      <div className="pt-5">
+        <Link href="/" className={buttonVariants({ variant: "outline", size: "lg" })}>
           Back to home
         </Link>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 

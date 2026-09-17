@@ -90,12 +90,19 @@ function SyncIndicator({ status }: { status: SyncStatus }) {
 
 function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" }) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-12 text-center" aria-live="polite">
-      <Spinner className="size-7" />
-      <h1 className="mt-5 text-xl font-semibold">{reason === "time-expired" ? "Time has ended" : "Submitting your examination"}</h1>
-      <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-        {reason === "time-expired" ? "Your saved responses are being finalized and submitted automatically." : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
-      </p>
+    <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-5 py-12" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <Spinner className="size-6" />
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {reason === "time-expired" ? "Time ended" : "Submitting"}
+        </p>
+      </div>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{reason === "time-expired" ? "Time has ended" : "Submitting your examination"}</h1>
+      <div className="mt-6 border-t pt-5">
+        <p className="max-w-md text-sm leading-6 text-muted-foreground">
+          {reason === "time-expired" ? "Your saved responses are being finalized and submitted automatically." : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
+        </p>
+      </div>
     </main>
   );
 }
@@ -147,6 +154,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const [lockedScore, setLockedScore] = useState<number | null>(null);
   const [timeNotice, setTimeNotice] = useState<string | null>(null);
   const [dirtyTick, setDirtyTick] = useState(0);
+  const [slowLoad, setSlowLoad] = useState(false);
 
   const camera = useExamCamera(context.cameraRequired);
   const timingsRef = useRef<Record<string, number>>({});
@@ -363,6 +371,11 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   }, [context.access.activeAttemptId, context.cameraRequired, fetchRichResult, loadPaper, noAttemptRemaining]);
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => setSlowLoad(true), 10000);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
     const syncCapabilities = () => {
       setOnline(navigator.onLine);
       setCameraSupported(Boolean(navigator.mediaDevices?.getUserMedia));
@@ -543,22 +556,36 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
 
   if (phase === "loading") {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-12 text-center" role="status" aria-live="polite">
-        <Spinner className="size-7" />
-        <h1 className="mt-5 text-xl font-semibold">Preparing your examination</h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">Festacol is allocating your paper and restoring any saved progress. Do not close this window.</p>
+      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-5 py-12" aria-live="polite">
+        <div className="flex items-center gap-3">
+          <Spinner className="size-6" />
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Preparing</p>
+        </div>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight">Preparing your examination</h1>
+        <div className="mt-6 border-t pt-5">
+          <p className="text-sm leading-6 text-muted-foreground">Festacol is allocating your paper and restoring any saved progress. Do not close this window.</p>
+          {slowLoad ? (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              Still preparing — this is taking longer than usual. Keep this page open while Festacol retries the paper service.
+            </p>
+          ) : null}
+        </div>
       </main>
     );
   }
 
   if (phase === "load-failed") {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center gap-5 px-4 py-10 sm:px-6">
-        <Alert variant="destructive">
-          <CircleAlert />
-          <AlertTitle>Examination could not be restored</AlertTitle>
-          <AlertDescription>{error ?? "The paper could not be loaded. Your existing attempt has not been submitted."}</AlertDescription>
-        </Alert>
+      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Examination paper</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{session.title}</h1>
+        <div className="mb-6 mt-6 border-t pt-6">
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertTitle>Examination could not be restored</AlertTitle>
+            <AlertDescription>{error ?? "The paper could not be loaded. Your existing attempt has not been submitted."}</AlertDescription>
+          </Alert>
+        </div>
         {context.cameraRequired ? (
           <ExamCameraPanel
             required
@@ -599,8 +626,13 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         <div className="flex size-11 items-center justify-center rounded-full bg-muted"><ListChecks className="size-5" aria-hidden="true" /></div>
         <p className="mt-5 text-sm font-semibold text-muted-foreground">Attempt complete</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{session.title}</h1>
-        {lockedScore !== null ? <p className="mt-5 text-2xl font-semibold tabular-nums">Recorded score: {Math.round(lockedScore)}%</p> : null}
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">No further attempt is currently available. Staff must explicitly authorize a retake when the examination policy permits one.</p>
+        {lockedScore !== null ? (
+          <div className="mt-6 border-y py-4">
+            <p className="text-xs text-muted-foreground">Recorded score</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{Math.round(lockedScore)}%</p>
+          </div>
+        ) : null}
+        <p className="mt-5 text-sm leading-6 text-muted-foreground">No further attempt is currently available. Staff must explicitly authorize a retake when the examination policy permits one.</p>
         <div className="mt-6 flex flex-wrap gap-2">
           <Button type="button" onClick={() => router.push("/dashboard")}>Return to dashboard</Button>
           <Button type="button" variant="outline" onClick={() => void (async () => { if (await fetchRichResult()) setPhase("submitted"); })()}><RotateCcw data-icon="inline-start" />Refresh result</Button>
@@ -613,12 +645,14 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     const failure = processingError ?? error ?? "The examination service could not complete the requested operation.";
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Final submission</p>
+        <h1 className="mb-6 mt-2 text-2xl font-semibold tracking-tight">{session.title}</h1>
         <Alert variant="destructive">
           <CircleAlert />
           <AlertTitle>{processingReason === "time-expired" && timer.remaining === 0 ? "Time ended, submission needs connection" : "Submission not completed"}</AlertTitle>
           <AlertDescription>{failure}</AlertDescription>
         </Alert>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-2 border-t pt-5">
           <Button type="button" onClick={() => void submitFinal(processingReason)}><RotateCcw data-icon="inline-start" />Retry submission</Button>
           {processingReason === "manual" && timer.remaining > 0 ? <Button type="button" variant="outline" onClick={() => setPhase("review")}>Return to review</Button> : null}
         </div>
@@ -817,7 +851,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
               </div>
             </section>
 
-            <aside className="rounded-xl border bg-muted/20 p-4">
+            <aside className="border-y py-4 lg:sticky lg:top-24">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Before submitting</p>
               <ul className="mt-3 flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
                 <li>Confirm every response you want marked is visible in the navigator.</li>

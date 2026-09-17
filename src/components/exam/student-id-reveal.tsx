@@ -27,7 +27,8 @@ export function StudentIdReveal({
   useEffect(() => {
     if (open) {
       // Focus the one required acknowledgement action when the dialog opens.
-      setTimeout(() => buttonRef.current?.focus(), 50);
+      const timeout = window.setTimeout(() => buttonRef.current?.focus(), 50);
+      return () => window.clearTimeout(timeout);
     }
   }, [open]);
 
@@ -48,7 +49,7 @@ export function StudentIdReveal({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
-            <AlertCircle className="size-5 text-amber-600" aria-hidden="true" />
+            <AlertCircle className="size-5 text-warning-foreground" aria-hidden="true" />
             Write this down
           </DialogTitle>
           <DialogDescription id="student-id-reveal-desc" className="sr-only">
@@ -56,17 +57,18 @@ export function StudentIdReveal({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4" aria-live="polite" aria-atomic="true">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-800 dark:bg-amber-950/40">
-            <p className="text-xs font-medium uppercase tracking-wider text-amber-700 dark:text-amber-300">
+          <div className="rounded-xl border border-warning-border bg-warning p-6 text-center">
+            <p className="text-xs font-medium uppercase tracking-wider text-warning-foreground">
               Student ID
             </p>
             <p
-              className="mt-2 font-mono text-3xl font-bold tracking-wide text-amber-900 dark:text-amber-100"
-              aria-label={`Student number ${studentNumber}`}
+              id="student-id-value"
+              className="mt-2 font-mono text-3xl font-bold tabular-nums tracking-wide text-warning-foreground"
             >
+              <span className="sr-only">Student number </span>
               {studentNumber}
             </p>
-            <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+            <p className="mt-3 text-sm text-warning-foreground">
               Keep this number safe — you will need it for future exams.
             </p>
           </div>
