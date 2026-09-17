@@ -50,7 +50,7 @@ function fillValues(q: Q, response: unknown): Record<string, string> {
           );
         }
       } catch {
-        // Older single-blank attempts may contain the plain response text.
+        // Older single-blank attempts can contain a plain text response.
       }
     }
     if (keys.length === 1) return { [keys[0]]: response };
@@ -125,11 +125,13 @@ export function QuestionCard({
   index,
   total,
   response,
+  onChange,
 }: {
   q: Q;
   index: number;
   total: number;
   response: unknown;
+  onChange: (value: unknown) => void;
 }) {
   const status = responseStatus(q, response);
   const content = parseExamQuestionContent(q.prompt);
@@ -175,7 +177,106 @@ export function QuestionCard({
 
           <div className="mt-6">
             {q.type === "single" ? (
-              <RadioGroup value={typeof response === "string" ? response : ""} onValueChange={(value) => arguments[0] && void value} className="hidden" />
+              <RadioGroup value={typeof response === "string" ? response : ""} onValueChange={onChange} aria-label={`Answer for question ${index + 1}`}>
+                {(q.options ?? []).map((option, optionIndex) => {
+                  const id = `question-${q.id}-option-${optionIndex}`;
+                  const selected = response === option;
+                  return (
+                    <label
+                      key={option}
+                      htmlFor={id}
+                      className={cn(
+                        "flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 transition-colors focus-within:border-foreground focus-within:ring-3 focus-within:ring-ring/20",
+                        selected ? "border-foreground bg-muted/60" : "bg-background hover:bg-muted/30",
+                      )}
+                    >
+                      <RadioGroupItem id={id} value={option} className="mt-1" />
+                      <span className="grid size-7 shrink-0 place-items-center rounded-lg border bg-background text-xs font-bold">{LETTERS[optionIndex] ?? optionIndex + 1}</span>
+                      <span className="pt-0.5">{option}</span>
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+            ) : null}
+
+            {q.type === "multi" ? (
+              <div className="flex flex-col gap-2" role="group" aria-label={`Answers for question ${index + 1}`}>
+                {(q.options ?? []).map((option, optionIndex) => {
+                  const list = Array.isArray(response) ? (response as string[]) : [];
+                  const selected = list.includes(option);
+                  const id = `question-${q.id}-choice-${optionIndex}`;
+                  return (
+                    <label
+                      key={option}
+                      htmlFor={id}
+                      className={cn(
+                        "flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 transition-colors focus-within:border-foreground focus-within:ring-3 focus-within:ring-ring/20",
+                        selected ? "border-foreground bg-muted/60" : "bg-background hover:bg-muted/30",
+                      )}
+                    >
+                      <Checkbox
+                        id={id}
+                        checked={selected}
+                        onCheckedChange={(checked) => onChange(checked ? [...list, option] : list.filter((item) => item !== option))}
+                        className="mt-1"
+                      />
+                      <span className="grid size-7 shrink-0 place-items-center rounded-lg border bg-background text-xs font-bold">{LETTERS[optionIndex] ?? optionIndex + 1}</span>
+                      <span className="pt-0.5">{option}</span>
+                    </label>
+                  );
+                })}
+                {q.requiredSelections ? (
+                  <p className="pt-1 text-xs text-muted-foreground" aria-live="polite">
+                    {Array.isArray(response) ? response.length : 0} of {q.requiredSelections} required selections chosen.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {q.type === "boolean" ? (
+              <RadioGroup
+                className="grid sm:grid-cols-2"
+                value={response === true ? "true" : response === false ? "false" : ""}
+                onValueChange={(value) => onChange(value === "true")}
+                aria-label={`Answer for question ${index + 1}`}
+              >
+                {[{ label: "True", value: "true" }, { label: "False", value: "false" }].map((choice) => {
+                  const selected = String(response) === choice.value;
+                  const id = `question-${q.id}-${choice.value}`;
+                  return (
+                    <label
+                      key={choice.value}
+                      htmlFor={id}
+                      className={cn(
+                        "flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border p-4 text-base font-semibold transition-colors focus-within:border-foreground focus-within:ring-3 focus-within:ring-ring/20",
+                        selected ? "border-foreground bg-muted/60" : "bg-background hover:bg-muted/30",
+                      )}
+                    >
+                      <RadioGroupItem id={id} value={choice.value} />
+                      {choice.label}
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+            ) : null}
+
+            {q.type === "fill" || q.type === "fill-multi" ? (
+              <div className="rounded-xl border bg-muted/10 p-4 text-base leading-10 sm:p-5">
+                {(q.fillTemplate ?? []).map((part, partIndex) => {
+                  const key = part.key ?? `b${partIndex}`;
+                  if (!part.blank) return <span key={`${key}-text`}>{part.text} </span>;
+                  return (
+                    <Input
+                      key={key}
+                      aria-label={part.placeholder ?? `Blank ${partIndex + 1}`}
+                      className="mx-1 my-1 inline-flex h-10 min-w-32 max-w-full align-middle sm:w-auto sm:min-w-44"
+                      placeholder={part.placeholder ?? "Answer"}
+                      value={String(values[key] ?? "")}
+                      onChange={(event) => onChange(JSON.stringify({ ...values, [key]: event.target.value }))}
+                    />
+                  );
+                })}
+              </div>
             ) : null}
           </div>
         </div>
