@@ -70,6 +70,49 @@ export interface ExamExperienceContext {
   access: ExamAccessContext;
 }
 
+export interface ExamSubjectPerformance {
+  subjectId: string;
+  subject: string;
+  total: number;
+  correct: number;
+  percent: number;
+  seconds: number;
+}
+
+export interface ExamResultReviewItem {
+  questionId: number;
+  questionNumber: number;
+  subject: string;
+  type: QuestionType;
+  prompt: string;
+  response: unknown;
+  correctAnswer: string;
+  correct: boolean | null;
+  seconds: number;
+  domain?: string;
+  explanation?: string;
+}
+
+export interface ExamResultSummary {
+  attemptId: string;
+  submittedAt: number;
+  startedAt: number | null;
+  score: number;
+  completion: number;
+  correctCount: number;
+  incorrectCount: number;
+  answeredCount: number;
+  unansweredCount: number;
+  total: number;
+  elapsedSeconds: number;
+  paceIndex: number;
+  reasoningIndex: number;
+  subjectStats: ExamSubjectPerformance[];
+  placement?: { assignedTrack: string; confidence: number };
+  canReviewAnswers: boolean;
+  review: ExamResultReviewItem[];
+}
+
 export interface IntegrityEvent {
   type: string;
   detail?: string;
