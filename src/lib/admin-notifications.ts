@@ -14,6 +14,7 @@ interface SessionRow {
 interface AttemptQueueRow {
   id: string;
   session_id: string;
+  student_id: string;
   attempt_number: number;
   started_at: number | null;
   submitted_at: number | null;
@@ -46,14 +47,22 @@ async function visibleSessionIds(
     supabase.from("teaching_assignments").select("offering_id").eq("staff_id", scope.profileId).is("ended_at", null),
   ]);
   const offeringIds = ((teachingAssignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id);
-  const { data: offeringTargets } = offeringIds.length
-    ? await supabase.from("exam_offering_targets").select("session_id").in("offering_id", offeringIds)
+  const [{ data: offeringTargets }, { data: assignedOfferings }] = offeringIds.length
+    ? await Promise.all([
+        supabase.from("exam_offering_targets").select("session_id").in("offering_id", offeringIds),
+        supabase.from("class_subject_offerings").select("id,class_id").in("id", offeringIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const classIds = [...new Set(((assignedOfferings ?? []) as { id: string; class_id: string }[]).map((row) => row.class_id))];
+  const { data: classTargets } = classIds.length
+    ? await supabase.from("exam_class_targets").select("session_id").in("class_id", classIds)
     : { data: [] };
 
   return new Set([
     ...sessions.filter((session) => session.created_by_id === scope.profileId).map((session) => session.id),
     ...((examAssignments ?? []) as { session_id: string }[]).map((row) => row.session_id),
     ...((offeringTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
+    ...((classTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
   ]);
 }
 
@@ -65,7 +74,7 @@ export async function getAdminTopbarNotifications(
     supabase.from("exam_sessions").select("id,title,status,created_by_id").limit(200),
     supabase
       .from("exam_attempts")
-      .select("id,session_id,attempt_number,started_at,submitted_at,score")
+      .select("id,session_id,student_id,attempt_number,started_at,submitted_at,score")
       .order("updated_at", { ascending: false })
       .limit(500),
     supabase.from("exam_integrity_events").select("attempt_id").limit(500),
@@ -82,6 +91,16 @@ export async function getAdminTopbarNotifications(
   const classes = (classesResult.data ?? []) as ClassQueueRow[];
   const groups = (groupsResult.data ?? []) as WhatsappQueueRow[];
 
+  const studentIds = [...new Set(attempts.map((attempt) => attempt.student_id))];
+  const { data: studentRows } = studentIds.length
+    ? await supabase.from("school_members").select("id,first_name,last_name").in("id", studentIds)
+    : { data: [] };
+  const studentNames = new Map(
+    ((studentRows ?? []) as { id: string; first_name: string; last_name: string }[])
+      .map((student) => [student.id, `${student.first_name} ${student.last_name}`.trim()]),
+  );
+  const sessionTitles = new Map(visibleSessions.map((session) => [session.id, session.title]));
+
   const drafts = visibleSessions.filter((session) => session.status === "draft");
   const activeAttempts = attempts.filter((attempt) => attempt.started_at && !attempt.submitted_at);
   const submittedIds = new Set(attempts.filter((attempt) => attempt.submitted_at).map((attempt) => attempt.id));
@@ -89,27 +108,34 @@ export async function getAdminTopbarNotifications(
   const activeClasses = classes.filter((item) => item.status === "active");
   const groupedClasses = new Set(groups.map((group) => group.class_id));
   const missingGroups = scope.isAdmin ? activeClasses.filter((item) => !groupedClasses.has(item.id)) : [];
-  const createdSessionTitles = new Map(
-    visibleSessions
-      .filter((session) => session.created_by_id === scope.profileId)
-      .map((session) => [session.id, session.title]),
-  );
-  const recentCreatorSubmissions = attempts
-    .filter((attempt) => Boolean(attempt.submitted_at) && createdSessionTitles.has(attempt.session_id))
-    .sort((left, right) => Number(right.submitted_at ?? 0) - Number(left.submitted_at ?? 0))
-    .slice(0, 3);
+  const recentLifecycle = attempts
+    .filter((attempt) => Boolean(attempt.started_at))
+    .toSorted((left, right) => Math.max(Number(right.submitted_at ?? 0), Number(right.started_at ?? 0)) - Math.max(Number(left.submitted_at ?? 0), Number(left.started_at ?? 0)))
+    .slice(0, 4);
 
   const items: ApplicationNotification[] = [];
-  for (const attempt of recentCreatorSubmissions) {
-    const sessionTitle = createdSessionTitles.get(attempt.session_id) ?? "Examination";
-    const scoreDetail = attempt.score === null ? "The recorded result is available in the examination workspace." : `The recorded score is ${Math.round(attempt.score)}%.`;
-    items.push({
-      id: `creator-submission-${attempt.id}`,
-      title: `${sessionTitle} received a submission`,
-      detail: `Attempt #${Math.max(1, Number(attempt.attempt_number ?? 1))} was submitted. ${scoreDetail}`,
-      icon: "chart",
-      tone: "blue",
-    });
+  for (const attempt of recentLifecycle) {
+    const sessionTitle = sessionTitles.get(attempt.session_id) ?? "Examination";
+    const studentName = studentNames.get(attempt.student_id) ?? "Student";
+    const attemptNumber = Math.max(1, Number(attempt.attempt_number ?? 1));
+    if (attempt.submitted_at) {
+      const scoreDetail = attempt.score === null ? "The recorded result is available in the examination workspace." : `Recorded score: ${Math.round(attempt.score)}%.`;
+      items.push({
+        id: `exam-submission-${attempt.id}`,
+        title: `${studentName} submitted ${sessionTitle}`,
+        detail: `Attempt #${attemptNumber} is complete. ${scoreDetail}`,
+        icon: "chart",
+        tone: "blue",
+      });
+    } else {
+      items.push({
+        id: `exam-start-${attempt.id}`,
+        title: `${studentName} started ${sessionTitle}`,
+        detail: `Attempt #${attemptNumber} is currently in progress. Open Examinations to see Supabase Realtime Presence for active candidates.`,
+        icon: "clock",
+        tone: "blue",
+      });
+    }
   }
   if (drafts.length) {
     items.push({
@@ -126,7 +152,7 @@ export async function getAdminTopbarNotifications(
       id: "active-attempts",
       title: `${activeAttempts.length} attempt${activeAttempts.length === 1 ? " is" : "s are"} in progress`,
       detail:
-        "Candidates currently have active examination attempts that have not been submitted. Use the examination workspace when you need to inspect live candidate activity.",
+        "Candidates currently have active examination attempts that have not been submitted. Open Examinations to see which sessions currently have connected candidates.",
       icon: "clock",
       tone: "blue",
     });

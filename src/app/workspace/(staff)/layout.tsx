@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import { AccessDenied } from "@/components/access-denied";
 import { AdminDialogs } from "@/components/admin/admin-dialogs";
 import { ApplicationShell } from "@/components/shell/application-shell";
-import type { CreatorSessionRealtimeRef } from "@/components/shell/realtime-notification-sync";
 import { getAdminTopbarNotifications } from "@/lib/admin-notifications";
 import { currentStaff } from "@/lib/auth/staff";
 import { AdminLiveBadge } from "./live-badge";
@@ -31,17 +30,7 @@ export default async function AdminLayout({
     );
   }
 
-  const [notifications, creatorSessionResult] = await Promise.all([
-    getAdminTopbarNotifications(supabase, scope),
-    scope.profileId
-      ? supabase
-          .from("exam_sessions")
-          .select("id,title")
-          .eq("created_by_id", scope.profileId)
-          .limit(250)
-      : Promise.resolve({ data: [] }),
-  ]);
-  const creatorSessions = (creatorSessionResult.data ?? []) as CreatorSessionRealtimeRef[];
+  const notifications = await getAdminTopbarNotifications(supabase, scope);
   const profileName = role === "administrator" ? "Administrator" : "Teacher";
 
   return (
@@ -52,7 +41,6 @@ export default async function AdminLayout({
       profileDetail={user.email}
       notifications={notifications}
       realtimeRecipientId={scope.profileId}
-      realtimeCreatorSessions={creatorSessions}
       sidebarStatus={<AdminLiveBadge />}
       overlays={
         <Suspense>

@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Toaster } from "@/components/ui/toast";
 import { currentStudent } from "@/lib/auth/current-student";
 import { normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -122,14 +123,20 @@ export default async function StandaloneExamPage({
     );
   }
 
+  const activeAttemptId = experience.data.access.activeAttemptId;
+  const workspaceKey = activeAttemptId
+    ? `${entry.exam.id}:${activeAttemptId}`
+    : `${entry.exam.id}:${experience.data.access.usedAttempts}:${experience.data.access.allowedAttempts}`;
+
   return (
-    <>
+    <Toaster timeout={6000}>
       <RealtimeNotificationSync
         surface="student"
         recipientId={ctx.profile.profile_id}
         examSessionId={entry.exam.id}
+        activeAttemptId={activeAttemptId}
       />
-      <ExamWorkspace context={experience.data} />
-    </>
+      <ExamWorkspace key={workspaceKey} context={experience.data} />
+    </Toaster>
   );
 }
