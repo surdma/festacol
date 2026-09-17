@@ -379,8 +379,8 @@ export function ExamFocusCapsule({
         </div>
       ) : null}
 
-      <div className="relative mx-auto flex w-full max-w-[1600px] justify-center px-3 py-4 sm:px-5 sm:py-6 lg:px-7 xl:min-h-[calc(100dvh-7rem)] xl:items-center">
-        <aside className="absolute left-5 top-1/2 hidden -translate-y-1/2 xl:block">
+      <div className="relative mx-auto grid w-full max-w-[1600px] grid-cols-1 px-3 py-4 sm:px-5 sm:py-6 lg:px-7 xl:min-h-[calc(100dvh-7rem)] xl:grid-cols-[3rem_minmax(0,1fr)_14rem] xl:items-center xl:gap-4">
+        <aside className="hidden xl:block">
           <QuestionRail
             paper={paper}
             currentIndex={currentIndex}
@@ -390,7 +390,7 @@ export function ExamFocusCapsule({
           />
         </aside>
 
-        <main className="w-full max-w-6xl">
+        <main className="min-w-0 w-full">
           <section className="relative overflow-hidden rounded-[2rem] border bg-card shadow-xl">
             <div className="border-b bg-gradient-to-r from-primary/10 via-card to-success/10 px-4 py-4 sm:px-7 sm:py-5">
               <div className="flex flex-wrap items-center gap-3">
@@ -475,7 +475,7 @@ export function ExamFocusCapsule({
           </section>
         </main>
 
-        <aside className="absolute right-5 top-1/2 hidden w-56 -translate-y-1/2 flex-col gap-3 xl:flex">
+        <aside className="hidden max-h-[calc(100dvh-7rem)] min-w-0 flex-col gap-3 overflow-y-auto xl:flex">
           {context.cameraRequired ? (
             <ExamCameraPanel
               required
