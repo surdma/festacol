@@ -31,6 +31,8 @@ interface ExamLifecycleBroadcastPayload {
   score?: number | null;
 }
 
+const STAFF_BATCH_WINDOW_MS = 700;
+
 export function RealtimeNotificationSync({
   surface,
   recipientId,
@@ -51,6 +53,9 @@ export function RealtimeNotificationSync({
     let notificationChannel: ReturnType<typeof supabase.channel> | null = null;
     let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
     let presenceAttemptId: string | null = null;
+    let staffBatch: ExamLifecycleBroadcastPayload[] = [];
+    let staffBatchTimer: number | null = null;
+    let realtimeWarningShown = false;
 
     const leavePresence = async () => {
       const channel = presenceChannel;
@@ -124,8 +129,7 @@ export function RealtimeNotificationSync({
 
     const handleStudentStarted = (message: { payload?: unknown }) => {
       const payload = message.payload as ExamLifecycleBroadcastPayload | undefined;
-      if (!payload?.eventId || !payload.attemptId) return;
-      if (seenRef.current.has(payload.eventId)) return;
+      if (!payload?.eventId || !payload.attemptId || seenRef.current.has(payload.eventId)) return;
       seenRef.current.add(payload.eventId);
       void joinPresence(payload.sessionId, payload.attemptId);
     };
@@ -138,27 +142,64 @@ export function RealtimeNotificationSync({
       router.refresh();
     };
 
+    const flushStaffBatch = () => {
+      staffBatchTimer = null;
+      if (cancelled || !staffBatch.length) return;
+      const batch = staffBatch;
+      staffBatch = [];
+
+      if (batch.length === 1) {
+        const payload = batch[0];
+        const attemptNumber = Math.max(1, Number(payload.attemptNumber ?? 1));
+        if (payload.eventType === "exam_started") {
+          toast.add({
+            type: "info",
+            title: `${payload.studentName} started ${payload.sessionTitle}`,
+            description: `Attempt #${attemptNumber} is now active. Live candidate Presence is updating in Examinations.`,
+          });
+        } else {
+          const score = typeof payload.score === "number" ? ` Score ${Math.round(payload.score)}%.` : "";
+          toast.add({
+            type: "success",
+            title: `${payload.studentName} submitted ${payload.sessionTitle}`,
+            description: `Attempt #${attemptNumber} has been completed.${score} The examination workspace is updating now.`,
+          });
+        }
+      } else {
+        const started = batch.filter((item) => item.eventType === "exam_started").length;
+        const submitted = batch.length - started;
+        const sessions = new Set(batch.map((item) => item.sessionId)).size;
+        const segments = [
+          started ? `${started} started` : "",
+          submitted ? `${submitted} submitted` : "",
+        ].filter(Boolean).join(" · ");
+        toast.add({
+          type: submitted ? "success" : "info",
+          title: `${batch.length} exam updates`,
+          description: `${segments}${sessions > 1 ? ` across ${sessions} examinations` : ""}. Open Examinations or a student record for individual details.`,
+        });
+      }
+      router.refresh();
+    };
+
     const handleStaffLifecycle = (message: { payload?: unknown }) => {
       const payload = message.payload as ExamLifecycleBroadcastPayload | undefined;
       if (!payload?.eventId || seenRef.current.has(payload.eventId)) return;
       seenRef.current.add(payload.eventId);
-      const attemptNumber = Math.max(1, Number(payload.attemptNumber ?? 1));
-
-      if (payload.eventType === "exam_started") {
-        toast.add({
-          type: "info",
-          title: `${payload.studentName} started ${payload.sessionTitle}`,
-          description: `Attempt #${attemptNumber} is now active. Live candidate Presence is updating in Examinations.`,
-        });
-      } else {
-        const score = typeof payload.score === "number" ? ` Score ${Math.round(payload.score)}%.` : "";
-        toast.add({
-          type: "success",
-          title: `${payload.studentName} submitted ${payload.sessionTitle}`,
-          description: `Attempt #${attemptNumber} has been completed.${score} The examination workspace is updating now.`,
-        });
+      staffBatch.push(payload);
+      if (staffBatchTimer === null) {
+        staffBatchTimer = window.setTimeout(flushStaffBatch, STAFF_BATCH_WINDOW_MS);
       }
-      router.refresh();
+    };
+
+    const warnRealtimeUnavailable = (description: string) => {
+      if (realtimeWarningShown || cancelled) return;
+      realtimeWarningShown = true;
+      toast.add({
+        type: "warning",
+        title: "Live exam updates are unavailable",
+        description,
+      });
     };
 
     void (async () => {
@@ -184,14 +225,11 @@ export function RealtimeNotificationSync({
         }
 
         channel.subscribe((status) => {
-          if (status === "SUBSCRIBED" && surface === "student" && examSessionId) {
-            void reconcileStudentPresence();
+          if (status === "SUBSCRIBED") {
+            realtimeWarningShown = false;
+            if (surface === "student" && examSessionId) void reconcileStudentPresence();
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            toast.add({
-              type: "warning",
-              title: "Live exam updates are unavailable",
-              description: "Festacol could not maintain the Realtime channel. Refresh the page to retry live notifications.",
-            });
+            warnRealtimeUnavailable("Festacol could not maintain the Realtime channel. Refresh the page to retry live notifications.");
           }
         });
 
@@ -199,18 +237,14 @@ export function RealtimeNotificationSync({
           await joinPresence(examSessionId, activeAttemptId);
         }
       } catch {
-        if (!cancelled) {
-          toast.add({
-            type: "warning",
-            title: "Live exam updates are unavailable",
-            description: "Festacol could not authorize the Realtime channel. Refresh the page to retry live notifications.",
-          });
-        }
+        warnRealtimeUnavailable("Festacol could not authorize the Realtime channel. Refresh the page to retry live notifications.");
       }
     })();
 
     return () => {
       cancelled = true;
+      if (staffBatchTimer !== null) window.clearTimeout(staffBatchTimer);
+      staffBatch = [];
       if (notificationChannel) void supabase.removeChannel(notificationChannel);
       void leavePresence();
     };
