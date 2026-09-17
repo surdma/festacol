@@ -62,9 +62,9 @@ export function ExamQuestionNavigator({
 
       <Tabs value={filter} onValueChange={(value) => setFilter(value as NavigatorFilter)}>
         <TabsList className="grid h-auto w-full grid-cols-3" aria-label="Question filters">
-          <TabsTrigger value="all" className="min-h-9">All</TabsTrigger>
-          <TabsTrigger value="unanswered" className="min-h-9">Open</TabsTrigger>
-          <TabsTrigger value="flagged" className="min-h-9">Flagged</TabsTrigger>
+          <TabsTrigger value="all" className="min-h-11">All</TabsTrigger>
+          <TabsTrigger value="unanswered" className="min-h-11">Open</TabsTrigger>
+          <TabsTrigger value="flagged" className="min-h-11">Flagged</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -90,12 +90,12 @@ export function ExamQuestionNavigator({
                     key={question.id}
                     type="button"
                     variant="outline"
-                    size="icon"
+                    size="icon-lg"
                     onClick={() => onJump(index)}
                     aria-current={current ? "step" : undefined}
                     aria-label={label}
                     className={cn(
-                      "relative size-10 rounded-lg p-0 text-xs tabular-nums",
+                      "relative rounded-lg p-0 text-xs tabular-nums",
                       current && "border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background",
                       !current && status === "answered" && "bg-muted font-semibold",
                       !current && status === "incomplete" && "border-dashed bg-warning/20",
