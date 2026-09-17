@@ -96,6 +96,15 @@ function joinResponse(text: unknown, values: unknown): unknown {
   if (list.length) return list;
   if (typeof text !== "string") return null;
   if (text === "true" || text === "false") return text === "true";
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // A text answer may legitimately contain braces. Keep it as text when it is not JSON.
+    }
+  }
   return text;
 }
 
