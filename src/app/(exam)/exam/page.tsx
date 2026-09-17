@@ -3,7 +3,7 @@ import { getExamExperienceContextAction } from "@/app/actions/exam-experience";
 import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
 import { AccessDenied } from "@/components/access-denied";
 import { ExamEntryUnavailable } from "@/components/exam/exam-entry-unavailable";
-import { ExamWorkspace } from "@/components/exam/exam-workspace";
+import { ExamWorkspaceEntry } from "@/components/exam/exam-workspace-entry";
 import { StudentWizard } from "@/components/exam/student-wizard";
 import { RealtimeNotificationSync } from "@/components/shell/realtime-notification-sync";
 import { Toaster } from "@/components/ui/toast";
@@ -78,12 +78,17 @@ export default async function StandaloneExamPage({
     eligible?: boolean;
   } | null;
 
-  if (accessError || !accessRow?.eligible) {
+  if (accessError) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <StudentWizard token={token} />
-      </div>
+      <ExamEntryUnavailable
+        message="Examination access could not be verified. Keep this page open and try again."
+        retryHref={examDestination}
+      />
     );
+  }
+
+  if (!accessRow?.eligible) {
+    return <StudentWizard token={token} />;
   }
 
   const experience = await getExamExperienceContextAction(entry.exam.id);
@@ -109,7 +114,7 @@ export default async function StandaloneExamPage({
         examSessionId={entry.exam.id}
         activeAttemptId={activeAttemptId}
       />
-      <ExamWorkspace key={workspaceKey} context={experience.data} />
+      <ExamWorkspaceEntry key={workspaceKey} context={experience.data} />
     </Toaster>
   );
 }
