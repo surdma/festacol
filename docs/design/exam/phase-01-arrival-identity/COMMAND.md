@@ -1,6 +1,6 @@
 # Phase 01 — Arrival & Identity brainstorm command
 
-This command is the reproducible design brief for the low-fidelity Phase 01 comparison artifact. It is intentionally run **before** any high-fidelity Next.js implementation.
+This command is the reproducible design brief used for the low-fidelity Phase 01 comparison artifact before high-fidelity implementation.
 
 ## Design-system search
 
@@ -66,6 +66,20 @@ Write the artifact to:
 The artifact is for design selection only. It must not import into or be copied verbatim into `src/**`. Once an option is selected, the production version will be re-authored with the repository's Next.js 16 / React 19 / shadcn Base Nova / Tailwind v4 stack and existing server contracts.
 ```
 
-## Selection gate
+## Selection result
 
-Do not implement Phase 01 in production until the product owner selects A, B, C, D, E, F or G (or explicitly asks for a hybrid of named options). After that implementation is reviewed, create the seven-option Phase 02 brainstorm **before** changing Phase 02 production UI.
+**Selected:** Option A — Admission Pass, selected by the product owner on 2026-09-17.
+
+The high-fidelity implementation is now authored in production Next.js/React rather than copied from the wireframe. Its main production surfaces are:
+
+- `src/components/exam/exam-admission-pass.tsx` — official examination admission pass, verified context and live QR;
+- `src/app/page.tsx` — anonymous examination-link handoff to the admission pass;
+- `src/components/exam/exam-help-dialog.tsx` — candidate support request flow;
+- `src/app/actions/exam-support.ts` — validated server-side support delivery;
+- `prisma/migrations/20260917180000_exam_support_requests/migration.sql` — durable support persistence;
+- `supabase/realtime.sql` — private creator-only support broadcast;
+- `src/lib/admin-notifications.ts` and `src/components/shell/realtime-notification-sync.tsx` — durable and live staff notification surfaces.
+
+## Phase gate
+
+Phase 01 production implementation is complete at source/integration-CI level. The next design phase is **Phase 02 — Academic Eligibility & Placement**. Generate and review its seven-option low-fidelity brainstorm before changing Phase 02 production UI.
