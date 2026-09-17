@@ -1,39 +1,15 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getExamExperienceContextAction } from "@/app/actions/exam-experience";
 import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
 import { AccessDenied } from "@/components/access-denied";
+import { ExamEntryUnavailable } from "@/components/exam/exam-entry-unavailable";
 import { ExamWorkspace } from "@/components/exam/exam-workspace";
 import { StudentWizard } from "@/components/exam/student-wizard";
 import { RealtimeNotificationSync } from "@/components/shell/realtime-notification-sync";
-import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Toaster } from "@/components/ui/toast";
 import { currentStudent } from "@/lib/auth/current-student";
 import { normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-function ExamUnavailable({ title, message }: { title: string; message: string }) {
-  return (
-    <Card className="mx-auto w-full max-w-md">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{message}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Link href="/" className={buttonVariants({ variant: "outline" })}>
-          Back to home
-        </Link>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default async function StandaloneExamPage({
   searchParams,
@@ -45,21 +21,18 @@ export default async function StandaloneExamPage({
 
   if (!token) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamUnavailable
-          title="Invalid exam link"
-          message="This exam link is missing or malformed. Ask your teacher for the complete candidate link or QR code."
-        />
-      </div>
+      <ExamEntryUnavailable message="This examination access link is missing or malformed. Ask your examination teacher for the complete access link or QR code." />
     );
   }
 
+  const examDestination = `/exam?token=${encodeURIComponent(token)}`;
   const entry = await getExamEntryContextAction(token);
   if (!entry.ok) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamUnavailable title="Exam unavailable" message={entry.error} />
-      </div>
+      <ExamEntryUnavailable
+        message={entry.error}
+        retryHref={examDestination}
+      />
     );
   }
 
@@ -81,10 +54,10 @@ export default async function StandaloneExamPage({
         return (
           <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
             <AccessDenied
-              title="Staff accounts cannot write exams"
-              message="You are signed in with a staff account. Sign out first, then continue with the student's first and last name."
-              signInHref={`/exam?token=${encodeURIComponent(token)}`}
-              signInLabel="Continue to student entry"
+              title="Staff accounts cannot write examinations"
+              message="You are signed in with a staff account. Sign out first, then continue with the candidate's first and last name."
+              signInHref={examDestination}
+              signInLabel="Continue to candidate examination access"
               returnHref="/workspace"
             />
           </div>
@@ -92,7 +65,6 @@ export default async function StandaloneExamPage({
       }
     }
 
-    const examDestination = `/exam?token=${encodeURIComponent(token)}`;
     redirect(`/?next=${encodeURIComponent(examDestination)}`);
   }
 
@@ -117,9 +89,10 @@ export default async function StandaloneExamPage({
   const experience = await getExamExperienceContextAction(entry.exam.id);
   if (!experience.ok) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamUnavailable title="Exam unavailable" message={experience.error} />
-      </div>
+      <ExamEntryUnavailable
+        message={experience.error}
+        retryHref={examDestination}
+      />
     );
   }
 
