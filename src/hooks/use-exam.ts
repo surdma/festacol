@@ -42,7 +42,11 @@ export function useExamTimer(initialRemaining: number, onExpire: () => void, act
     return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
   }, [remaining]);
 
-  return { remaining, format, isCritical: remaining <= 60, isWarning: remaining <= 300 };
+  const syncRemaining = useCallback((value: number) => {
+    setRemaining(Math.max(0, Math.round(value)));
+  }, []);
+
+  return { remaining, format, syncRemaining, isCritical: remaining <= 60, isWarning: remaining <= 300 };
 }
 
 interface IntegrityRecorderPolicy {
