@@ -132,10 +132,11 @@ jobs:
           do $$ begin create role service_role; exception when duplicate_object then null; end $$;
           SQL
 
-      - name: Apply Supabase auth and RLS integration
+      - name: Apply Supabase auth, RLS and realtime integration
         run: |
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/auth-rpc.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rls.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/realtime.sql
 
       - name: Assert platform integration
         run: |
@@ -146,6 +147,18 @@ jobs:
             if to_regprocedure('public.allocate_my_exam_attempt(text)') is null then raise exception 'attempt_allocator_missing'; end if;
             if to_regprocedure('public.grant_exam_retake(text,uuid,integer,text)') is null then raise exception 'retake_rpc_missing'; end if;
             if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_responses') then raise exception 'attempt_response_rls_missing'; end if;
+            if not exists (
+              select 1 from pg_publication_tables
+              where pubname='supabase_realtime'
+                and schemaname='public'
+                and tablename='exam_retake_grants'
+            ) then raise exception 'retake_realtime_missing'; end if;
+            if not exists (
+              select 1 from pg_publication_tables
+              where pubname='supabase_realtime'
+                and schemaname='public'
+                and tablename='exam_attempts'
+            ) then raise exception 'attempt_realtime_missing'; end if;
           end $$;
           SQL
 

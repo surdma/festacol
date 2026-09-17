@@ -6,6 +6,7 @@ type ServerSupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient
 
 interface SessionRow {
   id: string;
+  title: string;
   status: string;
   created_by_id: string | null;
 }
@@ -13,8 +14,10 @@ interface SessionRow {
 interface AttemptQueueRow {
   id: string;
   session_id: string;
+  attempt_number: number;
   started_at: number | null;
   submitted_at: number | null;
+  score: number | null;
 }
 
 interface IntegrityQueueRow {
@@ -59,8 +62,12 @@ export async function getAdminTopbarNotifications(
   scope: StaffScope,
 ): Promise<ApplicationNotification[]> {
   const [sessionsResult, attemptsResult, eventsResult, classesResult, groupsResult] = await Promise.all([
-    supabase.from("exam_sessions").select("id,status,created_by_id").limit(200),
-    supabase.from("exam_attempts").select("id,session_id,started_at,submitted_at").limit(500),
+    supabase.from("exam_sessions").select("id,title,status,created_by_id").limit(200),
+    supabase
+      .from("exam_attempts")
+      .select("id,session_id,attempt_number,started_at,submitted_at,score")
+      .order("updated_at", { ascending: false })
+      .limit(500),
     supabase.from("exam_integrity_events").select("attempt_id").limit(500),
     supabase.from("classes").select("id,status").limit(200),
     supabase.from("whatsapp_groups").select("class_id").limit(300),
@@ -82,8 +89,28 @@ export async function getAdminTopbarNotifications(
   const activeClasses = classes.filter((item) => item.status === "active");
   const groupedClasses = new Set(groups.map((group) => group.class_id));
   const missingGroups = scope.isAdmin ? activeClasses.filter((item) => !groupedClasses.has(item.id)) : [];
+  const createdSessionTitles = new Map(
+    visibleSessions
+      .filter((session) => session.created_by_id === scope.profileId)
+      .map((session) => [session.id, session.title]),
+  );
+  const recentCreatorSubmissions = attempts
+    .filter((attempt) => Boolean(attempt.submitted_at) && createdSessionTitles.has(attempt.session_id))
+    .sort((left, right) => Number(right.submitted_at ?? 0) - Number(left.submitted_at ?? 0))
+    .slice(0, 3);
 
   const items: ApplicationNotification[] = [];
+  for (const attempt of recentCreatorSubmissions) {
+    const sessionTitle = createdSessionTitles.get(attempt.session_id) ?? "Examination";
+    const scoreDetail = attempt.score === null ? "The recorded result is available in the examination workspace." : `The recorded score is ${Math.round(attempt.score)}%.`;
+    items.push({
+      id: `creator-submission-${attempt.id}`,
+      title: `${sessionTitle} received a submission`,
+      detail: `Attempt #${Math.max(1, Number(attempt.attempt_number ?? 1))} was submitted. ${scoreDetail}`,
+      icon: "chart",
+      tone: "blue",
+    });
+  }
   if (drafts.length) {
     items.push({
       id: "draft-exams",

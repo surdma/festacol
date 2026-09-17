@@ -5,6 +5,7 @@ import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
 import { AccessDenied } from "@/components/access-denied";
 import { ExamWorkspace } from "@/components/exam/exam-workspace";
 import { StudentWizard } from "@/components/exam/student-wizard";
+import { RealtimeNotificationSync } from "@/components/shell/realtime-notification-sync";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -121,5 +122,14 @@ export default async function StandaloneExamPage({
     );
   }
 
-  return <ExamWorkspace context={experience.data} />;
+  return (
+    <>
+      <RealtimeNotificationSync
+        surface="student"
+        recipientId={ctx.profile.profile_id}
+        examSessionId={entry.exam.id}
+      />
+      <ExamWorkspace context={experience.data} />
+    </>
+  );
 }

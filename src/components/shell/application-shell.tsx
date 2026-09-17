@@ -6,6 +6,10 @@ import {
   MobileBottomNavigation,
   type ApplicationSurface,
 } from "@/components/shell/application-nav";
+import {
+  RealtimeNotificationSync,
+  type CreatorSessionRealtimeRef,
+} from "@/components/shell/realtime-notification-sync";
 import { Toaster } from "@/components/ui/toast";
 import type { ApplicationNotification } from "@/types/admin";
 
@@ -16,6 +20,8 @@ export function ApplicationShell({
   profileName,
   profileDetail,
   notifications = [],
+  realtimeRecipientId,
+  realtimeCreatorSessions = [],
   sidebarStatus,
   overlays,
 }: {
@@ -25,6 +31,8 @@ export function ApplicationShell({
   profileName: string;
   profileDetail?: string | null;
   notifications?: ApplicationNotification[];
+  realtimeRecipientId?: string | null;
+  realtimeCreatorSessions?: CreatorSessionRealtimeRef[];
   sidebarStatus?: ReactNode;
   overlays?: ReactNode;
 }) {
@@ -35,6 +43,13 @@ export function ApplicationShell({
 
   return (
     <Toaster timeout={6000}>
+      {realtimeRecipientId ? (
+        <RealtimeNotificationSync
+          surface={surface}
+          recipientId={realtimeRecipientId}
+          creatorSessions={realtimeCreatorSessions}
+        />
+      ) : null}
       <div className="min-h-dvh bg-neutral-50 text-neutral-950">
         <a
           href="#application-root"

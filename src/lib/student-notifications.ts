@@ -13,24 +13,69 @@ interface StudentAttemptNotificationRow {
   created_at: number;
 }
 
+interface StudentRetakeNotificationRow {
+  id: string;
+  session_id: string;
+  additional_attempts: number;
+  reason: string;
+  granted_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+}
+
 export async function getStudentTopbarNotifications(
   supabase: ServerSupabaseClient,
   studentId: string,
   hasActiveEnrollment: boolean,
 ): Promise<ApplicationNotification[]> {
-  const { data } = await supabase
-    .from("exam_attempts")
-    .select("id,context_snapshot,started_at,submitted_at,score,created_at")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false })
-    .limit(8);
+  const [attemptResult, retakeResult] = await Promise.all([
+    supabase
+      .from("exam_attempts")
+      .select("id,context_snapshot,started_at,submitted_at,score,created_at")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("exam_retake_grants")
+      .select("id,session_id,additional_attempts,reason,granted_at,expires_at,revoked_at")
+      .eq("student_id", studentId)
+      .order("granted_at", { ascending: false })
+      .limit(8),
+  ]);
 
-  const attempts = (data ?? []) as StudentAttemptNotificationRow[];
+  const attempts = (attemptResult.data ?? []) as StudentAttemptNotificationRow[];
+  const now = Date.now();
+  const retakes = ((retakeResult.data ?? []) as StudentRetakeNotificationRow[]).filter((grant) => {
+    if (grant.revoked_at) return false;
+    return !grant.expires_at || new Date(grant.expires_at).getTime() > now;
+  });
+  const retakeSessionIds = [...new Set(retakes.map((grant) => grant.session_id))];
+  const { data: retakeSessions } = retakeSessionIds.length
+    ? await supabase.from("exam_sessions").select("id,title").in("id", retakeSessionIds)
+    : { data: [] };
+  const retakeTitleBySession = new Map(
+    ((retakeSessions ?? []) as { id: string; title: string }[]).map((session) => [session.id, session.title]),
+  );
+
   const activeAttempt = attempts.find(
     (attempt) => attempt.started_at && !attempt.submitted_at,
   );
   const latestSubmitted = attempts.find((attempt) => attempt.submitted_at);
   const notifications: ApplicationNotification[] = [];
+
+  for (const grant of retakes.slice(0, 3)) {
+    const title = retakeTitleBySession.get(grant.session_id) ?? "Examination";
+    const count = Math.max(1, Number(grant.additional_attempts ?? 1));
+    const reason = grant.reason.trim();
+    const baseDetail = `You received ${count} additional attempt${count === 1 ? "" : "s"}. Festacol recalculates your available attempts from your saved exam history.`;
+    notifications.push({
+      id: `retake-${grant.id}`,
+      title: `${title} retake approved`,
+      detail: reason ? `${baseDetail} Staff note: ${reason}` : baseDetail,
+      icon: "book",
+      tone: "blue",
+    });
+  }
 
   if (activeAttempt) {
     const title = activeAttempt.context_snapshot.sessionTitle ?? "Current exam";

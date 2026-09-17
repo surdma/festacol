@@ -64,6 +64,7 @@ export default async function DashboardLayout({
       profileName={context.profile.full_name}
       profileDetail={context.profile.student_number ?? "Student account"}
       notifications={notifications}
+      realtimeRecipientId={context.profile.profile_id}
     >
       {children}
     </ApplicationShell>
