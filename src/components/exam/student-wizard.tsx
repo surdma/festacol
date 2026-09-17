@@ -1,309 +1,289 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useTransition } from "react";
-import { getExamEntryWizardDataAction, enterExamByNameAction, type ExamEntryResult } from "@/app/actions/exam-entry";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, GraduationCap, School } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  completeExamOnboardingAction,
+  getExamOnboardingDataAction,
+  type ExamOnboardingData,
+} from "@/app/actions/exam-onboarding";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
 
-export type WizardStep = "level" | "class" | "confirm";
+type Step = "level" | "path" | "class" | "confirm";
+type PathChoice = "class" | "placement";
 
-interface LevelOption {
-  id: string;
-  name: string;
-  ordinal: number;
+function trackLabel(value: string) {
+  if (value === "science") return "Science";
+  if (value === "humanities") return "Humanities";
+  if (value === "business") return "Business";
+  return value.replaceAll("_", " ");
 }
 
-interface ClassOption {
-  id: string;
-  levelId: string;
-  levelName: string;
-  levelOrdinal: number;
-  track: string;
-  arm: string;
+function classLabel(item: { levelName: string; track: string; arm: string }) {
+  return `${item.levelName} ${trackLabel(item.track)} · Arm ${item.arm}`;
 }
 
-interface ExamInfo {
-  id: string;
-  title: string;
-  mode: string;
-  status: string;
-}
-
-interface WizardData {
-  exam: ExamInfo;
-  levels: LevelOption[];
-  classes: ClassOption[];
-  enrolledClassId: string | null;
-}
-
-interface StudentWizardProps {
-  token: string;
-  firstName: string;
-  lastName: string;
-  onComplete: (result: ExamEntryResult) => void;
-  onError: (error: string, next?: string) => void;
-}
-
-export function StudentWizard({ token, firstName, lastName, onComplete, onError }: StudentWizardProps) {
-  const [step, setStep] = useState<WizardStep>("level");
-  const [pending, startTransition] = useTransition();
-  const [wizardData, setWizardData] = useState<WizardData | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<string>("");
-  const [selectedClass, setSelectedClass] = useState<string>("");
+export function StudentWizard({ token }: { token: string }) {
+  const router = useRouter();
+  const [data, setData] = useState<ExamOnboardingData | null>(null);
+  const [step, setStep] = useState<Step>("level");
+  const [levelId, setLevelId] = useState("");
+  const [classId, setClassId] = useState("");
+  const [pathChoice, setPathChoice] = useState<PathChoice | "">("");
   const [error, setError] = useState<string | null>(null);
-  const stepRef = useRef<HTMLDivElement>(null);
+  const [pending, startTransition] = useTransition();
 
-  // Load wizard data on mount
   useEffect(() => {
-    void (async () => {
-      try {
-        const result = await getExamEntryWizardDataAction(token);
-        if (result.ok) {
-          setWizardData(result.data);
-        } else {
-          onError(result.error);
-        }
-      } catch {
-        onError("Could not load exam wizard data.");
+    let active = true;
+    void getExamOnboardingDataAction(token).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
-    })();
-  }, [token]);
-
-  // Focus management: focus the step container on step changes
-  useEffect(() => {
-    stepRef.current?.focus();
-  }, [step]);
-
-  // Determine available classes based on selected level
-  const availableClasses = wizardData?.classes.filter((c) => c.levelId === selectedLevel) ?? [];
-  const isPlacement = wizardData?.exam.mode === "qualifier";
-
-  const handleLevelSelect = useCallback((levelId: string) => {
-    setSelectedLevel(levelId);
-    setSelectedClass("");
-    setError(null);
-    setStep("class");
-  }, []);
-
-  const handleClassSelect = useCallback((classId: string) => {
-    setSelectedClass(classId);
-    setError(null);
-    setStep("confirm");
-  }, []);
-
-  const handleConfirm = useCallback(async () => {
-    setError(null);
-    startTransition(async () => {
-      try {
-        const result = await enterExamByNameAction({ token, firstName, lastName });
-        if (result.ok) {
-          onComplete(result);
-        } else {
-          onError(result.error ?? "Entry failed.", result.next);
-        }
-      } catch {
-        onError("Entry failed.");
+      setData(result.data);
+      if (result.data.enrollment) {
+        setLevelId(result.data.enrollment.levelId);
+        setClassId(result.data.enrollment.classId);
+        setPathChoice("class");
+        setStep("confirm");
       }
     });
-  }, [token, firstName, lastName, onComplete, onError]);
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
-  if (!wizardData) {
+  const selectedLevel = useMemo(
+    () => data?.levels.find((level) => level.id === levelId) ?? null,
+    [data, levelId],
+  );
+  const availableClasses = useMemo(
+    () => data?.classes.filter((item) => item.levelId === levelId) ?? [],
+    [data, levelId],
+  );
+  const selectedClass = useMemo(
+    () => data?.classes.find((item) => item.id === classId) ?? null,
+    [data, classId],
+  );
+  const placementAvailable = Boolean(
+    data && !data.enrollment && data.exam.mode === "qualifier" && selectedLevel?.name === "SS1",
+  );
+
+  if (!data && !error) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-muted-foreground" aria-live="polite">Loading exam options…</p>
-      </div>
+      <Card className="mx-auto w-full max-w-2xl">
+        <CardContent className="flex min-h-56 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Spinner /> Loading your school setup…
+        </CardContent>
+      </Card>
     );
   }
 
+  if (!data) {
+    return (
+      <Alert variant="destructive" className="mx-auto max-w-2xl">
+        <AlertTitle>Academic setup unavailable</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  function continueFromLevel() {
+    if (!selectedLevel) {
+      setError("Choose your current school level.");
+      return;
+    }
+    setError(null);
+    setClassId("");
+    setPathChoice("");
+    setStep(placementAvailable ? "path" : "class");
+  }
+
+  function continueFromPath() {
+    if (!pathChoice) {
+      setError("Choose whether you need placement or already know your SS1 class.");
+      return;
+    }
+    setError(null);
+    setStep(pathChoice === "placement" ? "confirm" : "class");
+  }
+
+  function continueFromClass() {
+    if (!selectedClass) {
+      setError("Choose the class you currently belong to.");
+      return;
+    }
+    setError(null);
+    setPathChoice("class");
+    setStep("confirm");
+  }
+
+  function submit() {
+    if (!selectedLevel) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await completeExamOnboardingAction({
+        token,
+        levelId: selectedLevel.id,
+        classId: pathChoice === "placement" ? null : selectedClass?.id ?? null,
+        placementConsent: pathChoice === "placement",
+      });
+      if (!result.ok) {
+        setError(result.error ?? "Your school setup could not be confirmed.");
+        return;
+      }
+      if (result.next === "dashboard") {
+        router.replace("/dashboard");
+        router.refresh();
+        return;
+      }
+      if (result.next === "exam") {
+        router.replace(`/exam?token=${encodeURIComponent(token)}`);
+        router.refresh();
+      }
+    });
+  }
+
   return (
-    <Card className="mx-auto max-w-lg">
+    <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
-        <CardTitle>{wizardData.exam.title}</CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Student setup</Badge>
+          <Badge variant="secondary">{data.exam.title}</Badge>
+        </div>
+        <CardTitle>Confirm where you belong in school</CardTitle>
         <CardDescription>
-          Select your level, then your class, then confirm to enter.
+          This is saved to your student record. You can confirm an existing class here, but only staff can change a class after it has been confirmed.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {/* Step indicator */}
-        <nav aria-label="Exam entry progress" className="mb-8">
-          <ol className="flex items-center justify-center gap-2">
-            {[
-              { key: "level" as const, label: "Level" },
-              { key: "class" as const, label: "Class" },
-              { key: "confirm" as const, label: "Confirm" },
-            ].map((item, index) => {
-              const isActive = step === item.key;
-              const isCompleted = (step === "class" && item.key === "level") ||
-                (step === "confirm" && ["level", "class"].includes(item.key));
-              return (
-                <li key={item.key}>
-                  <div className="flex items-center">
-                    <span
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-full text-xs font-bold",
-                        isActive && "ring-2 ring-primary ring-offset-2 bg-primary text-primary-foreground",
-                        isCompleted && !isActive && "bg-emerald-600 text-white",
-                        !isActive && !isCompleted && "bg-muted text-muted-foreground",
-                      )}
-                      aria-current={isActive ? "step" : undefined}
-                    >
-                      {isCompleted && !isActive ? "✓" : index + 1}
+      <CardContent className="flex flex-col gap-5">
+        {data.enrollment ? (
+          <Alert>
+            <CheckCircle2 />
+            <AlertTitle>Class already confirmed</AlertTitle>
+            <AlertDescription>
+              {classLabel({ levelName: data.enrollment.levelName, track: data.enrollment.track, arm: data.enrollment.arm })}. Confirm this record to continue.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {step === "level" ? (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Current level</FieldLabel>
+              <RadioGroup value={levelId} onValueChange={(value) => setLevelId(String(value))}>
+                {data.levels.map((level) => (
+                  <label key={level.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
+                    <RadioGroupItem value={level.id} />
+                    <span className="flex-1">
+                      <strong className="block text-sm">{level.name}</strong>
+                      <span className="text-xs text-muted-foreground">Senior secondary level {level.ordinal}</span>
                     </span>
-                    {index < 2 && (
-                      <span className="hidden sm:block" aria-hidden="true">
-                        <svg className="mx-1 size-3 text-muted-foreground" fill="currentColor" viewBox="0 0 12 12">
-                          <path d="M3 1l6 5H0z" />
-                        </svg>
-                      </span>
-                    )}
-                  </div>
-                  <span className={cn("block text-xs mt-1 text-center", isActive ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                    {item.label}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
-
-        {/* Step content */}
-        <div
-          ref={stepRef}
-          tabIndex={-1}
-          aria-label={`Step: ${step === "level" ? "Level selection" : step === "class" ? "Class selection" : "Confirmation"}`}
-          role="group"
-          aria-live="polite"
-          className="outline-none"
-        >
-          {/* LEVEL STEP */}
-          {step === "level" && (
-            <div role="radiogroup" aria-label="Select your academic level">
-              <p className="mb-4 text-sm font-medium">Select your level</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {wizardData.levels.map((level) => (
-                  <Button
-                    key={level.id}
-                    type="button"
-                    variant={selectedLevel === level.id ? "default" : "outline"}
-                    onClick={() => handleLevelSelect(level.id)}
-                    className="min-h-[48px] justify-center text-base font-semibold"
-                    aria-pressed={selectedLevel === level.id}
-                    aria-label={`${level.name} — ordinal ${level.ordinal}`}
-                  >
-                    {level.name}
-                  </Button>
+                  </label>
                 ))}
-              </div>
-            </div>
-          )}
+              </RadioGroup>
+            </Field>
+            <Button type="button" onClick={continueFromLevel}>Continue</Button>
+          </FieldGroup>
+        ) : null}
 
-          {/* CLASS STEP */}
-          {step === "class" && (
-            <div role="radiogroup" aria-label="Select your class">
-              <p className="mb-4 text-sm font-medium">
-                {isPlacement
-                  ? "Select your assigned placement track"
-                  : "Select your class"}
+        {step === "path" ? (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>SS1 placement</FieldLabel>
+              <RadioGroup value={pathChoice} onValueChange={(value) => setPathChoice(String(value) as PathChoice)}>
+                <label className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
+                  <RadioGroupItem value="placement" />
+                  <GraduationCap aria-hidden="true" />
+                  <span className="flex-1">
+                    <strong className="block text-sm">Let the placement exam decide my SS1 track</strong>
+                    <span className="text-xs leading-5 text-muted-foreground">Choose this only if you are entering SS1 and have not yet been placed in Science, Humanities or Business.</span>
+                  </span>
+                </label>
+                <label className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
+                  <RadioGroupItem value="class" />
+                  <School aria-hidden="true" />
+                  <span className="flex-1">
+                    <strong className="block text-sm">I already know my SS1 class</strong>
+                    <span className="text-xs leading-5 text-muted-foreground">Choose your actual class instead. You will not write this placement exam.</span>
+                  </span>
+                </label>
+              </RadioGroup>
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep("level")}>Back</Button>
+              <Button type="button" onClick={continueFromPath}>Continue</Button>
+            </div>
+          </FieldGroup>
+        ) : null}
+
+        {step === "class" ? (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{selectedLevel?.name} class</FieldLabel>
+              <RadioGroup value={classId} onValueChange={(value) => setClassId(String(value))}>
+                {availableClasses.map((item) => (
+                  <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
+                    <RadioGroupItem value={item.id} />
+                    <span className="flex-1">
+                      <strong className="block text-sm">{classLabel(item)}</strong>
+                      <span className="text-xs text-muted-foreground">{trackLabel(item.track)} track</span>
+                    </span>
+                  </label>
+                ))}
+              </RadioGroup>
+              {!availableClasses.length ? <p className="text-sm text-destructive">No active classes are configured for this level. Ask a staff member for help.</p> : null}
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep(placementAvailable ? "path" : "level")}>Back</Button>
+              <Button type="button" disabled={!availableClasses.length} onClick={continueFromClass}>Continue</Button>
+            </div>
+          </FieldGroup>
+        ) : null}
+
+        {step === "confirm" ? (
+          <div className="flex flex-col gap-4">
+            <Alert>
+              <CheckCircle2 />
+              <AlertTitle>{pathChoice === "placement" ? "Confirm placement consent" : "Confirm your class"}</AlertTitle>
+              <AlertDescription>
+                {pathChoice === "placement"
+                  ? "You are confirming that you are entering SS1 and do not yet belong to Science, Humanities or Business. This placement exam decides the suggested SS1 track. You normally get one attempt."
+                  : selectedClass
+                    ? `Your student record will use ${classLabel(selectedClass)}.`
+                    : data.enrollment
+                      ? `Your persisted class is ${classLabel({ levelName: data.enrollment.levelName, track: data.enrollment.track, arm: data.enrollment.arm })}.`
+                      : "Confirm your academic setup."}
+              </AlertDescription>
+            </Alert>
+            {pathChoice === "placement" ? (
+              <p className="text-xs leading-5 text-muted-foreground">
+                After you submit a placement attempt, another attempt is blocked unless a teacher or administrator explicitly grants a retake from the staff workspace.
               </p>
-              {wizardData.enrolledClassId ? (
-                <div className="rounded-lg bg-emerald-50 p-4 text-center dark:bg-emerald-950/30">
-                  <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                    You are already enrolled in this exam&rsquo;s class.
-                  </p>
-                  <Button
-                    className="mt-3 w-full"
-                    onClick={() => handleClassSelect(wizardData.enrolledClassId!)}
-                    aria-label="Confirm your enrolled class"
-                  >
-                    Confirm & continue
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {availableClasses.map((cls) => (
-                      <Button
-                        key={cls.id}
-                        type="button"
-                        variant={selectedClass === cls.id ? "default" : "outline"}
-                        onClick={() => handleClassSelect(cls.id)}
-                        className="min-h-[48px] justify-center text-sm font-semibold"
-                        aria-pressed={selectedClass === cls.id}
-                        aria-label={`${cls.levelName} ${cls.track} Arm ${cls.arm}`}
-                      >
-                        <span>{cls.levelName}</span>
-                        <span className="ml-2 text-xs opacity-70">
-                          {cls.track} · Arm {cls.arm}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                  {availableClasses.length === 0 && (
-                    <Alert variant="destructive" role="alert">
-                      <AlertTitle>No classes available</AlertTitle>
-                      <AlertDescription>
-                        Please ask your teacher for class assignment options.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </>
-              )}
+            ) : data.exam.mode === "qualifier" ? (
+              <p className="text-xs leading-5 text-muted-foreground">
+                Because you already know your class, you will go to your dashboard instead of writing this placement exam.
+              </p>
+            ) : null}
+            {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              {!data.enrollment ? <Button type="button" variant="outline" disabled={pending} onClick={() => setStep(pathChoice === "placement" ? "path" : "class")}>Back</Button> : null}
+              <Button type="button" disabled={pending} onClick={submit}>
+                {pending ? <><Spinner data-icon="inline-start" />Saving…</> : pathChoice === "placement" ? "I consent — open placement exam" : "Confirm and continue"}
+              </Button>
             </div>
-          )}
+          </div>
+        ) : null}
 
-          {/* CONFIRM STEP */}
-          {step === "confirm" && (
-            <div aria-live="polite">
-              {error ? (
-                <Alert variant="destructive" role="alert" className="mb-4">
-                  <AlertTitle>Entry failed</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              ) : null}
-              <div className="rounded-lg bg-muted/40 p-4 text-sm">
-                <p className="font-medium">
-                  You are about to enter <strong>{wizardData.exam.title}</strong>.
-                </p>
-                {selectedClass && wizardData.classes.find((c) => c.id === selectedClass) && (
-                  <p className="mt-1 text-muted-foreground">
-                    Class: {wizardData.classes.find((c) => c.id === selectedClass)?.levelName}{" "}
-                    {wizardData.classes.find((c) => c.id === selectedClass)?.track} Arm{" "}
-                    {wizardData.classes.find((c) => c.id === selectedClass)?.arm}
-                  </p>
-                )}
-              </div>
-              <div className="mt-4 flex flex-col gap-2">
-                <Button
-                  onClick={handleConfirm}
-                  disabled={pending}
-                  className="w-full min-h-[48px]"
-                  size="lg"
-                  aria-busy={pending}
-                >
-                  {pending ? "Entering exam…" : "Enter exam"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => { setStep("class"); setError(null); }}
-                  disabled={pending}
-                  className="w-full min-h-[48px]"
-                >
-                  Go back
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Pending indicator */}
-        {pending && (
-          <p className="mt-4 text-center text-xs text-muted-foreground" aria-live="polite">
-            Processing… please wait.
-          </p>
-        )}
+        {step !== "confirm" && error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
       </CardContent>
     </Card>
   );

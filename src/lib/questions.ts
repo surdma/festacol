@@ -29,9 +29,31 @@ interface BlankRow {
   accepted: string[];
 }
 
+type ScoringQuestionDTO = QuestionDTO & {
+  blanks?: { key: string; accepted: string[] }[];
+};
+
+const SELECTION_WORDS = new Map([
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+]);
+
+function requiredSelectionsFromInstruction(instruction: string): number | undefined {
+  const match = instruction.match(/select\s+exactly\s+(one|two|three|four|five|six|\d+)/iu);
+  if (!match) return undefined;
+  const token = match[1].toLocaleLowerCase("en");
+  const numeric = Number(token);
+  if (Number.isInteger(numeric) && numeric > 0) return numeric;
+  return SELECTION_WORDS.get(token);
+}
+
 // Server-only bank loader. Correct answers never rely on an authenticated
 // student's table privileges; the service role reads them only inside trusted
-// Server Actions and sanitizePaper removes them before browser delivery.
+// Server Actions and sanitizePaper removes all scoring metadata before browser delivery.
 export async function loadQuestionPayload(): Promise<BankPayload> {
   const admin = createSupabaseAdminClient();
   const [
@@ -75,7 +97,7 @@ export async function loadQuestionPayload(): Promise<BankPayload> {
 
 function toDTO(row: QuestionRow, subjectName: string, levels: string[], blanks: BlankRow[]): QuestionDTO {
   const type = row.qtype as QuestionDTO["type"];
-  const dto: QuestionDTO = {
+  const dto: ScoringQuestionDTO = {
     id: row.id,
     subjectId: row.subject_id,
     subject: subjectName,
@@ -84,6 +106,10 @@ function toDTO(row: QuestionRow, subjectName: string, levels: string[], blanks: 
     options: row.options ?? [],
     levels: levels as QuestionDTO["levels"],
     examModes: (row.exam_modes ?? []) as QuestionDTO["examModes"],
+    instruction: row.instruction || undefined,
+    domain: row.domain || undefined,
+    difficulty: row.difficulty || undefined,
+    requiredSelections: type === "multi" ? requiredSelectionsFromInstruction(row.instruction ?? "") : undefined,
   };
   if (row.fill_template && (type === "fill" || type === "fill-multi")) {
     dto.fillTemplate = parseTemplate(row.fill_template, blanks);
@@ -95,7 +121,7 @@ function toDTO(row: QuestionRow, subjectName: string, levels: string[], blanks: 
       scoringBlanks.push({ key, accepted: blank.accepted });
     }
     dto.answer = answer;
-    (dto as QuestionDTO & { blanks?: { key: string; accepted: string[] }[] }).blanks = scoringBlanks;
+    dto.blanks = scoringBlanks;
   } else if (type === "boolean") {
     dto.answer = (row.correct_answers[0] ?? "") === "true";
   } else if (type === "multi") {
@@ -144,8 +170,13 @@ export function buildTemplate(parts: { text?: string; blank?: boolean; key?: str
 
 export function sanitizePaper(questions: QuestionDTO[]): Omit<QuestionDTO, "answer">[] {
   return questions.map((question) => {
-    const { answer: _answer, ...rest } = question as QuestionDTO & { answer?: unknown };
+    const {
+      answer: _answer,
+      blanks: _scoringBlanks,
+      ...rest
+    } = question as ScoringQuestionDTO;
     void _answer;
+    void _scoringBlanks;
     return rest;
   });
 }

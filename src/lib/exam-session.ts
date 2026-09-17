@@ -67,19 +67,29 @@ export async function loadExamRuntimeSession(
     : { data: [], error: null };
   if (classesError) return null;
   const classes = (classRows ?? []) as { id: string; level_id: string; academic_year_id: string; arm: string }[];
-  if (!classes.length) return null;
 
-  const levelIds = [...new Set(classes.map((item) => item.level_id))];
-  const { data: levelRows, error: levelError } = await client.from("academic_levels").select("id,name").in("id", levelIds);
-  if (levelError) return null;
-  const levelNames = [...new Set(((levelRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
-  if (levelNames.length !== 1 || !CLASS_LEVELS.has(levelNames[0] as ClassLevel)) return null;
-  const classLevel = levelNames[0] as ClassLevel;
+  let classLevel: ClassLevel;
+  let yearNames: string[] = [];
 
-  const academicYearIds = [...new Set(classes.map((item) => item.academic_year_id))];
-  const { data: yearRows, error: yearError } = await client.from("academic_years").select("id,name").in("id", academicYearIds);
-  if (yearError) return null;
-  const yearNames = [...new Set(((yearRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
+  if (classes.length) {
+    const levelIds = [...new Set(classes.map((item) => item.level_id))];
+    const { data: levelRows, error: levelError } = await client.from("academic_levels").select("id,name").in("id", levelIds);
+    if (levelError) return null;
+    const levelNames = [...new Set(((levelRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
+    if (levelNames.length !== 1 || !CLASS_LEVELS.has(levelNames[0] as ClassLevel)) return null;
+    classLevel = levelNames[0] as ClassLevel;
+
+    const academicYearIds = [...new Set(classes.map((item) => item.academic_year_id))];
+    const { data: yearRows, error: yearError } = await client.from("academic_years").select("id,name").in("id", academicYearIds);
+    if (yearError) return null;
+    yearNames = [...new Set(((yearRows ?? []) as { id: string; name: string }[]).map((item) => item.name))];
+  } else {
+    // Incoming SS1 placement sessions intentionally have no class target. The
+    // onboarding action only grants this class-less path after SS1 placement
+    // consent, while allocate_my_exam_attempt remains the student access gate.
+    if (row.mode !== "qualifier" || classIds.length > 0) return null;
+    classLevel = "SS1";
+  }
 
   let termName = "";
   if (row.academic_term_id) {

@@ -19,6 +19,11 @@ export interface ActionResult {
   error?: string;
 }
 
+export interface StudentSignInResult extends ActionResult {
+  provisioned?: boolean;
+  studentNumber?: string | null;
+}
+
 export async function signInLinkedStudent(
   member: Awaited<ReturnType<typeof resolveExistingStudentIdentity>>,
 ): Promise<ActionResult> {
@@ -65,7 +70,7 @@ export async function signInLinkedStudent(
       authUserId = legacySignIn.data.user.id;
       email = legacySignIn.data.user.email ?? legacy.email;
       if (!(await claimStudentAuthIdentity(member.memberId, authUserId))) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         return {
           ok: false,
           error: "This student record is already linked to another login.",
@@ -80,7 +85,7 @@ export async function signInLinkedStudent(
         },
       );
       if (updateError) return { ok: false, error: updateError.message };
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     } else {
       email = studentEmailForMember(member.memberId);
       const { data: created, error: createError } =
@@ -121,14 +126,14 @@ export async function signInLinkedStudent(
   return { ok: true };
 }
 
-// First + last name are the student credential. Existing roster students sign
-// straight in; unknown names are provisioned as brand-new student accounts
-// (no class yet — staff assign one where necessary) and land on the dashboard.
-// Ambiguous names are still rejected so typos never merge two records.
+// First + last name are the one student credential surface. Existing roster
+// students sign straight in; unknown names are provisioned as brand-new
+// student accounts with no class yet. The caller decides whether the signed-in
+// student continues to the dashboard or returns to a preserved exam link.
 export async function signInStudentAction(input: {
   firstName: string;
   lastName: string;
-}): Promise<ActionResult> {
+}): Promise<StudentSignInResult> {
   const parsed = studentLoginSchema.safeParse(input);
   if (!parsed.success)
     return { ok: false, error: "Enter first and last name." };
@@ -157,7 +162,12 @@ export async function signInStudentAction(input: {
     const result = await signInLinkedStudent(member);
     if (!result.ok) return result;
     revalidatePath("/dashboard");
-    return { ok: true };
+    revalidatePath("/exam");
+    return {
+      ok: true,
+      provisioned: false,
+      studentNumber: member.studentNumber,
+    };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Student sign-in failed.";
@@ -169,7 +179,12 @@ export async function signInStudentAction(input: {
       const result = await signInLinkedStudent(member);
       if (!result.ok) return result;
       revalidatePath("/dashboard");
-      return { ok: true };
+      revalidatePath("/exam");
+      return {
+        ok: true,
+        provisioned: true,
+        studentNumber: member.studentNumber,
+      };
     } catch (provisionError) {
       return {
         ok: false,
@@ -180,13 +195,6 @@ export async function signInStudentAction(input: {
       };
     }
   }
-}
-
-export async function signOutStudentAction(): Promise<ActionResult> {
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
-  revalidatePath("/");
-  return { ok: true };
 }
 
 export async function updateProfileAction(input: {

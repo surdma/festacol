@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, MessageCircle, Trash2 } from "lucide-react";
+import { ExternalLink, MessageCircle, QrCode, Trash2 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { deleteWhatsappAction } from "@/app/actions/admin";
 import { getAdminFormOptionsAction, getWhatsappDetailAction } from "@/app/actions/admin-parity";
 import { upsertSingleClassWhatsappAction } from "@/app/actions/academic-records";
@@ -41,6 +42,7 @@ export function WhatsappFormDialog({
   const [inviteUrl, setInviteUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const showQr = inviteUrl.startsWith("https://");
 
   useEffect(() => {
     if (!open) return;
@@ -108,7 +110,22 @@ export function WhatsappFormDialog({
             <Input id="whatsapp-url" type="url" inputMode="url" value={inviteUrl} onChange={(event) => setInviteUrl(event.target.value)} placeholder="https://chat.whatsapp.com/..." />
             <FieldDescription>Only secure WhatsApp invite hosts are accepted.</FieldDescription>
           </Field>
-          {inviteUrl.startsWith("https://") ? <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3"><span className="min-w-0 truncate text-xs text-muted-foreground">{inviteUrl}</span><Button size="sm" variant="outline" render={<a href={inviteUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink data-icon="inline-start" />Open</Button></div> : null}
+
+          {showQr ? (
+            <div className="grid gap-4 rounded-2xl border bg-muted/20 p-4 sm:grid-cols-[176px_minmax(0,1fr)] sm:items-center">
+              <div className="grid w-44 place-items-center rounded-xl border bg-white p-3 shadow-xs">
+                <QRCodeSVG value={inviteUrl} size={152} level="M" aria-label={`QR code for ${name || "WhatsApp group"}`} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold"><QrCode className="size-4" aria-hidden="true" />WhatsApp QR access</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Scan this code to open the exact saved invite. The QR updates immediately when the invite link changes.</p>
+                <p className="mt-3 truncate font-mono text-[11px] text-muted-foreground">{inviteUrl}</p>
+                <Button className="mt-3" size="sm" variant="outline" render={<a href={inviteUrl} target="_blank" rel="noopener noreferrer" />}>
+                  <ExternalLink data-icon="inline-start" />Open invite
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </FieldGroup>
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
         <DialogFooter className="sm:justify-between">

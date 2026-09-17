@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export interface StudentIdRevealProps {
   open: boolean;
@@ -11,27 +17,29 @@ export interface StudentIdRevealProps {
   onAcknowledge: () => void;
 }
 
-export function StudentIdReveal({ open, studentNumber, onAcknowledge }: StudentIdRevealProps) {
-  const [acknowledged, setAcknowledged] = useState(false);
+export function StudentIdReveal({
+  open,
+  studentNumber,
+  onAcknowledge,
+}: StudentIdRevealProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) {
-      setAcknowledged(false);
-      // Focus management: restore focus to acknowledgment button when dialog opens
+      // Focus the one required acknowledgement action when the dialog opens.
       setTimeout(() => buttonRef.current?.focus(), 50);
     }
   }, [open]);
 
-  const handleAcknowledge = () => {
-    setAcknowledged(true);
-    onAcknowledge();
-  };
-
   if (!studentNumber) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleAcknowledge(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) onAcknowledge();
+      }}
+    >
       <DialogContent
         className="mx-auto max-w-md sm:max-w-lg"
         role="alertdialog"
@@ -64,13 +72,12 @@ export function StudentIdReveal({ open, studentNumber, onAcknowledge }: StudentI
           </div>
           <div className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">
             <p>
-              Your account has been created. Before continuing, please write down your
-              Student ID above. It is the only way to identify your exam records.
+              Your account has been created. Before continuing, please write down your Student ID above. It is the only way to identify your exam records.
             </p>
           </div>
           <Button
             ref={buttonRef}
-            onClick={handleAcknowledge}
+            onClick={onAcknowledge}
             className="w-full"
             size="lg"
             aria-label="I have written down my student ID"

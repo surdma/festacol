@@ -1,15 +1,13 @@
 import Link from "next/link";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   AdminEmptyState,
   AdminFilterLinks,
   AdminPageHeader,
   AdminSearchForm,
-  adminIconButtonClass,
   adminPrimaryButtonClass,
-  adminSurfaceClass,
 } from "@/components/admin/admin-ui";
-import { StatusBadge } from "@/components/status-badge";
+import { QuestionDirectoryTable } from "@/components/admin/question-directory-table";
 import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
 import { listActiveSubjects, listQuestions } from "@/lib/supabase/queries";
 
@@ -34,6 +32,11 @@ export default async function AdminQuestionsPage({ searchParams }: { searchParam
     return true;
   });
 
+  const tableRows = questions.map((item) => ({
+    ...item,
+    subjectName: subjectName.get(item.subject_id) ?? "Subject",
+  }));
+
   return (
     <div>
       <AdminPageHeader
@@ -42,15 +45,26 @@ export default async function AdminQuestionsPage({ searchParams }: { searchParam
         description="Questions belong to canonical subjects; staff-authored questions retain their creator while seeded bank questions are system-owned."
         actions={<Link href="/workspace/questions?modal=question-new" className={adminPrimaryButtonClass}><Plus data-icon="inline-start" />New question</Link>}
       />
-      <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]"><AdminSearchForm query={params.q} placeholder="Search question text, subject or domain" hidden={{ subject: subject === "all" ? undefined : subject, type: type === "all" ? undefined : type, source: source === "all" ? undefined : source }} /><div className="text-xs font-semibold text-neutral-500">{scoped.filter((item) => item.creator_id).length} staff authored · {scoped.filter((item) => !item.creator_id).length} bank</div></div>
+      <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+        <AdminSearchForm
+          query={params.q}
+          placeholder="Search question text, subject or domain"
+          hidden={{ subject: subject === "all" ? undefined : subject, type: type === "all" ? undefined : type, source: source === "all" ? undefined : source }}
+        />
+        <div className="text-xs font-semibold text-neutral-500">
+          {scoped.filter((item) => item.creator_id).length} staff authored · {scoped.filter((item) => !item.creator_id).length} bank
+        </div>
+      </div>
       <div className="mb-4 flex flex-wrap gap-2">
         <AdminFilterLinks pathname="/workspace/questions" param="subject" current={subject} preserve={{ q: params.q, type: type === "all" ? undefined : type, source: source === "all" ? undefined : source }} options={[{ value: "all", label: "All subjects" }, ...visibleSubjects.map((item) => ({ value: item.id, label: item.name }))]} />
         <AdminFilterLinks pathname="/workspace/questions" param="type" current={type} preserve={{ q: params.q, subject: subject === "all" ? undefined : subject, source: source === "all" ? undefined : source }} options={[{ value: "all", label: "All types" }, { value: "single", label: "Single" }, { value: "multi", label: "Multiple" }, { value: "boolean", label: "True/false" }, { value: "fill", label: "Fill" }]} />
         <AdminFilterLinks pathname="/workspace/questions" param="source" current={source} preserve={{ q: params.q, subject: subject === "all" ? undefined : subject, type: type === "all" ? undefined : type }} options={[{ value: "all", label: "All sources" }, { value: "teacher", label: "Staff" }, { value: "bank", label: "Bank" }]} />
       </div>
-      <section className={`${adminSurfaceClass} overflow-hidden`}>
-        {questions.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[.1em] text-neutral-500"><tr><th className="px-4 py-3">Question</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Difficulty</th><th className="px-4 py-3">Source</th><th className="px-4 py-3"><span className="sr-only">Open</span></th></tr></thead><tbody className="divide-y divide-neutral-100">{questions.slice(0, 120).map((item) => <tr key={String(item.id)} className="hover:bg-neutral-50"><td className="max-w-xl px-4 py-3"><Link href={`/workspace/questions?modal=question&question=${item.id}`} className="text-left"><strong className="line-clamp-2 text-neutral-950">{item.prompt || `Question ${String(item.id)}`}</strong><span className="mt-1 block text-xs text-neutral-500">#{String(item.id)}{item.domain ? ` · ${item.domain}` : ""}</span></Link></td><td className="px-4 py-3">{subjectName.get(item.subject_id) ?? "Subject"}</td><td className="px-4 py-3"><StatusBadge tone="neutral">{item.qtype}</StatusBadge></td><td className="px-4 py-3 capitalize">{item.difficulty || "medium"}</td><td className="px-4 py-3 text-xs text-neutral-500">{item.creator_id ? "Staff" : "Bank"}</td><td className="px-4 py-3 text-right"><Link href={`/workspace/questions?modal=question&question=${item.id}`} className={adminIconButtonClass} aria-label={`Open question ${String(item.id)}`}><MoreHorizontal /></Link></td></tr>)}</tbody></table></div> : <AdminEmptyState title="No matching questions" description="Change the filters or add a question in an allowed subject." />}
-      </section>
+      {tableRows.length ? (
+        <QuestionDirectoryTable rows={tableRows} />
+      ) : (
+        <AdminEmptyState title="No matching questions" description="Change the filters or add a question in an allowed subject." />
+      )}
     </div>
   );
 }

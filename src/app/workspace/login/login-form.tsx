@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { signInAdminAction } from "@/app/actions/admin-auth";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { signInAdminAction } from "@/app/actions/admin-auth";
 
 export function AdminLoginForm({ next }: { next?: string }) {
   const router = useRouter();
@@ -23,7 +23,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
         setError(result.error ?? "Sign in failed.");
         return;
       }
-      router.push(result.next ?? "/workspace");
+      router.replace(result.next ?? "/workspace");
       router.refresh();
     });
   }
@@ -31,13 +31,27 @@ export function AdminLoginForm({ next }: { next?: string }) {
   return (
     <form onSubmit={submit}>
       <FieldGroup>
-        <Field>
+        <Field data-invalid={Boolean(error)}>
           <FieldLabel htmlFor="admin-email">Email</FieldLabel>
-          <Input id="admin-email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input
+            id="admin-email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={Boolean(error)}
+          />
         </Field>
-        <Field>
+        <Field data-invalid={Boolean(error)}>
           <FieldLabel htmlFor="admin-password">Password</FieldLabel>
-          <Input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input
+            id="admin-password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={Boolean(error)}
+          />
         </Field>
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
         <Button type="submit" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</Button>

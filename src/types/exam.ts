@@ -43,7 +43,74 @@ export interface QuestionDTO {
   levels: ClassLevel[];
   examModes: ExamMode[];
   fillTemplate?: { text?: string; blank?: boolean; placeholder?: string; key?: string }[];
+  instruction?: string;
+  domain?: string;
+  difficulty?: string;
+  requiredSelections?: number;
   answer?: unknown;
+}
+
+export interface ExamCandidateContext {
+  fullName: string;
+  studentNumber: string | null;
+  classLabel: string;
+}
+
+export interface ExamAccessContext {
+  allowedAttempts: number;
+  usedAttempts: number;
+  activeAttemptId: string | null;
+}
+
+export interface ExamExperienceContext {
+  session: ExamSessionDTO;
+  cameraRequired: boolean;
+  subjectNames: string[];
+  candidate: ExamCandidateContext;
+  access: ExamAccessContext;
+}
+
+export interface ExamSubjectPerformance {
+  subjectId: string;
+  subject: string;
+  total: number;
+  correct: number;
+  percent: number;
+  seconds: number;
+}
+
+export interface ExamResultReviewItem {
+  questionId: number;
+  questionNumber: number;
+  subject: string;
+  type: QuestionType;
+  prompt: string;
+  response: unknown;
+  correctAnswer: string;
+  correct: boolean | null;
+  seconds: number;
+  domain?: string;
+  explanation?: string;
+}
+
+export interface ExamResultSummary {
+  attemptId: string;
+  submittedAt: number;
+  startedAt: number | null;
+  score: number;
+  completion: number;
+  correctCount: number;
+  incorrectCount: number;
+  answeredCount: number;
+  unansweredCount: number;
+  total: number;
+  elapsedSeconds: number;
+  paceIndex: number;
+  reasoningIndex: number;
+  subjectStats: ExamSubjectPerformance[];
+  placement?: { assignedTrack: string; confidence: number };
+  canReviewAnswers: boolean;
+  review: ExamResultReviewItem[];
 }
 
 export interface IntegrityEvent {

@@ -47,13 +47,12 @@ export function HardDeleteDialog({
         confirmation,
         reason: reason.trim() || undefined,
       });
-      setResult(res);
       if (res.ok) {
-        setTimeout(() => {
-          onOpenChange(false);
-          onDeleted?.(res.auditId);
-        }, 1200);
+        onDeleted?.(res.auditId);
+        onOpenChange(false);
+        return;
       }
+      setResult(res);
     });
   };
 
@@ -123,14 +122,6 @@ export function HardDeleteDialog({
             />
           </div>
 
-          {result?.ok && (
-            <div role="status" aria-live="polite" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
-              <p className="font-medium">Account permanently deleted.</p>
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                Audit row preserved. Attempts and results removed.
-              </p>
-            </div>
-          )}
           {result && !result.ok && (
             <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
               <p className="font-medium">Deletion failed.</p>
@@ -143,7 +134,6 @@ export function HardDeleteDialog({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={pending}
             aria-label="Cancel deletion"
           >
             Cancel

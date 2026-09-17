@@ -7,21 +7,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  isExamDestination,
+  safeStudentDestination,
+} from "@/lib/auth/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StudentLoginForm } from "./login-form";
-
-function safeDashboardNext(value: string | undefined): string | undefined {
-  if (value && value.startsWith("/dashboard") && !value.startsWith("//"))
-    return value;
-  return undefined;
-}
 
 export default async function RootPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const next = safeDashboardNext((await searchParams).next);
+  const next = safeStudentDestination((await searchParams).next);
+  const continuingToExam = isExamDestination(next);
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   if (data.user) {
@@ -32,9 +31,6 @@ export default async function RootPage({
       .eq("status", "active")
       .maybeSingle();
     if (member?.role === "student") redirect(next ?? "/dashboard");
-    // Staff sessions have no student permission: never show the student
-    // login form to them. Preserve the dashboard destination they just left
-    // so the denial explains where to go after switching accounts.
     if (member?.role === "administrator" || member?.role === "teacher") {
       if (next) {
         redirect(
@@ -68,11 +64,12 @@ export default async function RootPage({
               Student access
             </p>
             <h1 className="mt-4 max-w-xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">
-              Private student workspace
+              {continuingToExam ? "Secure exam access" : "Private student workspace"}
             </h1>
             <p className="mt-5 max-w-sm text-base leading-7 text-primary-foreground/65">
-              Sign in with your first and last name to open your dashboard,
-              analytics and secure exams.
+              {continuingToExam
+                ? "Use the same student credentials as your dashboard. After sign in, you will return directly to the examination you opened."
+                : "Sign in with your first and last name to open your dashboard, analytics and secure exams."}
             </p>
           </div>
 
@@ -86,11 +83,10 @@ export default async function RootPage({
             <CardHeader className="px-0">
               <Badge className="mb-2">Student authentication</Badge>
               <CardTitle className="font-display text-3xl font-extrabold">
-                Student sign in
+                {continuingToExam ? "Continue to examination" : "Student sign in"}
               </CardTitle>
               <CardDescription className="mt-2 text-base leading-7">
-                Use your first and last name as your credentials — new students
-                get an account automatically.
+                Use your first and last name as your credentials. New students get an account automatically and continue to the same destination after setup.
               </CardDescription>
             </CardHeader>
             <CardContent className="px-0 pt-3">

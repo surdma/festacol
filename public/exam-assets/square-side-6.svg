@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Square with side length six centimetres</title>
+  <desc id="desc">A square outline. The lower side is labelled 6 cm.</desc>
+  <rect width="640" height="360" fill="#fafafa"/>
+  <rect x="190" y="55" width="250" height="250" rx="2" fill="#ffffff" stroke="#171717" stroke-width="8"/>
+  <line x1="190" y1="325" x2="440" y2="325" stroke="#737373" stroke-width="3"/>
+  <line x1="190" y1="315" x2="190" y2="335" stroke="#737373" stroke-width="3"/>
+  <line x1="440" y1="315" x2="440" y2="335" stroke="#737373" stroke-width="3"/>
+  <text x="315" y="352" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#262626">6 cm</text>
+</svg>

@@ -71,7 +71,7 @@
       "label": "English Studies · Comprehension",
       "explanation": "The passage states both that Musa left early and that he carried an umbrella because rain was expected.",
       "type": "multi",
-      "prompt": "Musa left home early because the road often became crowded before school. He also carried an umbrella after hearing the weather forecast. Select exactly TWO conclusions supported by the passage.",
+      "prompt": "PASSAGE:\nMusa left home early because the road often became crowded before school. He also carried an umbrella after hearing the weather forecast.\n\nQUESTION:\nSelect exactly TWO conclusions supported by the passage.",
       "instruction": "Select exactly TWO answers.",
       "requiredSelections": 2,
       "options": [

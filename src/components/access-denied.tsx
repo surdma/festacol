@@ -1,9 +1,5 @@
-"use client";
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { signOutStudentAction } from "@/app/actions/student";
+import { signOutSessionAction } from "@/app/actions/auth";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +8,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { safeStaffDestination, safeStudentDestination } from "@/lib/auth/navigation";
+
+function switchTarget(signInHref: string) {
+  if (signInHref === "/workspace/login" || signInHref === "/workspace" || signInHref.startsWith("/workspace/")) {
+    return { surface: "staff" as const, next: safeStaffDestination(signInHref) };
+  }
+
+  return { surface: "student" as const, next: safeStudentDestination(signInHref) };
+}
 
 export function AccessDenied({
   title,
@@ -26,16 +31,7 @@ export function AccessDenied({
   signInLabel: string;
   returnHref?: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
-  function switchAccount() {
-    startTransition(async () => {
-      await signOutStudentAction();
-      router.push(signInHref);
-      router.refresh();
-    });
-  }
+  const target = switchTarget(signInHref);
 
   return (
     <Card className="mx-auto max-w-md">
@@ -44,14 +40,16 @@ export function AccessDenied({
         <CardDescription>{message}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <Button onClick={switchAccount} disabled={pending}>
-          {pending ? "Signing out…" : "Sign out and switch account"}
-        </Button>
-        <Link href={signInHref} className={buttonVariants({ variant: "outline" })}>
-          {signInLabel}
-        </Link>
+        <form action={signOutSessionAction}>
+          <input type="hidden" name="surface" value={target.surface} />
+          {target.next ? <input type="hidden" name="next" value={target.next} /> : null}
+          <Button type="submit" className="w-full">
+            Sign out and switch account
+          </Button>
+        </form>
+        <p className="px-1 text-xs text-muted-foreground">{signInLabel} after the current session is cleared.</p>
         {returnHref ? (
-          <Link href={returnHref} className={buttonVariants({ variant: "ghost" })}>
+          <Link href={returnHref} className={buttonVariants({ variant: "ghost", className: "w-full" })}>
             Back to previous page
           </Link>
         ) : null}
