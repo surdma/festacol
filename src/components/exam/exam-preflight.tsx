@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Check, ChevronLeft, ChevronRight, Clock3, Cloud, FileText, Laptop, ShieldCheck, UserRound } from "lucide-react";
+import { Camera, Check, ChevronLeft, ChevronRight, Clock3, Cloud, FileText, ShieldCheck, UserRound } from "lucide-react";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,7 @@ export function ExamPreflight({
 }) {
   const currentStep = STAGES.findIndex((item) => item.id === stage);
   const { session, candidate, subjectNames, access, cameraRequired } = context;
+  const resuming = Boolean(access.activeAttemptId);
   const canContinueFromReadiness = online && (!cameraRequired || camera.ready);
   const subjects = subjectNames.length ? subjectNames.join(" · ") : modeLabel(session.mode);
 
@@ -123,8 +124,12 @@ export function ExamPreflight({
           <section aria-labelledby="exam-overview-title" className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,.8fr)]">
             <div>
               <p className="text-sm font-semibold text-muted-foreground">Examination overview</p>
-              <h2 id="exam-overview-title" className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">Know what you are about to take before the timer begins.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Your attempt is not started on this screen. Continue through the preparation checks, then use the final Start Exam action when you are ready.</p>
+              <h2 id="exam-overview-title" className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">Know the examination state before you continue.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {resuming
+                  ? "Your attempt is already in progress. Its server-side time continues while you restore the required device state, then Resume Exam returns you to the saved paper."
+                  : "Your attempt is not started on this screen. Continue through the preparation checks, then use the final Start Exam action when you are ready."}
+              </p>
 
               <dl className="mt-6 border-y">
                 <DetailRow icon={<FileText className="size-4" aria-hidden="true" />} label="Subject and mode" value={<>{subjects}<span className="block text-xs font-normal text-muted-foreground">{modeLabel(session.mode)}</span></>} />
@@ -136,7 +141,7 @@ export function ExamPreflight({
             <aside className="self-start rounded-xl border bg-muted/20 p-4" aria-label="Exam summary">
               <dl className="grid gap-4">
                 <div><dt className="text-xs text-muted-foreground">Questions</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{session.questionCount}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Attempt status</dt><dd className="mt-1 text-sm font-semibold">{access.activeAttemptId ? "In progress" : `${Math.max(0, access.allowedAttempts - access.usedAttempts)} attempt${Math.max(0, access.allowedAttempts - access.usedAttempts) === 1 ? "" : "s"} available`}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Attempt status</dt><dd className="mt-1 text-sm font-semibold">{resuming ? "In progress" : `${Math.max(0, access.allowedAttempts - access.usedAttempts)} attempt${Math.max(0, access.allowedAttempts - access.usedAttempts) === 1 ? "" : "s"} available`}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Saving</dt><dd className="mt-1 text-sm font-semibold">Automatic progress saving</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Camera</dt><dd className="mt-1 text-sm font-semibold">{cameraRequired ? "Required throughout the exam" : "Not required"}</dd></div>
               </dl>
@@ -179,7 +184,7 @@ export function ExamPreflight({
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">These checks only verify the capabilities this examination actually needs. No facial-recognition score or behavior score is generated here.</p>
 
               <div className="mt-6 border-y">
-                <ReadinessRow ready={online} title={online ? "Internet connection available" : "You are currently offline"} description={online ? "Autosave can reach the examination service." : "Reconnect before starting so your first response can be saved."} />
+                <ReadinessRow ready={online} title={online ? "Internet connection available" : "You are currently offline"} description={online ? "Autosave can reach the examination service." : resuming ? "Reconnect before resuming so saved progress can be restored safely." : "Reconnect before starting so your first response can be saved."} />
                 <ReadinessRow ready={!cameraRequired || cameraSupported} title={cameraRequired ? "Browser camera support" : "Camera not required"} description={cameraRequired ? (cameraSupported ? "This browser can request a live webcam stream." : "Use a browser or device that supports webcam access.") : "This examination does not require webcam access."} />
                 {session.integrityPolicy.fullscreenPrompt ? <ReadinessRow ready={fullscreenSupported} title="Full-screen capability" description={fullscreenSupported ? "This browser can enter full screen when requested." : "Full-screen mode is not available in this browser."} /> : null}
                 <ReadinessRow ready title="Microphone" description="Microphone access is not requested for this examination." />
@@ -206,8 +211,12 @@ export function ExamPreflight({
           <section aria-labelledby="final-check-title" className="mx-auto max-w-3xl">
             <div className="flex size-11 items-center justify-center rounded-full bg-muted"><ShieldCheck className="size-5" aria-hidden="true" /></div>
             <p className="mt-5 text-sm font-semibold text-muted-foreground">Final checkpoint</p>
-            <h2 id="final-check-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Ready to start {session.title}?</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">Starting allocates or resumes your examination attempt and starts the active countdown. Keep this browser window open until submission completes.</p>
+            <h2 id="final-check-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Ready to {resuming ? "resume" : "start"} {session.title}?</h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              {resuming
+                ? "Resuming restores your saved paper, answers and remaining server-calculated time. Keep the required camera active and this browser window open until submission completes."
+                : "Starting allocates your examination attempt and starts the active countdown. Keep this browser window open until submission completes."}
+            </p>
 
             <dl className="mt-7 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border p-4"><dt className="text-xs text-muted-foreground">Duration</dt><dd className="mt-1 text-sm font-semibold">{formatDuration(session.durationSeconds)}</dd></div>
@@ -216,14 +225,14 @@ export function ExamPreflight({
               <div className="rounded-xl border p-4"><dt className="text-xs text-muted-foreground">Camera</dt><dd className="mt-1 flex items-center gap-2 text-sm font-semibold"><Camera className="size-4" aria-hidden="true" />{cameraRequired ? (camera.ready ? "Ready and active" : "Not ready") : "Not required"}</dd></div>
             </dl>
 
-            {error ? <Alert variant="destructive" className="mt-5"><AlertTitle>Cannot start yet</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+            {error ? <Alert variant="destructive" className="mt-5"><AlertTitle>Cannot {resuming ? "resume" : "start"} yet</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
 
             <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Button type="button" variant="outline" size="lg" onClick={() => onStageChange("readiness")} disabled={starting}>
                 <ChevronLeft data-icon="inline-start" />Device check
               </Button>
               <Button type="button" size="lg" onClick={onStart} disabled={starting || !online || (cameraRequired && !camera.ready)}>
-                {starting ? "Preparing your paper…" : "Start Exam"}
+                {starting ? "Preparing your paper…" : resuming ? "Resume Exam" : "Start Exam"}
               </Button>
             </div>
           </section>
