@@ -43,7 +43,31 @@ export interface QuestionDTO {
   levels: ClassLevel[];
   examModes: ExamMode[];
   fillTemplate?: { text?: string; blank?: boolean; placeholder?: string; key?: string }[];
+  instruction?: string;
+  domain?: string;
+  difficulty?: string;
+  requiredSelections?: number;
   answer?: unknown;
+}
+
+export interface ExamCandidateContext {
+  fullName: string;
+  studentNumber: string | null;
+  classLabel: string;
+}
+
+export interface ExamAccessContext {
+  allowedAttempts: number;
+  usedAttempts: number;
+  activeAttemptId: string | null;
+}
+
+export interface ExamExperienceContext {
+  session: ExamSessionDTO;
+  cameraRequired: boolean;
+  subjectNames: string[];
+  candidate: ExamCandidateContext;
+  access: ExamAccessContext;
 }
 
 export interface IntegrityEvent {
