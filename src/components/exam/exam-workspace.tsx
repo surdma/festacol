@@ -581,7 +581,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   }
 
   const timerTone = timer.remaining <= 300 ? "border-destructive/20 bg-destructive/10 text-destructive" : timer.remaining <= 600 ? "border-warning-border bg-warning text-warning-foreground" : "border-border bg-background text-foreground";
-  const navigator = (
+  const questionNavigator = (
     <ExamQuestionNavigator
       paper={paper}
       currentIndex={index}
@@ -616,7 +616,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
                 <SheetTitle>Questions</SheetTitle>
                 <SheetDescription>Jump to unanswered or flagged questions without losing your current response.</SheetDescription>
               </SheetHeader>
-              <div className="min-h-0 flex-1 px-4 pb-4">{navigator}</div>
+              <div className="min-h-0 flex-1 px-4 pb-4">{questionNavigator}</div>
             </SheetContent>
           </Sheet>
 
@@ -689,7 +689,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
                   onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
                 />
               ) : null}
-              <div className="min-h-0 flex-1">{navigator}</div>
+              <div className="min-h-0 flex-1">{questionNavigator}</div>
               <Button type="button" variant="outline" size="lg" onClick={() => setPhase("review")}>
                 <ListChecks data-icon="inline-start" />Review & submit
               </Button>
