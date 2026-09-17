@@ -50,12 +50,13 @@ export function useExamTimer(initialRemaining: number, onExpire: () => void, act
 export function useIntegrityRecorder(sessionId: string) {
   const record = useCallback(
     (type: string, detail?: string) => {
+      if (!sessionId) return;
       void recordIntegrityAction(sessionId, type, detail).catch(() => undefined);
-    },
-    [sessionId],
+    }, [sessionId],
   );
 
   useEffect(() => {
+    if (!sessionId) return;
     const onVis = () => {
       if (document.hidden) record("tab-hidden");
       else record("focus-return");
@@ -70,7 +71,7 @@ export function useIntegrityRecorder(sessionId: string) {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("copy", onCopy);
     };
-  }, [record]);
+  }, [record, sessionId]);
 
   return { record };
 }
