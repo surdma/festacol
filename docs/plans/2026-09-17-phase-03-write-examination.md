@@ -1,218 +1,246 @@
 # Phase 03 — Write Examination
 
 Date: 2026-09-17
-Status: PLANNED — dense seven-option wireframe selection gate
+Status: PLANNED — third-round ten-concept wireframe selection gate
 Target PR: #18
 Planning owner: `festacol-planner`
 Production owner after selection: `festacol-frontend-engineer`
 
-## Product direction
+## Product correction
 
-The first Phase 03 board was intentionally discarded after product-owner review. It was too sparse for a real computer-based examination workspace and underrepresented the information density required during an active examination.
+The previous seven-concept Phase 03 board is superseded.
 
-The replacement board must show a **complete examination workstation on every concept page**. The student should be able to understand the current question, their progress, remaining time, candidate/exam identity, save/network condition, camera state when required, and all navigation/review controls from one coherent workspace.
+It became too information-dense for the student task. The live examination does not need to expose every exam record, integrity state, status legend, and recovery instrument at the same time. The new direction uses **progressive disclosure** and a calmer, more mature examination hierarchy.
 
-Density is intentional. The constraint is not “minimal UI”; it is **high information density without generic dashboard/card composition**.
+The student should primarily see:
 
-## Verified runtime contract
+1. the current question;
+2. the answer controls;
+3. remaining time;
+4. current position/progress;
+5. **Prev** and **Next**;
+6. an icon-only flag action;
+7. the question navigator;
+8. a small webcam surface only when monitoring is required;
+9. a clear route to **Submit exam**.
 
-The live path remains:
+Everything else is secondary.
 
-`ExamWorkspace`
-→ `getExamPaperAction`
-→ `allocate_my_exam_attempt`
-→ restored/allocated `ExamStateDTO`
-→ `QuestionCard`
-→ `saveProgressAction`
-→ Phase 04 Review & Submit.
+## Verified runtime boundary
 
-No Phase 03 wireframe may create new client authority for timing, persistence, access, scoring, placement, retakes, or integrity.
+The real runtime still supports:
 
-## Complete examination anatomy
-
-Every A–G concept must visibly provide placeholders for the following real surfaces.
-
-### Candidate and exam identity
-
-- examination title;
-- examination mode;
-- academic session and term;
-- subject / mixed-subject context;
-- candidate full name;
-- student number when present;
-- class label;
-- active-attempt state.
-
-### Time and progress
-
-- persistent server-calculated time remaining;
-- question position (`Question N of M`);
-- answered count;
-- unanswered / incomplete count;
-- flagged count;
-- overall progress indicator;
-- subject/section stepper for mixed papers where applicable.
-
-### Question work area
-
-- subject;
-- optional domain;
-- question type;
-- question-specific instruction;
-- question prompt;
-- response control;
-- conditional reading-passage region;
-- conditional diagram / media region with enlarge affordance;
-- representative adaptation note for single, multi, true/false, fill and fill-multi questions.
-
-### Navigation and response controls
-
-- previous;
-- next;
-- flag/unflag;
-- clear response;
+- server-calculated timer and expiry;
+- autosave / restore;
+- single, multi-select, boolean, fill and fill-multi responses;
+- reading passages;
+- question media / diagrams with enlarge;
 - direct question jump;
-- full question navigator;
-- navigator filters for all/open/flagged;
-- answered / incomplete / visited / flagged / current legend;
-- explicit Review & Submit handoff.
+- flagging;
+- conditional camera monitoring;
+- final submission through the existing review/submission state.
 
-### Reliability / integrity instruments
+This redesign is a **wireframe/product exploration only**. It does not alter `ExamWorkspace`, persistence, timing, access, scoring, integrity or submission contracts.
 
-- autosave state;
-- network state;
-- offline/save-failure placeholder;
-- focus-monitoring / clipboard-guard status when configured;
-- fullscreen status when configured;
-- webcam placeholder and live status when `cameraRequired === true`;
-- camera source placeholder when multiple devices exist.
+## Simplified persistent information
 
-## Webcam requirement
+### Always visible
 
-The brainstorm intentionally shows a webcam placeholder on every concept so spatial composition can be evaluated before selection.
+- short exam title;
+- current subject;
+- question position;
+- remaining time;
+- overall completion/progress;
+- save state;
+- current question and response;
+- Prev / Next;
+- icon-only Flag;
+- navigator affordance;
+- Submit exam affordance.
 
-The production rule remains conditional:
+### Contextual / on demand
 
-- if `cameraRequired === false`, the entire camera surface disappears;
-- if `cameraRequired === true`, the camera stays visible but secondary to the question;
-- microphone is not requested or represented.
+- full exam metadata;
+- student number and class;
+- session / term;
+- attempt metadata;
+- detailed connectivity diagnostics;
+- integrity policy details;
+- camera-source switching;
+- detailed navigator legend.
 
-## Design rules
+These may exist behind an info trigger, popover, drawer or secondary sheet, but must not occupy permanent desktop real estate.
 
-### Dense, not dashboard-like
+## Navigation simplification
 
-A dense exam surface may use one or two cards where the content benefits from containment, especially the question paper or webcam preview. It must not become a dashboard composed of many unrelated rounded cards.
+The wireframe must not show:
 
-Prefer:
+- **Clear response**;
+- a text-labelled Flag button;
+- **Review & Submit** as the primary phrase;
+- **Next question**;
+- a permanent dense status legend.
 
-- rails;
-- ruled sections;
-- partitioned asides;
-- strips;
-- instrument bars;
-- paper surfaces;
-- fixed question maps;
-- bottom consoles;
-- chapter/section dividers;
-- flat bordered regions.
+Visible movement controls are simply:
 
-Avoid:
+- **Prev**
+- icon-only flag
+- **Next**
 
-- bento grids;
-- KPI tiles;
-- generic admin cards;
-- repeated rounded panels;
-- decorative gradients;
-- marketing layouts;
-- enormous empty whitespace;
-- giant decorative phase numbers or concept-letter watermarks.
+A separate **Submit exam** action initiates the finish process.
 
-### Question remains primary
+## Webcam
 
-Density must not demote the question. Prompt and response controls receive the largest usable central region on every desktop concept.
+Every concept includes a small webcam placeholder so the composition can be assessed.
 
-### Camera stays peripheral
+Production rule remains:
 
-The webcam can occupy a real persistent placeholder, but it must never be larger or visually louder than the question work area.
+- camera surface disappears completely when `cameraRequired === false`;
+- when required, camera remains secondary to the question;
+- no microphone UI.
 
-### Navigation must be visible
+## Diagram and media provision
 
-Unlike the first board, every desktop concept must visibly show both:
+Every concept must demonstrate a credible place for:
 
-1. a progress/section stepper; and
-2. a direct question navigator.
+- inline question diagrams;
+- larger diagrams / figures;
+- reading passages;
+- enlarge/view controls.
 
-On small screens these may collapse to a Sheet/Drawer interaction, but the wireframe must indicate where those controls move.
+The question layout must remain coherent when no diagram or passage exists.
 
-## Seven dense spatial architectures
+## Mature gamification
 
-### A — Three-Zone Exam Desk
+Gamification must support orientation and completion rather than entertainment.
 
-Left rail: candidate/exam details + section stepper.  
-Center: primary question paper.  
-Right rail: timer/progress + webcam + navigator + Review.
+Allowed patterns:
 
-### B — Paper + Instrument Spine
+- calm progress trails;
+- question checkpoints;
+- section milestones;
+- completion rings;
+- subtle “section complete” states;
+- a finish-line endpoint;
+- a three-stage submit checkpoint.
 
-Wide question paper dominates the page. A narrow permanent instrument spine combines timer, save/network, camera and compact navigator. Exam metadata runs in a top strip and question progress runs below the paper.
+Do **not** add:
 
-### C — Dual-Aside Command Layout
+- points;
+- XP;
+- leaderboards;
+- competitive ranks;
+- streak pressure;
+- cartoon badges;
+- confetti during the active exam;
+- correctness feedback before submission.
 
-Left aside: exam map, subjects and progress.  
-Center: question/response paper.  
-Right aside: candidate identity, webcam/integrity, timer and final-review control.
+## Submission journey
 
-### D — Passage / Diagram Studio
+Each concept must include a restrained gamified finish interaction.
 
-For context-heavy examinations. Left context pane handles passage/media, center question pane handles response, and a right utility spine carries webcam, timer, progress and navigator. Non-passage questions replace the context pane with exam details and question-type support.
+The intended product sequence is:
 
-### E — Navigator-First Cockpit
+1. **Finish** — candidate deliberately enters the submit checkpoint;
+2. **Check** — show only unresolved/flagged counts, not a dense review dashboard;
+3. **Submit exam** — final irreversible confirmation.
 
-A visible large question map forms the left edge, the center is the question paper, and the right utility column holds webcam plus candidate/exam facts. A top instrument strip carries timer/save and subject stepper.
+The visual metaphor can vary by concept (finish line, seal, checkpoint, completion ring, final stop), but it must remain academically serious.
 
-### F — Full-Width Paper + Bottom Console
+This is still a representation of the existing final-submission contract; it does not invent a new scoring or reward service.
 
-No permanent sidebars. A dense top identity/instrument strip includes candidate, exam, timer and webcam thumbnail. The question gets full width. Progress stepper, navigator, status legend and navigation controls become a substantial bottom console.
+## Visual direction
 
-### G — Adaptive Exam Matrix
+The next board should feel:
 
-A structured desktop matrix with a compact candidate/webcam column, large central question region, right navigator column and top/bottom instrument bands. It is the most configurable option but must remain flat and utilitarian rather than card-based.
+- mature;
+- modern;
+- calm under pressure;
+- exam-specific;
+- spacious but not empty;
+- rounded where containment improves clarity;
+- tactile without becoming skeuomorphic;
+- distinct from admin/dashboard UI.
 
-## Low-fidelity artifact contract
+Rounded borders are encouraged for:
+
+- the primary question surface;
+- webcam preview;
+- navigator dock/drawer;
+- submit checkpoint;
+- compact progress/timer surfaces.
+
+Avoid turning the entire page into a collection of rounded cards.
+
+## Ten spatial concepts
+
+### A — Focus Rail
+
+Slim numbered navigator rail + expansive question canvas + compact camera/timer column.
+
+### B — Horizon Paper
+
+Full-width question paper with top progress horizon and floating bottom Prev/Flag/Next dock.
+
+### C — Diagram Studio
+
+Large media/diagram stage beside a focused answer panel, with navigator and camera tucked into edge utilities.
+
+### D — Chapter Path
+
+Subject/section milestones form a calm horizontal journey above the question; finishing the last milestone leads naturally to Submit.
+
+### E — Paper Stack
+
+Current question appears as the front sheet of a restrained stack; question map is represented by sheet-edge tabs and a compact camera pod.
+
+### F — Focus Capsule
+
+A centered, rounded question capsule dominates the screen; supporting tools orbit its edges without forming sidebars.
+
+### G — Timeline Exam
+
+Question milestones form a vertical progress timeline. The current question lives beside it; Submit is the final timeline stop.
+
+### H — Split Horizon
+
+Question/diagram context occupies the upper field; answers occupy the lower field; navigation lives in a thin right edge and controls float at the bottom.
+
+### I — Studio Dock
+
+Large question workspace with a modular bottom dock for navigator, camera, progress and Prev/Next. Desktop has no permanent sidebar.
+
+### J — Finish Line
+
+A modern completion-oriented layout where the paper stays central and the bottom progress trail visibly ends at the Submit exam checkpoint.
+
+## Full-screen wireframe contract
 
 `docs/design/exam/phase-03-write-examination/brainstorm.html` must:
 
-- contain exactly seven concepts A–G;
-- contain **no giant translucent A–G markers, phase numerals or other watermark text**;
-- give every concept at least `100dvh`;
+- contain exactly **10** concepts A–J;
+- use no watermark / giant concept letter / phase numeral;
+- make each concept exactly one full snapped design viewport with `min-height: 100dvh`;
 - use `scroll-snap-type: y mandatory` and `scroll-snap-align: start`;
-- retain a small fixed A–G navigation control;
-- remain grayscale/low fidelity;
-- make every screen dense enough to show the complete exam anatomy above;
-- include a visible webcam placeholder in every concept, annotated as conditional in production;
-- include both a question stepper/progress surface and a direct navigator in every concept;
-- include candidate/exam details in every concept;
-- include a main question surface plus current answer controls;
-- represent passage/media and alternate response-type adaptations;
-- remain usable at 360×640, 375×812, 768×1024, 1280×800 and short desktop heights;
-- preserve visible keyboard focus and ~44px principal targets;
-- honor `prefers-reduced-motion`;
-- use static representative content only and no fake backend logic.
+- include a small fixed A–J comparison navigator;
+- use the entire available screen for the concept rather than placing a small mockup in the middle;
+- remain grayscale / low-fidelity, but use mature radius, spacing, hierarchy and subtle depth;
+- show only the simplified persistent information above;
+- include diagram/media provision in all ten concepts;
+- include webcam provision in all ten concepts, marked conditional in production;
+- include **Prev** and **Next** on all ten concepts;
+- include icon-only Flag on all ten concepts;
+- contain no Clear response action;
+- contain no visible Review action;
+- contain no “Next question” label;
+- include a Submit exam / finish checkpoint in all ten concepts;
+- include mature progress gamification in all ten concepts;
+- remain usable at 360×640, 375×812, 768×1024, 1280×800 and short viewports;
+- preserve visible focus, reasonable touch targets and reduced-motion support;
+- remain static design evidence, not fake production logic.
 
 ## Selection gate
 
-Phase 03 production UI remains blocked until the product owner selects **A, B, C, D, E, F, G, or an explicit hybrid**.
+No Phase 03 production redesign is approved until the product owner selects **A, B, C, D, E, F, G, H, I, J, or an explicit hybrid**.
 
-The selected concept must then be re-authored in React/shadcn/Tailwind and mapped to the existing `ExamWorkspace`, `ExamQuestionNavigator`, `QuestionCard`, `ExamCameraPanel`, timer, save and integrity behaviors.
-
-## Production acceptance criteria after selection
-
-- question remains the primary work surface;
-- every supported question type fits without creating a separate visual product;
-- webcam disappears completely when not configured;
-- dense desktop information does not create inaccessible mobile overflow;
-- timer, progress, save/network, candidate/exam identity and navigator stay discoverable;
-- direct jump, flag, clear, previous, next and Review remain real controls;
-- active attempt restoration preserves responses, position, flags and server time;
-- offline/save error and camera interruption remain actionable;
-- keyboard/focus, responsive, reduced-motion, console/network and real authenticated browser checks pass before `COMPLETE`.
+After selection, production translation must use the existing React/shadcn/Tailwind stack and preserve the real exam runtime contract.

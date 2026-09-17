@@ -1,138 +1,151 @@
 # Phase 03 — Write Examination brainstorm command
 
-Status: redesign round — dense A–G selection board
-Prerequisite: Phase 02 Concept B remains selected and watermark-free.
+Status: third redesign round — mature ten-concept selection board
+Prerequisite: Phase 01/02 remain selected; Phase 03 production remains unselected.
 Governing plan: `docs/plans/2026-09-17-phase-03-write-examination.md`
 
-## Skills used
+## Skills
 
 Use the current:
 
 - `using-superpowers`;
 - `ui-ux-pro-max`;
 - `product-designer`;
-- `frontend-design`.
-
-The design must follow the real repository contract, accessibility/touch requirements, responsive hierarchy and intentional product-composition guidance from those skills.
+- `frontend-design`;
+- `tailwindcss` principles for responsive composition, even though this artifact remains standalone HTML/CSS.
 
 ## Generation brief
 
 ```text
-Design ONLY Phase 03: "Write Examination" for Festacol.
+Completely redesign Festacol Phase 03: Write Examination from scratch.
 
-The first Phase 03 board is rejected as too sparse. Rebuild it from scratch.
+The previous dense board is rejected.
 
-GOAL
-Every concept must look and behave like a complete high-density computer-based examination workstation, not a minimal demo and not a generic admin/dashboard UI.
+PRODUCT GOAL
+Create a mature, modern, calm computer-based exam interface for secondary-school students. The exam should feel focused and trustworthy, not like an admin dashboard and not like a toy.
 
-REQUIRED ON EVERY A–G SCREEN
+REDUCE COGNITIVE LOAD
+Do NOT permanently show:
+- class/session/student-number grids;
+- attempt metadata;
+- integrity diagnostics;
+- dense status legends;
+- detailed connectivity panels;
+- large exam-detail panels.
 
-IDENTITY / EXAM
-- examination title
-- mode
-- academic session + term
-- subject / mixed-subject context
-- candidate name
-- student number placeholder
-- class
-- active attempt indicator
+Persistent information should be limited to:
+- short exam title;
+- subject;
+- question position;
+- timer;
+- progress;
+- save state;
+- current question/answers;
+- navigator access;
+- optional webcam;
+- finish/submit.
 
-TIME / PROGRESS
-- persistent countdown
-- Question N of M
-- answered count
-- open/incomplete count
-- flagged count
-- progress bar / progress meter
-- subject/section question stepper
+CONTROL CHANGES
+- remove Clear response completely;
+- do not use Review as a visible exam control;
+- do not label a button "Next question";
+- visible navigation wording is exactly "Prev" and "Next";
+- Flag is icon-only, with an accessible label in production;
+- provide a separate "Submit exam" path.
 
-QUESTION WORK
-- question subject
-- optional domain
-- question type
-- instruction line
-- prompt
-- answer controls
-- conditional passage area
-- conditional diagram/image area + enlarge affordance
-- adaptation indication for single, multi-select, true/false, fill and fill-multi
+QUESTION CONTENT
+Support the real current contract:
+single, multi-select, true/false, fill, fill-multi, passage and question media.
 
-NAVIGATION
-- previous
-- next
-- flag/unflag
-- clear
-- direct jump
-- full navigator
-- navigator filters: All / Open / Flagged
-- state legend: current / answered / incomplete / visited / flagged
-- Review & Submit action
+Every concept must visibly reserve a credible region for diagrams / figures / images and indicate enlarge behavior.
 
-RELIABILITY / INTEGRITY
-- autosave state
-- online/offline state
-- save failure placeholder
-- focus/clipboard monitoring state when configured
-- fullscreen state when configured
-- WEB CAM PLACEHOLDER on every concept so layout can be evaluated
-- webcam annotated: conditional in production; no microphone
-- optional camera-source placeholder
+WEBCAM
+Every wireframe concept includes a small webcam placeholder for layout evaluation.
+Annotate that it disappears entirely when the exam does not require camera monitoring.
+Do not show microphone.
 
-COMPOSITION
-A few cards are acceptable when justified, especially the main question paper or webcam preview.
-Do NOT construct the screen as a grid of generic rounded cards.
-Use rails, flat partitions, asides, paper surfaces, instrument strips, chapter bars, bottom consoles and ruled regions.
+GAMIFICATION
+Use restrained, mature gamification:
+- progress trails;
+- checkpoints;
+- section milestones;
+- completion rings;
+- finish-line endpoints;
+- calm completion feedback.
 
-NO WATERMARKS
-No giant translucent A–G letters.
-No giant phase number.
-No ghost typography behind content.
+Do not use points, XP, streak pressure, leaderboard, childish badges or active-exam confetti.
 
-SEVEN DIFFERENT ARCHITECTURES
-A — Three-Zone Exam Desk
-B — Paper + Instrument Spine
-C — Dual-Aside Command Layout
-D — Passage / Diagram Studio
-E — Navigator-First Cockpit
-F — Full-Width Paper + Bottom Console
-G — Adaptive Exam Matrix
+SUBMISSION
+Each concept must include a compact three-stage finish process:
+1. Finish
+2. Check unresolved / flagged count
+3. Submit exam
 
-RESPONSIVE
-- desktop can use one or two asides
-- tablet may collapse one utility region
-- mobile puts the question first and moves navigator/details/webcam to explicit sheets/drawers
-- no horizontal scrolling
-- ~44px touch targets
-- visible focus
-- reduced motion
-- dense desktop content must still work at short viewport heights
+The final submission must feel deliberate and rewarding but academically serious.
 
-REAL CONTRACT
-Support only current Festacol behavior:
-single, multi, boolean, fill, fill-multi, passage/media, timer, autosave, offline recovery, flagging, direct jump, camera when required, focus/clipboard integrity recording, fullscreen prompt and Review & Submit handoff.
+ROUNDED GEOMETRY
+Use modern rounded corners where they improve containment:
+- question surface;
+- webcam;
+- navigator dock;
+- finish checkpoint;
+- timer/progress.
+Do not make a wall of generic rounded cards.
 
-Do not invent essay grading, scratch-work upload, live chat, AI hints, answer correctness during the exam, microphone monitoring or biometrics.
+FULL SCREEN
+Each concept must use the entire snapped screen. Do not center a small mockup with empty space around it.
+
+TEN DISTINCT CONCEPTS
+A — Focus Rail
+B — Horizon Paper
+C — Diagram Studio
+D — Chapter Path
+E — Paper Stack
+F — Focus Capsule
+G — Timeline Exam
+H — Split Horizon
+I — Studio Dock
+J — Finish Line
+
+Each concept must differ in composition, not just styling.
+
+WIREFRAME RULES
+- exactly ten A–J concepts;
+- no giant A–J background marks;
+- no phase watermark;
+- grayscale / low fidelity;
+- min-height: 100dvh per concept;
+- mandatory vertical scroll snap;
+- fixed small A–J comparison navigation;
+- responsive to 360px;
+- visible keyboard focus;
+- ~44px primary targets;
+- reduced-motion support;
+- no production backend simulation.
 
 OUTPUT
 Replace:
 docs/design/exam/phase-03-write-examination/brainstorm.html
 
-Stop after the A–G comparison artifact. Do not implement Phase 03 production React yet.
+Do not modify Phase 03 production React in this design-selection step.
 ```
 
-## Review checklist
+## Acceptance checklist
 
-- exactly seven concepts;
-- zero watermark/ghost concept identifiers;
-- each screen is visibly dense;
-- every screen includes webcam placeholder;
-- every screen includes candidate/exam facts;
-- every screen includes timer/progress/stepper;
-- every screen includes question navigator + legend;
-- every screen includes main question and answer controls;
-- every screen includes previous/next/flag/clear/review;
-- every screen indicates passage/media and alternate question-type adaptation;
-- concepts remain structurally different when text is blurred;
-- no generic dashboard/bento/card-wall treatment;
-- responsive/focus/reduced-motion intent is present;
-- no production `src/**` change belongs to the Phase 03 brainstorm.
+- exactly ten full-screen A–J concepts;
+- all concepts use the viewport rather than a centered small mockup;
+- no watermark typography;
+- no Clear response text/action;
+- no visible Review action;
+- no “Next question” wording;
+- all concepts show Prev and Next;
+- all concepts use icon-only flag;
+- all concepts show diagram/media provision;
+- all concepts show conditional webcam provision;
+- all concepts show a mature progress mechanic;
+- all concepts show a Finish → Check → Submit exam journey;
+- no dense candidate/exam metadata grid;
+- no generic dashboard/card-wall composition;
+- rounded geometry is intentional rather than universal;
+- responsive/focus/reduced-motion intent exists;
+- no production `src/**` changes.

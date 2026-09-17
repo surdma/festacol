@@ -1,210 +1,751 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Festacol — Phase 03 Dense Examination Workspace Studies</title><style>:root{color-scheme:light;--bg:#e8e8e4;--paper:#fff;--ink:#171717;--muted:#666;--line:#a6a6a1;--soft:#f2f2ee;--mid:#d8d8d3;--mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--sans:Arial,Helvetica,sans-serif}*{box-sizing:border-box}html{scroll-snap-type:y mandatory;scroll-behavior:smooth;background:var(--bg)}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px}button{font:inherit;min-height:44px;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #111;outline-offset:3px}.board-top{position:fixed;z-index:100;left:0;right:0;top:0;min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);background:#f0f0edf2;backdrop-filter:blur(8px);font:10px var(--mono);letter-spacing:.12em;text-transform:uppercase}.board-nav{position:fixed;z-index:120;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;border:1px solid #888;background:#fff}.board-nav a{width:38px;height:38px;display:grid;place-items:center;border-bottom:1px solid #bbb;color:#111;text-decoration:none;font:700 11px var(--mono)}.board-nav a:last-child{border-bottom:0}.board-nav a:hover,.board-nav a:focus-visible{background:#111;color:#fff}.concept{min-height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;padding:54px 52px 18px 18px;overflow:auto}.concept-label{max-width:1600px;margin:0 auto 8px;display:flex;align-items:baseline;gap:10px;font:10px var(--mono);text-transform:uppercase;letter-spacing:.1em}.concept-label b{display:grid;place-items:center;width:28px;height:28px;border:1px solid #111;background:#111;color:#fff}.concept-label span{font-weight:800}.concept-label small{color:var(--muted);text-transform:none;letter-spacing:0}.workspace{max-width:1600px;min-height:calc(100dvh - 96px);margin:auto;border:1px solid #777;background:var(--paper);box-shadow:0 8px 0 #cbcbc5;overflow:hidden}.workspace section,.workspace aside,.workspace main,.workspace header,.workspace footer{min-width:0}.label,.section-head{font:700 9px var(--mono);letter-spacing:.12em;text-transform:uppercase}.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:8px 10px}.condition{color:var(--muted);font-weight:500}.exam-top,.identity-strip,.c-head,.e-strip,.f-top,.g-top{border-bottom:1px solid #777;background:#f7f7f4}.exam-top{grid-area:top;display:grid;grid-template-columns:minmax(260px,.8fr) 1.6fr;align-items:center;gap:10px;padding:9px 12px}.exam-top>div:first-child,.identity-strip>div,.c-head>div:first-child,.e-strip>div:first-child,.f-top>div,.g-top>div:first-child{display:flex;flex-direction:column;gap:2px}.exam-top span,.identity-strip span,.c-head span,.e-strip span,.f-top span,.g-top span{font-size:10px;color:var(--muted)}.identity-inline{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 0;font:9px var(--mono);color:var(--muted)}.identity-inline b{color:var(--ink)}.status-strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 14px;font:9px var(--mono);color:var(--muted)}.status-strip span{white-space:nowrap}.status-strip b{color:var(--ink)}.exam-meta{border-bottom:1px solid #999}.exam-meta>.label{padding:9px 10px;border-bottom:1px solid #bbb}.exam-meta dl{margin:0}.exam-meta dl>div{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;padding:6px 10px;border-bottom:1px solid #ddd}.exam-meta dl>div:last-child{border-bottom:0}.exam-meta dt{font:700 9px var(--mono);text-transform:uppercase;color:var(--muted)}.exam-meta dd{margin:0;font-size:11px;font-weight:600;line-height:1.35}.webcam{border-bottom:1px solid #999}.webcam-frame{aspect-ratio:16/9;margin:10px;border:1px solid #777;background:#deded9;position:relative;display:grid;place-items:center;text-align:center;font:700 10px var(--mono);color:#555}.webcam-frame small{position:absolute;bottom:7px;left:8px;font:9px var(--mono)}.face-guide{position:absolute;width:42%;height:68%;border:1px dashed #777;border-radius:50%}.camera-row{display:flex;justify-content:space-between;gap:8px;padding:0 10px 7px;font:9px var(--mono)}.micro-note{margin:0;padding:0 10px 9px;color:var(--muted);font-size:9px}.time-progress{display:grid;grid-template-columns:120px 1fr;border-bottom:1px solid #999}.timer-block{padding:9px 10px;border-right:1px solid #bbb;display:flex;flex-direction:column}.timer-block span,.timer-block small,.progress-label{font:9px var(--mono);color:var(--muted)}.timer-block strong{font:700 26px var(--mono);letter-spacing:-.04em}.progress-block{padding:8px 10px}.progress-label{display:flex;justify-content:space-between}.progress-label strong{color:var(--ink)}.bar{height:6px;margin-top:7px;border:1px solid #999}.bar i{display:block;height:100%;background:#222}.counts{display:flex;gap:14px;margin-top:7px;font:9px var(--mono);color:var(--muted)}.counts b{color:var(--ink)}.stepper{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #999}.step{padding:8px 9px;border-right:1px solid #bbb;display:flex;justify-content:space-between;gap:6px;font:9px var(--mono)}.step:last-child{border-right:0}.step span{color:var(--muted)}.step.active{background:#111;color:#fff}.step.active span{color:#ddd}.step.done{background:#e0e0dc}.question-paper{border:2px solid #222;background:#fff;margin:12px;box-shadow:5px 5px 0 #d4d4ce}.question-head{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #aaa}.question-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.question-tags span{border:1px solid #aaa;padding:3px 6px;font:9px var(--mono)}.question-core{padding:18px 20px}.question-core .instruction{margin:0 0 6px;color:var(--muted);font-size:11px}.question-core h2{margin:0 0 18px;font:700 clamp(20px,2.2vw,30px)/1.35 Georgia,serif;max-width:900px}.answers{display:grid;gap:8px}.answers label{min-height:50px;border:1px solid #999;display:grid;grid-template-columns:30px 1fr 24px;align-items:center;gap:10px;padding:8px 10px}.answers label.selected{border:2px solid #111;background:#f0f0ec}.answers i{font:700 10px var(--mono);font-style:normal}.radio{width:18px;height:18px;border:1px solid #777;border-radius:50%;justify-self:end}.radio.filled{box-shadow:inset 0 0 0 5px #111}.variant-strip{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px;border-top:1px dashed #999;font:9px var(--mono);color:var(--muted)}.variant-strip b{border:1px solid #bbb;padding:2px 5px;color:#333}.context-split{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr)}.passage{padding:16px;border-right:1px solid #aaa;background:#f4f4f0}.passage p{font:12px/1.6 Georgia,serif}.media-placeholder,.media-large{border:1px dashed #888;background:#e7e7e2;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;font:9px var(--mono)}.media-placeholder{min-height:100px;margin-top:12px}.media-large{min-height:170px;margin:12px 0}.exam-controls{display:flex;flex-wrap:wrap;gap:7px;padding:0 12px 12px}.ghost-btn,.primary-btn,.review-btn{border:1px solid #111;background:#fff;color:#111;padding:8px 12px;font-weight:700}.primary-btn,.review-btn{background:#111;color:#fff}.review-btn{border-style:double}.full{width:calc(100% - 20px);margin:10px}.alert-slot{margin:0 12px 12px;border:1px dashed #777;background:#f1f1ed;padding:9px 10px;display:flex;gap:10px;font-size:10px}.alert-slot strong{white-space:nowrap}.navigator{border-bottom:1px solid #999}.nav-filters{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #bbb}.nav-filters span{padding:8px 4px;text-align:center;border-right:1px solid #ccc;font:9px var(--mono)}.nav-filters span:last-child{border-right:0}.nav-filters .active{background:#111;color:#fff}.nav-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:9px}.nav-grid span{min-height:34px;border:1px solid #aaa;display:grid;place-items:center;font:9px var(--mono);position:relative}.nav-grid .current{background:#111;color:#fff}.nav-grid .answered{background:#d7d7d2}.nav-grid .incomplete{border:2px dashed #555}.nav-grid .visited{background:#fff;border-style:dashed}.nav-grid .flagged:after{content:"F";position:absolute;right:2px;top:1px;font-size:7px;font-weight:800}.legend{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 8px;padding:7px 9px 10px;font:8px var(--mono);color:var(--muted)}.legend span{display:flex;align-items:center;gap:5px}.dot{width:8px;height:8px;border:1px solid #777;display:inline-block}.dot.current{background:#111}.dot.answered{background:#cfcfca}.dot.incomplete{border-style:dashed}.dot.visited{background:#fff}.dot.flagged:after{content:"F";font-size:6px}.aside-review{padding:10px;display:flex;flex-direction:column;gap:5px}.aside-review span{font:9px var(--mono);color:var(--muted)}.aside-review b{font:12px var(--mono)}.step-zone{border-bottom:1px solid #999}.section-head+.stepper{border-bottom:0}.identity-strip{display:grid;grid-template-columns:1.4fr 1fr .65fr;gap:16px;padding:9px 12px}.paper-field{min-width:0}.instrument-spine{border-left:1px solid #777;overflow:auto}.c-head{grid-area:head;display:grid;grid-template-columns:minmax(220px,.8fr) 1.2fr;align-items:center;padding:0 0 0 12px}.c-head .time-progress{border-bottom:0;border-left:1px solid #999}.c-left,.c-right,.e-nav,.e-utils,.g-left,.g-right{overflow:auto}.c-left,.e-nav,.g-left{border-right:1px solid #777}.c-right,.e-utils,.g-right{border-left:1px solid #777}.context-pane{border-right:1px solid #777;overflow:auto;background:#f7f7f4}.passage-long{padding:14px;font:12px/1.7 Georgia,serif}.utility-pane{border-left:1px solid #777;overflow:auto}.e-strip{grid-area:top;display:grid;grid-template-columns:minmax(220px,.8fr) 1.4fr auto;align-items:center;gap:12px;padding:7px 10px}.mini-timer{display:flex;flex-direction:column;align-items:flex-end}.mini-timer span{font:9px var(--mono);color:var(--muted)}.mini-timer strong{font:700 20px var(--mono)}.f-top{display:grid;grid-template-columns:1fr 1.3fr 220px 330px;align-items:stretch}.f-top>div:not(.f-camera):not(.f-timer){padding:9px 10px;border-right:1px solid #aaa}.f-camera{border-right:1px solid #aaa}.f-camera .webcam{border-bottom:0}.f-camera .section-head,.f-camera .camera-row,.f-camera .micro-note{display:none}.f-camera .webcam-frame{margin:6px;min-height:70px}.f-timer .time-progress{height:100%;border-bottom:0}.f-status{border-bottom:1px solid #aaa;padding:7px 10px}.f-question{padding-bottom:0}.bottom-console{border-top:2px solid #111;background:#f2f2ee}.console-nav .navigator{border-bottom:0}.console-actions{border-top:1px solid #aaa}.console-actions .exam-controls{padding-top:9px}.integrity-matrix{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #999}.integrity-matrix span{padding:7px 9px;border-right:1px solid #ccc;border-bottom:1px solid #ccc;font:8px var(--mono)}.g-bottom{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-top:1px solid #777;background:#f1f1ed;font:9px var(--mono)}.a-work{display:grid;grid-template:"top top top" auto "left center right" 1fr / 240px minmax(0,1fr) 310px}.a-work .left-zone{grid-area:left;border-right:1px solid #777;overflow:auto}.a-work .center-zone{grid-area:center;overflow:auto}.a-work .right-zone{grid-area:right;border-left:1px solid #777;overflow:auto}.b-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:calc(100dvh - 155px)}.c-work{display:grid;grid-template:"head head head" auto "left center right" 1fr / 260px minmax(0,1fr) 285px}.c-left{grid-area:left}.c-center{grid-area:center;overflow:auto}.c-right{grid-area:right}.d-body{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr) 290px;min-height:calc(100dvh - 160px)}.response-pane{overflow:auto}.e-work{display:grid;grid-template:"top top top" auto "nav main utils" 1fr / 320px minmax(0,1fr) 280px}.e-nav{grid-area:nav}.e-main{grid-area:main;overflow:auto}.e-utils{grid-area:utils}.g-work{display:grid;grid-template:"top top top" auto "left center right" 1fr "bottom bottom bottom" auto / 235px minmax(0,1fr) 310px}.g-left{grid-area:left}.g-center{grid-area:center;overflow:auto}.g-right{grid-area:right}.g-bottom{grid-area:bottom}@media(max-width:1180px){.concept{padding-right:46px}.a-work{grid-template:"top top" auto "center right" 1fr "left left" auto / minmax(0,1fr) 300px}.a-work .left-zone{border-right:0;border-top:1px solid #777;display:grid;grid-template-columns:1fr 1fr}.c-work{grid-template:"head head" auto "center right" 1fr "left left" auto / minmax(0,1fr) 280px}.c-left{border-right:0;border-top:1px solid #777;display:grid;grid-template-columns:1fr 1fr}.d-body{grid-template-columns:minmax(260px,.75fr) minmax(0,1.25fr)}.utility-pane{grid-column:1/-1;border-left:0;border-top:1px solid #777;display:grid;grid-template-columns:260px 1fr 1fr}.e-work{grid-template:"top top" auto "main utils" 1fr "nav nav" auto / minmax(0,1fr) 280px}.e-nav{border-right:0;border-top:1px solid #777}.f-top{grid-template-columns:1fr 1.2fr 190px}.f-timer{grid-column:1/-1;border-top:1px solid #aaa}.g-work{grid-template:"top top" auto "center right" 1fr "left left" auto "bottom bottom" auto / minmax(0,1fr) 300px}.g-left{border-right:0;border-top:1px solid #777;display:grid;grid-template-columns:1fr 300px}}@media(max-width:820px){body{font-size:12px}.board-nav{right:3px;transform:translateY(-50%) scale(.84);transform-origin:right}.concept{padding:50px 40px 12px 8px}.concept-label small{display:none}.workspace{min-height:calc(100dvh - 78px);box-shadow:none}.a-work,.c-work,.e-work,.g-work{display:flex;flex-direction:column}.exam-top,.c-head,.e-strip,.g-top,.identity-strip{display:flex;flex-direction:column;align-items:stretch}.status-strip{justify-content:flex-start}.a-work .center-zone,.c-center,.e-main,.g-center{order:1}.a-work .right-zone,.c-right,.e-utils,.g-right{order:2;border-left:0;border-top:1px solid #777}.a-work .left-zone,.c-left,.e-nav,.g-left{order:3;border-right:0;border-top:1px solid #777;display:block}.b-main,.d-body{display:flex;flex-direction:column}.paper-field,.response-pane{order:1}.instrument-spine,.utility-pane{order:2;border-left:0;border-top:1px solid #777}.context-pane{order:3;border-right:0;border-top:1px solid #777}.f-top{display:grid;grid-template-columns:1fr 1fr}.f-camera,.f-timer{grid-column:1/-1}.f-camera{border-top:1px solid #aaa}.context-split{grid-template-columns:1fr}.passage{border-right:0;border-bottom:1px solid #aaa}.stepper{grid-template-columns:1fr 1fr}.nav-grid{grid-template-columns:repeat(10,1fr)}.question-paper{margin:8px}.question-core{padding:15px}.question-core h2{font-size:22px}.time-progress{grid-template-columns:105px 1fr}.webcam-frame{max-height:200px}.bottom-console{position:static}.exam-controls{display:grid;grid-template-columns:1fr 1fr}.exam-controls .review-btn{grid-column:1/-1}.exam-controls .primary-btn{grid-column:2}.g-bottom{flex-wrap:wrap}}@media(max-width:520px){.board-top span:last-child{display:none}.board-nav{display:none}.concept{padding:46px 6px 8px}.concept-label{padding:0 4px}.workspace{border-left:0;border-right:0}.question-paper{border-left:0;border-right:0;box-shadow:none;margin:6px 0}.question-head{flex-direction:column}.question-core h2{font-size:20px}.answers label{min-height:48px}.stepper{grid-template-columns:1fr 1fr}.step{min-height:42px}.nav-grid{grid-template-columns:repeat(5,1fr)}.legend{grid-template-columns:1fr 1fr}.a-work .left-zone{display:block}.f-top{display:flex;flex-direction:column}.g-left{display:block}.status-strip{gap:6px 10px}.identity-strip>div{border-bottom:1px solid #ddd;padding-bottom:4px}.context-split{display:block}.counts{gap:8px;flex-wrap:wrap}}@media(max-height:720px) and (min-width:821px){.concept{padding-top:48px;padding-bottom:8px}.workspace{min-height:650px}.question-core{padding-top:12px;padding-bottom:12px}.question-core h2{font-size:22px;margin-bottom:12px}.answers label{min-height:44px}.webcam-frame{max-height:140px}.exam-meta dl>div{padding-block:4px}.nav-grid span{min-height:28px}.step{padding-block:6px}.question-paper{margin-block:8px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}</style></head><body><div class="board-top"><span>Festacol · Phase 03 · Write Examination</span><span>Dense low-fidelity workstation studies · watermark-free</span></div><nav class="board-nav" aria-label="Phase 03 concept navigation"><a href="#a" aria-label="Concept A">A</a><a href="#b" aria-label="Concept B">B</a><a href="#c" aria-label="Concept C">C</a><a href="#d" aria-label="Concept D">D</a><a href="#e" aria-label="Concept E">E</a><a href="#f" aria-label="Concept F">F</a><a href="#g" aria-label="Concept G">G</a></nav><section class="concept" id="a"><div class="concept-label"><b>A</b><span>Three-Zone Exam Desk</span><small>candidate + map / question / proctor + navigator</small></div><div class="workspace a-work"><header class="exam-top"><div><strong>SS2 Mid-Term Assessment</strong><span>Mathematics · Active paper</span></div><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div></header><aside class="left-zone"><section class="exam-meta">
-    <div class="label">Examination details</div>
-    <dl>
-      <div><dt>Exam</dt><dd>SS2 Mid-Term Assessment</dd></div>
-      <div><dt>Mode</dt><dd>Multi-subject examination</dd></div>
-      <div><dt>Session</dt><dd>2026 / 2027 · First Term</dd></div>
-      <div><dt>Candidate</dt><dd>Adeola Bamidele</dd></div>
-      <div><dt>Student no.</dt><dd>FSG/SS2/0248</dd></div>
-      <div><dt>Class</dt><dd>SS2 Science · Arm A</dd></div>
-      <div><dt>Attempt</dt><dd>Active · 1 of 1</dd></div>
-    </dl>
-  </section><section class="step-zone"><div class="section-head"><span>Subject stepper</span><span>Mixed paper</span></div><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div></section></aside><main class="center-zone"><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><aside class="right-zone"><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section><section class="navigator"><div class="section-head"><span>Question navigator</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Festacol — Phase 03 Write Examination — Ten Mature Wireframe Directions</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#ecece9;
+  --surface:#ffffff;
+  --surface-2:#f5f5f2;
+  --ink:#161616;
+  --muted:#6f6f6a;
+  --line:#c9c9c3;
+  --line-strong:#8c8c87;
+  --shadow:0 18px 50px #0000000b;
+  --r-sm:10px;--r-md:16px;--r-lg:24px;--r-xl:32px;
+  --sans:"Avenir Next","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-snap-type:y mandatory;scroll-behavior:smooth;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+button{font:inherit;color:inherit;min-height:44px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid #111;outline-offset:3px}
+.board-head{
+  position:fixed;inset:0 0 auto;z-index:100;height:38px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:0 14px;border-bottom:1px solid var(--line);background:#f3f3f0f2;
+  backdrop-filter:blur(12px);font:700 9px var(--mono);letter-spacing:.14em;text-transform:uppercase;
+}
+.jump{
+  position:fixed;z-index:120;right:7px;top:50%;transform:translateY(-50%);
+  display:grid;grid-template-columns:repeat(2,34px);overflow:hidden;border:1px solid var(--line-strong);
+  border-radius:13px;background:#ffffffeb;box-shadow:0 8px 28px #00000010;
+}
+.jump a{height:34px;display:grid;place-items:center;text-decoration:none;color:inherit;font:700 9px var(--mono);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.jump a:nth-child(2n){border-right:0}.jump a:nth-last-child(-n+2){border-bottom:0}.jump a:hover{background:#111;color:#fff}
+.concept{height:100dvh;min-height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;padding:45px 48px 8px 8px;overflow:hidden}
+.concept-title{height:30px;max-width:1680px;margin:auto;display:flex;align-items:center;gap:10px;font:9px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.concept-title>b{display:grid;place-items:center;size:26px;width:26px;height:26px;border-radius:8px;background:#111;color:#fff}
+.concept-title>div{display:flex;align-items:baseline;gap:9px}.concept-title strong{font-size:10px}.concept-title span{color:var(--muted);text-transform:none;letter-spacing:0}
+.screen{
+  width:100%;height:calc(100dvh - 83px);max-width:1680px;margin:auto;
+  border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);
+  overflow:hidden;position:relative;
+}
+.exam-bar{
+  min-height:62px;border-bottom:1px solid var(--line);display:grid;
+  grid-template-columns:minmax(260px,1fr) auto auto auto;align-items:center;gap:18px;padding:8px 14px;background:#ffffffee;
+}
+.exam-name{display:flex;flex-direction:column;gap:2px;min-width:0}.exam-name strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exam-name span{font-size:10px;color:var(--muted)}
+.save-state{display:inline-flex;align-items:center;gap:6px;font:10px var(--mono);color:var(--muted)}.save-state i{width:7px;height:7px;border-radius:50%;background:#333}
+.timer{min-width:92px;border:1px solid var(--line);border-radius:13px;padding:7px 10px;display:flex;flex-direction:column;align-items:flex-end;background:var(--surface-2)}
+.timer span{font:8px var(--mono);text-transform:uppercase;color:var(--muted)}.timer strong{font:700 17px var(--mono);font-variant-numeric:tabular-nums}
+.candidate-cue{border:0;background:transparent;padding:0;display:flex;align-items:center;gap:7px}.candidate-cue span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#1d1d1d;color:#fff;font:700 10px var(--mono)}.candidate-cue b{font-size:11px}
+.progress-line{display:flex;flex-direction:column;gap:5px}.progress-copy{display:flex;justify-content:space-between;font:9px var(--mono);color:var(--muted)}.track{height:5px;border-radius:99px;background:#deded9;overflow:hidden}.track i{display:block;height:100%;width:40%;border-radius:inherit;background:#252525}
+.question-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:0 10px 34px #0000000d}
+.q-meta{display:flex;flex-wrap:wrap;gap:8px;font:700 9px var(--mono);text-transform:uppercase;color:var(--muted)}.q-meta span{padding-right:8px;border-right:1px solid var(--line)}.q-meta span:last-child{border-right:0}
+.instruction{margin:12px 0 4px;font-size:11px;color:var(--muted)}
+.question-copy h2{margin:0;font-size:clamp(19px,2.25vw,31px);line-height:1.32;letter-spacing:-.025em;max-width:880px}
+.answers{display:grid;gap:8px}.answers label{min-height:48px;border:1px solid var(--line);border-radius:13px;padding:8px 10px;display:grid;grid-template-columns:28px 1fr 18px;align-items:center;gap:9px;background:#fff;font-size:12px}.answers label:has(.chosen){border-color:#333;background:#f2f2ef}.answers i{font:700 9px var(--mono);font-style:normal}.answers label b{width:16px;height:16px;border:1px solid #888;border-radius:50%;justify-self:end}.answers label b.chosen{box-shadow:inset 0 0 0 4px #222}
+.diagram{margin:0;border:1px solid var(--line);border-radius:var(--r-md);background:#fafaf8;overflow:hidden}.diagram-head{height:34px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 9px;font:700 8px var(--mono);text-transform:uppercase;color:var(--muted)}.enlarge{min-height:28px;border:0;background:transparent;font:700 8px var(--mono);text-decoration:underline}.diagram-svg{display:block;width:100%;height:auto;padding:10px;color:#444}.diagram-svg text{font:10px var(--mono);fill:currentColor}
+.controls{display:flex;align-items:center;gap:8px}.controls .prev,.controls .next{min-width:84px;border:1px solid #222;border-radius:13px;padding:8px 14px;font-weight:700;background:#fff}.controls .next{background:#111;color:#fff}.flag-btn{width:46px;height:46px;min-height:46px;padding:11px;border:1px solid var(--line-strong);border-radius:13px;background:#fff;display:grid;place-items:center}.flag-btn svg{width:21px;height:21px}
+.webcam{border:1px solid var(--line);border-radius:var(--r-md);background:#fff;overflow:hidden}.cam-head{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 9px;border-bottom:1px solid var(--line);font:700 8px var(--mono);text-transform:uppercase}.cam-head small{font-weight:500;color:var(--muted)}.cam-view{position:relative;aspect-ratio:16/10;background:#deded9;display:grid;place-items:center;font:700 8px var(--mono);text-transform:uppercase;color:#70706c}.face-loop{position:absolute;width:37%;height:62%;border:1px dashed #777;border-radius:50%}
+.navigator{border:1px solid var(--line);border-radius:var(--r-md);background:#fff;padding:8px}.nav-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;font:700 9px var(--mono);text-transform:uppercase}.nav-head button{min-height:30px;border:0;background:transparent;font:700 8px var(--mono);text-decoration:underline}.qgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.qgrid>span{position:relative;min-height:28px;border:1px solid var(--line);border-radius:7px;display:grid;place-items:center;font:9px var(--mono)}.qgrid .done{background:#e6e6e2}.qgrid .current{background:#111;color:#fff}.qgrid .flagged{border-color:#444}.qgrid .flagged i{position:absolute;right:-3px;top:-4px;width:11px;height:11px}.qgrid .flagged svg{width:11px;height:11px}
+.nav-dots{display:flex;align-items:center;gap:5px}.nav-dots>span{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;border:1px solid var(--line);font:8px var(--mono)}.nav-dots .done{background:#e2e2de}.nav-dots .current{background:#111;color:#fff}.nav-dots .flagged{border-style:dashed}.nav-dots button{min-height:30px;border:0;background:transparent;text-decoration:underline;font:700 8px var(--mono)}
+.vertical-dots{flex-direction:column}.vertical-dots>span{width:34px;height:34px}.vertical-dots button{margin-top:4px}
+.milestones{display:grid;grid-template-columns:repeat(4,1fr);position:relative}.milestones:before{content:"";position:absolute;left:10%;right:10%;top:8px;height:2px;background:#d1d1cc}.milestones>div{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:5px;font:8px var(--mono);color:var(--muted)}.milestones i{width:17px;height:17px;border-radius:50%;border:2px solid #aaa;background:#fff}.milestones .done i{background:#222;border-color:#222}.milestones .active i{box-shadow:inset 0 0 0 4px #fff;background:#222;border-color:#222}.milestones .finish i{border-radius:5px;border-color:#333}
+.finish-flow{border:1px solid var(--line);border-radius:var(--r-md);background:#fafaf8;padding:9px}.finish-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font:700 8px var(--mono);text-transform:uppercase}.finish-label small{font-weight:500;text-transform:none;color:var(--muted)}.finish-steps{display:grid;grid-template-columns:.75fr 1fr 1.2fr;gap:5px}.finish-steps>span,.finish-steps>button{min-height:48px;border:1px solid var(--line);border-radius:11px;background:#fff;display:flex;align-items:center;gap:7px;padding:6px 7px;text-align:left}.finish-steps i{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#e0e0dc;font:700 8px var(--mono);font-style:normal}.finish-steps b{font-size:10px}.finish-steps small{display:block;font-size:8px;color:var(--muted)}.finish-steps .done{background:#ededE9}.finish-steps .active{border-style:dashed}.finish-steps>button{background:#111;color:#fff;border-color:#111}.finish-steps>button i{background:#fff;color:#111}
+.utility-pill{width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;font:700 9px var(--mono)}
+.adapt-note{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font:8px var(--mono);color:var(--muted)}.adapt-note b{border:1px solid var(--line);border-radius:999px;padding:4px 7px;font-weight:500}
+
+/* A */
+.a-screen{display:grid;grid-template:"head head head" 62px "nav main side" 1fr / 58px minmax(0,1fr) 260px}
+.a-screen>.exam-bar{grid-area:head}.a-nav{grid-area:nav;border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center}.a-main{grid-area:main;padding:14px 18px 78px;overflow:auto;position:relative}.a-main>.progress-line{max-width:900px;margin:0 auto 10px}.a-card{max-width:1050px;margin:auto;padding:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.58fr);gap:18px}.a-copy{display:flex;flex-direction:column;gap:16px}.a-diagram{align-self:stretch}.a-side{grid-area:side;border-left:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:10px;overflow:auto}.a-side .compact-finish{margin-top:auto}.floating-controls{position:absolute;left:50%;bottom:15px;transform:translateX(-50%);padding:6px;border:1px solid var(--line);border-radius:18px;background:#fffffff2;box-shadow:0 10px 34px #00000012}
+
+/* B */
+.b-screen{display:grid;grid-template-rows:62px 48px 1fr 168px}.b-screen>.exam-bar{grid-row:1}.horizon{padding:10px 20px 0;border-bottom:1px solid var(--line)}.b-paper{padding:15px 18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.62fr);gap:16px;overflow:auto}.b-question{border:1px solid var(--line);border-radius:var(--r-xl);padding:20px 22px;background:#fff;box-shadow:0 12px 40px #0000000c;display:flex;flex-direction:column;gap:18px}.b-diagram{border-radius:var(--r-xl)}.b-lower{display:grid;grid-template-columns:minmax(0,1.15fr) 190px minmax(360px,.9fr);gap:10px;padding:10px 120px 10px 14px;border-top:1px solid var(--line);background:#f8f8f5}.slim-grid .qgrid{grid-template-columns:repeat(10,1fr)}.slim-grid .qgrid>span:nth-child(n+21){display:none}.mini-cam .cam-view{aspect-ratio:16/7}.island-controls{position:absolute;right:16px;bottom:56px;flex-direction:column;padding:6px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 8px 24px #00000012}.island-controls .prev,.island-controls .next{min-width:88px}
+
+/* C */
+.c-screen{display:grid;grid-template:"head head edge" 62px "stage stage edge" 1fr / minmax(0,1fr) minmax(0,1fr) 220px}.c-screen>.exam-bar{grid-area:head}.c-stage{grid-area:stage;display:grid;grid-template-columns:minmax(320px,.95fr) minmax(0,1.05fr);min-height:0}.c-media{padding:15px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px;overflow:auto}.stage-caption{display:flex;justify-content:space-between;font:700 9px var(--mono);text-transform:uppercase}.stage-caption small{font-weight:500;color:var(--muted);text-transform:none}.studio-diagram{flex:1;min-height:340px;display:grid;grid-template-rows:auto 1fr}.studio-diagram .diagram-svg{height:100%;object-fit:contain}.media-dots{justify-content:center;flex-wrap:wrap}.c-question{padding:16px 20px;display:flex;flex-direction:column;gap:16px;overflow:auto}.c-question .controls{margin-top:auto}.c-edge{grid-area:edge;border-left:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:10px;background:#f9f9f6}.edge-cam .cam-view{aspect-ratio:1}.vertical-finish{margin-top:auto}.vertical-finish .finish-label{display:block}.vertical-finish .finish-steps{grid-template-columns:1fr}.vertical-finish .finish-steps>span,.vertical-finish .finish-steps>button{min-height:42px}
+
+/* D */
+.d-screen{display:grid;grid-template-rows:62px 74px 1fr}.chapter-path{display:grid;grid-template-columns:repeat(4,1fr);padding:8px 18px;border-bottom:1px solid var(--line);position:relative}.chapter-path:before{content:"";position:absolute;left:8%;right:8%;top:24px;height:2px;background:#d2d2cd}.chapter{position:relative;z-index:1;display:grid;grid-template-columns:22px 1fr;grid-template-rows:auto auto;column-gap:8px;align-items:center}.chapter i{grid-row:1/3;width:20px;height:20px;border:2px solid #aaa;border-radius:50%;background:#fff}.chapter span{font-size:10px;font-weight:700}.chapter small{font-size:8px;color:var(--muted)}.chapter.done i{background:#222;border-color:#222}.chapter.active i{box-shadow:inset 0 0 0 4px #fff;background:#222;border-color:#222}.chapter.finish i{border-radius:6px;border-color:#333}.d-main{display:grid;grid-template-columns:minmax(0,1fr) 260px;min-height:0}.d-card{margin:14px;padding:18px;overflow:auto}.d-body{display:grid;grid-template-columns:minmax(260px,.7fr) minmax(0,1fr);gap:16px;margin-top:16px}.d-card>.controls{margin-top:14px}.d-aside{border-left:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:10px;overflow:auto}.chapter-nav .qgrid{grid-template-columns:repeat(5,1fr)}.d-aside .compact-finish{margin-top:auto}
+
+/* E */
+.e-screen{display:grid;grid-template-rows:62px 1fr}.stack-stage{position:relative;padding:18px 250px 18px 70px;overflow:hidden}.sheet-back{position:absolute;inset:48px 285px 45px 110px;border:1px solid var(--line);border-radius:var(--r-lg);background:#f4f4f0;transform:rotate(1.2deg)}.back-two{inset:36px 300px 58px 90px;transform:rotate(-1.4deg);background:#e8e8e4}.paper-sheet{position:relative;z-index:3;height:100%;padding:20px;display:flex;flex-direction:column;gap:15px}.paper-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.65fr);gap:16px;min-height:0;flex:1}.paper-diagram{min-height:250px}.paper-foot{display:flex;align-items:center;gap:14px}.paper-foot>.progress-line{flex:1}.sheet-tabs{position:absolute;z-index:4;left:24px;top:74px;display:flex;flex-direction:column;gap:5px}.sheet-tabs span,.sheet-tabs button{width:40px;height:38px;min-height:38px;border:1px solid var(--line);border-radius:10px;background:#fff;display:grid;place-items:center;font:9px var(--mono)}.sheet-tabs .current{background:#111;color:#fff}.e-tools{position:absolute;right:14px;top:76px;bottom:14px;width:220px;display:flex;flex-direction:column;gap:10px}.floating-cam .cam-view{aspect-ratio:4/3}.paper-finish{margin-top:auto}.paper-finish .finish-steps{grid-template-columns:1fr}.paper-finish .finish-label{display:block}
+
+/* F */
+.f-screen{background:#f1f1ee}.f-topline{height:58px;display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:16px;padding:7px 13px}.pill-timer{border-radius:999px;min-width:100px}.focus-capsule{position:absolute;left:8%;right:8%;top:74px;bottom:76px;border:1px solid var(--line);border-radius:38px;background:#fff;box-shadow:0 18px 50px #00000010;padding:18px 24px;display:flex;flex-direction:column}.capsule-progress{padding:0 8% 12px}.capsule-content{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(260px,.65fr);grid-template-rows:auto 1fr;gap:16px;min-height:0;flex:1}.capsule-copy{grid-column:1/-1}.capsule-diagram{grid-column:2;grid-row:2}.capsule-answers{grid-column:1;grid-row:2;align-content:start}.capsule-controls{margin-top:10px;justify-content:center}.f-left{position:absolute;left:14px;top:50%;transform:translateY(-45%);padding:6px;border:1px solid var(--line);border-radius:18px;background:#fff}.f-right{position:absolute;right:14px;top:82px;bottom:14px;width:210px;display:flex;flex-direction:column;gap:10px}.round-cam{border-radius:24px}.round-cam .cam-view{border-radius:0 0 22px 22px}.capsule-finish{margin-top:auto}.capsule-finish .finish-steps{grid-template-columns:1fr}.capsule-finish .finish-label{display:block}
+
+/* G */
+.g-screen{display:grid;grid-template:"head head head" 62px "timeline main side" 1fr / 108px minmax(0,1fr) 260px}.g-screen>.exam-bar{grid-area:head}.timeline{grid-area:timeline;border-right:1px solid var(--line);padding:24px 14px;display:flex;flex-direction:column;justify-content:space-between;position:relative}.timeline:before{content:"";position:absolute;top:42px;bottom:42px;left:31px;width:2px;background:#d2d2cd}.timeline>div{position:relative;z-index:1;display:flex;align-items:center;gap:8px;font:8px var(--mono);color:var(--muted)}.timeline i{width:18px;height:18px;border-radius:50%;border:2px solid #aaa;background:#fff}.timeline .done i{background:#222;border-color:#222}.timeline .current i{box-shadow:inset 0 0 0 4px #fff;background:#222;border-color:#222}.timeline .finish i{border-radius:5px;border-color:#333}.g-main{grid-area:main;padding:14px;overflow:auto}.g-card{padding:18px}.g-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,.62fr);gap:15px;margin-top:15px}.g-card>.controls{margin-top:14px}.g-side{grid-area:side;border-left:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:10px;overflow:auto}.timeline-nav .qgrid{grid-template-columns:repeat(5,1fr)}.g-side .compact-finish{margin-top:auto}
+
+/* H */
+.h-screen{display:grid;grid-template:"head head" 62px "main edge" 1fr "foot edge" 116px / minmax(0,1fr) 86px}.h-screen>.exam-bar{grid-area:head}.h-main{grid-area:main;display:grid;grid-template-rows:minmax(0,1.08fr) minmax(0,.92fr);min-height:0}.h-context{padding:16px 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.55fr);gap:18px;border-bottom:1px solid var(--line);overflow:auto}.h-diagram{height:100%}.h-answer{padding:12px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:1fr auto;gap:10px 18px;overflow:auto}.h-answers{grid-column:1;grid-row:1}.h-answer .adapt-note{grid-column:1}.h-controls{grid-column:2;grid-row:1/3;flex-direction:column;justify-content:center}.h-edge{grid-area:edge;border-left:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:10px;align-items:center}.h-edge .edge-cam{width:70px}.h-edge .cam-head{display:none}.h-edge .cam-view{aspect-ratio:1}.h-foot{grid-area:foot;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(220px,.45fr) minmax(0,1fr);align-items:center;gap:14px;padding:10px 14px}.h-foot .horizontal-finish .finish-label{margin-bottom:5px}
+
+/* I */
+.i-screen{display:grid;grid-template-rows:62px 1fr 180px}.i-canvas{padding:14px 18px;overflow:auto}.i-card{height:100%;padding:18px;display:flex;flex-direction:column}.i-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.6fr);gap:16px;margin-top:15px;min-height:0;flex:1}.i-diagram{height:100%}.studio-dock{border-top:1px solid var(--line);background:#f5f5f2;padding:9px 12px;display:grid;grid-template-columns:minmax(0,1fr) 150px auto minmax(340px,.9fr);gap:10px;align-items:center}.dock-dots{flex-wrap:wrap}.dock-cam .webcam{border-radius:13px}.dock-cam .cam-head{display:none}.dock-cam .cam-view{aspect-ratio:16/7}.dock-controls .controls{gap:5px}.dock-controls .prev,.dock-controls .next{min-width:70px}.dock-finish .finish-label{display:none}
+
+/* J */
+.j-screen{display:grid;grid-template-rows:62px 1fr 145px}.j-main{padding:12px;display:grid;grid-template-columns:160px minmax(0,1fr) 230px;gap:12px;min-height:0}.j-camera{padding-top:4px}.j-camera .floating-cam{position:sticky;top:0}.j-card{padding:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.55fr);grid-template-rows:1fr auto;gap:16px;overflow:auto}.j-question{display:flex;flex-direction:column;gap:16px}.j-diagram{grid-column:2;grid-row:1}.j-controls{grid-column:1/-1;justify-content:center}.j-nav .finish-nav{height:100%;overflow:auto}.finish-line{border-top:1px solid var(--line);background:#f6f6f3;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(430px,.8fr);gap:18px;align-items:center}.trail{display:grid;grid-template-columns:repeat(10,1fr);position:relative}.trail:before{content:"";position:absolute;left:4%;right:4%;top:9px;height:2px;background:#d0d0cb}.trail>span{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;font:8px var(--mono);color:var(--muted)}.trail i{width:18px;height:18px;border:2px solid #aaa;border-radius:50%;background:#fff}.trail .done i{background:#222;border-color:#222}.trail .current i{box-shadow:inset 0 0 0 4px #fff;background:#222;border-color:#222}.trail .finish i{border-radius:5px;border-color:#222}.line-submit .finish-label{display:none}
+
+@media(max-width:1180px){
+  .concept{padding-right:44px}
+  .a-screen{grid-template:"head head" 62px "main side" 1fr / minmax(0,1fr) 230px}.a-nav{display:none}
+  .b-lower{grid-template-columns:1fr 165px;padding-right:112px}.b-lower .horizontal-finish{grid-column:1/-1}
+  .c-screen{grid-template:"head edge" 62px "stage edge" 1fr / minmax(0,1fr) 200px}.c-stage{grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr)}
+  .d-main{grid-template-columns:minmax(0,1fr) 225px}
+  .stack-stage{padding-right:220px}.e-tools{width:190px}.paper-body{grid-template-columns:1fr 240px}
+  .f-right{width:180px}.focus-capsule{right:195px}
+  .g-screen{grid-template:"head head" 62px "main side" 1fr / minmax(0,1fr) 230px}.timeline{display:none}
+  .i-body{grid-template-columns:1fr 260px}.studio-dock{grid-template-columns:1fr 130px auto}.dock-finish{grid-column:1/-1}
+  .j-main{grid-template-columns:130px minmax(0,1fr) 205px}.finish-line{grid-template-columns:1fr 390px}
+}
+@media(max-width:820px){
+  .board-head span:last-child{display:none}.jump{right:3px;grid-template-columns:repeat(2,30px);border-radius:10px}.jump a{width:30px;height:30px}
+  .concept{height:auto;min-height:100dvh;padding:42px 37px 6px 5px;overflow:auto}.concept-title{height:28px;padding-left:3px}.concept-title span{display:none}
+  .screen{height:auto;min-height:calc(100dvh - 76px);border-radius:18px;overflow:visible}
+  .exam-bar,.f-topline{grid-template-columns:1fr auto auto;gap:8px}.candidate-cue b{display:none}.exam-bar .save-state{display:none}
+  .question-copy h2{font-size:21px}.answers label{min-height:48px}
+  .a-screen,.c-screen,.g-screen{display:flex;flex-direction:column}.a-main,.c-stage,.g-main{order:1}.a-side,.c-edge,.g-side{order:2;border-left:0;border-top:1px solid var(--line)}.a-side,.g-side{display:grid;grid-template-columns:150px 1fr;align-items:start}.a-side .compact-finish,.g-side .compact-finish{margin-top:0}.c-stage{display:flex;flex-direction:column}.c-media{border-right:0;border-bottom:1px solid var(--line)}.c-edge{display:grid;grid-template-columns:150px 1fr}.vertical-finish .finish-steps{grid-template-columns:repeat(3,1fr)}
+  .a-card,.b-paper,.d-body,.paper-body,.capsule-content,.g-split,.h-context,.i-body,.j-card{grid-template-columns:1fr}
+  .a-diagram,.j-diagram{grid-column:auto;grid-row:auto}.floating-controls{position:static;transform:none;width:max-content;margin:12px auto 0}
+  .b-screen{display:flex;flex-direction:column}.b-paper{order:1}.horizon{order:0}.b-lower{order:2;display:grid;grid-template-columns:1fr 140px;padding:10px}.island-controls{position:static;order:3;flex-direction:row;width:max-content;margin:0 auto 12px}
+  .d-screen{display:flex;flex-direction:column}.chapter-path{grid-template-columns:1fr 1fr;row-gap:8px}.d-main{display:flex;flex-direction:column}.d-aside{border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:150px 1fr}.d-aside .compact-finish{grid-column:1/-1}
+  .e-screen{display:flex;flex-direction:column}.stack-stage{padding:14px;min-height:640px}.sheet-back,.sheet-tabs{display:none}.e-tools{position:static;width:auto;padding:10px;border-top:1px solid var(--line);display:grid;grid-template-columns:150px 1fr}.paper-finish{margin-top:0}
+  .f-screen{min-height:760px}.focus-capsule{left:10px;right:10px;top:72px;bottom:260px}.f-left{display:none}.f-right{left:10px;right:10px;top:auto;bottom:10px;width:auto;height:235px;display:grid;grid-template-columns:150px 1fr}.capsule-finish{margin-top:0}.capsule-finish .finish-steps{grid-template-columns:repeat(3,1fr)}
+  .h-screen{display:flex;flex-direction:column}.h-main{display:flex;flex-direction:column}.h-edge{order:2;border-left:0;border-top:1px solid var(--line);flex-direction:row;justify-content:center}.h-foot{order:3;display:flex;flex-direction:column;align-items:stretch}.h-answer{grid-template-columns:1fr}.h-controls{grid-column:1;grid-row:auto;flex-direction:row;justify-content:center}.h-edge .edge-cam{width:140px}
+  .i-screen{display:flex;flex-direction:column}.i-canvas{min-height:600px}.studio-dock{display:grid;grid-template-columns:1fr 140px}.dock-controls,.dock-finish{grid-column:1/-1}.dock-controls .controls{justify-content:center}
+  .j-screen{display:flex;flex-direction:column}.j-main{display:flex;flex-direction:column}.j-camera{order:2}.j-nav{order:3}.j-card{order:1}.finish-line{display:flex;flex-direction:column}.trail{width:100%}.j-camera .floating-cam{width:150px;margin:auto}
+}
+@media(max-width:520px){
+  .jump{display:none}.concept{padding-right:5px}.screen{border-left:0;border-right:0;border-radius:0}
+  .exam-bar,.f-topline{grid-template-columns:1fr auto}.exam-bar .candidate-cue,.f-topline .candidate-cue{display:none}
+  .timer{min-width:80px}.timer strong{font-size:15px}
+  .question-card{border-radius:16px;box-shadow:none}.question-copy h2{font-size:19px}
+  .a-side,.g-side,.c-edge,.d-aside,.e-tools,.f-right,.b-lower,.studio-dock{display:flex;flex-direction:column}
+  .finish-steps{grid-template-columns:1fr 1fr 1fr}.finish-steps>span,.finish-steps>button{padding:5px}.finish-steps b{font-size:9px}.finish-label small{display:none}
+  .qgrid{grid-template-columns:repeat(5,1fr)}.slim-grid .qgrid{grid-template-columns:repeat(5,1fr)}
+  .nav-dots{flex-wrap:wrap}.vertical-dots{flex-direction:row}
+  .paper-sheet,.d-card,.g-card,.i-card,.j-card{padding:13px}.capsule-content{display:block}.capsule-diagram{margin-top:12px}.capsule-answers{margin-top:12px}
+  .chapter-path{padding-inline:10px}.chapter{grid-template-columns:18px 1fr}.chapter i{width:16px;height:16px}
+  .trail>span:nth-child(even){display:none}.trail{grid-template-columns:repeat(5,1fr)}
+}
+@media(max-height:720px) and (min-width:821px){
+  .concept{padding-top:42px}.screen{height:calc(100dvh - 76px)}.exam-bar{min-height:54px}.question-copy h2{font-size:20px}.answers label{min-height:42px}
+  .webcam .cam-view{max-height:120px}.qgrid>span{min-height:24px}.question-card{border-radius:18px}.finish-steps>span,.finish-steps>button{min-height:42px}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="board-head"><span>Festacol · Phase 03 · Write Examination</span><span>10 full-screen modern wireframe directions · progressive disclosure</span></div>
+<nav class="jump" aria-label="Concept navigation">
+<a href="#a" aria-label="Concept A">A</a><a href="#b" aria-label="Concept B">B</a><a href="#c" aria-label="Concept C">C</a><a href="#d" aria-label="Concept D">D</a><a href="#e" aria-label="Concept E">E</a><a href="#f" aria-label="Concept F">F</a><a href="#g" aria-label="Concept G">G</a><a href="#h" aria-label="Concept H">H</a><a href="#i" aria-label="Concept I">I</a><a href="#j" aria-label="Concept J">J</a>
+</nav>
+<section class="concept concept-a" id="a">
+  <div class="concept-title"><b>A</b><div><strong>Focus Rail</strong><span>slim navigator · expansive question · quiet proctor edge</span></div></div>
+  <div class="screen a-screen">
+    <header class="exam-bar ">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <aside class="a-nav"><div class="nav-dots vertical-dots" aria-label="Question progress"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="current">9</span><span class="">10</span><span class="flagged">11</span><span class="">12</span><button type="button">All</button></div></aside>
+    <main class="a-main">
+      <div class="progress-line"><div class="progress-copy"><span>12 of 30</span><span>40%</span></div><div class="track"><i></i></div></div>
+      <div class="question-card a-card">
+        <div class="a-copy"><div class="question-copy ">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div><div class="answers ">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div><div class="adapt-note"><span>Also supports</span><b>multi-select</b><b>true / false</b><b>fill blanks</b><b>reading passage</b></div></div>
+        <figure class="diagram a-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure>
+      </div>
+      <div class="controls floating-controls">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section><div class="aside-review"><span>Current position</span><b>Question 12 / 40</b><button class="review-btn">Open Review & Submit</button></div></aside></div></section><section class="concept" id="b"><div class="concept-label"><b>B</b><span>Paper + Instrument Spine</span><small>wide question paper + narrow permanent exam instrumentation</small></div><div class="workspace b-work"><header class="identity-strip"><div><strong>SS2 Mid-Term Assessment</strong><span>2026/2027 · First Term · Multi-subject</span></div><div><strong>Adeola Bamidele</strong><span>FSG/SS2/0248 · SS2 Science A</span></div><div><strong>Attempt active</strong><span>Question 12 of 40</span></div></header><div class="b-main"><main class="paper-field"><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    <div class="context-split"><section class="passage"><div class="label">Question context / passage</div><p>Shared reading passage, source text, table or long-form context stays visible for linked questions.</p><div class="media-placeholder"><span>DIAGRAM / IMAGE PLACEHOLDER</span><button class="ghost-btn">Enlarge</button></div></section>
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section></div>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><aside class="instrument-spine"><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div><section class="navigator"><div class="section-head"><span>Compact navigator</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+    </main>
+    <aside class="a-side">
+      <div class="webcam ">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section></aside></div></div></section><section class="concept" id="c"><div class="concept-label"><b>C</b><span>Dual-Aside Command Layout</span><small>exam map / question / candidate + proctor instruments</small></div><div class="workspace c-work"><header class="c-head"><div><strong>SS2 Mid-Term Assessment</strong><span>Mathematics · Algebra · Question 12 of 40</span></div><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section></header><aside class="c-left"><section class="navigator"><div class="section-head"><span>Paper map</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+      <button class="utility-pill" type="button">Exam info</button>
+      <div class="finish-flow compact-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section><section class="step-zone"><div class="section-head"><span>Subject progress</span><span>2 / 10 Math</span></div><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div></section></aside><main class="c-center"><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><aside class="c-right"><section class="exam-meta">
-    <div class="label">Examination details</div>
-    <dl>
-      <div><dt>Exam</dt><dd>SS2 Mid-Term Assessment</dd></div>
-      <div><dt>Mode</dt><dd>Multi-subject examination</dd></div>
-      <div><dt>Session</dt><dd>2026 / 2027 · First Term</dd></div>
-      <div><dt>Candidate</dt><dd>Adeola Bamidele</dd></div>
-      <div><dt>Student no.</dt><dd>FSG/SS2/0248</dd></div>
-      <div><dt>Class</dt><dd>SS2 Science · Arm A</dd></div>
-      <div><dt>Attempt</dt><dd>Active · 1 of 1</dd></div>
-    </dl>
-  </section><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div><button class="review-btn full">Review & Submit</button></aside></div></section><section class="concept" id="d"><div class="concept-label"><b>D</b><span>Passage / Diagram Studio</span><small>context-heavy papers with independent reading and response panes</small></div><div class="workspace d-work"><header class="identity-strip"><div><strong>English Language Examination</strong><span>2026/2027 · First Term · SS2 Science A</span></div><div><strong>Adeola Bamidele</strong><span>FSG/SS2/0248 · Attempt active</span></div><div><strong>Question 19 of 40</strong><span>Comprehension · Single answer</span></div></header><div class="d-body"><aside class="context-pane"><div class="section-head"><span>Reading passage / source context</span><span>Q18–Q21</span></div><div class="passage-long">The complete reading passage, source text, data table or long-form problem statement lives here. The context remains stable while the candidate moves between questions that depend on it.</div><div class="media-large"><span>DIAGRAM / FIGURE / MAP PLACEHOLDER</span><button class="ghost-btn">Enlarge media</button></div><section class="exam-meta">
-    <div class="label">Examination details</div>
-    <dl>
-      <div><dt>Exam</dt><dd>SS2 Mid-Term Assessment</dd></div>
-      <div><dt>Mode</dt><dd>Multi-subject examination</dd></div>
-      <div><dt>Session</dt><dd>2026 / 2027 · First Term</dd></div>
-      <div><dt>Candidate</dt><dd>Adeola Bamidele</dd></div>
-      <div><dt>Student no.</dt><dd>FSG/SS2/0248</dd></div>
-      <div><dt>Class</dt><dd>SS2 Science · Arm A</dd></div>
-      <div><dt>Attempt</dt><dd>Active · 1 of 1</dd></div>
-    </dl>
-  </section></aside><main class="response-pane"><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><aside class="utility-pane"><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div><section class="navigator"><div class="section-head"><span>Question navigator</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+    </aside>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section></aside></div></div></section><section class="concept" id="e"><div class="concept-label"><b>E</b><span>Navigator-First Cockpit</span><small>large paper map + central response paper + right proctor column</small></div><div class="workspace e-work"><header class="e-strip"><div><strong>SS2 Mid-Term Assessment</strong><span>Mathematics · Question 12 / 40</span></div><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div><div class="mini-timer"><span>Time left</span><strong>42:18</strong></div></header><aside class="e-nav"><section class="navigator"><div class="section-head"><span>Full question map</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+</section>
+<section class="concept concept-b" id="b">
+  <div class="concept-title"><b>B</b><div><strong>Horizon Paper</strong><span>progress horizon · full-width paper · floating control island</span></div></div>
+  <div class="screen b-screen">
+    <header class="exam-bar transparent-bar">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <div class="horizon"><div class="milestones horizon-miles"><div class="done"><i></i><span>Start</span></div><div class="active"><i></i><span>Q10</span></div><div class=""><i></i><span>Q20</span></div><div class="finish"><i></i><span>Finish</span></div></div></div>
+    <main class="b-paper">
+      <div class="b-question"><div class="question-copy large-copy">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div><div class="answers wide-answers">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div></div>
+      <figure class="diagram b-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure>
+    </main>
+    <div class="b-lower">
+      <div class="navigator slim-grid">
+    <div class="nav-head"><span>Questions</span><button type="button">Open navigator</button></div>
+    <div class="qgrid"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="done">9</span><span class="done">10</span><span class="done">11</span><span class="current">12</span><span class="">13</span><span class="flagged">14<i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></span><span class="">15</span><span class="">16</span><span class="">17</span><span class="">18</span><span class="">19</span><span class="">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span></div>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section><section class="step-zone"><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div></section></aside><main class="e-main"><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    <div class="context-split"><section class="passage"><div class="label">Question context / passage</div><p>Shared reading passage, source text, table or long-form context stays visible for linked questions.</p><div class="media-placeholder"><span>DIAGRAM / IMAGE PLACEHOLDER</span><button class="ghost-btn">Enlarge</button></div></section>
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section></div>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><aside class="e-utils"><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section><section class="exam-meta">
-    <div class="label">Examination details</div>
-    <dl>
-      <div><dt>Exam</dt><dd>SS2 Mid-Term Assessment</dd></div>
-      <div><dt>Mode</dt><dd>Multi-subject examination</dd></div>
-      <div><dt>Session</dt><dd>2026 / 2027 · First Term</dd></div>
-      <div><dt>Candidate</dt><dd>Adeola Bamidele</dd></div>
-      <div><dt>Student no.</dt><dd>FSG/SS2/0248</dd></div>
-      <div><dt>Class</dt><dd>SS2 Science · Arm A</dd></div>
-      <div><dt>Attempt</dt><dd>Active · 1 of 1</dd></div>
-    </dl>
-  </section><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section><button class="review-btn full">Review & Submit</button></aside></div></section><section class="concept" id="f"><div class="concept-label"><b>F</b><span>Full-Width Paper + Bottom Console</span><small>question-first body with dense top instruments and a substantial navigation console</small></div><div class="workspace f-work"><header class="f-top"><div class="candidate-inline"><strong>Adeola Bamidele</strong><span>FSG/SS2/0248 · SS2 Science A</span></div><div class="exam-inline"><strong>SS2 Mid-Term Assessment</strong><span>2026/2027 · First Term · Multi-subject</span></div><div class="f-camera"><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section></div><div class="f-timer"><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section></div></header><div class="f-status"><div class="identity-inline"><span><b>Exam</b> SS2 Mid-Term Assessment</span><span><b>Mode</b> Multi-subject</span><span><b>Session</b> 2026/2027 · First Term</span><span><b>Candidate</b> Adeola Bamidele</span><span><b>ID</b> FSG/SS2/0248</span><span><b>Class</b> SS2 Science A</span><span><b>Attempt</b> Active 1/1</span></div><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div></div><main class="f-question"><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    <div class="context-split"><section class="passage"><div class="label">Question context / passage</div><p>Shared reading passage, source text, table or long-form context stays visible for linked questions.</p><div class="media-placeholder"><span>DIAGRAM / IMAGE PLACEHOLDER</span><button class="ghost-btn">Enlarge</button></div></section>
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section></div>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><footer class="bottom-console"><section class="console-nav"><section class="navigator"><div class="section-head"><span>Question navigator</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+      <div class="webcam mini-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section></section><section class="console-actions"><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div></section></footer></div></section><section class="concept" id="g"><div class="concept-label"><b>G</b><span>Adaptive Exam Matrix</span><small>dense flat matrix for candidate, question, webcam, navigation and progress</small></div><div class="workspace g-work"><header class="g-top"><div><strong>SS2 Mid-Term Assessment</strong><span>2026/2027 · First Term · Multi-subject</span></div><div class="status-strip"><span><b>Autosave</b> Saved 8 sec ago</span><span><b>Network</b> Online</span><span><b>Focus monitor</b> Active</span><span><b>Clipboard guard</b> Active</span><span><b>Fullscreen</b> On</span></div><div class="mini-timer"><span>Time left</span><strong>42:18</strong></div></header><aside class="g-left"><section class="exam-meta">
-    <div class="label">Examination details</div>
-    <dl>
-      <div><dt>Exam</dt><dd>SS2 Mid-Term Assessment</dd></div>
-      <div><dt>Mode</dt><dd>Multi-subject examination</dd></div>
-      <div><dt>Session</dt><dd>2026 / 2027 · First Term</dd></div>
-      <div><dt>Candidate</dt><dd>Adeola Bamidele</dd></div>
-      <div><dt>Student no.</dt><dd>FSG/SS2/0248</dd></div>
-      <div><dt>Class</dt><dd>SS2 Science · Arm A</dd></div>
-      <div><dt>Attempt</dt><dd>Active · 1 of 1</dd></div>
-    </dl>
-  </section><section class="webcam">
-    <div class="section-head"><span>Webcam</span><span class="condition">conditional in production</span></div>
-    <div class="webcam-frame"><div class="face-guide"></div><span>LIVE CAMERA PREVIEW</span><small>16:9 / candidate framing</small></div>
-    <div class="camera-row"><span>Camera active</span><span>Source: Integrated Camera ▾</span></div>
-    <p class="micro-note">Required exam only. No microphone.</p>
-  </section></aside><main class="g-center"><div class="stepper" aria-label="Exam section stepper">
-    <div class="step done"><strong>English</strong><span>10 / 10</span></div>
-    <div class="step active"><strong>Mathematics</strong><span>2 / 10</span></div>
-    <div class="step"><strong>Basic Science</strong><span>0 / 10</span></div>
-    <div class="step"><strong>Social Studies</strong><span>0 / 10</span></div>
-  </div><article class="question-paper">
-    <header class="question-head"><div><div class="label">Question 12 of 40</div><div class="question-tags"><span>Mathematics</span><span>Algebra</span><span>Single answer</span></div></div><button class="ghost-btn">Flag question</button></header>
-    
-    <section class="question-core"><p class="instruction">Choose the correct option.</p><h2>If 3x + 7 = 25, what is the value of x?</h2><div class="answers"><label><i>A</i><span>4</span><b class="radio"></b></label><label><i>B</i><span>5</span><b class="radio"></b></label><label class="selected"><i>C</i><span>6</span><b class="radio filled"></b></label><label><i>D</i><span>7</span><b class="radio"></b></label></div></section>
-    <div class="variant-strip"><span>Response adaptations:</span><b>single</b><b>multi-select</b><b>true / false</b><b>fill blank</b><b>fill multiple</b><b>passage</b><b>media</b></div>
-  </article><div class="exam-controls"><button class="ghost-btn">← Previous</button><button class="ghost-btn">Clear response</button><button class="ghost-btn">Flag / unflag</button><button class="review-btn">Review & Submit</button><button class="primary-btn">Next question →</button></div><div class="alert-slot"><strong>Recovery slot</strong><span>Offline / save failure / camera interrupted messages expand here without clearing the current response.</span></div></main><aside class="g-right"><section class="time-progress">
-    <div class="timer-block"><span>Time remaining</span><strong>42:18</strong><small>of 60:00</small></div>
-    <div class="progress-block"><div class="progress-label"><span>Paper progress</span><strong>12 / 40</strong></div><div class="bar"><i style="width:30%"></i></div><div class="counts"><span><b>11</b> answered</span><span><b>27</b> open</span><span><b>2</b> flagged</span></div></div>
-  </section><section class="navigator"><div class="section-head"><span>Question navigator</span><span>40 questions</span></div><div class="nav-filters"><span class="active">All</span><span>Open</span><span>Flagged</span></div>
-  <div class="nav-grid" aria-label="Question navigator">
-    <span class="answered">1</span><span class="answered">2</span><span class="visited">3</span><span class="flagged">4</span><span class="answered">5</span><span class="incomplete">6</span><span class="answered">7</span><span class="visited">8</span><span class="answered">9</span><span class="visited">10</span><span class="answered">11</span><span class="current">12</span><span class="visited">13</span><span class="incomplete">14</span><span class="answered">15</span><span class="">16</span><span class="">17</span><span class="answered">18</span><span class="">19</span><span class="flagged">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span>
+      <div class="finish-flow horizontal-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
   </div>
-  <div class="legend"><span><i class="dot current"></i>Current</span><span><i class="dot answered"></i>Answered</span><span><i class="dot incomplete"></i>Incomplete</span><span><i class="dot visited"></i>Visited</span><span><i class="dot flagged"></i>Flagged</span></div></section><div class="integrity-matrix"><span>Focus monitoring <b>Active</b></span><span>Clipboard guard <b>Active</b></span><span>Fullscreen <b>On</b></span><span>Camera <b>Live</b></span></div><button class="review-btn full">Review & Submit</button></aside><footer class="g-bottom"><span>Question 12 of 40</span><span>11 answered · 27 open · 2 flagged</span><span>Saved · Online</span></footer></div></section></body></html>
+    </div>
+    <div class="controls island-controls">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+  </div>
+</section>
+<section class="concept concept-c" id="c">
+  <div class="concept-title"><b>C</b><div><strong>Diagram Studio</strong><span>media-first problem solving · focused answer panel</span></div></div>
+  <div class="screen c-screen">
+    <header class="exam-bar ">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <main class="c-stage">
+      <section class="c-media">
+        <div class="stage-caption"><span>Question figure</span><small>pinch / enlarge available</small></div>
+        <figure class="diagram studio-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure>
+        <div class="nav-dots media-dots" aria-label="Question progress"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="current">9</span><span class="">10</span><span class="flagged">11</span><span class="">12</span><button type="button">All</button></div>
+      </section>
+      <section class="c-question">
+        <div class="progress-line"><div class="progress-copy"><span>12 of 30</span><span>40%</span></div><div class="track"><i></i></div></div>
+        <div class="question-copy ">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <div class="answers ">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div>
+        <div class="adapt-note"><span>Also supports</span><b>multi-select</b><b>true / false</b><b>fill blanks</b><b>reading passage</b></div>
+        <div class="controls ">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+      </section>
+    </main>
+    <aside class="c-edge">
+      <div class="webcam edge-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div>
+      <div class="finish-flow vertical-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div>
+    </aside>
+  </div>
+</section>
+<section class="concept concept-d" id="d">
+  <div class="concept-title"><b>D</b><div><strong>Chapter Path</strong><span>subject milestones become the exam journey</span></div></div>
+  <div class="screen d-screen">
+    <header class="exam-bar ">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <div class="chapter-path">
+      <div class="chapter done"><i></i><span>English</span><small>complete</small></div>
+      <div class="chapter active"><i></i><span>Mathematics</span><small>12 / 15</small></div>
+      <div class="chapter"><i></i><span>Basic Science</span><small>up next</small></div>
+      <div class="chapter finish"><i></i><span>Finish</span><small>submit checkpoint</small></div>
+    </div>
+    <main class="d-main">
+      <div class="question-card d-card">
+        <div class="question-copy ">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <div class="d-body"><figure class="diagram d-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure><div class="answers ">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div></div>
+        <div class="controls ">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+      </div>
+      <aside class="d-aside">
+        <div class="webcam ">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div>
+        <div class="navigator chapter-nav">
+    <div class="nav-head"><span>Questions</span><button type="button">Open navigator</button></div>
+    <div class="qgrid"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="done">9</span><span class="done">10</span><span class="done">11</span><span class="current">12</span><span class="">13</span><span class="flagged">14<i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></span><span class="">15</span><span class="">16</span><span class="">17</span><span class="">18</span><span class="">19</span><span class="">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span></div>
+  </div>
+        <div class="finish-flow compact-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div>
+      </aside>
+    </main>
+  </div>
+</section>
+<section class="concept concept-e" id="e">
+  <div class="concept-title"><b>E</b><div><strong>Paper Stack</strong><span>question sheets · edge tabs · compact exam tools</span></div></div>
+  <div class="screen e-screen">
+    <header class="exam-bar e-top">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <main class="stack-stage">
+      <div class="sheet-back back-one"></div>
+      <div class="sheet-back back-two"></div>
+      <article class="question-card paper-sheet">
+        <div class="question-copy paper-copy">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <div class="paper-body"><div class="answers ">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div><figure class="diagram paper-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure></div>
+        <div class="paper-foot"><div class="controls ">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div><div class="progress-line"><div class="progress-copy"><span>12 / 30</span><span>40%</span></div><div class="track"><i></i></div></div></div>
+      </article>
+      <div class="sheet-tabs"><span class="">9</span><span class="">10</span><span class="">11</span><span class="current">12</span><span class="">13</span><span class="">14</span><span class="">15</span><button type="button">•••</button></div>
+    </main>
+    <div class="e-tools">
+      <div class="webcam floating-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div>
+      <div class="finish-flow paper-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div>
+    </div>
+  </div>
+</section>
+<section class="concept concept-f" id="f">
+  <div class="concept-title"><b>F</b><div><strong>Focus Capsule</strong><span>rounded central workspace · tools orbit the edge</span></div></div>
+  <div class="screen f-screen">
+    <div class="f-topline">
+      <div class="exam-name"><strong>Mathematics</strong><span>Q12 / 30</span></div>
+      <span class="save-state"><i></i>Saved</span>
+      <div class="timer pill-timer"><span>Time left</span><strong>38:42</strong></div>
+      <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+    </div>
+    <main class="focus-capsule">
+      <div class="capsule-progress"><div class="milestones capsule-miles"><div class="done"><i></i><span>1</span></div><div class="active"><i></i><span>10</span></div><div class=""><i></i><span>20</span></div><div class="finish"><i></i><span>30</span></div></div></div>
+      <div class="capsule-content">
+        <div class="question-copy capsule-copy">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <figure class="diagram capsule-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure>
+        <div class="answers capsule-answers">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div>
+      </div>
+      <div class="controls capsule-controls">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+    </main>
+    <aside class="f-left"><div class="nav-dots vertical-dots" aria-label="Question progress"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="current">9</span><span class="">10</span><span class="flagged">11</span><span class="">12</span><button type="button">All</button></div></aside>
+    <aside class="f-right"><div class="webcam round-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div><div class="finish-flow capsule-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div></aside>
+  </div>
+</section>
+<section class="concept concept-g" id="g">
+  <div class="concept-title"><b>G</b><div><strong>Timeline Exam</strong><span>question milestones · final stop is submission</span></div></div>
+  <div class="screen g-screen">
+    <header class="exam-bar ">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <aside class="timeline">
+      <div class="done"><i></i><span>Q1</span></div><div class="done"><i></i><span>Q6</span></div><div class="done"><i></i><span>Q11</span></div><div class="current"><i></i><span>Q16</span></div><div class=""><i></i><span>Q21</span></div><div class=""><i></i><span>Q26</span></div><div class="finish"><i></i><span>Submit</span></div>
+    </aside>
+    <main class="g-main">
+      <div class="question-card g-card">
+        <div class="question-copy ">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <div class="g-split"><div class="answers ">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div><figure class="diagram g-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure></div>
+        <div class="controls ">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+      </div>
+    </main>
+    <aside class="g-side">
+      <div class="webcam ">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div>
+      <div class="progress-line"><div class="progress-copy"><span>12 of 30</span><span>40%</span></div><div class="track"><i></i></div></div>
+      <div class="navigator timeline-nav">
+    <div class="nav-head"><span>Questions</span><button type="button">Open navigator</button></div>
+    <div class="qgrid"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="done">9</span><span class="done">10</span><span class="done">11</span><span class="current">12</span><span class="">13</span><span class="flagged">14<i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></span><span class="">15</span><span class="">16</span><span class="">17</span><span class="">18</span><span class="">19</span><span class="">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span></div>
+  </div>
+      <div class="finish-flow compact-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div>
+    </aside>
+  </div>
+</section>
+<section class="concept concept-h" id="h">
+  <div class="concept-title"><b>H</b><div><strong>Split Horizon</strong><span>context above · answers below · thin navigator edge</span></div></div>
+  <div class="screen h-screen">
+    <header class="exam-bar ">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <main class="h-main">
+      <section class="h-context">
+        <div class="question-copy h-copy">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <figure class="diagram h-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure>
+      </section>
+      <section class="h-answer">
+        <div class="answers h-answers">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div>
+        <div class="adapt-note"><span>Also supports</span><b>multi-select</b><b>true / false</b><b>fill blanks</b><b>reading passage</b></div>
+        <div class="controls h-controls">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+      </section>
+    </main>
+    <aside class="h-edge">
+      <div class="nav-dots vertical-dots" aria-label="Question progress"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="current">9</span><span class="">10</span><span class="flagged">11</span><span class="">12</span><button type="button">All</button></div>
+      <div class="webcam edge-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div>
+    </aside>
+    <footer class="h-foot">
+      <div class="progress-line"><div class="progress-copy"><span>12 of 30</span><span>40%</span></div><div class="track"><i></i></div></div>
+      <div class="finish-flow horizontal-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div>
+    </footer>
+  </div>
+</section>
+<section class="concept concept-i" id="i">
+  <div class="concept-title"><b>I</b><div><strong>Studio Dock</strong><span>full question canvas · all utilities resolve into a bottom dock</span></div></div>
+  <div class="screen i-screen">
+    <header class="exam-bar i-top">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <main class="i-canvas">
+      <div class="question-card i-card">
+        <div class="question-copy large-copy">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div>
+        <div class="i-body"><div class="answers i-answers">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div><figure class="diagram i-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure></div>
+      </div>
+    </main>
+    <footer class="studio-dock">
+      <div class="dock-nav"><div class="nav-dots dock-dots" aria-label="Question progress"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="current">9</span><span class="">10</span><span class="flagged">11</span><span class="">12</span><button type="button">All</button></div></div>
+      <div class="dock-camera"><div class="webcam dock-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div></div>
+      <div class="dock-controls"><div class="controls ">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div></div>
+      <div class="dock-finish"><div class="finish-flow dock-finish">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div></div>
+    </footer>
+  </div>
+</section>
+<section class="concept concept-j" id="j">
+  <div class="concept-title"><b>J</b><div><strong>Finish Line</strong><span>completion trail makes submission feel deliberate, not abrupt</span></div></div>
+  <div class="screen j-screen">
+    <header class="exam-bar j-top">
+    <div class="exam-name"><strong>Mathematics · Mid-Term Assessment</strong><span>Question 12 of 30</span></div>
+    <span class="save-state"><i></i>Saved</span>
+    <div class="timer "><span>Time left</span><strong>38:42</strong></div>
+    <button class="candidate-cue" type="button" aria-label="Open candidate and exam information"><span>AB</span><b>Adeola</b></button>
+  </header>
+    <main class="j-main">
+      <aside class="j-camera"><div class="webcam floating-cam">
+    <div class="cam-head"><span>Webcam</span><small>when required</small></div>
+    <div class="cam-view"><div class="face-loop"></div><span>live preview</span></div>
+  </div></aside>
+      <article class="question-card j-card">
+        <div class="j-question"><div class="question-copy ">
+    <div class="q-meta"><span>Q12 / 30</span><span>Mathematics</span><span>Geometry</span></div>
+    <p class="instruction">Choose the correct answer.</p>
+    <h2>The altitude of triangle ABC is 8 cm and its base is 12 cm. What is the area of the triangle?</h2>
+  </div><div class="answers ">
+    <label><i>A</i><span>36 cm²</span><b></b></label>
+    <label><i>B</i><span>48 cm²</span><b class="chosen"></b></label>
+    <label><i>C</i><span>72 cm²</span><b></b></label>
+    <label><i>D</i><span>96 cm²</span><b></b></label>
+  </div></div>
+        <figure class="diagram j-diagram">
+    <div class="diagram-head"><span>Diagram</span><button type="button" class="enlarge">Enlarge</button></div>
+    <svg class="diagram-svg" viewBox="0 0 320 180" aria-hidden="true">
+  <path d="M38 146H290M55 154V30" stroke="currentColor" stroke-width="1.2" opacity=".42"/>
+  <path d="M84 134L154 54L248 134Z" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="84" cy="134" r="5" fill="currentColor"/><circle cx="154" cy="54" r="5" fill="currentColor"/><circle cx="248" cy="134" r="5" fill="currentColor"/>
+  <path d="M154 54L154 134M138 134a16 16 0 0 1 16-16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="70" y="155">A</text><text x="150" y="42">B</text><text x="252" y="155">C</text><text x="163" y="102">h</text>
+</svg>
+  </figure>
+        <div class="controls j-controls">
+    <button type="button" class="prev">Prev</button>
+    <button class="flag-btn " type="button" aria-label="Flag question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="next">Next</button>
+  </div>
+      </article>
+      <aside class="j-nav"><div class="navigator finish-nav">
+    <div class="nav-head"><span>Questions</span><button type="button">Open navigator</button></div>
+    <div class="qgrid"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="done">6</span><span class="done">7</span><span class="done">8</span><span class="done">9</span><span class="done">10</span><span class="done">11</span><span class="current">12</span><span class="">13</span><span class="flagged">14<i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V5.6c0-.9.7-1.6 1.6-1.6h8.1l.7-1.5h3.6v11h-4.3l-.7 1.5H6.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></span><span class="">15</span><span class="">16</span><span class="">17</span><span class="">18</span><span class="">19</span><span class="">20</span><span class="">21</span><span class="">22</span><span class="">23</span><span class="">24</span><span class="">25</span><span class="">26</span><span class="">27</span><span class="">28</span><span class="">29</span><span class="">30</span></div>
+  </div></aside>
+    </main>
+    <footer class="finish-line">
+      <div class="trail">
+        <span class="done"><i></i><b>1</b></span><span class="done"><i></i><b>4</b></span><span class="done"><i></i><b>7</b></span><span class="done"><i></i><b>10</b></span><span class="current"><i></i><b>13</b></span><span class=""><i></i><b>16</b></span><span class=""><i></i><b>19</b></span><span class=""><i></i><b>22</b></span><span class=""><i></i><b>25</b></span><span class="finish"><i></i><b>Finish</b></span>
+      </div>
+      <div class="finish-flow line-submit">
+    <div class="finish-label"><span>Finish exam</span><small>calm completion checkpoint</small></div>
+    <div class="finish-steps">
+      <span class="done"><i>1</i><b>Finish</b></span>
+      <span class="active"><i>2</i><b>Check</b><small>2 open · 1 flagged</small></span>
+      <button type="button"><i>3</i><b>Submit exam</b></button>
+    </div>
+  </div>
+    </footer>
+  </div>
+</section>
+</body>
+</html>
