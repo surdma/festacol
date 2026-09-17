@@ -345,24 +345,10 @@ USING (
     realtime.messages.extension = 'presence'
     AND split_part((SELECT realtime.topic()),':',1) = 'exam'
     AND split_part((SELECT realtime.topic()),':',3) = 'presence'
-    AND (
-      (
-        private.current_member_role() = 'student'
-        AND EXISTS (
-          SELECT 1
-          FROM public.exam_attempts a
-          WHERE a.session_id = upper(split_part((SELECT realtime.topic()),':',2))
-            AND a.student_id = private.current_school_member_id()
-            AND a.submitted_at IS NULL
-        )
-      )
-      OR (
-        private.current_member_role() IN ('teacher','administrator')
-        AND private.staff_can_access_exam(
-          private.current_school_member_id(),
-          upper(split_part((SELECT realtime.topic()),':',2))
-        )
-      )
+    AND private.current_member_role() IN ('teacher','administrator')
+    AND private.staff_can_access_exam(
+      private.current_school_member_id(),
+      upper(split_part((SELECT realtime.topic()),':',2))
     )
   )
 );
