@@ -45,14 +45,23 @@ export function useExamTimer(initialRemaining: number, onExpire: () => void, act
   return { remaining, format, isCritical: remaining <= 60, isWarning: remaining <= 300 };
 }
 
+interface IntegrityRecorderPolicy {
+  focusMonitoring: boolean;
+  clipboardGuard: boolean;
+}
+
 // Integrity events go through a Server Action: the browser never sees
 // candidate hashes, endpoints, or keys — only (sessionId, type, detail).
-export function useIntegrityRecorder(sessionId: string) {
+export function useIntegrityRecorder(
+  sessionId: string,
+  policy: IntegrityRecorderPolicy = { focusMonitoring: true, clipboardGuard: true },
+) {
   const record = useCallback(
     (type: string, detail?: string) => {
       if (!sessionId) return;
       void recordIntegrityAction(sessionId, type, detail).catch(() => undefined);
-    }, [sessionId],
+    },
+    [sessionId],
   );
 
   useEffect(() => {
@@ -63,15 +72,21 @@ export function useIntegrityRecorder(sessionId: string) {
     };
     const onBlur = () => record("window-blur");
     const onCopy = () => record("clipboard-copy");
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("blur", onBlur);
-    document.addEventListener("copy", onCopy);
+
+    if (policy.focusMonitoring) {
+      document.addEventListener("visibilitychange", onVis);
+      window.addEventListener("blur", onBlur);
+    }
+    if (policy.clipboardGuard) document.addEventListener("copy", onCopy);
+
     return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("blur", onBlur);
-      document.removeEventListener("copy", onCopy);
+      if (policy.focusMonitoring) {
+        document.removeEventListener("visibilitychange", onVis);
+        window.removeEventListener("blur", onBlur);
+      }
+      if (policy.clipboardGuard) document.removeEventListener("copy", onCopy);
     };
-  }, [record, sessionId]);
+  }, [policy.clipboardGuard, policy.focusMonitoring, record, sessionId]);
 
   return { record };
 }
