@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getExamExperienceContextAction } from "@/app/actions/exam-experience";
 import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
 import { AccessDenied } from "@/components/access-denied";
 import { ExamWorkspace } from "@/components/exam/exam-workspace";
@@ -111,34 +112,14 @@ export default async function StandaloneExamPage({
     );
   }
 
-  const { data: session, error: sessionError } = await ctx.supabase
-    .from("exam_sessions")
-    .select("id,title,duration_seconds")
-    .eq("id", entry.exam.id)
-    .maybeSingle();
-  if (sessionError || !session) {
+  const experience = await getExamExperienceContextAction(entry.exam.id);
+  if (!experience.ok) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-7xl items-center px-4 py-8 sm:px-6">
-        <ExamUnavailable
-          title="Exam unavailable"
-          message="Exam session details could not be loaded."
-        />
+        <ExamUnavailable title="Exam unavailable" message={experience.error} />
       </div>
     );
   }
 
-  const row = session as {
-    id: string;
-    title: string;
-    duration_seconds: number;
-  };
-  return (
-    <div className="mx-auto w-full max-w-7xl px-2 py-4 sm:px-6 lg:px-8">
-      <ExamWorkspace
-        sessionId={row.id}
-        title={row.title}
-        durationSeconds={Number(row.duration_seconds)}
-      />
-    </div>
-  );
+  return <ExamWorkspace context={experience.data} />;
 }
