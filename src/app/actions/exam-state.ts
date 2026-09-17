@@ -81,12 +81,7 @@ function splitResponse(value: unknown): { text: string | null; values: string[] 
   if (typeof value === "boolean") return { text: String(value), values: [] };
   if (Array.isArray(value)) return { text: null, values: value.map(String) };
   if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
-    if (entries.length === 1) {
-      const item = entries[0][1];
-      return Array.isArray(item) ? { text: null, values: item.map(String) } : { text: String(item ?? ""), values: [] };
-    }
-    return { text: null, values: entries.map(([, item]) => String(item ?? "")) };
+    return { text: JSON.stringify(value), values: [] };
   }
   return { text: null, values: [] };
 }
@@ -106,6 +101,23 @@ function joinResponse(text: unknown, values: unknown): unknown {
     }
   }
   return text;
+}
+
+function responseForQuestion(response: RuntimeResponse, question: QuestionDTO | undefined): unknown {
+  const decoded = joinResponse(response.response_text, response.response_values);
+  if (!question || (question.type !== "fill" && question.type !== "fill-multi")) return decoded;
+  if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) return decoded;
+
+  const blankKeys = (question.fillTemplate ?? [])
+    .filter((part) => part.blank)
+    .map((part, index) => part.key ?? `b${index}`);
+  if (!blankKeys.length) return decoded;
+
+  if (Array.isArray(decoded)) {
+    return Object.fromEntries(blankKeys.map((key, index) => [key, String(decoded[index] ?? "")]));
+  }
+  if (decoded === null || decoded === undefined) return {};
+  return { [blankKeys[0]]: String(decoded) };
 }
 
 function serializeAnswer(question: QuestionDTO | undefined): string {
@@ -176,12 +188,15 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const reconciledElapsed = Math.max(0, Number(state.elapsed_active_seconds ?? 0) + awaySeconds);
   if (remaining <= 0) {
     const supabase = await createSupabaseServerClient();
-    await supabase.from("exam_attempts").update({
+    const { error: expirationStateError } = await supabase.from("exam_attempts").update({
       remaining_seconds: 0,
       elapsed_active_seconds: reconciledElapsed,
       last_active_at: now,
       updated_at: now,
     }).eq("id", attemptId);
+    if (expirationStateError) {
+      return { status: "unavailable", error: "Time expired, but the attempt state could not be finalized. Retry without closing this page." };
+    }
     const submitted = await submitExamAction(session.id, "time-expired");
     return submitted.ok
       ? { status: "locked", score: submitted.summary?.accuracy ?? null }
@@ -209,10 +224,11 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   }).eq("id", attemptId);
   if (stateError) return { status: "unavailable", error: "Attempt state could not be saved." };
 
+  const questionById = new Map(paper.map((question) => [question.id, question]));
   const responses: Record<string, unknown> = {};
   const flagged: string[] = [];
   for (const response of savedResponses) {
-    responses[String(response.question_id)] = joinResponse(response.response_text, response.response_values);
+    responses[String(response.question_id)] = responseForQuestion(response, questionById.get(response.question_id));
     if (response.flagged) flagged.push(String(response.question_id));
   }
   return {
@@ -288,14 +304,6 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
   const { state, responses: savedResponses } = await stateForAttempt(attempt.id);
   if (!state) return { ok: false, error: "Attempt state is unavailable." };
 
-  const responses: Record<string, unknown> = {};
-  const timings: Record<string, number> = {};
-  const flaggedByQuestion = new Map<number, boolean>();
-  for (const response of savedResponses) {
-    responses[String(response.question_id)] = joinResponse(response.response_text, response.response_values);
-    timings[String(response.question_id)] = Number(response.seconds ?? 0);
-    flaggedByQuestion.set(Number(response.question_id), response.flagged);
-  }
   const admin = createSupabaseAdminClient();
   const { data: integrityRows } = await admin.from("exam_integrity_events").select("type,detail,at").eq("attempt_id", attempt.id).order("at");
   const events = ((integrityRows ?? []) as { type: string; detail: string; at: number }[]).map((event) => ({ type: event.type }));
@@ -304,6 +312,16 @@ export async function submitExamAction(sessionId: string, reason: string): Promi
     ? paperFromQuestionIds({ questions: payload.questions }, session, attempt.id, state.question_ids)
     : paperForStudent({ questions: payload.questions }, session, attempt.id);
   if (!paper.length) return { ok: false, error: "Attempt paper is unavailable." };
+
+  const questionById = new Map(paper.map((question) => [question.id, question]));
+  const responses: Record<string, unknown> = {};
+  const timings: Record<string, number> = {};
+  const flaggedByQuestion = new Map<number, boolean>();
+  for (const response of savedResponses) {
+    responses[String(response.question_id)] = responseForQuestion(response, questionById.get(response.question_id));
+    timings[String(response.question_id)] = Number(response.seconds ?? 0);
+    flaggedByQuestion.set(Number(response.question_id), response.flagged);
+  }
 
   const result = scoreAttempt(paper, {
     responses,
