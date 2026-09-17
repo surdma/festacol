@@ -22,7 +22,8 @@ The live examination workspace is the primary surface and must remove unrelated 
 - `saveProgressAction` persists progress; `submitExamAction` finalizes and grades the attempt.
 - `loadExamRuntimeSession` already resolves the real academic level, target subjects, term/year, instructions, integrity policy, randomization and camera requirement.
 - The current client UI underuses that metadata, presents only a single briefing card, renders the live paper as generic cards, and immediately stops the webcam stream after permission instead of maintaining a preview.
-- The canonical Question row currently carries response type, prompt/options/fill template, instruction, difficulty, domain and explanation. Production does not yet persist stimulus/media metadata or the fixture `requiredSelections` value.
+- The canonical Question row already persists `prompt`, `instruction`, `difficulty`, `domain`, response options/fill template and answer metadata. `src/lib/questions.ts` currently discards the safe presentation metadata before browser delivery.
+- Fixture `requiredSelections` is not persisted as a separate column, but the human-readable persisted instruction already states exact selection counts for those seeded items.
 
 ## Product / interaction contract
 
@@ -50,13 +51,18 @@ The live examination workspace is the primary surface and must remove unrelated 
 Use the canonical five response types end-to-end:
 
 - `single` — full-row RadioGroup selection;
-- `multi` — full-row Checkbox selection and persisted `requiredSelections` when supplied;
+- `multi` — full-row Checkbox selection and an exact-selection hint derived from the persisted instruction where configured;
 - `boolean` — large accessible true/false selection;
 - `fill` / `fill-multi` — integrated text inputs following the stored fill template.
 
 Safe question metadata (`instruction`, `domain`, `difficulty`) is delivered to the browser; explanations/correct answers remain server-only during an active exam.
 
-To meet the requested real media/passage behavior without hard-coded demos, add nullable persisted stimulus/media metadata to Question and seed representative production-backed examples. The runtime renders that metadata only when present.
+Rich content uses the already-persisted question content contract rather than a parallel presentation table:
+
+- a prompt may begin with a local Markdown image directive `![alt](/exam-assets/file.svg)`; the runtime extracts and renders only same-origin `/exam-assets/...` media and keeps the remaining prompt as the question text;
+- a comprehension prompt may use `PASSAGE:\n…\n\nQUESTION:\n…`; the runtime presents the passage and question as separate reading/answer regions while the stored prompt remains meaningful plain text if rendered elsewhere.
+
+Representative seeded questions use these conventions so image and passage states are production-data-backed rather than hard-coded component demos. No remote tracking image URL is accepted.
 
 ### Submission / results
 
@@ -68,26 +74,13 @@ To meet the requested real media/passage behavior without hard-coded demos, add 
 - Detailed correct-answer/explanation review is exposed only when the existing answer-reveal policy permits it; otherwise the UI states that review is not yet available.
 - Do not invent pass/fail thresholds, class ranking, result-release controls, marks weighting or proctoring AI.
 
-## Persistence extension
-
-Add a forward-only Prisma migration (never edit applied history) with nullable/default-safe Question columns:
-
-- `required_selections integer`
-- `stimulus_title text not null default ''`
-- `stimulus_body text not null default ''`
-- `media_url text not null default ''`
-- `media_alt text not null default ''`
-- `media_caption text not null default ''`
-
-Update `src/types/db.ts`, deterministic seed insertion and the server Question DTO loader. Existing rows remain valid without backfill.
-
 ## Implementation sequence
 
-1. **Experience contract/data** — expose full runtime session/candidate/access context, safe question metadata and persisted stimulus/media/selection metadata.
+1. **Experience contract/data** — expose full runtime session/candidate/access context and safe question presentation metadata; seed one persisted passage example and one same-origin diagram-backed example.
 2. **Pre-exam + camera** — build connected preparation flow and persistent camera lifecycle.
 3. **Live workstation** — rebuild question renderer, header, navigator, utility rail, save/connectivity states and responsive transformation.
 4. **Submission/results** — review, processing, success, score interpretation and policy-gated detailed review.
-5. **Validation/review** — exact-head CI, migration/seed/RPC/RLS gates, independent source review and real browser dogfood where tooling permits.
+5. **Validation/review** — exact-head fixture/runtime/Prisma/RPC/RLS/type/build/lint CI, independent source review and real browser dogfood where tooling permits.
 
 ## Acceptance criteria
 
@@ -96,13 +89,14 @@ Update `src/types/db.ts`, deterministic seed insertion and the server Question D
 - Required camera permission blocks Start and the stream remains active throughout a live attempt until submission/unmount.
 - Answers, flags, index and remaining time resume from persisted state.
 - Every canonical question type remains answerable and uses local shadcn controls rather than raw interactive reimplementations.
+- Seeded passage and diagram content reaches the live paper through the canonical question store, not component constants.
 - Submission cannot happen by a single accidental click and unresolved questions are directly reachable from review.
 - Timeout visibly transitions through finalization rather than abruptly replacing the workspace.
 - Result metrics come from persisted/scored attempt data; answer disclosure follows the existing reveal policy.
 - No unrelated dashboard/sidebar navigation appears during an active exam.
 - 360×640, 375×812, 768×1024 and 1280×800 layouts have no ordinary page-level horizontal overflow; camera never covers the answer region.
 - Keyboard focus, accessible labels/live status and reduced-motion behavior are preserved.
-- Schema/migration/seed changes pass clean Postgres migration + fixture + RPC/RLS integration gates in CI.
+- Existing canonical migration history is untouched; no schema change is required for this presentation redesign.
 
 ## Main regression risks
 
@@ -113,4 +107,4 @@ Update `src/types/db.ts`, deterministic seed insertion and the server Question D
 - treating offline state as if the server save succeeded;
 - breaking large-paper navigation or small laptop widths;
 - changing qualifier/retake authorization while changing presentation;
-- migration history drift or seed/runtime field mismatch.
+- malformed rich prompt content causing unsafe or broken media rendering.
