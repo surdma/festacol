@@ -1,282 +1,737 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CircleAlert,
+  Cloud,
+  CloudOff,
+  Flag,
+  ListChecks,
+  Menu,
+  RotateCcw,
+  Save,
+  Send,
+  TriangleAlert,
+  Wifi,
+} from "lucide-react";
+import { getExamExperienceContextAction, getExamResultAction } from "@/app/actions/exam-experience";
+import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
 import { getExamPaperAction, saveProgressAction, submitExamAction, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamStatusWatch } from "@/components/exam-status-watch";
+import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
+import { ExamPreflight, type ExamPreflightStage } from "@/components/exam/exam-preflight";
+import { ExamQuestionNavigator } from "@/components/exam/exam-question-navigator";
+import { ExamResults } from "@/components/exam/exam-results";
 import { QuestionCard, responseStatus } from "@/components/exam/question-card";
-import { FadeUp } from "@/components/motion";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { useExamTimer, useIntegrityRecorder } from "@/hooks/use-exam";
+import { useExamCamera } from "@/hooks/use-exam-camera";
 import { cn } from "@/lib/utils";
-import type { QuestionDTO } from "@/types/exam";
+import type { ExamExperienceContext, ExamResultSummary, QuestionDTO } from "@/types/exam";
 
 type Q = Omit<QuestionDTO, "answer">;
-type Phase = "briefing" | "loading" | "exam" | "review" | "submitted" | "locked";
+type Phase = "preflight" | "loading" | "exam" | "review" | "processing" | "submission-failed" | "submitted" | "locked";
+type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
+type PersistResult = { ok: true } | { ok: false; error: string };
 
-export function ExamWorkspace({ sessionId, title, durationSeconds }: { sessionId: string; title: string; durationSeconds: number }) {
+function formatDuration(seconds: number) {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function SyncIndicator({ status }: { status: SyncStatus }) {
+  const content = status === "saving"
+    ? { icon: <Spinner className="size-3.5" />, label: "Saving…" }
+    : status === "saved"
+      ? { icon: <Check className="size-3.5" />, label: "Saved" }
+      : status === "offline"
+        ? { icon: <CloudOff className="size-3.5" />, label: "Offline" }
+        : status === "error"
+          ? { icon: <TriangleAlert className="size-3.5" />, label: "Save issue" }
+          : { icon: <Cloud className="size-3.5" />, label: "Sync pending" };
+  return <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">{content.icon}{content.label}</span>;
+}
+
+function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" }) {
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-12 text-center" aria-live="polite">
+      <Spinner className="size-7" />
+      <h1 className="mt-5 text-xl font-semibold">{reason === "time-expired" ? "Time has ended" : "Submitting your examination"}</h1>
+      <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+        {reason === "time-expired" ? "Your saved responses are being finalized and submitted automatically." : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
+      </p>
+    </main>
+  );
+}
+
+function SubmissionFallback({ title, summary, onDashboard }: { title: string; summary: SubmitSummary; onDashboard: () => void }) {
+  return (
+    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center px-4 py-10 sm:px-6">
+      <div className="flex size-11 items-center justify-center rounded-full bg-success text-success-foreground"><Check className="size-5" aria-hidden="true" /></div>
+      <p className="mt-5 text-sm font-semibold text-muted-foreground">Submission complete</p>
+      <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">Your final responses were received. Detailed result information is temporarily unavailable, but the submission itself is complete.</p>
+      <dl className="mt-6 grid grid-cols-2 gap-3 border-y py-5 sm:grid-cols-4">
+        <div><dt className="text-xs text-muted-foreground">Score</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(summary.accuracy)}%</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Correct</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{summary.correctCount}/{summary.total}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Completion</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(summary.completion)}%</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Pace</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(summary.paceIndex)}</dd></div>
+      </dl>
+      <Button type="button" className="mt-6 self-start" onClick={onDashboard}>Return to dashboard</Button>
+    </main>
+  );
+}
+
+export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>("briefing");
+  const { session } = context;
+  const noAttemptRemaining = !context.access.activeAttemptId && context.access.usedAttempts >= context.access.allowedAttempts;
+  const [phase, setPhase] = useState<Phase>(context.access.activeAttemptId ? "loading" : noAttemptRemaining ? "locked" : "preflight");
+  const [preflightStage, setPreflightStage] = useState<ExamPreflightStage>("overview");
   const [paper, setPaper] = useState<Q[]>([]);
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, unknown>>({});
   const [flagged, setFlagged] = useState<string[]>([]);
-  const [remaining, setRemaining] = useState(durationSeconds);
-  const [cameraRequired, setCameraRequired] = useState(false);
-  const [cameraOk, setCameraOk] = useState(false);
-  const [summary, setSummary] = useState<SubmitSummary | null>(null);
-  const [lockedScore, setLockedScore] = useState<number | null>(null);
+  const [visited, setVisited] = useState<string[]>([]);
+  const [remaining, setRemaining] = useState(session.durationSeconds);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("saved");
+  const [online, setOnline] = useState(true);
+  const [cameraSupported, setCameraSupported] = useState(true);
+  const [fullscreenSupported, setFullscreenSupported] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [processingReason, setProcessingReason] = useState<"manual" | "time-expired">("manual");
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [resultSummary, setResultSummary] = useState<ExamResultSummary | null>(null);
+  const [fallbackSummary, setFallbackSummary] = useState<SubmitSummary | null>(null);
+  const [lockedScore, setLockedScore] = useState<number | null>(null);
+  const [timeNotice, setTimeNotice] = useState<string | null>(null);
+  const [dirtyTick, setDirtyTick] = useState(0);
+
+  const camera = useExamCamera(context.cameraRequired);
   const timingsRef = useRef<Record<string, number>>({});
-  const activeRef = useRef<{ qid: string; since: number }>({ qid: "", since: Date.now() });
   const elapsedRef = useRef(0);
-  const remainingRef = useRef(durationSeconds);
+  const activeTimingRef = useRef<{ qid: string; since: number }>({ qid: "", since: Date.now() });
+  const remainingRef = useRef(session.durationSeconds);
   const stateRef = useRef({ responses, index, flagged });
+  const dirtyVersionRef = useRef(0);
+  const lastSavedVersionRef = useRef(0);
+  const saveInFlightRef = useRef<Promise<PersistResult> | null>(null);
+  const submittingRef = useRef(false);
+  const bootstrappedRef = useRef(false);
+  const milestonesRef = useRef(new Set<number>());
+  const previousCameraStatusRef = useRef(camera.status);
   stateRef.current = { responses, index, flagged };
 
-  const persist = useCallback(async (rem: number) => {
-    const state = stateRef.current;
-    const result = await saveProgressAction(sessionId, {
-      responses: state.responses,
-      currentIndex: state.index,
-      questionTimings: timingsRef.current,
-      remainingSeconds: Math.max(0, Math.round(rem)),
-      elapsedActiveSeconds: elapsedRef.current,
-      flagged: state.flagged,
-    });
-    setSaveError(result.ok ? null : result.error);
-    return result;
-  }, [sessionId]);
-
-  const flushTiming = useCallback((qid: string) => {
+  const captureTiming = useCallback((nextQuestionId?: string) => {
     const now = Date.now();
-    if (activeRef.current.qid) {
-      const key = activeRef.current.qid;
-      timingsRef.current[key] = (timingsRef.current[key] ?? 0) + (now - activeRef.current.since) / 1000;
+    const current = activeTimingRef.current;
+    if (current.qid) {
+      timingsRef.current[current.qid] = (timingsRef.current[current.qid] ?? 0) + Math.max(0, (now - current.since) / 1000);
     }
-    activeRef.current = { qid, since: now };
+    activeTimingRef.current = { qid: nextQuestionId ?? current.qid, since: now };
   }, []);
 
-  function start() {
+  const markDirty = useCallback(() => {
+    dirtyVersionRef.current += 1;
+    setDirtyTick((value) => value + 1);
+    setSyncStatus(typeof navigator !== "undefined" && navigator.onLine ? "pending" : "offline");
+  }, []);
+
+  const persist = useCallback(async (nextRemaining: number, force = false): Promise<PersistResult> => {
+    if (!force && lastSavedVersionRef.current === dirtyVersionRef.current) return { ok: true };
+    if (saveInFlightRef.current) return saveInFlightRef.current;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setSyncStatus("offline");
+      return { ok: false, error: "You are offline. Keep this exam open while Festacol waits to reconnect." };
+    }
+
+    captureTiming();
+    const version = dirtyVersionRef.current;
+    const state = stateRef.current;
+    setSyncStatus("saving");
+    const operation = (async (): Promise<PersistResult> => {
+      try {
+        const result = await saveProgressAction(session.id, {
+          responses: state.responses,
+          currentIndex: state.index,
+          questionTimings: timingsRef.current,
+          remainingSeconds: Math.max(0, Math.round(nextRemaining)),
+          elapsedActiveSeconds: Math.max(0, elapsedRef.current),
+          flagged: state.flagged,
+        });
+        if (!result.ok) {
+          setSyncStatus("error");
+          setSaveError(result.error);
+          return result;
+        }
+        lastSavedVersionRef.current = version;
+        if (dirtyVersionRef.current === version) {
+          setSyncStatus("saved");
+          setSaveError(null);
+        } else {
+          setSyncStatus("pending");
+        }
+        return { ok: true };
+      } catch {
+        const message = "Your progress could not reach the examination service. Keep this exam open and retry when the connection returns.";
+        setSyncStatus(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
+        setSaveError(message);
+        return { ok: false, error: message };
+      }
+    })();
+    saveInFlightRef.current = operation;
+    const result = await operation;
+    saveInFlightRef.current = null;
+    return result;
+  }, [captureTiming, session.id]);
+
+  const fetchRichResult = useCallback(async () => {
+    try {
+      const result = await getExamResultAction(session.id);
+      if (!result.ok) return false;
+      setResultSummary(result.summary);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [session.id]);
+
+  const loadPaper = useCallback(async () => {
+    setBusy(true);
     setError(null);
-    setSaveError(null);
     setPhase("loading");
-    startTransition(async () => {
-      const result = await getExamPaperAction(sessionId);
+    try {
+      const result = await getExamPaperAction(session.id);
       if (result.status === "ready") {
+        const metrics = await getExamResumeMetricsAction(session.id);
         setPaper(result.paper);
         setIndex(result.currentIndex);
         setResponses(result.responses);
         setFlagged(result.flagged);
         setRemaining(result.remainingSeconds);
-        setCameraRequired(result.cameraRequired);
-        activeRef.current = { qid: String(result.paper[result.currentIndex]?.id ?? ""), since: Date.now() };
+        remainingRef.current = result.remainingSeconds;
+        if (metrics.ok) {
+          elapsedRef.current = metrics.elapsedActiveSeconds;
+          timingsRef.current = metrics.questionTimings;
+        } else {
+          setSaveError(metrics.error);
+        }
+        const currentId = String(result.paper[result.currentIndex]?.id ?? "");
+        const visitedIds = new Set([...Object.keys(result.responses), ...result.flagged, currentId].filter(Boolean));
+        setVisited([...visitedIds]);
+        activeTimingRef.current = { qid: currentId, since: Date.now() };
+        dirtyVersionRef.current = 0;
+        lastSavedVersionRef.current = 0;
+        setSyncStatus("saved");
         setPhase("exam");
         return;
       }
       if (result.status === "locked") {
         setLockedScore(result.score);
-        setPhase("locked");
+        const hasResult = await fetchRichResult();
+        setPhase(hasResult ? "submitted" : "locked");
         return;
       }
       setError(result.error);
-      setPhase("briefing");
-    });
-  }
+      setPhase(context.access.activeAttemptId ? "submission-failed" : "preflight");
+    } catch {
+      setError("The examination paper could not be prepared. Check your connection and retry.");
+      setPhase(context.access.activeAttemptId ? "submission-failed" : "preflight");
+    } finally {
+      setBusy(false);
+    }
+  }, [context.access.activeAttemptId, fetchRichResult, session.id]);
 
-  const doSubmit = useCallback((reason: string) => {
-    startTransition(async () => {
-      flushTiming("");
-      const saved = await persist(reason === "time-expired" ? 0 : remainingRef.current);
+  const submitFinal = useCallback(async (reason: "manual" | "time-expired") => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setProcessingReason(reason);
+    setProcessingError(null);
+    setError(null);
+    setPhase("processing");
+    captureTiming("");
+
+    try {
+      const saved = await persist(reason === "time-expired" ? 0 : remainingRef.current, true);
       if (!saved.ok) {
-        setError(saved.error);
-        setPhase("review");
+        setProcessingError(reason === "time-expired"
+          ? "Time has ended, but Festacol cannot reach the examination service. Reconnect and retry final submission without closing this page."
+          : saved.error);
+        setPhase("submission-failed");
         return;
       }
-      const result = await submitExamAction(sessionId, reason);
-      if (result.ok && result.summary) {
-        setSummary(result.summary);
-        setPhase("submitted");
-      } else {
-        setError(result.error ?? "Submit failed.");
-        setPhase("review");
+
+      const result = await submitExamAction(session.id, reason);
+      if (!result.ok || !result.summary) {
+        if (result.error?.toLocaleLowerCase("en").includes("already submitted")) {
+          const recovered = await fetchRichResult();
+          if (recovered) {
+            camera.stop();
+            setPhase("submitted");
+            return;
+          }
+        }
+        setProcessingError(result.error ?? "The final submission was not completed. Retry without closing this page.");
+        setPhase("submission-failed");
+        return;
       }
-    });
-  }, [sessionId, persist, flushTiming]);
+
+      setFallbackSummary(result.summary);
+      camera.stop();
+      await fetchRichResult();
+      setPhase("submitted");
+    } catch {
+      setProcessingError("The final submission could not reach the examination service. Keep this page open and retry when your connection is stable.");
+      setPhase("submission-failed");
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [camera, captureTiming, fetchRichResult, persist, session.id]);
 
   const timerActive = phase === "exam" || phase === "review";
-  const timer = useExamTimer(remaining, () => doSubmit("time-expired"), timerActive);
+  const timer = useExamTimer(remaining, () => void submitFinal("time-expired"), timerActive);
   remainingRef.current = timer.remaining;
-  useIntegrityRecorder(timerActive ? sessionId : "");
+  const { record: recordIntegrity } = useIntegrityRecorder(timerActive ? session.id : "");
+
   useEffect(() => {
-    if (timerActive) elapsedRef.current += 1;
-  }, [timer.remaining, timerActive]);
+    if (bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
+    if (context.access.activeAttemptId) {
+      void loadPaper();
+      return;
+    }
+    if (noAttemptRemaining) {
+      void (async () => {
+        const hasResult = await fetchRichResult();
+        setPhase(hasResult ? "submitted" : "locked");
+      })();
+    }
+  }, [context.access.activeAttemptId, fetchRichResult, loadPaper, noAttemptRemaining]);
+
+  useEffect(() => {
+    const syncCapabilities = () => {
+      setOnline(navigator.onLine);
+      setCameraSupported(Boolean(navigator.mediaDevices?.getUserMedia));
+      setFullscreenSupported(Boolean(document.fullscreenEnabled));
+    };
+    const onOnline = () => {
+      setOnline(true);
+      if (timerActive) void persist(remainingRef.current, true);
+    };
+    const onOffline = () => {
+      setOnline(false);
+      setSyncStatus("offline");
+    };
+    syncCapabilities();
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [persist, timerActive]);
 
   useEffect(() => {
     if (!timerActive) return;
-    const save = () => void persist(remainingRef.current);
-    const timerId = setInterval(save, 10000);
+    elapsedRef.current += 1;
+  }, [timer.remaining, timerActive]);
+
+  useEffect(() => {
+    if (!timerActive || dirtyTick === 0) return;
+    const timeout = window.setTimeout(() => void persist(remainingRef.current), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [dirtyTick, persist, timerActive]);
+
+  useEffect(() => {
+    if (!timerActive) return;
+    const save = () => void persist(remainingRef.current, true);
+    const interval = window.setInterval(save, 10_000);
     const onVisibilityChange = () => {
       if (document.hidden) save();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      clearInterval(timerId);
+      window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [timerActive, persist]);
+  }, [persist, timerActive]);
 
-  function go(nextIndex: number) {
-    flushTiming(String(paper[nextIndex]?.id ?? ""));
-    setIndex(nextIndex);
-  }
+  useEffect(() => {
+    if (!timerActive) return;
+    const threshold = [300, 600, 1800].find((value) => timer.remaining <= value && session.durationSeconds > value && !milestonesRef.current.has(value));
+    if (!threshold) return;
+    milestonesRef.current.add(threshold);
+    setTimeNotice(`${Math.round(threshold / 60)} minutes remaining`);
+    const timeout = window.setTimeout(() => setTimeNotice(null), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [session.durationSeconds, timer.remaining, timerActive]);
 
-  async function enableCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach((track) => track.stop());
-      setCameraOk(true);
-    } catch {
-      setError("Camera access was denied. Enable it to continue.");
+  useEffect(() => {
+    if (!timerActive || !context.cameraRequired) {
+      previousCameraStatusRef.current = camera.status;
+      return;
     }
+    const previous = previousCameraStatusRef.current;
+    if (previous === "active" && camera.status === "disconnected") recordIntegrity("camera-ended");
+    if (previous !== "active" && camera.status === "active") recordIntegrity("camera-restored");
+    previousCameraStatusRef.current = camera.status;
+  }, [camera.status, context.cameraRequired, recordIntegrity, timerActive]);
+
+  const goToQuestion = useCallback((nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= paper.length) return;
+    const nextId = String(paper[nextIndex]?.id ?? "");
+    captureTiming(nextId);
+    setIndex(nextIndex);
+    setVisited((current) => current.includes(nextId) ? current : [...current, nextId]);
+    markDirty();
+  }, [captureTiming, markDirty, paper]);
+
+  const currentQuestion = paper[index];
+  const currentQuestionId = String(currentQuestion?.id ?? "");
+  const answeredCount = useMemo(() => paper.filter((question) => responseStatus(question, responses[String(question.id)]) === "answered").length, [paper, responses]);
+  const openQuestions = useMemo(() => paper.map((question, itemIndex) => ({ question, itemIndex })).filter(({ question }) => responseStatus(question, responses[String(question.id)]) !== "answered"), [paper, responses]);
+  const flaggedSet = useMemo(() => new Set(flagged), [flagged]);
+
+  const updateResponse = useCallback((value: unknown) => {
+    if (!currentQuestionId) return;
+    setResponses((current) => ({ ...current, [currentQuestionId]: value }));
+    markDirty();
+  }, [currentQuestionId, markDirty]);
+
+  const toggleCurrentFlag = useCallback(() => {
+    if (!currentQuestionId) return;
+    setResponses((current) => Object.hasOwn(current, currentQuestionId) ? current : { ...current, [currentQuestionId]: "" });
+    setFlagged((current) => current.includes(currentQuestionId) ? current.filter((item) => item !== currentQuestionId) : [...current, currentQuestionId]);
+    markDirty();
+  }, [currentQuestionId, markDirty]);
+
+  const clearCurrentResponse = useCallback(() => {
+    if (!currentQuestionId) return;
+    setResponses((current) => ({ ...current, [currentQuestionId]: "" }));
+    markDirty();
+  }, [currentQuestionId, markDirty]);
+
+  async function startFromFinalCheckpoint() {
+    if (!online) {
+      setError("Reconnect to the internet before starting this examination.");
+      return;
+    }
+    if (context.cameraRequired && !camera.ready) {
+      setError("The required camera must be active before the examination can start.");
+      return;
+    }
+    if (session.integrityPolicy.fullscreenPrompt && document.fullscreenEnabled && !document.fullscreenElement) {
+      await document.documentElement.requestFullscreen().catch(() => undefined);
+    }
+    await loadPaper();
   }
 
-  if (phase === "briefing") {
+  if (phase === "preflight") {
     return (
-      <FadeUp className="mx-auto w-full max-w-2xl">
-        <Card>
-          <CardHeader><CardTitle>Before you begin — {title}</CardTitle>
-            <CardDescription>Read the rules, then start. Your timer begins immediately.</CardDescription></CardHeader>
-          <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
-            <p>Stay on this tab. Tab switches, window blurs and clipboard use are recorded as integrity events.</p>
-            {cameraRequired ? <p>Camera monitoring is required for this exam.</p> : null}
-            {error ? <p className="text-destructive" role="alert">{error}</p> : null}
-            <Button onClick={start} disabled={pending}>
-              {pending ? <><Spinner data-icon="inline-start" />Preparing paper…</> : "Start examination"}
-            </Button>
-          </CardContent>
-        </Card>
-      </FadeUp>
+      <ExamPreflight
+        context={context}
+        stage={preflightStage}
+        onStageChange={(next) => { setError(null); setPreflightStage(next); }}
+        camera={camera}
+        online={online}
+        cameraSupported={cameraSupported}
+        fullscreenSupported={fullscreenSupported}
+        onStart={() => void startFromFinalCheckpoint()}
+        starting={busy}
+        error={error}
+      />
     );
   }
 
   if (phase === "loading") {
     return (
-      <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground" role="status" aria-live="polite">
-        <Spinner />
-        Preparing your paper…
-      </div>
+      <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-12 text-center" role="status" aria-live="polite">
+        <Spinner className="size-7" />
+        <h1 className="mt-5 text-xl font-semibold">Preparing your examination</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">Festacol is allocating your paper and restoring any saved progress. Do not close this window.</p>
+      </main>
     );
+  }
+
+  if (phase === "processing") return <ProcessingScreen reason={processingReason} />;
+
+  if (phase === "submitted") {
+    if (resultSummary) {
+      return <ExamResults title={session.title} subjectNames={context.subjectNames} summary={resultSummary} onDashboard={() => router.push("/dashboard")} />;
+    }
+    if (fallbackSummary) {
+      return <SubmissionFallback title={session.title} summary={fallbackSummary} onDashboard={() => router.push("/dashboard")} />;
+    }
   }
 
   if (phase === "locked") {
     return (
-      <Card className="mx-auto max-w-xl"><CardHeader><CardTitle>Attempt complete</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3 text-sm">
-          {lockedScore !== null ? <p className="text-2xl font-semibold">{lockedScore}%</p> : null}
-          <p className="text-muted-foreground">A further attempt requires an explicit retake authorization from staff.</p>
-          <Button onClick={() => router.push("/dashboard/analytics")}>Open result & analytics</Button>
-        </CardContent></Card>
+      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-6">
+        <div className="flex size-11 items-center justify-center rounded-full bg-muted"><ListChecks className="size-5" aria-hidden="true" /></div>
+        <p className="mt-5 text-sm font-semibold text-muted-foreground">Attempt complete</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{session.title}</h1>
+        {lockedScore !== null ? <p className="mt-5 text-2xl font-semibold tabular-nums">Recorded score: {Math.round(lockedScore)}%</p> : null}
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">No further attempt is currently available. Staff must explicitly authorize a retake when the examination policy permits one.</p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button type="button" onClick={() => router.push("/dashboard")}>Return to dashboard</Button>
+          <Button type="button" variant="outline" onClick={() => void (async () => { if (await fetchRichResult()) setPhase("submitted"); })()}><RotateCcw data-icon="inline-start" />Refresh result</Button>
+        </div>
+      </main>
     );
   }
 
-  if (phase === "submitted" && summary) {
+  if (phase === "submission-failed") {
+    const failure = processingError ?? error ?? "The examination service could not complete the requested operation.";
     return (
-      <Card className="mx-auto max-w-xl"><CardHeader><CardTitle>Submitted</CardTitle>
-        <CardDescription>{summary.correctCount} of {summary.total} correct</CardDescription></CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm">
-          <p className="text-3xl font-semibold tabular-nums">{summary.accuracy}%</p>
-          <p className="text-muted-foreground">Integrity {summary.integrityScore}% · Pace {summary.paceIndex}</p>
-          {summary.placement ? <p>Placement: {summary.placement.assignedTrack} ({summary.placement.confidence}% confidence)</p> : null}
-          <Button onClick={() => router.push("/dashboard")}>Open dashboard</Button>
-        </CardContent></Card>
+      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-6">
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertTitle>{processingReason === "time-expired" && timer.remaining === 0 ? "Time ended, submission needs connection" : "Submission not completed"}</AlertTitle>
+          <AlertDescription>{failure}</AlertDescription>
+        </Alert>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void submitFinal(processingReason)}><RotateCcw data-icon="inline-start" />Retry submission</Button>
+          {processingReason === "manual" && timer.remaining > 0 ? <Button type="button" variant="outline" onClick={() => setPhase("review")}>Return to review</Button> : null}
+          {!context.access.activeAttemptId && phase === "submission-failed" && !paper.length ? <Button type="button" variant="outline" onClick={() => setPhase("preflight")}>Back to preparation</Button> : null}
+        </div>
+      </main>
     );
   }
 
-  const question = paper[index];
+  const timerTone = timer.remaining <= 300 ? "border-destructive/20 bg-destructive/10 text-destructive" : timer.remaining <= 600 ? "border-warning-border bg-warning text-warning-foreground" : "border-border bg-background text-foreground";
+  const navigator = (
+    <ExamQuestionNavigator
+      paper={paper}
+      currentIndex={index}
+      responses={responses}
+      flagged={flagged}
+      visited={visited}
+      onJump={(nextIndex) => { goToQuestion(nextIndex); setPhase("exam"); }}
+    />
+  );
+
   return (
-    <FadeUp className="mx-auto flex w-full max-w-7xl flex-col gap-4">
-      <ExamStatusWatch sessionId={sessionId} />
-      {cameraRequired && !cameraOk ? (
-        <Card><CardContent className="flex flex-col gap-2 p-6 text-sm">
-          <p className="font-medium">Camera required</p>
-          <p className="text-muted-foreground">Preview only — video is never recorded or sent.</p>
-          <Button onClick={enableCamera}>Enable camera</Button>
-        </CardContent></Card>
-      ) : null}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{title}</CardTitle>
-          <p className={cn("font-mono text-lg font-semibold tabular-nums", timer.isCritical ? "text-destructive" : timer.isWarning ? "text-foreground" : "text-muted-foreground")} aria-live="polite">{timer.format()}</p>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Progress value={Math.max(0, (timer.remaining / Math.max(1, remaining)) * 100)} />
-          {saveError ? <p className="text-sm text-destructive" role="alert">{saveError} Keep this exam open while Festacol retries automatically.</p> : null}
-          <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
-            {paper.map((item, itemIndex) => {
-              const status = responseStatus(item, responses[String(item.id)]);
-              const variant = status === "answered" ? "default" : status === "incomplete" ? "secondary" : "outline";
-              return (
-                <Button
-                  key={item.id}
-                  type="button"
-                  size="icon-sm"
-                  variant={variant}
-                  onClick={() => go(itemIndex)}
-                  aria-label={`Question ${itemIndex + 1}: ${status}`}
-                  className={cn(
-                    itemIndex === index && "ring-2 ring-ring",
-                    flagged.includes(String(item.id)) && "outline-2 outline-offset-1 outline-ring",
-                  )}
-                >
-                  {itemIndex + 1}
-                </Button>
-              );
-            })}
+    <div className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-5 lg:px-6">
+          <div className="min-w-0 flex-1">
+            <p className="hidden text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground sm:block">Festacol Assessment</p>
+            <p className="truncate text-sm font-semibold sm:text-base">{session.title}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{context.subjectNames.join(" · ") || context.candidate.classLabel}</p>
           </div>
-        </CardContent>
-      </Card>
-      {phase === "exam" && question ? (
-        <>
-          <QuestionCard q={question} index={index} total={paper.length} response={responses[String(question.id)]}
-            flagged={flagged.includes(String(question.id))}
-            onChange={(value) => setResponses((current) => ({ ...current, [String(question.id)]: value }))}
-            onToggleFlag={() => setFlagged((current) => current.includes(String(question.id)) ? current.filter((item) => item !== String(question.id)) : [...current, String(question.id)])} />
-          <div className="flex gap-2">
-            <Button variant="outline" disabled={index === 0} onClick={() => go(index - 1)}>Previous</Button>
-            {index < paper.length - 1
-              ? <Button onClick={() => go(index + 1)}>Next</Button>
-              : <Button variant="secondary" onClick={() => setPhase("review")}>Review</Button>}
+
+          <div className="hidden items-center gap-4 md:flex">
+            <SyncIndicator status={syncStatus} />
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Wifi className="size-3.5" aria-hidden="true" />{online ? "Connected" : "Offline"}</span>
           </div>
-        </>
+
+          <Sheet>
+            <SheetTrigger render={<Button type="button" variant="outline" size="icon-lg" className="xl:hidden" aria-label="Open question navigator" />}>
+              <Menu />
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[min(92vw,24rem)] sm:max-w-md">
+              <SheetHeader>
+                <SheetTitle>Questions</SheetTitle>
+                <SheetDescription>Jump to unanswered or flagged questions without losing your current response.</SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 px-4 pb-4">{navigator}</div>
+            </SheetContent>
+          </Sheet>
+
+          <div className={cn("shrink-0 rounded-lg border px-3 py-1.5 text-right", timerTone)}>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-75">Time left</p>
+            <p className="font-mono text-base font-semibold leading-5 tabular-nums sm:text-lg" aria-live="off">{timer.format()}</p>
+          </div>
+        </div>
+      </header>
+
+      {timeNotice ? (
+        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6" aria-live="polite">
+          <Alert><CircleAlert /><AlertTitle>{timeNotice}</AlertTitle><AlertDescription>Review your open questions and continue working. The timer remains active.</AlertDescription></Alert>
+        </div>
       ) : null}
+
+      <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6"><ExamStatusWatch sessionId={session.id} /></div>
+
+      {context.cameraRequired ? (
+        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6 xl:hidden">
+          <ExamCameraPanel
+            required
+            compact
+            status={camera.status}
+            stream={camera.stream}
+            devices={camera.devices}
+            deviceId={camera.deviceId}
+            error={camera.error}
+            onStart={() => void camera.start()}
+            onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
+          />
+        </div>
+      ) : null}
+
+      {!online || saveError || (context.cameraRequired && camera.status !== "active") ? (
+        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-6">
+          <Alert variant={!online || saveError ? "destructive" : "default"}>
+            {!online ? <CloudOff /> : context.cameraRequired && camera.status !== "active" ? <TriangleAlert /> : <Save />}
+            <AlertTitle>{!online ? "Connection interrupted" : saveError ? "Progress needs to sync" : "Camera attention required"}</AlertTitle>
+            <AlertDescription>
+              {!online ? "Keep this page open. Your current on-screen answers remain in place and Festacol will retry when the connection returns." : saveError ?? "The required camera is not active. Reconnect it while continuing to keep your exam responses on screen."}
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+
+      {phase === "exam" ? (
+        <div className="mx-auto grid w-full max-w-[1600px] xl:grid-cols-[minmax(0,1fr)_19rem]">
+          <main className="min-w-0 px-3 pb-28 pt-5 sm:px-5 sm:pt-7 lg:px-8 xl:px-10">
+            {currentQuestion ? (
+              <div className="mx-auto w-full max-w-5xl">
+                <QuestionCard q={currentQuestion} index={index} total={paper.length} response={responses[currentQuestionId]} onChange={updateResponse} />
+              </div>
+            ) : (
+              <Alert variant="destructive"><AlertTitle>Question unavailable</AlertTitle><AlertDescription>This question could not be rendered. Use the navigator to move to another question.</AlertDescription></Alert>
+            )}
+          </main>
+
+          <aside className="hidden min-h-0 border-l xl:block" aria-label="Examination utilities">
+            <div className="sticky top-16 flex max-h-[calc(100dvh-4rem)] flex-col gap-4 overflow-hidden p-4">
+              {context.cameraRequired ? (
+                <ExamCameraPanel
+                  required
+                  status={camera.status}
+                  stream={camera.stream}
+                  devices={camera.devices}
+                  deviceId={camera.deviceId}
+                  error={camera.error}
+                  onStart={() => void camera.start()}
+                  onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
+                />
+              ) : null}
+              <div className="min-h-0 flex-1">{navigator}</div>
+              <Button type="button" variant="outline" size="lg" onClick={() => setPhase("review")}>
+                <ListChecks data-icon="inline-start" />Review & submit
+              </Button>
+            </div>
+          </aside>
+
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:px-5 xl:right-[19rem]">
+            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="lg" disabled={index === 0} onClick={() => goToQuestion(index - 1)}>
+                <ArrowLeft data-icon="inline-start" /><span className="hidden sm:inline">Previous</span>
+              </Button>
+              <Button type="button" variant={flaggedSet.has(currentQuestionId) ? "secondary" : "outline"} size="lg" onClick={toggleCurrentFlag} aria-pressed={flaggedSet.has(currentQuestionId)}>
+                <Flag data-icon="inline-start" />{flaggedSet.has(currentQuestionId) ? "Flagged" : "Flag"}
+              </Button>
+              <Button type="button" variant="ghost" size="lg" disabled={!currentQuestion || responseStatus(currentQuestion, responses[currentQuestionId]) === "unanswered"} onClick={clearCurrentResponse}>Clear</Button>
+              <div className="ml-auto flex gap-2">
+                {index < paper.length - 1 ? (
+                  <Button type="button" size="lg" onClick={() => goToQuestion(index + 1)}>Next<ArrowRight data-icon="inline-end" /></Button>
+                ) : (
+                  <Button type="button" size="lg" onClick={() => setPhase("review")}><ListChecks data-icon="inline-start" />Review answers</Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {phase === "review" ? (
-        <Card><CardHeader><CardTitle>Review & submit</CardTitle>
-          <CardDescription>{paper.filter((item) => responseStatus(item, responses[String(item.id)]) === "answered").length} of {paper.length} answered</CardDescription></CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-            <Button variant="outline" onClick={() => setPhase("exam")}>Back to questions</Button>
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button disabled={pending} />}>
-                {pending ? <><Spinner data-icon="inline-start" />Submitting…</> : "Submit examination"}
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader><AlertDialogTitle>Submit?</AlertDialogTitle>
-                  <AlertDialogDescription>This cannot be undone. Unanswered questions score zero.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => doSubmit("manual")}>Submit</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent></Card>
+        <main className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
+          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+            <section aria-labelledby="submission-review-title">
+              <p className="text-sm font-semibold text-muted-foreground">Submission review</p>
+              <h1 id="submission-review-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Check unresolved questions before you submit.</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Submission is final. Use the lists below to jump directly to questions that still need attention, or return to the exam and continue normally.</p>
+
+              <div className="mt-7 grid grid-cols-3 gap-4 border-y py-5">
+                <div><p className="text-xs text-muted-foreground">Answered</p><p className="mt-1 text-xl font-semibold tabular-nums">{answeredCount}/{paper.length}</p></div>
+                <div><p className="text-xs text-muted-foreground">Open</p><p className="mt-1 text-xl font-semibold tabular-nums">{openQuestions.length}</p></div>
+                <div><p className="text-xs text-muted-foreground">Flagged</p><p className="mt-1 text-xl font-semibold tabular-nums">{flagged.length}</p></div>
+              </div>
+
+              <section className="mt-7" aria-labelledby="unanswered-title">
+                <h2 id="unanswered-title" className="text-sm font-semibold">Unanswered or incomplete</h2>
+                {openQuestions.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {openQuestions.map(({ question, itemIndex }) => <Button key={question.id} type="button" variant="outline" size="sm" onClick={() => { goToQuestion(itemIndex); setPhase("exam"); }}>Question {itemIndex + 1}</Button>)}
+                  </div>
+                ) : <p className="mt-2 text-sm text-muted-foreground">Every question has a complete response.</p>}
+              </section>
+
+              <section className="mt-6" aria-labelledby="flagged-title">
+                <h2 id="flagged-title" className="text-sm font-semibold">Flagged for review</h2>
+                {flagged.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {paper.map((question, itemIndex) => flaggedSet.has(String(question.id)) ? <Button key={question.id} type="button" variant="outline" size="sm" onClick={() => { goToQuestion(itemIndex); setPhase("exam"); }}><Flag data-icon="inline-start" />Question {itemIndex + 1}</Button> : null)}
+                  </div>
+                ) : <p className="mt-2 text-sm text-muted-foreground">No questions are currently flagged.</p>}
+              </section>
+
+              <div className="mt-8 flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <Button type="button" variant="outline" size="lg" onClick={() => setPhase("exam")}><ArrowLeft data-icon="inline-start" />Return to Exam</Button>
+                <AlertDialog>
+                  <AlertDialogTrigger render={<Button type="button" size="lg" />}>
+                    <Send data-icon="inline-start" />Submit Final Answers
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Submit your final answers?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action is final. {openQuestions.length ? `${openQuestions.length} question${openQuestions.length === 1 ? " is" : "s are"} still unanswered or incomplete. ` : ""}You have {formatDuration(timer.remaining)} remaining.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => void submitFinal("manual")}>Submit Final Answers</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </section>
+
+            <aside className="rounded-xl border bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Before submitting</p>
+              <ul className="mt-3 flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
+                <li>Confirm every response you want marked is visible in the navigator.</li>
+                <li>Flagging a question does not remove its answer.</li>
+                <li>Unanswered questions remain unanswered after final submission.</li>
+                <li>The timer continues while you review.</li>
+              </ul>
+            </aside>
+          </div>
+        </main>
       ) : null}
-    </FadeUp>
+    </div>
   );
 }
