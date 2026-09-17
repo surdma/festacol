@@ -18,7 +18,7 @@ import {
   TriangleAlert,
   Wifi,
 } from "lucide-react";
-import { getExamExperienceContextAction, getExamResultAction } from "@/app/actions/exam-experience";
+import { getExamResultAction } from "@/app/actions/exam-experience";
 import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
 import { getExamPaperAction, saveProgressAction, submitExamAction, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamStatusWatch } from "@/components/exam-status-watch";
@@ -40,7 +40,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
@@ -56,7 +55,7 @@ import { cn } from "@/lib/utils";
 import type { ExamExperienceContext, ExamResultSummary, QuestionDTO } from "@/types/exam";
 
 type Q = Omit<QuestionDTO, "answer">;
-type Phase = "preflight" | "loading" | "exam" | "review" | "processing" | "submission-failed" | "submitted" | "locked";
+type Phase = "preflight" | "loading" | "load-failed" | "exam" | "review" | "processing" | "submission-failed" | "submitted" | "locked";
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
 type PersistResult = { ok: true } | { ok: false; error: string };
 
@@ -115,8 +114,11 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const router = useRouter();
   const { session } = context;
   const noAttemptRemaining = !context.access.activeAttemptId && context.access.usedAttempts >= context.access.allowedAttempts;
-  const [phase, setPhase] = useState<Phase>(context.access.activeAttemptId ? "loading" : noAttemptRemaining ? "locked" : "preflight");
-  const [preflightStage, setPreflightStage] = useState<ExamPreflightStage>("overview");
+  const monitoredResume = Boolean(context.access.activeAttemptId && context.cameraRequired);
+  const [phase, setPhase] = useState<Phase>(
+    monitoredResume ? "preflight" : context.access.activeAttemptId ? "loading" : noAttemptRemaining ? "locked" : "preflight",
+  );
+  const [preflightStage, setPreflightStage] = useState<ExamPreflightStage>(monitoredResume ? "readiness" : "overview");
   const [paper, setPaper] = useState<Q[]>([]);
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, unknown>>({});
@@ -169,8 +171,13 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   }, []);
 
   const persist = useCallback(async (nextRemaining: number, force = false): Promise<PersistResult> => {
+    const pendingSave = saveInFlightRef.current;
+    if (pendingSave) {
+      const pendingResult = await pendingSave;
+      if (!pendingResult.ok) return pendingResult;
+      if (!force && lastSavedVersionRef.current === dirtyVersionRef.current) return pendingResult;
+    }
     if (!force && lastSavedVersionRef.current === dirtyVersionRef.current) return { ok: true };
-    if (saveInFlightRef.current) return saveInFlightRef.current;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setSyncStatus("offline");
       return { ok: false, error: "You are offline. Keep this exam open while Festacol waits to reconnect." };
@@ -211,9 +218,11 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
       }
     })();
     saveInFlightRef.current = operation;
-    const result = await operation;
-    saveInFlightRef.current = null;
-    return result;
+    try {
+      return await operation;
+    } finally {
+      if (saveInFlightRef.current === operation) saveInFlightRef.current = null;
+    }
   }, [captureTiming, session.id]);
 
   const fetchRichResult = useCallback(async () => {
@@ -235,9 +244,12 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
       const result = await getExamPaperAction(session.id);
       if (result.status === "ready") {
         const metrics = await getExamResumeMetricsAction(session.id);
+        const currentId = String(result.paper[result.currentIndex]?.id ?? "");
+        const hydratedResponses = { ...result.responses };
+        if (currentId && !Object.hasOwn(hydratedResponses, currentId)) hydratedResponses[currentId] = "";
         setPaper(result.paper);
         setIndex(result.currentIndex);
-        setResponses(result.responses);
+        setResponses(hydratedResponses);
         setFlagged(result.flagged);
         setRemaining(result.remainingSeconds);
         remainingRef.current = result.remainingSeconds;
@@ -247,8 +259,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         } else {
           setSaveError(metrics.error);
         }
-        const currentId = String(result.paper[result.currentIndex]?.id ?? "");
-        const visitedIds = new Set([...Object.keys(result.responses), ...result.flagged, currentId].filter(Boolean));
+        const visitedIds = new Set([...Object.keys(hydratedResponses), ...result.flagged, currentId].filter(Boolean));
         setVisited([...visitedIds]);
         activeTimingRef.current = { qid: currentId, since: Date.now() };
         dirtyVersionRef.current = 0;
@@ -264,14 +275,14 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         return;
       }
       setError(result.error);
-      setPhase(context.access.activeAttemptId ? "submission-failed" : "preflight");
+      setPhase("load-failed");
     } catch {
       setError("The examination paper could not be prepared. Check your connection and retry.");
-      setPhase(context.access.activeAttemptId ? "submission-failed" : "preflight");
+      setPhase("load-failed");
     } finally {
       setBusy(false);
     }
-  }, [context.access.activeAttemptId, fetchRichResult, session.id]);
+  }, [fetchRichResult, session.id]);
 
   const submitFinal = useCallback(async (reason: "manual" | "time-expired") => {
     if (submittingRef.current) return;
@@ -322,12 +333,15 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const timerActive = phase === "exam" || phase === "review";
   const timer = useExamTimer(remaining, () => void submitFinal("time-expired"), timerActive);
   remainingRef.current = timer.remaining;
-  const { record: recordIntegrity } = useIntegrityRecorder(timerActive ? session.id : "");
+  const { record: recordIntegrity } = useIntegrityRecorder(timerActive ? session.id : "", {
+    focusMonitoring: session.integrityPolicy.focusMonitoring,
+    clipboardGuard: session.integrityPolicy.clipboardGuard,
+  });
 
   useEffect(() => {
     if (bootstrappedRef.current) return;
     bootstrappedRef.current = true;
-    if (context.access.activeAttemptId) {
+    if (context.access.activeAttemptId && !context.cameraRequired) {
       void loadPaper();
       return;
     }
@@ -337,7 +351,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         setPhase(hasResult ? "submitted" : "locked");
       })();
     }
-  }, [context.access.activeAttemptId, fetchRichResult, loadPaper, noAttemptRemaining]);
+  }, [context.access.activeAttemptId, context.cameraRequired, fetchRichResult, loadPaper, noAttemptRemaining]);
 
   useEffect(() => {
     const syncCapabilities = () => {
@@ -410,12 +424,19 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
 
   const goToQuestion = useCallback((nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= paper.length) return;
+    const currentId = String(paper[index]?.id ?? "");
     const nextId = String(paper[nextIndex]?.id ?? "");
     captureTiming(nextId);
+    setResponses((current) => {
+      let next = current;
+      if (currentId && !Object.hasOwn(next, currentId)) next = { ...next, [currentId]: "" };
+      if (nextId && !Object.hasOwn(next, nextId)) next = { ...next, [nextId]: "" };
+      return next;
+    });
     setIndex(nextIndex);
     setVisited((current) => current.includes(nextId) ? current : [...current, nextId]);
     markDirty();
-  }, [captureTiming, markDirty, paper]);
+  }, [captureTiming, index, markDirty, paper]);
 
   const currentQuestion = paper[index];
   const currentQuestionId = String(currentQuestion?.id ?? "");
@@ -484,6 +505,37 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     );
   }
 
+  if (phase === "load-failed") {
+    return (
+      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center gap-5 px-4 py-10 sm:px-6">
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertTitle>Examination could not be restored</AlertTitle>
+          <AlertDescription>{error ?? "The paper could not be loaded. Your existing attempt has not been submitted."}</AlertDescription>
+        </Alert>
+        {context.cameraRequired ? (
+          <ExamCameraPanel
+            required
+            compact
+            status={camera.status}
+            stream={camera.stream}
+            devices={camera.devices}
+            deviceId={camera.deviceId}
+            error={camera.error}
+            onStart={() => void camera.start()}
+            onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
+          />
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void loadPaper()} disabled={!online || (context.cameraRequired && !camera.ready)}>
+            <RotateCcw data-icon="inline-start" />Retry paper restore
+          </Button>
+          <Button type="button" variant="outline" onClick={() => router.push("/dashboard")}>Return to dashboard</Button>
+        </div>
+      </main>
+    );
+  }
+
   if (phase === "processing") return <ProcessingScreen reason={processingReason} />;
 
   if (phase === "submitted") {
@@ -523,7 +575,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         <div className="mt-5 flex flex-wrap gap-2">
           <Button type="button" onClick={() => void submitFinal(processingReason)}><RotateCcw data-icon="inline-start" />Retry submission</Button>
           {processingReason === "manual" && timer.remaining > 0 ? <Button type="button" variant="outline" onClick={() => setPhase("review")}>Return to review</Button> : null}
-          {!context.access.activeAttemptId && phase === "submission-failed" && !paper.length ? <Button type="button" variant="outline" onClick={() => setPhase("preflight")}>Back to preparation</Button> : null}
         </div>
       </main>
     );
