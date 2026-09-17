@@ -1,195 +1,132 @@
 # Phase 02 — Ready to Write
 
 Date: 2026-09-17
-Status: PLANNED — seven-option design selection gate
+Status: PLANNED — seven-option wireframe selection gate
 Target PR: #18
 Planning owner: `festacol-planner`
 Production owner after selection: `festacol-frontend-engineer`
 
 ## Product decision
 
-Phase 02 replaces the previous three-phase sequence:
+Phase 02 combines the previous Academic Eligibility & Placement, Briefing & Instructions, and Device Readiness & Start stages into one student-facing phase: **Ready to Write**.
 
-- Academic Eligibility & Placement;
-- Briefing & Instructions;
-- Device Readiness & Start.
+The candidate came to write an examination. The default experience must therefore be one coherent pre-examination surface with one obvious outcome: **Start Examination** or **Resume Examination**.
 
-They are now one student-facing phase: **Ready to Write**.
-
-The reason is product simplicity. A candidate came to Festacol to write an examination. The interface should not make them feel that they are completing an administrative workflow before they can begin.
-
-The default experience should therefore be **one coherent pre-examination surface with one obvious outcome: Start Examination** (or Resume Examination for an active attempt).
-
-The system may still perform multiple checks internally, but those checks should not become multiple screens, rails, stages, or technical explanations for the student.
+The system may still perform several checks internally, but the student should not experience a preparation wizard, progress rail, diagnostics dashboard, or sequence of technical screens.
 
 ## Student goal
 
-After identity is confirmed, the candidate should only need to understand:
+After Phase 01 identity, the candidate should understand only:
 
-1. **This is my examination.**
-2. **These are the few things I need to know before I begin.**
-3. **I am ready to start.**
+1. this is my examination;
+2. these are the few things I need to know before I begin;
+3. I am ready to start.
 
-Everything else should be automatic or shown only when it actually needs the candidate's attention.
+Everything else should be automatic or progressively disclosed only when the candidate genuinely needs to act.
 
 ## Verified current execution path
 
-The current implementation spreads this operation across:
+Current production behavior is distributed across:
 
 `/exam?token=…`
 → `my_exam_access`
-→ `StudentWizard` when academic information is required
+→ `StudentWizard` only when academic information is required
 → `ExamWorkspace`
-→ `ExamPreflight` stages (`overview`, `instructions`, `readiness`, `final`)
+→ `ExamPreflight`
 → Start/Resume
 → `allocate_my_exam_attempt` / paper loading.
 
-Relevant current surfaces:
+Relevant surfaces remain:
 
-- `src/app/(exam)/exam/page.tsx` — validates the link, authenticates the student and uses `my_exam_access` before the workspace.
-- `src/components/exam/student-wizard.tsx` — collects missing level/class information and SS1 placement consent.
-- `src/app/actions/exam-onboarding.ts` — owns class/placement persistence and re-checks examination access.
-- `src/components/exam/exam-preflight.tsx` — currently separates overview, instructions, device check and final confirmation into four stages.
-- `src/components/exam/exam-workspace.tsx` — owns online/camera/fullscreen capability state and the eventual start/resume action.
-- `src/types/exam.ts` — provides the authenticated examination context used by the pre-exam experience.
+- `src/app/(exam)/exam/page.tsx` — examination link, student access decision and workspace entry;
+- `src/components/exam/student-wizard.tsx` — missing class / SS1 placement interaction;
+- `src/app/actions/exam-onboarding.ts` — class/placement persistence and access re-check;
+- `src/components/exam/exam-preflight.tsx` — current overview/instructions/readiness/final preparation UI;
+- `src/components/exam/exam-workspace.tsx` — connectivity, camera/fullscreen capability state and eventual start/resume behavior;
+- `src/types/exam.ts` — authenticated examination context.
 
-The new design changes the **presentation and interaction model**, not these server-owned authorities.
+The Phase 02 redesign changes presentation and interaction, not the server-owned authorities above.
 
-## Core design principle: complexity stays behind the interface
+## Core interaction principle
+
+**Complexity stays behind the interface.**
 
 ### Do automatically
 
-Where the existing data already answers a question, do not ask the student to answer it again.
+Do not ask for information the system already knows.
 
-Examples:
-
-- if the candidate already has a valid academic record, do not show a class-selection step;
-- if the examination does not require a camera, do not show camera setup;
-- if fullscreen is not required, do not explain fullscreen capability;
-- do not mention microphone access because the current examination contract does not require it;
-- do not display browser/system diagnostic terminology when the condition is healthy;
-- do not make the candidate click through an overview simply to reach instructions and then another screen to start.
+- Existing valid class → show it briefly; do not ask again.
+- Camera not required → no camera setup UI.
+- Healthy connection/device → no diagnostics table.
+- Fullscreen not configured → no fullscreen explanation.
+- Microphone is not part of the current contract → do not mention it.
+- Long technical explanations should never sit between the candidate and Start.
 
 ### Surface only what needs attention
 
-The candidate should be interrupted only for a real decision or blocker, such as:
+Interrupt the candidate only for a real decision or blocker:
 
-- their academic class is missing and must be confirmed;
-- they are an incoming SS1 candidate who genuinely needs the placement examination;
-- the examination requires camera permission and it is not ready;
-- the device is offline;
-- examination access is genuinely unavailable;
-- their placement attempt has already been used and staff action is required.
+- class information is genuinely missing;
+- qualifier + no class + SS1 requires the known-class vs placement choice;
+- camera permission is required and not ready;
+- connection is unavailable;
+- access is genuinely denied;
+- the placement attempt is consumed and staff action is required.
 
-When there is no blocker, the candidate should see a calm **Ready to write** state rather than a checklist of internal validations.
+Those conditions adapt the same Phase 02 surface. They do not create extra numbered phases.
 
-## Academic information inside Phase 02
+## Examination information before Start
 
-Academic handling remains conditional rather than becoming a permanent first section.
-
-### Candidate already has the required academic record
-
-No academic form is shown.
-
-The interface may display a concise confirmation such as:
-
-**Class: SS2 Science A**
-
-but it should not ask the candidate to reconfirm information the system already accepts.
-
-### Candidate has no class and must establish it
-
-Show one compact academic question in the same Ready to Write experience:
-
-- choose academic level;
-- choose the actual class for that level;
-- save the initial class record;
-- continue directly into the same Ready to Write surface when access is valid.
-
-Do not call this onboarding, setup, configuration, eligibility processing, or a wizard.
-
-### Incoming SS1 qualifier candidate
-
-Only when the verified qualifier + no-class + SS1 condition applies, show the minimum necessary choice:
-
-- **I already know my class** — choose the real SS1 class; the candidate does not write the placement examination; or
-- **I need placement** — continue to the placement examination under the existing one-attempt rule.
-
-This decision may use a focused inline panel or dialog, but it must remain part of Phase 02 rather than becoming another numbered phase.
-
-### Actual access denial
-
-A candidate who is genuinely not assigned or not qualified should receive a direct student-friendly explanation and recovery/help route. They should not be sent through irrelevant class/setup screens merely because access failed.
-
-The later production implementation should preserve `my_exam_access` as authority while presenting its outcome more clearly.
-
-## Examination information shown before Start
-
-Keep the main surface concise. It may show:
+Keep only useful facts visible:
 
 - examination title;
 - subject(s) or examination mode;
 - candidate name and useful class label;
 - duration;
 - question count;
-- whether this is a new attempt or a resume;
-- examination availability where useful.
+- new attempt vs resume;
+- availability when useful.
 
-Do not turn this into a dense metadata dashboard.
+Do not turn Phase 02 into a metadata dashboard.
 
-## Instructions: essentials, not a handbook
+## Instructions
 
-The candidate should not have to read a separate instruction screen.
+Do not create a separate instructions screen. The default surface should communicate only the essential truths:
 
-Show the few rules needed to write confidently, for example:
+- move between questions and flag items for review;
+- responses save automatically while the examination is active;
+- unresolved questions can be reviewed before final submission;
+- when time reaches zero, saved responses are finalized;
+- show only integrity/camera guidance that is actually configured.
 
-- answer questions and move between them freely;
-- responses save automatically;
-- flagged or unanswered questions can be reviewed before final submission;
-- when time reaches zero, saved responses are finalized automatically;
-- only show integrity/camera guidance that is actually configured for this examination.
+School-authored instructions remain available through progressive disclosure on the same surface.
 
-School-authored instructions remain available, but should be presented without overwhelming the primary Start action. Long instructions may use progressive disclosure on the same surface.
+## Device readiness
 
-## Device readiness: silent when healthy
+Readiness is silent when healthy.
 
-Device readiness should behave as an automatic background check.
+Healthy state may be represented by a restrained phrase or mark such as **Ready**, **Device ready**, or **Ready to write**.
 
-### Healthy state
+Only a failed requirement expands into a direct action such as:
 
-Use a small calm status such as:
+- Reconnect to continue;
+- Allow camera to start this examination;
+- This browser cannot use the required camera.
 
-**Device ready**
+If camera is required, its permission/preview control must stay inside the same Phase 02 surface.
 
-or individual concise confirmations only where useful.
+## Start / Resume
 
-Do not show a technical capabilities table when everything is working.
-
-### Blocked state
-
-Only the failed requirement expands into an action:
-
-- **Reconnect to continue**;
-- **Allow camera to start this examination**;
-- **This browser cannot use the required camera**;
-- a configured fullscreen limitation if it genuinely prevents the expected experience.
-
-If a camera is required, show the real camera permission/preview control inline on the same Phase 02 surface. If it is not required, the camera section should not appear.
-
-## Start / Resume behavior
-
-The primary action is the dominant action on the surface:
+The dominant action is:
 
 - **Start Examination** for a new attempt;
-- **Resume Examination** when an attempt already exists.
+- **Resume Examination** for an existing active attempt.
 
-The button must remain disabled only for genuine blockers.
-
-Starting or resuming must continue to use the existing attempt authority; the redesign must not allocate an attempt merely because the candidate opened Phase 02.
+Opening Phase 02 must not allocate an attempt. Attempt allocation remains server-owned and occurs only through the existing start/resume authority.
 
 ## Student-facing language
 
-Prefer simple examination language:
+Prefer:
 
 - Ready to write
 - Your examination
@@ -201,104 +138,109 @@ Prefer simple examination language:
 - Resume Examination
 - Need help?
 
-Avoid student-facing terms such as:
+Avoid prominent student-facing terms such as onboarding, eligibility processing, preflight, checkpoint, configuration, system validation, capability detection, workflow, or Step 1/2/3/4.
 
-- eligibility processing;
-- onboarding;
-- preflight;
-- checkpoint;
-- configuration;
-- environment validation;
-- capability detection;
-- system readiness pipeline;
-- academic workflow;
-- Step 1 / Step 2 / Step 3 / Step 4.
+## Wireframe design direction
 
-Technical terminology may remain in code and internal documentation where necessary; it should not become the candidate's experience.
+The selection artifact is intentionally a **wireframe study**, not a polished interface mockup.
 
-## Required design exploration
+It should still demonstrate strong product design through composition, hierarchy, spatial metaphor, and interaction placement. The low-fidelity constraint does **not** justify generic SaaS layouts.
 
-Create exactly one Phase 02 selection board:
+### Anti-generic constraints
 
-`docs/design/exam/phase-02-ready-to-write/brainstorm.html`
+The seven concepts must not reduce to:
 
-It must contain exactly seven materially different **single-surface** concepts A–G for the same Ready to Write operation.
+- repeated cards;
+- dashboard grids;
+- a standard left-content/right-sidebar pattern repeated seven times;
+- stacked rounded panels;
+- status pills used as the main visual system;
+- cosmetic variants of the same information architecture;
+- different colors around the same layout.
 
-Every concept must demonstrate the happy path without multi-screen navigation. Across the board, the concepts should also show how the same surface adapts when:
+Each concept must have a recognizably different spatial grammar before any labels are read.
 
-- class information is missing;
-- SS1 placement is genuinely required;
-- camera permission is required;
-- connection is unavailable;
-- an attempt is being resumed.
+## Redesigned seven concept territories
 
-The concepts may use inline disclosure, dialog/sheet treatment, or expandable details for exceptional cases, but must not recreate a four-step wizard inside one phase.
+The current board explores seven deliberately different wireframe metaphors:
 
-## Seven concept territories
+A. **Examination Threshold** — preparation and the paper are separated by a literal visual threshold. The Start action bridges the boundary.
 
-The board should explore genuinely different interaction/composition models, such as:
+B. **Folded Examination Booklet** — a two-page printed booklet with a center fold, inside-cover rules and a perforated Start strip.
 
-A. **Exam Cover Sheet** — a formal paper-cover metaphor with essentials, concise instructions, readiness confirmation and Start on one sheet.
+C. **Candidate Desk Plan** — a top-down desk composition using an examination sheet, candidate slip, readiness stamp and Start tab.
 
-B. **Start Desk** — examination briefing on one side and one compact candidate/readiness action area on the other.
+D. **Start Instrument** — a radial examination instrument where the Start action is the visual center and paper/readiness facts orbit it.
 
-C. **One Focus** — extremely minimal centered composition; details progressively disclose beneath a dominant Start action.
+E. **Invigilator Board** — an exam-hall board with pinned instruction notices and a start bench rather than application panels.
 
-D. **Readiness Ribbon** — examination summary with a compact horizontal readiness/status band; only failed requirements expand.
+F. **Academic Broadsheet** — an institutional/editorial notice layout using masthead, columns and a press-bar Start action.
 
-E. **Candidate Brief** — an institutional briefing-note treatment with three essential rules and a persistent Start dock.
+G. **Projection Stage** — the examination is presented as the event on a stage; system checks stay visually "off-stage" and enter only when needed.
 
-F. **Adaptive Decision Surface** — standard candidates see Ready to Write immediately; the same layout transforms only when class/SS1 placement input is actually required.
+These are low-fidelity territories, not final production styling.
 
-G. **Quiet Start Console** — a restrained high-clarity surface with examination facts, three plain-language truths, unobtrusive status and one Start action.
+## Wireframe artifact contract
 
-These are territories, not mandatory final names. They must not collapse into seven card/color variants.
+`docs/design/exam/phase-02-ready-to-write/brainstorm.html` must:
+
+- contain exactly seven A–G concepts;
+- use grayscale/wireframe semantics;
+- make every concept at least `100dvh`;
+- use vertical mandatory scroll snapping for comparison;
+- provide fixed A–G navigation;
+- keep keyboard-visible focus and approximately 44px interactive targets;
+- remain responsive down to 360px;
+- respect `prefers-reduced-motion`;
+- keep Start/Resume as the obvious primary action;
+- annotate how missing class, SS1 placement, camera, offline state and resume adapt the same surface;
+- avoid unsupported data/capabilities;
+- change no production `src/**`, Prisma, Supabase, migration, fixture or RPC surface.
 
 ## Selection-stage compatibility
 
-This brainstorm stage is **docs-only**.
+This is a docs/design-only selection stage. Production source remains untouched until the product owner selects A–G or an explicit hybrid.
 
-No `src/**`, Prisma, Supabase, migration, fixture, RPC or runtime contract change is required to create or select the Phase 02 concept.
+The later implementation may substantially consolidate the current `StudentWizard` and `ExamPreflight` presentation, but it must preserve:
 
-The eventual production implementation may consolidate `StudentWizard` and `ExamPreflight` presentation substantially, but it must preserve server-owned access, placement, attempt, persistence and integrity behavior.
+- `my_exam_access` as access authority;
+- server-owned class/placement persistence;
+- `allocate_my_exam_attempt` as start/resume attempt authority;
+- existing integrity, persistence, scoring and retake semantics.
 
-## Acceptance criteria for the selected Phase 02 direction
+## Acceptance criteria for the selected production direction
 
-Before production implementation can be considered successful, the selected direction must satisfy all of the following:
+Before Phase 02 can be called complete:
 
-- the normal candidate reaches one Ready to Write surface after identity rather than multiple preparation screens;
-- there is no preparation stepper or progress rail;
-- already-known academic information is not requested again;
-- class/SS1 placement input appears only when genuinely necessary;
-- concise essential instructions are available on the same surface;
+- normal candidates reach one Ready to Write surface rather than multiple preparation screens;
+- no preparation stepper/progress rail exists;
+- known academic information is not requested again;
+- missing class / SS1 placement appears only when necessary;
+- concise instructions live on the same surface;
 - healthy device checks stay quiet;
-- only blocking device conditions demand action;
 - camera UI appears only when required;
-- the primary Start/Resume action is visually dominant and unambiguous;
-- opening the surface does not allocate an attempt;
-- the existing server-owned access and attempt authorities remain intact;
-- actual access denial is explained directly rather than disguised as onboarding;
-- the surface remains usable on phone, tablet and small/large desktop sizes;
-- keyboard/focus, accessible labels, contrast and reduced-motion behavior are preserved;
-- browser-level workflow validation and independent review occur before completion is claimed.
+- blockers are direct and actionable;
+- Start/Resume is unmistakably dominant;
+- opening Phase 02 does not allocate an attempt;
+- server authority remains unchanged;
+- phone/tablet/desktop layouts work;
+- keyboard/focus/contrast/reduced-motion requirements are preserved;
+- browser workflow validation and independent review occur before completion is claimed.
 
 ## Explicit non-goals
 
 Phase 02 does not redesign:
 
-- the live question-answering workspace;
-- question navigation during the examination;
-- final review/submission;
+- live question answering/navigation;
+- review/final submission;
 - result interpretation;
 - staff academic-management screens;
-- placement scoring logic;
+- placement scoring;
 - retake-grant controls;
-- examination authority rules merely to simplify the UI.
-
-Those belong to later phases or existing staff workflows.
+- examination authority rules.
 
 ## Gate
 
-**Stop after the seven-option Phase 02 board is generated and verified.**
+**Stop after the seven-option Phase 02 wireframe board is generated and verified.**
 
-Do not implement the selected production experience until the product owner chooses A, B, C, D, E, F, G, or an explicit hybrid.
+Do not implement the production Phase 02 experience until the product owner selects A, B, C, D, E, F, G, or an explicit hybrid.
