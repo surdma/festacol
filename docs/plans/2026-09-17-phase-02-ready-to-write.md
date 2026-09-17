@@ -1,7 +1,7 @@
 # Phase 02 — Ready to Write
 
 Date: 2026-09-17
-Status: IMPLEMENTED — Concept B fidelity correction prepared; repository CI and browser interaction validation remain
+Status: CI_VERIFIED — corrected Concept B implementation passes repository CI; browser interaction validation remains
 Target PR: #18
 Planning owner: `festacol-planner`
 Production owner: `festacol-frontend-engineer`
@@ -67,11 +67,10 @@ No Prisma schema, migration, Supabase SQL, fixture or RPC contract was changed f
 
 The previous implementation commit `1cf2e2a84eaba69f9bd35d482566eb7fd191b34a` passed Next.js Quality run #819, but product review found a **wireframe-fidelity defect**: the production UI had drifted into a rounded application shell with too much metadata and onboarding ceremony.
 
-This correction is therefore treated as a new implementation that must pass the repository quality workflow again.
+Correction commit `3a9ca893d484308621f4c06958c3f8aae241db0f` passed GitHub Actions **Next.js Quality** run #821 (`35279960669`). The successful job covered fixture/runtime-schema validation, canonical migrations, Prisma validate/generate/migrate, relational seed assertions, Supabase auth/RLS/Realtime integration, TypeScript typecheck, production build and Biome.
 
 Before this correction can be called `COMPLETE`, still required:
 
-- repository CI: fixture/runtime schema, Prisma, Supabase integration, TypeScript, production build and Biome;
 - independent source review of the final branch diff;
 - authenticated browser dogfood for camera-required, camera-not-required, placement, normal missing-class onboarding, existing-class denial, offline and active-attempt resume;
 - responsive checks at 360×640, 375×812, 768×1024, 1280×800 and short viewport, plus keyboard/focus, reduced motion and console/network checks.

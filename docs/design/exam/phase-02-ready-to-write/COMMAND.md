@@ -40,10 +40,10 @@ No schema/RPC change is required. Server access, academic persistence, attempt a
 
 The earlier implementation passed CI but failed product fidelity review against the selected Concept B wireframe. The correction must be revalidated as a new implementation.
 
-Required evidence:
-- source/static validation;
-- repository Next.js Quality workflow;
-- independent review;
+Validated correction: `3a9ca893d484308621f4c06958c3f8aae241db0f` passed Next.js Quality run #821 (`35279960669`), including TypeScript, production build and Biome.
+
+Still required:
+- independent browser review/dogfood;
 - browser dogfood when a valid authenticated examination session and browser runner are available.
 
 Do not report Phase 02 `COMPLETE` from CI alone.
