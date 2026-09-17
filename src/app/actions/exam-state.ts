@@ -173,9 +173,15 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const lastActiveAt = Number(state.last_active_at ?? now);
   const awaySeconds = Math.max(0, Math.floor((now - lastActiveAt) / 1000));
   const remaining = Math.max(0, Number(state.remaining_seconds ?? session.durationSeconds) - awaySeconds);
+  const reconciledElapsed = Math.max(0, Number(state.elapsed_active_seconds ?? 0) + awaySeconds);
   if (remaining <= 0) {
     const supabase = await createSupabaseServerClient();
-    await supabase.from("exam_attempts").update({ remaining_seconds: 0, last_active_at: now, updated_at: now }).eq("id", attemptId);
+    await supabase.from("exam_attempts").update({
+      remaining_seconds: 0,
+      elapsed_active_seconds: reconciledElapsed,
+      last_active_at: now,
+      updated_at: now,
+    }).eq("id", attemptId);
     const submitted = await submitExamAction(session.id, "time-expired");
     return submitted.ok
       ? { status: "locked", score: submitted.summary?.accuracy ?? null }
@@ -195,6 +201,7 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const supabase = await createSupabaseServerClient();
   const { error: stateError } = await supabase.from("exam_attempts").update({
     remaining_seconds: remaining,
+    elapsed_active_seconds: reconciledElapsed,
     last_active_at: now,
     paper_fingerprint: fingerprint,
     question_ids: state.question_ids.length ? state.question_ids : paper.map((question) => question.id),
