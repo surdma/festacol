@@ -53,7 +53,8 @@
       "label": "Mathematics Aptitude · Geometry",
       "explanation": "The perimeter of a square is four times its side length: 4 × 6 = 24 cm.",
       "type": "fill",
-      "prompt": "Find the perimeter of a square whose side is 6 cm.",
+      "prompt": "![Square with side length 6 centimetres](/exam-assets/square-side-6.svg)\n\nFind the perimeter of the square shown in the diagram.",
+      "instruction": "Study the diagram, then enter the perimeter with its unit.",
       "fillTemplate": [
         {"text": "Perimeter = "},
         {"blank": "answer", "placeholder": "number and unit"}
