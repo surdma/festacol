@@ -1,4 +1,5 @@
 import type { StaffScope } from "@/lib/auth/staff";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ApplicationNotification } from "@/types/admin";
 
@@ -35,6 +36,15 @@ interface WhatsappQueueRow {
   class_id: string;
 }
 
+interface ExamSupportQueueRow {
+  id: string;
+  session_id: string;
+  requester_name: string;
+  category: string;
+  message: string;
+  created_at: string;
+}
+
 async function visibleSessionIds(
   supabase: ServerSupabaseClient,
   scope: StaffScope,
@@ -65,6 +75,11 @@ async function visibleSessionIds(
     ...((offeringTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
     ...((classTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
   ]);
+}
+
+function compactSupportMessage(message: string) {
+  const value = message.trim();
+  return value.length > 180 ? `${value.slice(0, 177)}…` : value;
 }
 
 export async function getAdminTopbarNotifications(
@@ -102,6 +117,19 @@ export async function getAdminTopbarNotifications(
   );
   const sessionTitles = new Map(visibleSessions.map((session) => [session.id, session.title]));
 
+  const admin = createSupabaseAdminClient();
+  const supportCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const supportResult = scope.profileId
+    ? await admin
+        .from("exam_support_requests")
+        .select("id,session_id,requester_name,category,message,created_at")
+        .eq("recipient_staff_id", scope.profileId)
+        .gte("created_at", supportCutoff)
+        .order("created_at", { ascending: false })
+        .limit(3)
+    : { data: [] };
+  const supportRequests = (supportResult.data ?? []) as ExamSupportQueueRow[];
+
   const drafts = visibleSessions.filter((session) => session.status === "draft");
   const activeAttempts = attempts.filter((attempt) => attempt.started_at && !attempt.submitted_at);
   const submittedIds = new Set(attempts.filter((attempt) => attempt.submitted_at).map((attempt) => attempt.id));
@@ -127,6 +155,17 @@ export async function getAdminTopbarNotifications(
     .slice(0, 2);
 
   const items: ApplicationNotification[] = [];
+
+  for (const request of supportRequests) {
+    const sessionTitle = sessionTitles.get(request.session_id) ?? "Examination";
+    items.push({
+      id: `exam-support-${request.id}`,
+      title: `Examination support · ${sessionTitle}`,
+      detail: `${request.requester_name} · ${request.category}: ${compactSupportMessage(request.message)}`,
+      icon: "school",
+      tone: "amber",
+    });
+  }
 
   if (integrityAttempts.size) {
     items.push({
@@ -172,8 +211,8 @@ export async function getAdminTopbarNotifications(
   if (drafts.length) {
     items.push({
       id: "draft-exams",
-      title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`,
-      detail: "Review questions, targeting, duration and controls before publishing these examinations.",
+      title: `${drafts.length} draft examination${drafts.length === 1 ? "" : "s"} need review`,
+      detail: "Review questions, targeting, duration and examination controls before publishing.",
       icon: "book",
       tone: "amber",
     });

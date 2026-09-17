@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { getExamEntryContextAction } from "@/app/actions/exam-onboarding";
+import { ExamAdmissionPass } from "@/components/exam/exam-admission-pass";
+import { ExamEntryUnavailable } from "@/components/exam/exam-entry-unavailable";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -11,6 +14,7 @@ import {
   isExamDestination,
   safeStudentDestination,
 } from "@/lib/auth/navigation";
+import { normalizeExamToken } from "@/lib/exam-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StudentLoginForm } from "./login-form";
 
@@ -41,6 +45,24 @@ export default async function RootPage({
     }
   }
 
+  if (continuingToExam && next) {
+    const target = new URL(next, "https://festacol.local");
+    const token = normalizeExamToken(target.searchParams.get("token") ?? "");
+    if (token) {
+      const entry = await getExamEntryContextAction(token);
+      if (entry.ok) {
+        return (
+          <ExamAdmissionPass
+            exam={entry.exam}
+            token={token}
+            destination={next}
+          />
+        );
+      }
+      return <ExamEntryUnavailable message={entry.error} retryHref={next} />;
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-background p-4 sm:p-7">
       <div className="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-border bg-card shadow-xl sm:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[0.85fr_1.15fr]">
@@ -64,17 +86,15 @@ export default async function RootPage({
               Student access
             </p>
             <h1 className="mt-4 max-w-xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">
-              {continuingToExam ? "Secure exam access" : "Private student workspace"}
+              Private student workspace
             </h1>
             <p className="mt-5 max-w-sm text-base leading-7 text-primary-foreground/65">
-              {continuingToExam
-                ? "Use the same student credentials as your dashboard. After sign in, you will return directly to the examination you opened."
-                : "Sign in with your first and last name to open your dashboard, analytics and secure exams."}
+              Sign in with your first and last name to open your dashboard, analytics and secure examinations.
             </p>
           </div>
 
           <span className="text-xs text-primary-foreground/45">
-            Secure exam delivery · integrity monitoring · placement guidance
+            Secure examination delivery · integrity monitoring · placement guidance
           </span>
         </section>
 
@@ -83,7 +103,7 @@ export default async function RootPage({
             <CardHeader className="px-0">
               <Badge className="mb-2">Student authentication</Badge>
               <CardTitle className="font-display text-3xl font-extrabold">
-                {continuingToExam ? "Continue to examination" : "Student sign in"}
+                Student sign in
               </CardTitle>
               <CardDescription className="mt-2 text-base leading-7">
                 Use your first and last name as your credentials. New students get an account automatically and continue to the same destination after setup.

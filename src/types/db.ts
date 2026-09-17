@@ -15,6 +15,11 @@ export type TeachingAssignmentRole = "teacher" | "head_teacher" | "assistant";
 export type ExamMode = "qualifier" | "bece" | "waec" | "neco" | "jamb" | "mixed" | "single";
 export type ExamStatus = "draft" | "open" | "closed";
 export type QuestionType = "single" | "multi" | "boolean" | "fill" | "fill-multi";
+export type ExamSupportCategory =
+  | "Examination access"
+  | "Candidate identity"
+  | "Device or browser"
+  | "Other examination support";
 
 export interface SchoolMemberRow {
   id: string;
@@ -197,6 +202,16 @@ export interface ExamQrCodeRow {
   rendered_data: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ExamSupportRequestRow {
+  id: string;
+  session_id: string;
+  recipient_staff_id: string;
+  requester_name: string;
+  category: ExamSupportCategory;
+  message: string;
+  created_at: string;
 }
 
 export interface ExamStaffAssignmentRow {
