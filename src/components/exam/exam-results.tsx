@@ -61,18 +61,11 @@ function RecoveryActions({
   );
 }
 
-type ExamResultsProps =
-  | {
-      view: "completion";
-      summary: ExamResultSummary;
-      onDashboard: () => void;
-      onRefresh: () => Promise<boolean>;
-    }
-  | {
-      view: "full";
-      summary: ExamResultSummary;
-      onRefresh: () => Promise<boolean>;
-    };
+type ExamResultsProps = {
+  view: "completion" | "full";
+  summary: ExamResultSummary;
+  onRefresh: () => Promise<boolean>;
+};
 
 export function ExamResults(props: ExamResultsProps) {
   const { view, summary, onRefresh } = props;
@@ -97,9 +90,7 @@ export function ExamResults(props: ExamResultsProps) {
     <section className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8 text-foreground sm:px-6">
       <div className="w-full max-w-2xl">
         <ResultCoverCard
-          view="completion"
           summary={summary}
-          onDashboard={props.onDashboard}
           onRefresh={onRefresh}
           subjectLine={subjectLine}
           period={period}
