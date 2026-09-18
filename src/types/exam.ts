@@ -82,7 +82,7 @@ export interface ExamSubjectPerformance {
   seconds: number;
 }
 
-export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "unknown";
+export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice" | "unknown";
 
 export interface ExamResultSummary {
   attemptId: string;
