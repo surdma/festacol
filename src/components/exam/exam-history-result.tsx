@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { getExamResultByAttemptAction } from "@/app/actions/exam-experience";
 import { ExamResults } from "@/components/exam/exam-results";
@@ -11,7 +10,6 @@ export function ExamHistoryResult({
 }: {
   initialSummary: ExamResultSummary;
 }) {
-  const router = useRouter();
   const [summary, setSummary] = useState(initialSummary);
 
   async function refreshResult() {
@@ -25,7 +23,6 @@ export function ExamHistoryResult({
     <ExamResults
       view="full"
       summary={summary}
-      onDashboard={() => router.push("/dashboard/history")}
       onRefresh={refreshResult}
     />
   );
