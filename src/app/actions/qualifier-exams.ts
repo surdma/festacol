@@ -129,6 +129,11 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
     if (sessionError) return { ok: false, error: sessionError.message };
 
     try {
+      const { error: subjectTargetError } = await admin.from("exam_subject_targets").insert(
+        subjectIds.map((subjectId) => ({ session_id: id, subject_id: subjectId })),
+      );
+      if (subjectTargetError) throw subjectTargetError;
+
       const { error: trackError } = await admin.from("exam_placement_tracks").insert(
         placementTracks.map((track) => ({ session_id: id, track })),
       );
