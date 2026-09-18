@@ -323,6 +323,11 @@ async function resolveResultDestination(
   }
 
   if (mode === "qualifier" && attempt.assigned_track) {
+    // Placement candidates do not have a class enrollment yet. At this point
+    // the submitted attempt is already ownership-checked above, so resolve the
+    // destination only from its server-authored assigned track. Never accept a
+    // placement class id from the browser, and never guess when multiple arms
+    // match the track.
     const assignedTrack = attempt.assigned_track;
     const placementLabel = `SS1 ${displayTrack(assignedTrack)}`;
 
