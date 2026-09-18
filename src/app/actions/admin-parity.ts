@@ -100,6 +100,7 @@ export async function getAdminFormOptionsAction() {
     const cls = classMap.get(row.class_id);
     const subject = subjectMap.get(row.subject_id);
     if (!cls || !subject || subject.kind !== "curriculum") return [];
+    if (!scope.isAdmin && !scope.subjectIds.includes(row.subject_id)) return [];
     const participation = participationByRule.get(curriculumKey(row.subject_id, cls.level_id, cls.track));
     if (!participation) return [];
     return [{
@@ -141,9 +142,15 @@ export async function getAdminFormOptionsAction() {
     };
   });
 
+  const visibleSubjects = scope.isAdmin
+    ? subjects
+    : subjects.filter((subject) => subject.kind === "qualifier" || scope.subjectIds.includes(subject.id));
+  const visibleClassIds = new Set(offerings.map((offering) => offering.classId));
+  const visibleClasses = scope.isAdmin ? classes : classes.filter((row) => visibleClassIds.has(row.id));
+
   return {
-    subjects,
-    classes: classes.map((row) => ({
+    subjects: visibleSubjects,
+    classes: visibleClasses.map((row) => ({
       id: row.id,
       name: row.display_name,
       classLevel: row.level_name,
@@ -204,7 +211,7 @@ async function eligibleQuestionCount(input: ExamCreationInput): Promise<number> 
 export async function getExamCoverageAction(input: ExamCreationInput): Promise<{ ok: boolean; count: number; error?: string }> {
   const shapeError = validateExamShape(input);
   if (shapeError) return { ok: false, count: 0, error: shapeError };
-  const { admin } = await staffContext();
+  const { admin, scope } = await staffContext();
 
   if (input.mode === "qualifier") {
     const { data: qualifierSubjects, error } = await admin.from("subjects").select("id").in("id", [...new Set(input.subjectIds)]).eq("kind", "qualifier").eq("active", true);
@@ -212,7 +219,13 @@ export async function getExamCoverageAction(input: ExamCreationInput): Promise<{
     if ((qualifierSubjects ?? []).length !== [...new Set(input.subjectIds)].length) {
       return { ok: false, count: 0, error: "Qualifier papers may use only active qualifier subjects." };
     }
-  } else if (input.offeringIds.length) {
+  } else {
+    if (!scope.isAdmin && input.subjectIds.some((subjectId) => !questionSubjectVisibleTo(subjectId, scope))) {
+      return { ok: false, count: 0, error: "One or more selected subjects are outside your teaching scope." };
+    }
+    if (!input.offeringIds.length) {
+      return { ok: false, count: 0, error: "Every exam subject needs a selected class subject offering." };
+    }
     const { data: offerings } = await admin.from("class_subject_offerings").select("id,subject_id,class_id,status").in("id", input.offeringIds);
     const rows = (offerings ?? []) as { id: string; subject_id: string; class_id: string; status: string }[];
     if (rows.length !== [...new Set(input.offeringIds)].length || rows.some((row) => row.status !== "active")) return { ok: false, count: 0, error: "One or more subject offerings are unavailable." };
@@ -379,7 +392,6 @@ export async function updateExamParityAction(
     const targetClassIds = new Set(((classTargetResult.data ?? []) as { class_id: string }[]).map((row) => row.class_id));
 
     if (mode === "qualifier") {
-      if (!scope.isAdmin && !scope.qualifierAccess) return { ok: false, error: "Qualifier examination access is not enabled for this staff account." };
       if (!subjectIds.length || subjectIds.length > 6) return { ok: false, error: "Choose between 1 and 6 qualifier subjects." };
       if (offeringIds.length) return { ok: false, error: "Placement examinations do not use class subject offerings." };
 
