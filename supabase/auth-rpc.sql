@@ -214,17 +214,34 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT private.is_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM public.teaching_assignments ta
-      WHERE ta.staff_id = p_staff_id
-        AND ta.offering_id = p_offering_id
-        AND ta.ended_at IS NULL
-    );
-$$;
+SET search_path = ''
+AS $staff_scope$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.school_members m
+    WHERE m.id = p_staff_id
+      AND m.status = 'active'
+      AND (
+        m.role = 'administrator'
+        OR (
+          m.role = 'teacher'
+          AND EXISTS (
+            SELECT 1
+            FROM public.teaching_assignments ta
+            JOIN public.class_subject_offerings o ON o.id = ta.offering_id
+            JOIN public.staff_subject_qualifications q
+              ON q.staff_id = ta.staff_id
+             AND q.subject_id = o.subject_id
+             AND q.active = true
+            WHERE ta.staff_id = p_staff_id
+              AND ta.offering_id = p_offering_id
+              AND ta.ended_at IS NULL
+              AND o.status = 'active'
+          )
+        )
+      )
+  );
+$staff_scope$;
 
 CREATE OR REPLACE FUNCTION private.staff_can_access_class(
   p_staff_id uuid,
@@ -234,19 +251,34 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT private.is_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM public.teaching_assignments ta
-      JOIN public.class_subject_offerings o ON o.id = ta.offering_id
-      WHERE ta.staff_id = p_staff_id
-        AND ta.ended_at IS NULL
-        AND o.class_id = p_class_id
-        AND o.status = 'active'
-    );
-$$;
+SET search_path = ''
+AS $staff_scope$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.school_members m
+    WHERE m.id = p_staff_id
+      AND m.status = 'active'
+      AND (
+        m.role = 'administrator'
+        OR (
+          m.role = 'teacher'
+          AND EXISTS (
+            SELECT 1
+            FROM public.teaching_assignments ta
+            JOIN public.class_subject_offerings o ON o.id = ta.offering_id
+            JOIN public.staff_subject_qualifications q
+              ON q.staff_id = ta.staff_id
+             AND q.subject_id = o.subject_id
+             AND q.active = true
+            WHERE ta.staff_id = p_staff_id
+              AND ta.ended_at IS NULL
+              AND o.class_id = p_class_id
+              AND o.status = 'active'
+          )
+        )
+      )
+  );
+$staff_scope$;
 
 CREATE OR REPLACE FUNCTION private.staff_can_access_subject(
   p_staff_id uuid,
