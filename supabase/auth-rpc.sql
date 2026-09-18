@@ -257,25 +257,27 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $$
-  SELECT private.is_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM public.staff_subject_qualifications q
-      WHERE q.staff_id = p_staff_id
-        AND q.subject_id = p_subject_id
-        AND q.active = true
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM public.teaching_assignments ta
-      JOIN public.class_subject_offerings o ON o.id = ta.offering_id
-      WHERE ta.staff_id = p_staff_id
-        AND ta.ended_at IS NULL
-        AND o.subject_id = p_subject_id
-        AND o.status = 'active'
-    );
-$$;
+AS $
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.school_members m
+    WHERE m.id = p_staff_id
+      AND m.status = 'active'
+      AND (
+        m.role = 'administrator'
+        OR (
+          m.role = 'teacher'
+          AND EXISTS (
+            SELECT 1
+            FROM public.staff_subject_qualifications q
+            WHERE q.staff_id = p_staff_id
+              AND q.subject_id = p_subject_id
+              AND q.active = true
+          )
+        )
+      )
+  );
+$;
 
 CREATE OR REPLACE FUNCTION private.staff_can_access_exam(
   p_staff_id uuid,
@@ -286,29 +288,52 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $$
-  SELECT private.is_admin()
-    OR EXISTS (
-      SELECT 1 FROM public.exam_sessions e
-      WHERE e.id = p_session_id AND e.created_by_id = p_staff_id
-    )
-    OR EXISTS (
-      SELECT 1 FROM public.exam_staff_assignments a
-      WHERE a.session_id = p_session_id AND a.staff_id = p_staff_id
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM public.exam_offering_targets t
-      WHERE t.session_id = p_session_id
-        AND private.teacher_is_assigned_to_offering(p_staff_id,t.offering_id)
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM public.exam_class_targets t
-      WHERE t.session_id = p_session_id
-        AND private.staff_can_access_class(p_staff_id,t.class_id)
+AS $
+  WITH actor AS (
+    SELECT m.role
+    FROM public.school_members m
+    WHERE m.id = p_staff_id
+      AND m.status = 'active'
+      AND m.role IN ('teacher', 'administrator')
+  ),
+  exam_row AS (
+    SELECT e.mode
+    FROM public.exam_sessions e
+    WHERE e.id = p_session_id
+  ),
+  exam_subjects AS (
+    SELECT t.subject_id
+    FROM public.exam_subject_targets t
+    WHERE t.session_id = p_session_id
+    UNION
+    SELECT o.subject_id
+    FROM public.exam_offering_targets t
+    JOIN public.class_subject_offerings o ON o.id = t.offering_id
+    WHERE t.session_id = p_session_id
+  )
+  SELECT
+    EXISTS (SELECT 1 FROM actor WHERE role = 'administrator')
+    OR (
+      EXISTS (SELECT 1 FROM actor WHERE role = 'teacher')
+      AND (
+        EXISTS (SELECT 1 FROM exam_row WHERE mode = 'qualifier')
+        OR (
+          EXISTS (SELECT 1 FROM exam_subjects)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM exam_subjects s
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM public.staff_subject_qualifications q
+              WHERE q.staff_id = p_staff_id
+                AND q.subject_id = s.subject_id
+                AND q.active = true
+            )
+          )
+        )
+      )
     );
-$$;
+$;
 
 CREATE OR REPLACE FUNCTION private.student_is_targeted_for_exam(
   p_session_id text,
