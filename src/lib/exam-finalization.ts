@@ -1,6 +1,7 @@
 import { paperFromQuestionIds, scoreAttempt } from "@/lib/assessment";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { autoAssignSciencePlacement } from "@/lib/student-placement";
 import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
 import type { ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
@@ -22,7 +23,7 @@ export interface FinalizationSummary {
   integrityScore: number;
   correctCount: number;
   total: number;
-  placement?: { assignedTrack: string; confidence: number };
+  placement?: { assignedTrack: string | null; confidence: number; scienceEligible: boolean };
 }
 
 type FinalizationResult =
@@ -92,7 +93,7 @@ function serializeAnswer(question: QuestionDTO | undefined): string {
   return String(answer ?? "");
 }
 
-function placementTrack(value: string | undefined): AcademicTrack | null {
+function placementTrack(value: string | null | undefined): AcademicTrack | null {
   if (value === "Science") return "science";
   if (value === "Humanities") return "humanities";
   if (value === "Business") return "business";
@@ -225,7 +226,7 @@ export async function finalizeExamAttempt(input: {
       response: unknown;
       seconds: number;
     }[];
-    placement?: { assignedTrack: string; confidence: number };
+    placement?: { assignedTrack: string | null; confidence: number; scienceEligible: boolean };
   };
 
   const now = Date.now();
@@ -264,6 +265,22 @@ export async function finalizeExamAttempt(input: {
 
   if (updateError) return { ok: false, code: "unavailable", error: updateError.message };
   if (!updated) return { ok: false, code: "already-submitted", error: "This attempt has already been submitted." };
+
+  if (result.placement?.scienceEligible && placementTrack(result.placement.assignedTrack) === "science") {
+    try {
+      await autoAssignSciencePlacement({
+        client: admin,
+        studentId: input.studentId,
+      });
+    } catch (error) {
+      console.error("Science placement enrollment could not be applied automatically", {
+        attemptId: attempt.id,
+        sessionId: input.session.id,
+        studentId: input.studentId,
+        error: error instanceof Error ? error.message : "unknown placement error",
+      });
+    }
+  }
 
   if (result.details.length) {
     const gradedRows = result.details.map((detail) => {
