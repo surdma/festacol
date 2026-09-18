@@ -83,6 +83,14 @@ export interface ExamSubjectPerformance {
   seconds: number;
 }
 
+export interface ExamResultDestination {
+  kind: "placement" | "class";
+  classId: string | null;
+  classLabel: string;
+  whatsappName: string | null;
+  whatsappUrl: string | null;
+}
+
 export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice" | "unknown";
 
 export interface ExamResultSummary {
@@ -93,6 +101,12 @@ export interface ExamResultSummary {
   submissionReason: ExamSubmissionReason;
   sessionTitle: string;
   candidateName: string;
+  studentNumber: string | null;
+  classLabel: string;
+  academicSession: string;
+  term: string;
+  subjectNames: string[];
+  destination: ExamResultDestination;
   mode: ExamMode;
   durationSeconds: number;
   questionCount: number;
