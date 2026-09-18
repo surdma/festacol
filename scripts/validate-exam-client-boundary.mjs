@@ -133,10 +133,16 @@ for (const token of ["remainingSeconds: Math.max", "elapsedActiveSeconds: Math.m
     violations.push(`src/components/exam/exam-workspace.tsx: candidate save payload still supplies authoritative clock field ${JSON.stringify(token)}`);
   }
 }
-for (const required of ['submitFinal("exam-closed")', 'processingReason !== "manual"', "festacol:exam-session-changed"]) {
+for (const required of ['submitFinal("exam-closed")', "festacol:exam-session-changed"]) {
   if (!workspace.includes(required)) {
     violations.push(`src/components/exam/exam-workspace.tsx: forced submission recovery is missing ${JSON.stringify(required)}`);
   }
+}
+if (!/processingReason\s*===\s*"time-expired"\s*\|\|\s*processingReason\s*===\s*"exam-closed"/su.test(workspace)) {
+  violations.push("src/components/exam/exam-workspace.tsx: automatic reconnect retry must be narrowed to time-expired/exam-closed");
+}
+if (!workspace.includes('processingReason === "potential-malpractice"') || !workspace.includes("terminateForMalpractice")) {
+  violations.push("src/components/exam/exam-workspace.tsx: malpractice reconnect recovery must remain on the disqualification path");
 }
 
 const rls = await source("supabase/rls.sql");
