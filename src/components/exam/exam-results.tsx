@@ -61,17 +61,22 @@ function RecoveryActions({
   );
 }
 
-export function ExamResults({
-  view,
-  summary,
-  onDashboard,
-  onRefresh,
-}: {
-  view: "completion" | "full";
-  summary: ExamResultSummary;
-  onDashboard: () => void;
-  onRefresh: () => Promise<boolean>;
-}) {
+type ExamResultsProps =
+  | {
+      view: "completion";
+      summary: ExamResultSummary;
+      onDashboard: () => void;
+      onRefresh: () => Promise<boolean>;
+    }
+  | {
+      view: "full";
+      summary: ExamResultSummary;
+      onRefresh: () => Promise<boolean>;
+    };
+
+export function ExamResults(props: ExamResultsProps) {
+  const { view, summary, onRefresh } = props;
+
   if (view === "full") {
     return (
       <ExamResultSummarySection summary={summary} onRefresh={onRefresh} />
@@ -94,7 +99,7 @@ export function ExamResults({
         <ResultCoverCard
           view="completion"
           summary={summary}
-          onDashboard={onDashboard}
+          onDashboard={props.onDashboard}
           onRefresh={onRefresh}
           subjectLine={subjectLine}
           period={period}
