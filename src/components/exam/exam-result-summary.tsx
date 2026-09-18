@@ -33,8 +33,7 @@ import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
-  ExamResultDestination,
-  JoinClassGroupAction,
+  PlacementClassActions,
   ResultDestinationSummary,
 } from "@/components/exam/exam-result-destination";
 import type { ExamMode, ExamResultSummary } from "@/types/exam";
@@ -406,22 +405,16 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
 }
 
 export function ResultCoverCard({
-  view,
   summary,
   onRefresh,
   subjectLine,
   period,
-  ...completionProps
 }: {
-  view: "record" | "completion";
   summary: ExamResultSummary;
   onRefresh: () => Promise<boolean>;
   subjectLine: string;
   period: string;
-  onDashboard?: () => void;
 }) {
-  const destination = summary.destination;
-
   return (
     <section className="min-w-0 rounded-[2rem] border border-result-paper-edge bg-result-cover p-5 text-result-cover-foreground shadow-xl sm:p-7 lg:p-9 print:rounded-none print:shadow-none">
       <div className="mb-7 min-w-0">
@@ -458,35 +451,21 @@ export function ResultCoverCard({
         </div>
       </dl>
 
-      {view === "completion" ? (
-        <div className="mt-7 border-t border-result-cover-foreground/20 pt-6">
-          <ResultDestinationSummary summary={summary} appearance="cover" />
-          <div className="mt-5 grid gap-2 sm:grid-cols-2 print:hidden">
-            <JoinClassGroupAction
-              classLabel={destination.classLabel}
-              groupName={destination.whatsappName}
-              whatsappUrl={destination.whatsappUrl}
-              appearance="cover"
-            />
-            {completionProps.onDashboard ? (
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                className="border-result-cover-foreground/30 bg-transparent text-result-cover-foreground hover:bg-result-cover-foreground/10 hover:text-result-cover-foreground"
-                onClick={completionProps.onDashboard}
-              >
-                Dashboard
-              </Button>
-            ) : null}
-          </div>
+      <div className="mt-7 border-t border-result-cover-foreground/20 pt-6">
+        <ResultDestinationSummary summary={summary} appearance="cover" />
+        <div className="mt-5 print:hidden">
+          <PlacementClassActions
+            summary={summary}
+            onRefresh={onRefresh}
+            appearance="cover"
+          />
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }
 
-function ResultDetailsCard({
+export function ResultDetailsCard({
   summary,
   subjectLine,
 }: {
@@ -497,10 +476,6 @@ function ResultDetailsCard({
     <section className="min-w-0 rounded-[2rem] border border-result-paper-edge bg-result-paper p-5 text-result-paper-foreground shadow-xl sm:p-7 lg:p-9 print:rounded-none print:shadow-none">
       <div className="animate-result-rise-2">
         <ResultAchievements summary={summary} />
-      </div>
-
-      <div className="mt-5">
-        <ExamResultDestination summary={summary} />
       </div>
 
       <section
@@ -578,13 +553,12 @@ export function ExamResultSummarySection({
             </p>
           </div>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">
-            Keep this page for your records, or return to your dashboard when you are done.
+            Keep this full result in your exam history whenever you need to review the sitting.
           </p>
         </header>
 
         <article className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start print:gap-3">
           <ResultCoverCard
-            view="record"
             summary={summary}
             onRefresh={onRefresh}
             subjectLine={subjectLine}
