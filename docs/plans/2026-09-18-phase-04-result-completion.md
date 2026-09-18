@@ -1,30 +1,33 @@
 # Phase 04 — Result / Completion
 
 Date: 2026-09-18
-Status: PLANNED — ten-option low-fidelity board generated; product selection required
+Status: PLANNED — high-depth ten-direction wireframe board generated; product selection required
 Target PR: #18
 Planning owner: festacol-planner
 Production owner after selection: festacol-frontend-engineer
 
 ## Product objective
 
-Close the examination journey with a result experience that feels like the conclusion of a serious academic assessment, not a generic analytics dashboard.
+Close the examination journey with a result experience that feels substantial, academic and memorable without becoming an administrator analytics dashboard.
 
-The student should understand the result in this order:
+The board is no longer a light low-fidelity layout exercise. It is a **high-depth wireframe selection artifact**: still grayscale/neutral and non-production, but rich enough to compare real hierarchy, metrics, charts, state behavior, component density, motion intent and responsive composition.
 
-1. the attempt is complete and safely recorded;
-2. the overall score;
-3. the answer composition and completion state;
-4. subject-level performance when available;
-5. optional qualifier placement outcome when present;
-6. secondary attempt indicators such as active time, pace and reasoning;
-7. the next action, normally Return to dashboard.
+The student should be able to answer, in order:
 
-The result should be reassuring, legible and academically credible without inventing pass/fail language, ranks, grades, recommendations or answer review that the current client contract does not provide.
+1. Is my attempt safely completed and recorded?
+2. What was my overall result?
+3. What does that result consist of?
+4. How did I perform by subject?
+5. How much of the paper did I complete and how much time did I use?
+6. What is the placement/progression outcome when this is that kind of examination?
+7. What useful achievement or strength can be stated directly from the stored result?
+8. What can I do next?
+
+The result must remain serious enough for an academic assessment and engaging enough that a student can understand it without reading a report written for staff.
 
 ## Verified current result contract
 
-The current result path is:
+Current path:
 
 exam-workspace.tsx
 → getExamResultAction
@@ -33,7 +36,7 @@ exam-workspace.tsx
 → ExamResultSummary
 → exam-results.tsx
 
-The candidate-facing summary currently provides:
+The current candidate result exposes:
 
 - attempt reference;
 - submitted timestamp;
@@ -51,285 +54,297 @@ The candidate-facing summary currently provides:
 - per-subject total, correct count, percentage and active seconds;
 - optional placement track and placement confidence.
 
-The authenticated ExamWorkspace already has candidate name, student number, class label, session title and subject names in ExamExperienceContext. A selected production result design may consume those already-available values without requiring a new backend capability.
+ExamExperienceContext already provides:
+
+- candidate name;
+- student number;
+- class label;
+- examination title;
+- mode;
+- academic session;
+- term;
+- configured examination duration;
+- allocated question count;
+- subject names;
+- whether the exam required a camera.
+
+These values are sufficient for a much richer result composition without changing the server contract.
+
+## Normal versus Placement / Promotion comparison mode
+
+Every A–J proposal must contain an explicit segmented control:
+
+- **Normal Exam**
+- **Placement / Promotion**
+
+The switch is part of the wireframe comparison, not a production promise.
+
+### Normal Exam
+
+Use only current result/context data. Prioritize:
+
+- overall score;
+- answer composition;
+- subject performance;
+- completion;
+- active time versus configured duration;
+- pace and reasoning indicators;
+- attempt reference;
+- candidate/class/exam context;
+- derived strengths or milestones that are mathematically evident from the stored result.
+
+### Placement / Promotion
+
+The current DTO already supports **placement** through assignedTrack + confidence. The wireframe may therefore make placement outcome a first-class result.
+
+A true **promotion decision** such as “Promoted to SS3” is not present in the current ExamResultSummary. The alternate wireframe is allowed to explore where and how such a decision would appear, but any promotion-only field must be marked **Future result contract** in the board/spec. Production cannot ship that content until the backend exposes an authoritative promotion outcome.
+
+The alternate mode should materially change hierarchy, not only copy the normal screen with a different badge. It may prioritize:
+
+- placement / progression outcome;
+- assigned track and confidence;
+- core subject evidence supporting the outcome;
+- overall score as supporting evidence;
+- readiness/progression visual treatment;
+- next-class or promotion decision placeholder only when explicitly marked as future-contract design exploration.
 
 ## Security and truth boundary
 
-Phase 04 must preserve the current candidate-result boundary.
-
-Do not send or render:
+Phase 04 must not expose or invent:
 
 - per-question correct answers;
 - accepted blank values;
 - answer-key explanations;
 - per-question correctness review;
 - hidden scoring metadata;
-- pass/fail thresholds that are not stored;
-- letter grades that are not stored;
-- rank, percentile or cohort comparison;
+- unpersisted pass/fail thresholds;
+- unpersisted letter grades;
+- class rank or percentile;
 - teacher comments that do not exist;
-- AI-generated coaching or recommendations presented as authoritative;
-- AI proctoring claims or integrity scores not present in this result contract.
+- AI-generated coaching presented as authoritative;
+- AI proctoring claims;
+- integrity scores not present in this result DTO;
+- self-service retake authority.
 
-The screen may explain persisted aggregate metrics in plain student language, but it must not reinterpret them as a new academic judgment.
+The screen may derive plain facts from stored values, for example:
+
+- “96% of the paper completed”;
+- “Strongest subject: Mathematics” when Mathematics has the highest stored subject percentage;
+- “17m 42s remained from a 60-minute paper” when duration context and elapsed time support it;
+- “Science placement · 84% confidence” when the placement field exists.
+
+These are calculations/labels, not new academic judgments.
+
+## High-depth wireframe quality bar
+
+Every proposal must visibly contain a deliberate subset of these layers:
+
+### 1. Exam identity
+- examination title;
+- exam type/mode;
+- academic session + term;
+- candidate identity;
+- class/level;
+- attempt reference;
+- result-recorded state.
+
+### 2. Score and response evidence
+- overall score;
+- correct / incorrect / unanswered;
+- answered/total;
+- completion;
+- a chart or structural visualization appropriate to the concept.
+
+### 3. Subject evidence
+- subject percentages;
+- raw correct/total;
+- subject active time;
+- meaningful comparison or progressive disclosure.
+
+### 4. Attempt performance
+- active time;
+- configured duration;
+- pace index;
+- reasoning index;
+- restrained explanation that these are attempt indicators, not ranks.
+
+### 5. Achievement / gamification layer
+Use academically restrained, directly derivable achievements such as:
+- strongest subject;
+- high completion;
+- all questions answered when true;
+- completed within configured time;
+- placement outcome;
+- “result recorded” milestone.
+
+Do not turn the result into a game scoreboard.
+
+### 6. Motion intent
+The wireframe must statically annotate and/or lightly demonstrate:
+- score count/reveal;
+- chart sweep/fill;
+- sequential subject reveal;
+- outcome stamp/reveal;
+- tab/carousel transitions where relevant;
+- reduced-motion behavior.
+
+Motion should support comprehension and completion, not celebration for its own sake.
+
+### 7. Actions and recovery
+- Return to dashboard remains primary;
+- Refresh result remains recovery/secondary;
+- Print/save may appear as an optional client-side design affordance, not a backend promise;
+- fallback/locked states stay represented.
+
+## Density target
+
+The board should be information-rich but not exhausting.
+
+Do:
+- 5–8 purposeful visual zones per screen;
+- one dominant focal result;
+- one secondary analytical area;
+- one restrained metadata/achievement layer;
+- progressive disclosure where the concept calls for it;
+- compact data visualizations instead of repeated generic metric cards.
+
+Avoid:
+- empty oversized hero areas;
+- four-card dashboard templates repeated across A–J;
+- a wall of ten metrics with equal visual weight;
+- excessive rounded cards;
+- soft pastel “student dashboard” styling;
+- admin-report density;
+- decorative components with no result meaning.
 
 ## Required result states
 
-The selected direction must have coherent variants for all existing completion states.
+The selected direction must support:
 
 ### Rich submitted result
+Full ExamResultSummary and available ExamExperienceContext.
 
-Show the full ExamResultSummary with score, answer composition, subject performance, attempt facts and optional placement outcome.
+### Single-subject
+Subject treatment expands intentionally rather than leaving blank comparison slots.
 
-### Single-subject result
+### Multi-subject
+Subjects remain comparable and legible.
 
-A one-subject exam must not look broken or artificially sparse. The subject treatment should collapse elegantly to one meaningful subject summary.
+### Placement result
+Assigned track + confidence becomes a first-class outcome when present.
 
-### Multi-subject result
-
-Multiple subjects must remain comparable without requiring the student to decode a dense analytics dashboard.
-
-### Qualifier placement result
-
-When placement exists, the assigned track and confidence may become a meaningful outcome block, but the numeric examination score remains independently visible.
+### Promotion concept state
+The board may show where an authoritative promotion result would appear. Mark this as **Future result contract** until such a field exists.
 
 ### No subject aggregates
-
-If subjectStats is empty, show a clean absence state rather than an empty chart shell.
+Use an Empty/absence treatment rather than an empty chart.
 
 ### Submission fallback
-
-A successful final submission may temporarily have only the fallback summary while the richer result service is unavailable. The completion screen must clearly distinguish "submission recorded" from "full result details still loading".
+Show “submission recorded” and clearly separate that fact from “full result details still loading”.
 
 ### Locked / consumed attempt
-
-When no further attempt is available, show Attempt complete, the recorded score when available, Return to dashboard, and Refresh result. Retake remains staff-authorized; do not imply the student can self-create one.
-
-## Interaction hierarchy
-
-Primary action:
-- Return to dashboard.
-
-Secondary action:
-- Refresh result only when it can recover a richer/updated persisted result.
-
-Optional progressive disclosure:
-- subject details;
-- attempt facts;
-- metric explanation;
-- qualifier placement detail.
-
-Do not add a student-facing "Retake now" control unless a future server contract explicitly grants that ability.
+Show completion/recorded score, dashboard action and refresh/recovery. Retake remains staff-controlled.
 
 ## Viewport and responsive contract
 
-The brainstorm comparison board contains exactly ten concepts, A–J.
+Exactly ten concepts, A–J.
 
 Every concept:
-- occupies exactly one 100dvh selection frame;
+- occupies exactly one 100dvh frame;
 - uses vertical mandatory scroll snapping;
-- uses scroll-snap-align:start and scroll-snap-stop:always;
-- keeps its representative result composition inside that frame;
-- may use an internal ScrollArea-style region only for overflow content, never page-level spill into the next concept;
-- demonstrates desktop composition and a small responsive/mobile transformation note;
-- reserves 44px-ish targets for actionable controls;
-- preserves keyboard focus visibility and reduced-motion intent.
+- uses scroll-snap-align:start;
+- uses scroll-snap-stop:always;
+- contains its Normal/Placement-Promotion toggle inside the frame;
+- keeps representative result UI inside that frame;
+- uses an internal scroll region when short/mobile content overflows;
+- never visually bleeds into the next proposal;
+- includes a concise mobile transformation note;
+- reserves approximately 44px targets;
+- keeps keyboard focus visible;
+- respects prefers-reduced-motion.
 
-Production will later be re-authored responsively for 360×640, 375×812, 768×1024, 1280×800 and short desktop.
+Production acceptance later covers:
+360×640, 375×812, 768×1024, 1280×800 and short desktop.
 
-## Ten design directions
+## Ten directions — upgraded component/depth contract
 
 ### A — Statement of Result
-
-Metaphor: an official academic result statement.
-
-Composition:
-- formal document sheet;
-- score seal as the dominant numeric element;
-- candidate/exam identity header;
-- subject marks table;
-- answer-composition footer strip;
-- optional placement endorsement.
-
-Likely production primitives:
-Card, Table, Badge, Separator, Button.
-
-Why it is distinct:
-Document-first, formal and printable in feel. It behaves like an academic record rather than an app dashboard.
+Formal academic document.
+Must include: result seal, candidate identity band, response composition strip, subject marks table with mini bars, attempt facts, achievement stamps and placement/promotion endorsement area.
+Placement mode converts the endorsement area into the visual conclusion of the document.
 
 ### B — Score Orbit
-
-Metaphor: one central outcome with supporting measures orbiting it.
-
-Composition:
-- large radial overall-score chart;
-- compact correct/incorrect/unanswered ring legend;
-- subjects as radial spokes or a lower performance ribbon;
-- active time and indicators as quiet satellites.
-
-Likely production primitives:
-Chart, Progress, Tooltip, Badge, Button.
-
-Why it is distinct:
-Chart-first and visually immediate. It reduces the page to one focal score visualization rather than rows of cards.
+Score-centric analytical instrument.
+Must include: central score ring, response-composition arcs, subject satellites, time/completion orbit, achievement chips and placement-target orbit.
+Placement mode changes the center hierarchy from score-first to outcome-first.
 
 ### C — Subject Columns
-
-Metaphor: a results hall with each subject occupying its own vertical lane.
-
-Composition:
-- overall score bar across the top;
-- subject columns with percentage height and raw correct/total values;
-- answer composition aligned beneath the columns;
-- single-subject mode expands one lane rather than showing empty lanes.
-
-Likely production primitives:
-Chart, Progress, HoverCard, Separator, Button.
-
-Why it is distinct:
-Subject comparison is the spatial structure. The score is context, not the only hero.
+Subject-comparison hall.
+Must include: overall result rail, subject columns, raw score/time footers, response composition, strongest-subject marker and outcome threshold/placement overlay.
+Placement mode highlights core subjects supporting placement/progression.
 
 ### D — Folded Result Booklet
-
-Metaphor: the examination booklet closes into a result spread.
-
-Composition:
-- two-page fold that visually echoes Phase 02 without copying it;
-- left page: completion, score, candidate and attempt reference;
-- right page: subject breakdown and attempt indicators;
-- perforated footer strip for dashboard/refresh;
-- optional placement stamp.
-
-Likely production primitives:
-Card, Separator, Collapsible, Badge, Button.
-
-Why it is distinct:
-A narrative continuation of the earlier paper metaphor, using a spread rather than a dashboard or chart canvas.
+Premium academic report spread.
+Must include: result cover page, score/completion, subject analytics page, attempt facts, achievement ribbon and outcome insert/stamp.
+Placement mode turns the right page into placement/progression evidence.
 
 ### E — Debrief Timeline
-
-Metaphor: the completed attempt explained as a short sequence.
-
-Composition:
-- vertical line with four stops: Submitted, Overall result, Subject performance, Attempt facts;
-- score and subject values live on timeline stops;
-- optional placement becomes the final outcome stop for qualifier exams;
-- fallback result can stop at Submitted and show the richer-result recovery state.
-
-Likely production primitives:
-Item, Progress, Tooltip, Collapsible, Button.
-
-Why it is distinct:
-Temporal and explanatory rather than spatially tabular.
+Narrative result sequence.
+Must include: recorded submission, score event, subject event, completion/time event, achievement event and outcome event.
+Placement mode ends on the outcome milestone; fallback can terminate after submission recorded.
 
 ### F — Academic Receipt
-
-Metaphor: a compact proof-of-completion receipt.
-
-Composition:
-- narrow centered receipt sheet;
-- large score line;
-- itemized subjects;
-- totals for correct/incorrect/unanswered;
-- attempt reference and active time in receipt metadata;
-- perforated action footer.
-
-Likely production primitives:
-Table, Separator, Badge, Button.
-
-Why it is distinct:
-Dense but calm, intentionally narrow, almost no card chrome, and optimized for quick scanning.
+Compact, intentionally dense result receipt.
+Must include: itemized subjects, response totals, score stamp, active time, completion, achievements, attempt metadata and detachable outcome/action footer.
+Placement mode adds outcome receipt lines and a future-contract promotion line when explored.
 
 ### G — Diagnostic Compass
-
-Metaphor: a balanced performance instrument.
-
-Composition:
-- radar chart for Completion, Pace and Reasoning only;
-- overall score remains a separate large numeric value;
-- subject percentages use independent bars so unlike measures are not conflated;
-- plain-language metric explanations available through tooltips.
-
-Likely production primitives:
-Chart, Progress, Tooltip, Popover, Button.
-
-Why it is distinct:
-Diagnostic visualization separates result score from behavioral/attempt indicators instead of mixing them into one number.
+Most analytical direction.
+Must include: independent overall score, response distribution chart, completion/pace/reasoning radar, subject bars, time usage and achievement/strength interpretation.
+Placement mode adds placement confidence and core-subject evidence without conflating them with the radar.
 
 ### H — Subject Spotlight
-
-Metaphor: one subject at a time under a result spotlight.
-
-Composition:
-- fixed overall score anchor;
-- subject carousel with one large subject performance panel per slide;
-- persistent mini index shows all subjects and current position;
-- answer composition and attempt facts remain fixed outside the carousel.
-
-Likely production primitives:
-Carousel, Progress, Badge, Button, ButtonGroup.
-
-Why it is distinct:
-Interaction-first. It trades simultaneous comparison for large, readable subject storytelling.
+Interaction-rich subject story.
+Must include: fixed overall result anchor, subject carousel/pager, subject score/raw/time, strongest-subject achievement, response composition and outcome footer.
+Placement mode orders/reframes the spotlight around core placement subjects.
 
 ### I — Marks Matrix
-
-Metaphor: a modern school mark sheet.
-
-Composition:
-- table-first result matrix with subject, correct/total, percent and active time;
-- overall score and completion occupy the matrix header;
-- answer composition becomes the totals row;
-- pace/reasoning and placement sit in a restrained side ledger.
-
-Likely production primitives:
-Table, Badge, Separator, ScrollArea, Button.
-
-Why it is distinct:
-Data-first and academically familiar, with almost no decorative charting.
+Modern academic mark sheet.
+Must include: subject matrix, raw/percent/time columns, inline micro-bars, totals row, response composition, attempt ledger, achievement markers and placement/promotion decision ledger.
+Placement mode adds an outcome column/panel rather than replacing the matrix.
 
 ### J — Result Dossier
-
-Metaphor: a compact examination dossier with layered detail.
-
-Composition:
-- one score cover panel;
-- Tabs for Summary, Subjects and Attempt inside the same viewport;
-- Summary shows score + answer composition;
-- Subjects shows subject aggregates;
-- Attempt shows time, pace, reasoning, reference and optional placement;
-- locked/fallback states reuse the same dossier shell with unavailable sections disabled.
-
-Likely production primitives:
-Tabs, Card, Progress, Badge, Empty, Button.
-
-Why it is distinct:
-Progressive disclosure is the interaction model. It keeps the viewport calm by never showing every metric simultaneously.
+Highest progressive-disclosure depth.
+Must include: score cover, Summary/Subjects/Performance/Outcome tabs, charts appropriate to each tab, achievements, attempt facts and fallback/locked handling.
+Placement mode promotes Outcome to the first active tab and changes the cover language.
 
 ## Selection criteria
 
-When choosing A–J, evaluate:
+Evaluate A–J on:
 
-- Can a student identify the score in under two seconds?
-- Does the screen read as an examination result rather than an admin analytics surface?
-- Does it work for one subject and many subjects?
-- Does optional qualifier placement fit naturally?
-- Can completion, pace and reasoning remain secondary?
-- Does the design avoid implying pass/fail, rank or recommendations?
-- Can the whole primary result experience fit a short desktop viewport without page-level sprawl?
-- Can the same concept transform cleanly to 360px mobile?
-- Is the primary Return to dashboard action obvious without competing with data?
-- Does the design remain useful when subject aggregates are absent?
+- score comprehension in under two seconds;
+- exam-specific identity;
+- useful visual depth without admin-dashboard overload;
+- Normal versus Placement/Promotion differentiation;
+- single- versus multi-subject resilience;
+- quality of chart/metric representation;
+- academic credibility of gamification;
+- motion serving comprehension;
+- mobile transformation;
+- one-screen snap integrity;
+- clear dashboard/recovery actions;
+- honesty about current versus future contracts.
 
 ## Production gate
 
 Do not modify src/components/exam/exam-results.tsx or the result server contract until the product owner selects A–J or an explicit hybrid.
 
 After selection:
-1. convert the selected spatial grammar into a high-fidelity React/shadcn/Tailwind contract;
-2. map only real ExamResultSummary and existing ExamExperienceContext data;
-3. implement success, fallback and locked variants;
-4. validate single-subject, multi-subject and qualifier cases;
-5. run TypeScript, production build, scoped Biome and React diagnostics;
-6. browser-test all required viewports, keyboard/focus, reduced motion, light/dark, console and network;
-7. independently review before Git completion.
+1. freeze the chosen spatial/interaction grammar;
+2. separate current-contract fields from any future promotion contract;
+3. re-author the design using installed React/shadcn/Tailwind primitives;
+4. implement rich, fallback, locked, single-subject, multi-subject and placement states;
+5. add any required backend promotion contract before consuming promotion-specific values;
+6. validate typecheck/build/scoped Biome/React diagnostics;
+7. browser-test required viewports, themes, keyboard/focus, reduced motion, console/network;
+8. independently review before Git completion.

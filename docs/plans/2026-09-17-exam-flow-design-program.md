@@ -1,7 +1,7 @@
 # Festacol `exam/**` design program
 
 Date: 2026-09-17
-Status: Phases 01–03 selected/implemented; Phase 04 Result / Completion ten-option board generated; product selection pending
+Status: Phases 01–03 selected/implemented; Phase 04 high-depth ten-option Result / Completion board generated; product selection pending
 Target branch: `design/exam-flow-phase-01-brainstorm`
 
 ## Product objective
@@ -62,7 +62,7 @@ Each phase receives its own low-fi `brainstorm.html` before high-fidelity produc
 | 01. Arrival & Identity | Understand the examination link and identify/sign in as the candidate | `/exam` + root student auth | **Option A selected and implemented** |
 | 02. Ready to Write | Resolve missing academic information only when necessary, understand the essential examination instructions, satisfy only required device conditions, then Start/Resume | `student-wizard.tsx` + `exam-preflight.tsx` + pre-exam state in `exam-workspace.tsx` | **Folded Examination Booklet selected and implemented** |
 | 03. Write & Submit Examination | Read, answer, navigate, flag, save, monitor time and required camera/integrity state, then confirm submission in place | `exam-workspace.tsx`, Focus Capsule, question/navigator/camera/submission components | **Focus Capsule implemented; Review & Submit merged here** |
-| 04. Result / Completion | Interpret aggregate score, answer composition, subject performance, optional placement and attempt facts, or understand fallback/locked state | `exam-results.tsx` + submitted/fallback/locked states in `exam-workspace.tsx` | **Ten-option snapped board generated; product selection required** |
+| 04. Result / Completion | Interpret aggregate score, answer composition, subject performance, optional placement and attempt facts, or understand fallback/locked state | `exam-results.tsx` + submitted/fallback/locked states in `exam-workspace.tsx` | **High-depth ten-option snapped board generated with Normal vs Placement/Promotion modes; product selection required** |
 
 ## Phase 01 data boundary
 
@@ -205,7 +205,8 @@ For Phase 04 and any later comparison board derived from this program:
 6. The artifact remains low fidelity: restrained neutral wireframe semantics, representative labels, no claim of production fidelity and no backend simulation.
 7. Accessibility, keyboard focus, 44px-ish targets and reduced-motion intent remain visible even in the wireframe.
 8. Prototype HTML/CSS/JS is never copied or imported into `src/**`; the selected direction is re-authored with the installed Next.js/shadcn/Tailwind system.
-9. Phase 04 concepts may use only the verified candidate result contract; no concept may invent answer keys, ranks, pass/fail thresholds, letter grades or self-service retake authority.
+9. Phase 04 Normal Exam states use only the verified candidate result/context contract; Placement states may use assignedTrack + confidence. A promotion-only decision may appear only as a visibly labelled **Future result contract** design slot.
+10. Every Phase 04 concept includes a working **Normal Exam ↔ Placement / Promotion** comparison toggle, meaningful metric/chart depth, restrained academic achievement treatment and explicit motion intent.
 
 ## Phase 04 selection artifact
 
@@ -234,7 +235,7 @@ The board explores:
 - I — Marks Matrix
 - J — Result Dossier
 
-All ten use the same aggregate persisted result boundary and are selection references only.
+All ten remain selection references only. Each concept now contains two comparison states behind a working **Normal Exam ↔ Placement / Promotion** toggle. Placement uses the current aggregate placement contract; any promotion-decision field is visibly marked as a future-contract concept.
 
 ## Next gate
 
