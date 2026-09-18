@@ -452,7 +452,7 @@ export interface SubmitSummary {
   integrityScore: number;
   correctCount: number;
   total: number;
-  placement?: { assignedTrack: string; confidence: number };
+  placement?: { assignedTrack: string | null; confidence: number; scienceEligible: boolean };
 }
 
 export async function submitExamAction(

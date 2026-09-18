@@ -1,12 +1,5 @@
+import { qualifiesForScience } from "@/lib/placement-policy";
 import type { ExamMode, ExamSessionDTO, QuestionDTO } from "@/types/exam";
-
-export const TRACKS = ["Science", "Humanities", "Business"] as const;
-
-const TRACK_WEIGHTS: Record<string, Record<string, number>> = {
-  Science: { mathematics: 1.5, "basic science": 1.55, digital: 1.05, english: 0.75, "social studies": 0.55, business: 0.45 },
-  Humanities: { english: 1.55, "social studies": 1.25, business: 0.7, digital: 0.55, mathematics: 0.55, "basic science": 0.45 },
-  Business: { "social studies": 1.45, business: 1.45, english: 1.0, mathematics: 0.85, digital: 0.75, "basic science": 0.55 },
-};
 
 export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 export const normalizeText = (v: unknown) => String(v ?? "").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en");
@@ -164,17 +157,6 @@ export function answersMayBeRevealed(session: ExamSessionDTO | null, status = se
   return Boolean(session.endsAt && Date.now() > Number(session.endsAt));
 }
 
-function placementDomain(subjectName: string): string {
-  const value = normalizeText(subjectName);
-  if (value.includes("math")) return "mathematics";
-  if (value.includes("basic science")) return "basic science";
-  if (value.includes("digital") || value.includes("computer") || value.includes("ict") || value.includes("data processing")) return "digital";
-  if (value.includes("english")) return "english";
-  if (value.includes("social studies") || value.includes("citizenship") || value.includes("heritage")) return "social studies";
-  if (value.includes("business") || value.includes("commerce") || value.includes("account")) return "business";
-  return value;
-}
-
 export function scoreAttempt(
   paper: QuestionDTO[],
   state: { responses?: Record<string, unknown>; questionTimings?: Record<string, number>; elapsedActiveSeconds?: number; startedAt?: number; submittedAt?: number | null; integrityEvents?: { type: string }[] },
@@ -267,34 +249,23 @@ export function scoreAttempt(
     details,
   };
   if ((session.mode as ExamMode) === "qualifier") {
-    result.placement = placementFor({ accuracy, paceIndex, completion, integrityScore, subjectStats }, session);
+    result.placement = placementFor({ accuracy }, session);
   }
   return result;
 }
 
 function placementFor(
-  result: { accuracy: number; paceIndex: number; completion: number; integrityScore: number; subjectStats: { subjectId: string; subject: string; percent: number }[] },
+  result: { accuracy: number },
   session: ExamSessionDTO,
 ) {
-  const enabled = (session.placementTracks || [...TRACKS]).filter((track) => (TRACKS as readonly string[]).includes(track));
-  const tracks = enabled.length ? enabled : [...TRACKS];
-  const stats = new Map(result.subjectStats.map((stat) => [placementDomain(stat.subject), stat.percent]));
-  const scored = tracks.map((track) => {
-    const weights = TRACK_WEIGHTS[track];
-    let totalWeight = 0;
-    let weighted = 0;
-    for (const [domain, weight] of Object.entries(weights)) {
-      if (!stats.has(domain)) continue;
-      totalWeight += weight;
-      weighted += (stats.get(domain) ?? 0) * weight;
-    }
-    const academic = totalWeight ? weighted / totalWeight : result.accuracy;
-    const score = academic * 0.82 + result.paceIndex * 0.08 + result.completion * 0.08 + result.integrityScore * 0.02;
-    return { track, score: Math.round(score), academic: Math.round(academic) };
-  }).sort((a, b) => b.score - a.score);
-  const best = scored[0];
-  const second = scored[1];
-  const gap = second ? best.score - second.score : 15;
-  const confidence = clamp(55 + gap * 3 + Math.round((best.score - 50) * 0.25), 55, 96);
-  return { assignedTrack: best.track, confidence, trackScores: scored };
+  const scienceEnabled =
+    session.placementTracks.length === 0 ||
+    session.placementTracks.includes("Science");
+  const scienceEligible = scienceEnabled && qualifiesForScience(result.accuracy);
+
+  return {
+    assignedTrack: scienceEligible ? "Science" : null,
+    confidence: result.accuracy,
+    scienceEligible,
+  };
 }

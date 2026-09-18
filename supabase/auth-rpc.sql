@@ -669,6 +669,151 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.select_my_placement_class(uuid,text);
+
+CREATE FUNCTION public.select_my_placement_class(
+  p_attempt_id uuid,
+  p_class_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public,private
+AS $$
+DECLARE
+  v_student uuid := private.current_school_member_id();
+  v_session_id text;
+  v_score double precision;
+  v_mode text;
+  v_latest_attempt uuid;
+  v_target_track public.academic_track;
+BEGIN
+  IF v_student IS NULL OR private.current_member_role() <> 'student' THEN
+    RAISE EXCEPTION 'student_member_required';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended('placement:' || v_student::text, 0)
+  );
+
+  SELECT
+    a.session_id,
+    coalesce(a.score, 0),
+    a.context_snapshot->>'mode'
+  INTO v_session_id,v_score,v_mode
+  FROM public.exam_attempts a
+  WHERE a.id = p_attempt_id
+    AND a.student_id = v_student
+    AND a.submitted_at IS NOT NULL;
+
+  IF NOT FOUND OR v_mode <> 'qualifier' THEN
+    RAISE EXCEPTION 'placement_attempt_required';
+  END IF;
+
+  SELECT a.id
+  INTO v_latest_attempt
+  FROM public.exam_attempts a
+  WHERE a.student_id = v_student
+    AND a.submitted_at IS NOT NULL
+    AND a.context_snapshot->>'mode' = 'qualifier'
+  ORDER BY a.submitted_at DESC,a.created_at DESC
+  LIMIT 1;
+
+  IF v_latest_attempt IS DISTINCT FROM p_attempt_id THEN
+    RAISE EXCEPTION 'stale_placement_attempt';
+  END IF;
+
+  SELECT c.track
+  INTO v_target_track
+  FROM public.classes c
+  JOIN public.academic_levels l ON l.id = c.level_id
+  WHERE c.id = p_class_id
+    AND c.status = 'active'
+    AND l.name = 'SS1'
+    AND l.active = true;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'invalid_placement_class';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.exam_placement_tracks t
+    WHERE t.session_id = v_session_id
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM public.exam_placement_tracks t
+    WHERE t.session_id = v_session_id
+      AND t.track = v_target_track
+  ) THEN
+    RAISE EXCEPTION 'placement_track_not_enabled';
+  END IF;
+
+  IF v_target_track = 'science' AND v_score <= 55 THEN
+    RAISE EXCEPTION 'science_score_required';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.class_enrollments ce
+    JOIN public.classes current_class ON current_class.id = ce.class_id
+    JOIN public.academic_levels current_level
+      ON current_level.id = current_class.level_id
+    WHERE ce.student_id = v_student
+      AND ce.status = 'active'
+      AND ce.ended_at IS NULL
+      AND current_level.name <> 'SS1'
+  ) THEN
+    RAISE EXCEPTION 'confirmed_non_placement_class';
+  END IF;
+
+  UPDATE public.class_enrollments
+  SET
+    status = 'ended',
+    ended_at = now()
+  WHERE student_id = v_student
+    AND status = 'active'
+    AND ended_at IS NULL
+    AND class_id <> p_class_id;
+
+  INSERT INTO public.class_enrollments(
+    student_id,
+    class_id,
+    status,
+    ended_at
+  ) VALUES (
+    v_student,
+    p_class_id,
+    'active',
+    NULL
+  )
+  ON CONFLICT (student_id,class_id) DO UPDATE
+  SET
+    status = 'active',
+    ended_at = NULL;
+
+  IF (
+    SELECT count(*)
+    FROM public.class_enrollments ce
+    WHERE ce.student_id = v_student
+      AND ce.status = 'active'
+      AND ce.ended_at IS NULL
+  ) <> 1 OR NOT EXISTS (
+    SELECT 1
+    FROM public.class_enrollments ce
+    WHERE ce.student_id = v_student
+      AND ce.class_id = p_class_id
+      AND ce.status = 'active'
+      AND ce.ended_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'placement_enrollment_invariant_failed';
+  END IF;
+
+  RETURN p_class_id;
+END;
+$$;
+
 DROP FUNCTION IF EXISTS public.grant_exam_retake(text,uuid,integer,text);
 
 CREATE FUNCTION public.grant_exam_retake(
@@ -748,6 +893,9 @@ GRANT EXECUTE ON FUNCTION public.my_exam_access(text) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.allocate_my_exam_attempt(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.allocate_my_exam_attempt(text) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.select_my_placement_class(uuid,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.select_my_placement_class(uuid,text) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.grant_exam_retake(text,uuid,integer,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.grant_exam_retake(text,uuid,integer,text) TO authenticated;

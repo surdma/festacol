@@ -91,9 +91,11 @@ function trackLabel(value: unknown) {
   return readable(value, "Pending");
 }
 
-function confidencePercent(value: unknown) {
-  const raw = numberValue(value);
-  return Math.round(raw <= 1 ? raw * 100 : raw);
+function placementRecommendation(attempt: GenericRow | undefined) {
+  if (!attempt) return "Pending";
+  return attempt.assigned_track === "science"
+    ? "Science qualified"
+    : "Art / Commercial choice";
 }
 
 function useRecordNavigation() {
@@ -173,7 +175,11 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
   const live = useMemo(() => attempts.filter((attempt) => !attempt.submitted_at), [attempts]);
   const averageScore = average(submitted.map((attempt) => numberValue(attempt.score)));
   const averageIntegrity = average(submitted.map((attempt) => numberValue(attempt.integrity_score, 100)));
-  const latestPlacement = attempts.find((attempt) => attempt.assigned_track);
+  const latestPlacement = attempts.find(
+    (attempt) =>
+      Boolean(attempt.submitted_at) &&
+      attemptContext(attempt).mode === "qualifier",
+  );
 
   const attemptById = useMemo(() => new Map(attempts.map((attempt) => [String(attempt.id), attempt])), [attempts]);
   const subjectSummary = useMemo(() => {
@@ -209,8 +215,8 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
       items.push({
         id: `placement-${String(latestPlacement.id)}`,
         kind: "placement",
-        title: `${trackLabel(latestPlacement.assigned_track)} placement`,
-        detail: `${confidencePercent(latestPlacement.placement_confidence)}% placement confidence`,
+        title: `${placementRecommendation(latestPlacement)}`,
+        detail: `${Math.round(numberValue(latestPlacement.score))}% placement score`,
         date: formatDate(latestPlacement.submitted_at ?? latestPlacement.created_at),
       });
     }
@@ -274,7 +280,7 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
               <Fact label="Average score" value={submitted.length ? `${averageScore}%` : "—"} detail={`${submitted.length} submitted`} />
               <Fact label="Integrity" value={submitted.length ? `${averageIntegrity}%` : "—"} detail={`${events.length} recorded events`} />
               <Fact label="Attempts" value={String(attempts.length)} detail={live.length ? `${live.length} in progress` : "No live attempt"} />
-              <Fact label="Placement" value={latestPlacement ? trackLabel(latestPlacement.assigned_track) : "Pending"} detail={latestPlacement ? `${confidencePercent(latestPlacement.placement_confidence)}% confidence` : "No qualifier outcome"} />
+              <Fact label="Placement" value={placementRecommendation(latestPlacement)} detail={latestPlacement ? `${Math.round(numberValue(latestPlacement.score))}% placement score` : "No qualifier outcome"} />
               <Fact label="Promotion" value={readable(user.promotion_status, "Not recorded")} detail="Current academic status" />
             </dl>
 
@@ -295,7 +301,7 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
                     <div className="mt-3 grid gap-2 text-sm">
                       <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">History</span><strong>{enrollmentHistory.length} enrolment{enrollmentHistory.length === 1 ? "" : "s"}</strong></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Current</span><strong className="truncate">{currentClass}</strong></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Placement</span><strong>{latestPlacement ? trackLabel(latestPlacement.assigned_track) : "Pending"}</strong></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Placement</span><strong>{placementRecommendation(latestPlacement)}</strong></div>
                     </div>
                   </div>
                 </div>
@@ -408,7 +414,7 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
                   <TabsContent value="journey" className="mt-0">
                     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
                       <section><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Placement & enrolment history</p><h3 className="mt-1 text-lg font-semibold">Academic journey</h3><p className="mt-1 text-sm text-muted-foreground">This path is reconstructed from the placement result and existing class-enrolment history. No new schema fields are required.</p><div className="mt-6">{journey.length ? journey.map((item, index) => <motion.div key={item.id} initial={reduceMotion ? false : { opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, delay: reduceMotion ? 0 : Math.min(index * 0.06, 0.36) }} className="relative grid grid-cols-[42px_minmax(0,1fr)] gap-4 pb-7 last:pb-0">{index < journey.length - 1 ? <span className="absolute top-10 bottom-0 left-5 w-px bg-border" aria-hidden="true" /> : null}<span className="relative z-10 grid size-10 place-items-center rounded-full border bg-background">{item.kind === "placement" ? <GraduationCap className="size-4" /> : item.current ? <CheckCircle2 className="size-4" /> : <School className="size-4" />}</span><div className="pt-1"><div className="flex flex-wrap items-center gap-2"><strong>{item.title}</strong>{item.current ? <StatusBadge tone="emerald">Current class</StatusBadge> : null}</div><p className="mt-1 text-sm text-muted-foreground">{item.detail}</p><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="size-3.5" />{item.date}</p></div></motion.div>) : <p className="text-sm text-muted-foreground">No academic journey events are available yet.</p>}</div></section>
-                      <aside className="border-l pl-6"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Current context</p><dl className="mt-4 grid gap-4"><div><dt className="text-xs text-muted-foreground">Class</dt><dd className="mt-1 font-semibold">{currentClass}</dd></div><div><dt className="text-xs text-muted-foreground">Pathway</dt><dd className="mt-1 font-semibold">{currentTrack}</dd></div><div><dt className="text-xs text-muted-foreground">Promotion</dt><dd className="mt-1 font-semibold">{readable(user.promotion_status)}</dd></div><div><dt className="text-xs text-muted-foreground">Latest placement</dt><dd className="mt-1 font-semibold">{latestPlacement ? trackLabel(latestPlacement.assigned_track) : "Pending"}</dd></div></dl>{classRow?.id ? <Button className="mt-6 w-full" variant="outline" onClick={() => openRecord("class", { key: "class", value: String(classRow.id) })}>Open current class<ArrowUpRight data-icon="inline-end" /></Button> : null}</aside>
+                      <aside className="border-l pl-6"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Current context</p><dl className="mt-4 grid gap-4"><div><dt className="text-xs text-muted-foreground">Class</dt><dd className="mt-1 font-semibold">{currentClass}</dd></div><div><dt className="text-xs text-muted-foreground">Pathway</dt><dd className="mt-1 font-semibold">{currentTrack}</dd></div><div><dt className="text-xs text-muted-foreground">Promotion</dt><dd className="mt-1 font-semibold">{readable(user.promotion_status)}</dd></div><div><dt className="text-xs text-muted-foreground">Latest placement</dt><dd className="mt-1 font-semibold">{placementRecommendation(latestPlacement)}</dd></div></dl>{classRow?.id ? <Button className="mt-6 w-full" variant="outline" onClick={() => openRecord("class", { key: "class", value: String(classRow.id) })}>Open current class<ArrowUpRight data-icon="inline-end" /></Button> : null}</aside>
                     </div>
                   </TabsContent>
                 </Tabs>

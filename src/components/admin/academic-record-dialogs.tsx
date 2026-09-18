@@ -63,9 +63,11 @@ function trackLabel(value: unknown) {
   return "—";
 }
 
-function confidencePercent(value: unknown) {
-  const raw = numberValue(value);
-  return Math.round(raw <= 1 ? raw * 100 : raw);
+function placementRecommendation(attempt: GenericRow | undefined) {
+  if (!attempt) return "—";
+  return attempt.assigned_track === "science"
+    ? "Science qualified"
+    : "Art / Commercial choice";
 }
 
 function useRecordNavigation() {
@@ -202,7 +204,11 @@ export function StudentAcademicRecordDialog({ userId, onClose }: { userId: strin
   const retakes = useMemo(() => attempts.filter((attempt) => numberValue(attempt.attempt_number, 1) > 1), [attempts]);
   const averageScore = average(submitted.map((attempt) => numberValue(attempt.score)));
   const averageIntegrity = average(submitted.map((attempt) => numberValue(attempt.integrity_score, 100)));
-  const latestPlacement = attempts.find((attempt) => attempt.assigned_track);
+  const latestPlacement = attempts.find(
+    (attempt) =>
+      Boolean(attempt.submitted_at) &&
+      attemptContext(attempt).mode === "qualifier",
+  );
   const subjectSummary = useMemo(() => {
     const buckets = new Map<string, { name: string; values: number[] }>();
     for (const row of stats) {
@@ -239,7 +245,7 @@ export function StudentAcademicRecordDialog({ userId, onClose }: { userId: strin
                 <MetricCard label="Exam attempts" value={String(attempts.length)} detail={`${submitted.length} submitted · ${live.length} live · ${retakes.length} retake`} />
                 <MetricCard label="Average score" value={submitted.length ? `${averageScore}%` : "—"} detail="Submitted attempts" />
                 <MetricCard label="Integrity" value={submitted.length ? `${averageIntegrity}%` : "—"} detail={`${events.length} linked integrity event${events.length === 1 ? "" : "s"}`} />
-                <MetricCard label="Placement" value={latestPlacement ? trackLabel(latestPlacement.assigned_track) : "—"} detail={latestPlacement ? `${confidencePercent(latestPlacement.placement_confidence)}% confidence` : "No placement outcome recorded"} />
+                <MetricCard label="Placement" value={placementRecommendation(latestPlacement)} detail={latestPlacement ? `${Math.round(numberValue(latestPlacement.score))}% placement score` : "No placement outcome recorded"} />
                 <MetricCard label="Parent group" value={whatsapp ? "Connected" : "Missing"} detail={whatsapp ? String(whatsapp.name) : "No class WhatsApp mapping"} />
               </div>
 
@@ -280,7 +286,7 @@ export function StudentAcademicRecordDialog({ userId, onClose }: { userId: strin
                 </TabsContent>
 
                 <TabsContent value="placement" className="pt-4">
-                  <div className="grid gap-4 lg:grid-cols-2"><section className="rounded-2xl border p-5"><h3 className="font-semibold">Current placement context</h3><div className="mt-4 grid gap-3"><RelationshipPill label="Current class" value={String(classRow?.display_name ?? "Unassigned")} /><RelationshipPill label="Current track" value={String(classRow?.track_name ?? "—")} /><RelationshipPill label="Promotion status" value={String(user.promotion_status ?? "Not recorded")} /></div></section><section className="rounded-2xl border p-5"><h3 className="font-semibold">Latest qualifier outcome</h3>{latestPlacement ? <div className="mt-4"><span className="text-xs text-muted-foreground">Assigned track</span><strong className="mt-1 block font-display text-2xl">{trackLabel(latestPlacement.assigned_track)}</strong><p className="mt-2 text-sm text-muted-foreground">Confidence {confidencePercent(latestPlacement.placement_confidence)}%</p></div> : <p className="mt-4 text-sm text-muted-foreground">No qualifier placement outcome has been recorded.</p>}</section></div>
+                  <div className="grid gap-4 lg:grid-cols-2"><section className="rounded-2xl border p-5"><h3 className="font-semibold">Current placement context</h3><div className="mt-4 grid gap-3"><RelationshipPill label="Current class" value={String(classRow?.display_name ?? "Unassigned")} /><RelationshipPill label="Current track" value={String(classRow?.track_name ?? "—")} /><RelationshipPill label="Promotion status" value={String(user.promotion_status ?? "Not recorded")} /></div></section><section className="rounded-2xl border p-5"><h3 className="font-semibold">Latest qualifier outcome</h3>{latestPlacement ? <div className="mt-4"><span className="text-xs text-muted-foreground">Exam recommendation</span><strong className="mt-1 block font-display text-2xl">{placementRecommendation(latestPlacement)}</strong><p className="mt-2 text-sm text-muted-foreground">Placement score {Math.round(numberValue(latestPlacement.score))}%</p></div> : <p className="mt-4 text-sm text-muted-foreground">No qualifier placement outcome has been recorded.</p>}</section></div>
                 </TabsContent>
               </Tabs>
 

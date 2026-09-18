@@ -92,6 +92,9 @@ jobs:
       - name: Validate fixture contract
         run: pnpm seed:check
 
+      - name: Validate placement score policy
+        run: pnpm exec tsx scripts/validate-placement-policy.ts
+
       - name: Validate runtime schema contract
         run: node scripts/validate-runtime-schema-contract.mjs
 
@@ -424,13 +427,20 @@ jobs:
           src/components/admin/staff-provision-dialog.tsx
           src/components/exam/exam-camera-panel.tsx
           src/components/exam/exam-focus-capsule.tsx
+          src/components/exam/exam-history-result.tsx
+          src/components/exam/exam-result-destination.tsx
+          src/components/exam/exam-result-summary.tsx
           src/components/exam/exam-results.tsx
           src/components/exam/exam-workspace.tsx
+          src/components/exam/student-exam-attempt-list.tsx
+          src/components/exam/student-wizard.tsx
           src/components/exam/question-card.tsx
           src/components/shell/realtime-notification-sync.tsx
           src/lib/auth
-          src/lib/exam-finalization.ts
           src/lib/assessment.ts
+          src/lib/exam-finalization.ts
+          src/lib/placement-policy.ts
+          src/lib/student-placement.ts
           src/hooks/use-exam-camera.ts
           src/hooks/use-teaching-subject-settings.ts
           src/lib/admin-notifications.ts
@@ -438,3 +448,8 @@ jobs:
           src/lib/student-notifications.ts
           src/lib/supabase/queries.ts
           src/types/db.ts
+          src/types/exam.ts
+          src/app/dashboard
+          'src/app/workspace/(staff)/reports'
+          src/components/admin/student-dossier-dialog.tsx
+          src/components/admin/academic-record-dialogs.tsx

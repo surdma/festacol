@@ -647,9 +647,8 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     if (resultSummary) {
       return (
         <ExamResults
-          context={context}
+          view="completion"
           summary={resultSummary}
-          onDashboard={() => router.push("/dashboard")}
           onRefresh={fetchRichResult}
         />
       );

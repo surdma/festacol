@@ -49,6 +49,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     submitted_at: attempt.submitted_at,
     assigned_track: attempt.assigned_track,
     placement_confidence: attempt.placement_confidence,
+    mode: attempt.context_snapshot?.mode ?? null,
   }));
 
   const visibleAttemptIds = new Set(reportAttempts.map((attempt) => attempt.id));

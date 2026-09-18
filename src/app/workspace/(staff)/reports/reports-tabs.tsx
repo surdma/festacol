@@ -29,6 +29,7 @@ interface Attempt {
   submitted_at: number | null;
   assigned_track: AcademicTrack | null;
   placement_confidence: number | null;
+  mode: string | null;
 }
 interface FeedItem { student: string; type: string; attemptId: string; at?: number }
 type ReportView = "overview" | "exams" | "students" | "placements" | "integrity";
@@ -80,7 +81,9 @@ export function ReportsTabs({ attempts, titles, feed, initialView }: { attempts:
     byStudent.set(attempt.student_id, value);
   }
 
-  const placements = attempts.filter((attempt) => attempt.assigned_track);
+  const placements = attempts.filter(
+    (attempt) => attempt.submitted_at && attempt.mode === "qualifier",
+  );
   const recent = [...attempts]
     .filter((attempt) => attempt.submitted_at)
     .sort((a, b) => Number(b.submitted_at ?? 0) - Number(a.submitted_at ?? 0))
@@ -239,8 +242,8 @@ export function ReportsTabs({ attempts, titles, feed, initialView }: { attempts:
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead className="min-w-56">Student</TableHead>
-                    <TableHead>Placement</TableHead>
-                    <TableHead>Confidence</TableHead>
+                    <TableHead>Recommendation</TableHead>
+                    <TableHead>Placement score</TableHead>
                     <TableHead>Attempt</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -248,9 +251,13 @@ export function ReportsTabs({ attempts, titles, feed, initialView }: { attempts:
                   {placementTable.pageRows.map((attempt) => (
                     <TableRow key={attempt.id}>
                       <TableCell className="font-semibold">{attempt.student_name}</TableCell>
-                      <TableCell><StatusBadge tone="blue">{trackLabel(attempt.assigned_track)}</StatusBadge></TableCell>
+                      <TableCell>
+                        <StatusBadge tone={attempt.assigned_track === "science" ? "blue" : "amber"}>
+                          {attempt.assigned_track === "science" ? "Science" : "Art / Commercial choice"}
+                        </StatusBadge>
+                      </TableCell>
                       <TableCell className="tabular-nums">
-                        {attempt.placement_confidence == null ? "—" : `${Math.round(Number(attempt.placement_confidence) * (Number(attempt.placement_confidence) <= 1 ? 100 : 1))}%`}
+                        {attempt.score == null ? "—" : `${Math.round(Number(attempt.score))}%`}
                       </TableCell>
                       <TableCell>
                         <Link href={`/workspace/reports?view=placements&modal=attempt&attempt=${encodeURIComponent(attempt.id)}`} className="text-xs font-semibold hover:underline">

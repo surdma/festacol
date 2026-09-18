@@ -83,6 +83,25 @@ export interface ExamSubjectPerformance {
   seconds: number;
 }
 
+export type ExamPlacementTrack = "science" | "humanities" | "business";
+
+export interface ExamPlacementOption {
+  classId: string;
+  track: ExamPlacementTrack;
+  arm: string;
+  whatsappName: string | null;
+  whatsappUrl: string | null;
+}
+
+export interface ExamResultDestination {
+  kind: "placement" | "class";
+  classId: string | null;
+  classLabel: string;
+  track: ExamPlacementTrack | null;
+  whatsappName: string | null;
+  whatsappUrl: string | null;
+}
+
 export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice" | "unknown";
 
 export interface ExamResultSummary {
@@ -93,6 +112,12 @@ export interface ExamResultSummary {
   submissionReason: ExamSubmissionReason;
   sessionTitle: string;
   candidateName: string;
+  studentNumber: string | null;
+  classLabel: string;
+  academicSession: string;
+  term: string;
+  subjectNames: string[];
+  destination: ExamResultDestination;
   mode: ExamMode;
   durationSeconds: number;
   questionCount: number;
@@ -107,7 +132,13 @@ export interface ExamResultSummary {
   paceIndex: number;
   reasoningIndex: number;
   subjectStats: ExamSubjectPerformance[];
-  placement?: { assignedTrack: string; confidence: number };
+  placement?: {
+    recommendedTrack: "science" | null;
+    scienceEligible: boolean;
+    score: number;
+    canChooseClass: boolean;
+    options: ExamPlacementOption[];
+  };
 }
 
 export interface IntegrityEvent {
