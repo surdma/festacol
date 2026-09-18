@@ -55,7 +55,7 @@ const trackLabels: Record<AcademicTrack, string> = {
 };
 
 type ClassOption = { id: string; name: string; classLevel: string; track: AcademicTrack; trackName: string; status: string };
-type ScopeOption = { isAdmin: boolean; subjectIds: string[]; qualifierAccess: boolean };
+type ScopeOption = { isAdmin: boolean; subjectIds: string[] };
 
 const initialForm: ExamCreationInput = {
   title: "",
@@ -117,7 +117,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
       setOfferings(options.offerings);
       setClasses(options.classes);
       setCandidates(options.candidates);
-      setScope({ isAdmin: options.scope.isAdmin, subjectIds: options.scope.subjectIds, qualifierAccess: options.scope.qualifierAccess });
+      setScope({ isAdmin: options.scope.isAdmin, subjectIds: options.scope.subjectIds });
     }).catch(() => {
       const message = "Exam setup data could not be loaded.";
       setError(message);
@@ -125,10 +125,7 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
     });
   }, [open]);
 
-  const availableModes = useMemo(
-    () => !scope || scope.isAdmin || scope.qualifierAccess ? [...MODES] : MODES.filter((mode) => mode !== "qualifier"),
-    [scope],
-  );
+  const availableModes = useMemo(() => [...MODES], []);
 
   const activeClasses = useMemo(() => classes.filter((item) => {
     if (item.status !== "active" || item.classLevel !== form.classLevel) return false;
