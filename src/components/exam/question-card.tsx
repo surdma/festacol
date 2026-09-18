@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseExamQuestionContent } from "@/lib/exam-question-content";
@@ -244,7 +245,8 @@ export function QuestionCard({
             ) : null}
 
             {q.type === "multi" ? (
-              <div className="flex flex-col gap-2" role="group" aria-label={`Answers for question ${index + 1}`}>
+              <FieldSet className="gap-2">
+                <FieldLegend className="sr-only">Answers for question {index + 1}</FieldLegend>
                 {(q.options ?? []).map((option, optionIndex) => {
                   const list = Array.isArray(response) ? (response as string[]) : [];
                   const selected = list.includes(option);
@@ -275,7 +277,7 @@ export function QuestionCard({
                     {Array.isArray(response) ? response.length : 0} of {q.requiredSelections} required selections chosen.
                   </p>
                 ) : null}
-              </div>
+              </FieldSet>
             ) : null}
 
             {q.type === "boolean" ? (

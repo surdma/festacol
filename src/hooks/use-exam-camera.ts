@@ -18,7 +18,9 @@ export function useExamCamera(required: boolean) {
   const [error, setError] = useState<string | null>(null);
 
   const stop = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
     streamRef.current = null;
     setStream(null);
   }, []);
