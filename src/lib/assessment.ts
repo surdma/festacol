@@ -126,7 +126,8 @@ export function paperForStudent(
   while (selected.length < target && [...buckets.values()].some((bucket) => bucket.length)) {
     const subjectId = ordered[cursor % ordered.length];
     const bucket = buckets.get(subjectId);
-    if (bucket?.length) selected.push(bucket.shift()!);
+    const question = bucket?.shift();
+    if (question) selected.push(question);
     cursor += 1;
   }
   return selected.map((question, index) => applyOptionOrder(question, session, attemptSeed, index));
