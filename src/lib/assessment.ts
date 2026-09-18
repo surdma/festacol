@@ -248,7 +248,7 @@ export function scoreAttempt(
     details,
   };
   if ((session.mode as ExamMode) === "qualifier") {
-    result.placement = placementFor({ accuracy, paceIndex, completion, integrityScore, subjectStats }, session);
+    result.placement = placementFor({ accuracy }, session);
   }
   return result;
 }
