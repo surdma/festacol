@@ -72,10 +72,11 @@ function modeLabel(mode: ExamMode): string {
 }
 
 function submissionLabel(reason: ExamResultSummary["submissionReason"]): string {
+  if (reason === "potential-malpractice") return "Exam ended after a restricted browser action";
   if (reason === "time-expired") return "Submitted automatically when time ended";
-  if (reason === "exam-closed") return "Finalized when the examination closed";
+  if (reason === "exam-closed") return "Submitted when the examination closed";
   if (reason === "manual") return "Submitted by you";
-  return "Submission recorded";
+  return "Result saved";
 }
 
 function subjectTone(index: number): string {
@@ -161,7 +162,7 @@ function CandidateResultProfile({
             : "";
 
   return (
-    <Card className="relative animate-result-rise-1 overflow-visible">
+    <Card className="relative animate-result-rise-1 overflow-visible border-0 bg-transparent text-result-cover-foreground shadow-none">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={<Button type="button" size="icon" variant="ghost" className="absolute right-3 top-3 print:hidden" aria-label="More result actions" />}
@@ -183,36 +184,36 @@ function CandidateResultProfile({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <CardContent className="flex flex-col items-center px-6 py-7 text-center">
+      <CardContent className="flex flex-col items-center px-0 py-0 text-center">
         <Avatar className="size-20 shadow-sm">
-          <AvatarFallback className="bg-result-profile text-xl font-black text-result-profile-foreground">
+          <AvatarFallback className="bg-result-cover-foreground/12 text-xl font-black text-result-cover-foreground">
             {initials(summary.candidateName)}
           </AvatarFallback>
         </Avatar>
 
         <h2 className="mt-5 text-xl font-bold tracking-tight">{summary.candidateName}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-result-cover-foreground/70">
           {context.candidate.studentNumber ?? "Verified candidate"}
         </p>
 
         <div className="mt-3">
-          <Badge variant="secondary">Attempt {summary.attemptNumber}</Badge>
+          <Badge variant="outline" className="border-result-cover-foreground/25 bg-result-cover-foreground/10 text-result-cover-foreground">Sitting {summary.attemptNumber}</Badge>
         </div>
 
-        <dl className="mt-6 grid w-full gap-3 rounded-2xl bg-muted/45 p-4 text-left text-sm">
+        <dl className="mt-6 grid w-full gap-3 border-y border-result-cover-foreground/20 py-4 text-left text-sm">
           <div className="flex items-start justify-between gap-4">
-            <dt className="text-muted-foreground">Current class</dt>
+            <dt className="text-result-cover-foreground/60">Current class</dt>
             <dd className="max-w-[65%] text-right font-semibold">{context.candidate.classLabel}</dd>
           </div>
           <div className="flex items-start justify-between gap-4">
-            <dt className="text-muted-foreground">Result reference</dt>
+            <dt className="text-result-cover-foreground/60">Result reference</dt>
             <dd className="max-w-[65%] truncate text-right font-mono text-xs font-semibold">{summary.attemptId}</dd>
           </div>
         </dl>
 
         <div className="mt-6 grid w-full grid-cols-2 gap-2 print:hidden">
-          <Button type="button" onClick={onDashboard}>Dashboard</Button>
-          <Button type="button" variant="outline" onClick={() => window.print()}>
+          <Button type="button" className="bg-result-cover-foreground text-result-cover hover:bg-result-cover-foreground/90" onClick={onDashboard}>Dashboard</Button>
+          <Button type="button" variant="outline" className="border-result-cover-foreground/30 bg-transparent text-result-cover-foreground hover:bg-result-cover-foreground/10 hover:text-result-cover-foreground" onClick={() => window.print()}>
             <Printer data-icon="inline-start" />
             Print / Save
           </Button>
@@ -221,7 +222,7 @@ function CandidateResultProfile({
         <p
           className={cn(
             "mt-3 min-h-5 text-xs",
-            refreshStatus === "error" || copyStatus === "error" ? "text-destructive" : "text-muted-foreground",
+            refreshStatus === "error" || copyStatus === "error" ? "text-destructive" : "text-result-cover-foreground/65",
           )}
           role={refreshStatus === "error" || copyStatus === "error" ? "alert" : "status"}
           aria-live="polite"
@@ -235,16 +236,16 @@ function CandidateResultProfile({
 
 function ScorePanel({ summary }: { summary: ExamResultSummary }) {
   return (
-    <section className="animate-result-score overflow-hidden rounded-3xl bg-result-score p-6 text-result-score-foreground shadow-sm" aria-labelledby="result-score-title">
+    <section className="animate-result-score border-y border-result-cover-foreground/20 py-6 text-result-cover-foreground" aria-labelledby="result-score-title">
       <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">Overall result</p>
       <div className="mt-3 flex items-end justify-between gap-4">
         <div>
-          <h2 id="result-score-title" className="text-6xl font-black leading-none tracking-[-0.05em] tabular-nums">
+          <h2 id="result-score-title" className="text-7xl font-black leading-none tracking-[-0.06em] tabular-nums sm:text-8xl">
             {Math.round(summary.score)}%
           </h2>
           <p className="mt-2 text-sm opacity-80">{summary.correctCount} of {summary.total} correct</p>
         </div>
-        <Badge variant="outline" className="border-result-score-foreground/30 bg-result-score-foreground/10 text-result-score-foreground">
+        <Badge variant="outline" className="border-result-cover-foreground/30 bg-result-cover-foreground/10 text-result-cover-foreground">
           {Math.round(summary.completion)}% complete
         </Badge>
       </div>
@@ -252,22 +253,22 @@ function ScorePanel({ summary }: { summary: ExamResultSummary }) {
       <Progress
         value={summary.completion}
         aria-label={`Completion ${Math.round(summary.completion)}%`}
-        className="mt-5 [&_[data-slot=progress-indicator]]:bg-result-score-foreground [&_[data-slot=progress-track]]:bg-result-score-foreground/20"
+        className="mt-5 [&_[data-slot=progress-indicator]]:bg-result-cover-foreground [&_[data-slot=progress-track]]:bg-result-cover-foreground/20"
       >
-        <ProgressLabel className="text-result-score-foreground">Paper completion</ProgressLabel>
+        <ProgressLabel className="text-result-cover-foreground">Paper completion</ProgressLabel>
         <span className="ml-auto text-sm font-semibold tabular-nums">{summary.answeredCount}/{summary.total}</span>
       </Progress>
 
       <dl className="mt-5 grid grid-cols-3 gap-2">
-        <div className="rounded-xl bg-result-score-foreground/10 p-3">
+        <div className="rounded-xl bg-result-cover-foreground/10 p-3">
           <dt className="text-xs opacity-70">Correct</dt>
           <dd className="mt-1 text-xl font-bold tabular-nums">{summary.correctCount}</dd>
         </div>
-        <div className="rounded-xl bg-result-score-foreground/10 p-3">
+        <div className="rounded-xl bg-result-cover-foreground/10 p-3">
           <dt className="text-xs opacity-70">Incorrect</dt>
           <dd className="mt-1 text-xl font-bold tabular-nums">{summary.incorrectCount}</dd>
         </div>
-        <div className="rounded-xl bg-result-score-foreground/10 p-3">
+        <div className="rounded-xl bg-result-cover-foreground/10 p-3">
           <dt className="text-xs opacity-70">Unanswered</dt>
           <dd className="mt-1 text-xl font-bold tabular-nums">{summary.unansweredCount}</dd>
         </div>
@@ -283,7 +284,7 @@ function ExamActivityTimeline({ summary }: { summary: ExamResultSummary }) {
       key: "started",
       icon: Clock3,
       tone: "border-info-border bg-info text-info-foreground",
-      title: "Attempt started",
+      title: "Exam started",
       detail: formatDateTime(summary.startedAt),
     },
     {
@@ -304,7 +305,7 @@ function ExamActivityTimeline({ summary }: { summary: ExamResultSummary }) {
       key: "submitted",
       icon: FileCheck2,
       tone: "border-result-score/30 bg-result-score/10 text-result-score",
-      title: "Attempt finalized",
+      title: "Exam submitted",
       detail: `${submissionLabel(summary.submissionReason)} · ${formatDateTime(summary.submittedAt)}`,
     },
   ];
@@ -315,7 +316,7 @@ function ExamActivityTimeline({ summary }: { summary: ExamResultSummary }) {
         <Activity className="size-5 text-result-activity" aria-hidden="true" />
         <h2 id="exam-activity-title" className="text-base font-bold">Your exam activity</h2>
       </div>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">A compact history of this submitted attempt.</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">A simple timeline of your exam from start to submission.</p>
 
       <ol className="mt-5 grid gap-4">
         {events.map((event, index) => {
@@ -345,8 +346,8 @@ function SubjectPerformance({ summary }: { summary: ExamResultSummary }) {
     return (
       <Alert>
         <CircleAlert />
-        <AlertTitle>Subject performance unavailable</AlertTitle>
-        <AlertDescription>This submitted attempt does not have subject-level aggregates to display.</AlertDescription>
+        <AlertTitle>Subject breakdown not available</AlertTitle>
+        <AlertDescription>Your overall result is ready, but a subject-by-subject view is not available for this paper.</AlertDescription>
       </Alert>
     );
   }
@@ -375,9 +376,9 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
       <CardHeader>
         <div className="flex items-center gap-2">
           <Gauge className="size-5 text-result-activity" aria-hidden="true" />
-          <CardTitle>Attempt indicators</CardTitle>
+          <CardTitle>How you worked</CardTitle>
         </div>
-        <CardDescription>Pace and reasoning describe this attempt only. They are not a rank or class comparison.</CardDescription>
+        <CardDescription>These indicators summarize how you worked through this exam. They are not a class ranking.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
         <Progress
@@ -385,7 +386,7 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
           aria-label={`Pace index ${summary.paceIndex}`}
           className="[&_[data-slot=progress-indicator]]:bg-result-activity"
         >
-          <ProgressLabel>Pace</ProgressLabel>
+          <ProgressLabel>Working pace</ProgressLabel>
           <span className="ml-auto text-sm font-semibold tabular-nums">{Math.round(summary.paceIndex)}</span>
         </Progress>
         <Progress
@@ -393,7 +394,7 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
           aria-label={`Reasoning index ${summary.reasoningIndex}`}
           className="[&_[data-slot=progress-indicator]]:bg-result-subject"
         >
-          <ProgressLabel>Reasoning</ProgressLabel>
+          <ProgressLabel>Reasoning pattern</ProgressLabel>
           <span className="ml-auto text-sm font-semibold tabular-nums">{Math.round(summary.reasoningIndex)}</span>
         </Progress>
       </CardContent>
@@ -479,75 +480,85 @@ export function ExamResults({
       : "Examination result";
 
   return (
-    <main className="min-h-dvh bg-background px-3 py-4 text-foreground sm:px-5 sm:py-6 lg:px-8 print:p-0">
-      <div className="mx-auto w-full max-w-7xl">
-        <header className="animate-result-rise-1 mb-5 flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
+    <main className="min-h-dvh bg-result-canvas px-3 py-4 text-foreground sm:px-5 sm:py-6 lg:px-8 print:bg-background print:p-0">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+        <header className="animate-result-rise-1 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between print:hidden">
+          <div>
             <Badge variant="outline" className="border-success-border bg-success text-success-foreground">
               <CheckCircle2 data-icon="inline-start" />
-              Result recorded
+              Result ready
             </Badge>
-            <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{summary.sessionTitle}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {modeLabel(summary.mode)}
-              {period ? ` · ${period}` : ""}
-              {" · "}Submitted {formatDateTime(summary.submittedAt)}
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">Your examination has been submitted and your result is saved.</p>
           </div>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">
-            This is the final record for the submitted attempt. Its writing screen is closed.
+            Keep this page for your records, or return to your dashboard when you are done.
           </p>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
-          <aside className="grid content-start gap-4" aria-label="Candidate and attempt summary">
-            <CandidateResultProfile context={context} summary={summary} onDashboard={onDashboard} onRefresh={onRefresh} />
-            <ScorePanel summary={summary} />
-            <ExamActivityTimeline summary={summary} />
-          </aside>
+        <article className="animate-result-booklet overflow-hidden rounded-3xl border border-result-paper-edge bg-result-paper shadow-2xl print:rounded-none print:shadow-none">
+          <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
+            <section className="min-w-0 bg-result-cover p-5 text-result-cover-foreground sm:p-7 lg:p-9">
+              <div className="mb-7 min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-result-cover-foreground/65">{modeLabel(summary.mode)}</p>
+                <h1 className="mt-2 break-words text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{summary.sessionTitle}</h1>
+                <p className="mt-3 break-words text-sm text-result-cover-foreground/75">{subjectLine}</p>
+                {period ? <p className="mt-1 text-xs text-result-cover-foreground/60">{period}</p> : null}
+              </div>
 
-          <div className="grid content-start gap-4">
-            <div className="animate-result-rise-2">
-              <ResultAchievements summary={summary} />
-            </div>
+              <CandidateResultProfile context={context} summary={summary} onDashboard={onDashboard} onRefresh={onRefresh} />
 
-            {summary.placement ? <PlacementOutcome summary={summary} /> : null}
+              <div className="mt-7">
+                <ScorePanel summary={summary} />
+              </div>
 
-            <Card className="animate-result-rise-2">
-              <CardHeader>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-subject">Subject analytics</p>
-                    <CardTitle className="mt-1 text-xl">Performance by subject</CardTitle>
-                    <CardDescription className="mt-1">{subjectLine}</CardDescription>
-                  </div>
-                  <Badge variant="secondary">{summary.subjectStats.length} subject{summary.subjectStats.length === 1 ? "" : "s"}</Badge>
+              <dl className="mt-6 grid gap-3 border-t border-result-cover-foreground/20 pt-5 text-xs sm:grid-cols-2">
+                <div className="min-w-0">
+                  <dt className="text-result-cover-foreground/60">How it ended</dt>
+                  <dd className="mt-1 font-semibold">{submissionLabel(summary.submissionReason)}</dd>
                 </div>
-              </CardHeader>
-              <CardContent>
+                <div className="min-w-0">
+                  <dt className="text-result-cover-foreground/60">Submitted</dt>
+                  <dd className="mt-1 font-semibold">{formatDateTime(summary.submittedAt)}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <div className="hidden bg-result-paper-edge lg:block print:block" aria-hidden="true" />
+
+            <section className="min-w-0 bg-result-paper p-5 text-result-paper-foreground sm:p-7 lg:p-9">
+              <div className="animate-result-rise-2">
+                <ResultAchievements summary={summary} />
+              </div>
+
+              {summary.placement ? <div className="mt-5"><PlacementOutcome summary={summary} /></div> : null}
+
+              <section className="mt-7 border-y border-result-paper-edge py-6" aria-labelledby="subject-performance-title">
+                <div className="mb-5 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-secondary">Performance</p>
+                    <h2 id="subject-performance-title" className="mt-1 text-xl font-bold">Subject breakdown</h2>
+                    <p className="mt-1 break-words text-sm text-muted-foreground">{subjectLine}</p>
+                  </div>
+                  <Badge variant="secondary" className="w-fit shrink-0">{summary.subjectStats.length} subject{summary.subjectStats.length === 1 ? "" : "s"}</Badge>
+                </div>
                 <SubjectPerformance summary={summary} />
-              </CardContent>
-            </Card>
+              </section>
 
-            <AttemptIndicators summary={summary} />
+              <div className="mt-6">
+                <AttemptIndicators summary={summary} />
+              </div>
 
-            <Alert className="animate-result-rise-4 border-info-border bg-info text-info-foreground">
-              <FileCheck2 />
-              <AlertTitle>This attempt is closed and final</AlertTitle>
-              <AlertDescription className="text-info-foreground/85">
-                Submitting ends the current attempt immediately, even when time remains. You cannot reopen its writing screen. If authorized staff grants a retake, another attempt becomes available within this same examination session.
-              </AlertDescription>
-            </Alert>
+              <div className="mt-6">
+                <ExamActivityTimeline summary={summary} />
+              </div>
 
-            <Alert className="animate-result-rise-4">
-              <FileCheck2 />
-              <AlertTitle>Aggregate result only</AlertTitle>
-              <AlertDescription>
-                Festacol shows the stored score, subject aggregates and attempt indicators. Correct answer keys and per-question marking details are not sent to the candidate result screen.
-              </AlertDescription>
-            </Alert>
+              <div className="mt-6 flex items-start gap-2 border-t border-result-paper-edge pt-5 text-xs leading-5 text-muted-foreground">
+                <FileCheck2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <p>Your result is saved. Refresh this page if you need the latest copy, or use Print / Save from the first page.</p>
+              </div>
+            </section>
           </div>
-        </div>
+        </article>
       </div>
     </main>
   );
