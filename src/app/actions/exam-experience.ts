@@ -8,7 +8,10 @@ import { attemptDurationSeconds } from "@/lib/exam-finalization";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { qualifiesForScience } from "@/lib/placement-policy";
+import {
+  qualifiesForScience,
+  SCIENCE_PLACEMENT_THRESHOLD,
+} from "@/lib/placement-policy";
 import {
   assignStudentPlacementClass,
   loadSs1PlacementClasses,
@@ -618,7 +621,7 @@ export async function selectPlacementClassAction(
   if (target.track === "science" && !scienceEligible) {
     return {
       ok: false,
-      error: "Science placement is available only when the placement score is above 55%.",
+      error: `Science placement is available only when the placement score is above ${SCIENCE_PLACEMENT_THRESHOLD}%.`,
     };
   }
 
