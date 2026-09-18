@@ -126,13 +126,17 @@ export function ResultDestinationSummary({
     : destination.classLabel;
 
   const description = isPlacement
-    ? destination.classId
-      ? placement?.scienceEligible && destination.track !== "science"
-        ? `You qualified for Science and chose ${destination.classLabel}. Your saved class now controls the group you join.`
-        : `${destination.classLabel} is saved as your SS1 class. You can join the class group when it is available.`
-      : placement?.scienceEligible
-        ? `Your placement score is above ${SCIENCE_PLACEMENT_THRESHOLD}%, so Science is the default placement. If Science cannot be finalized automatically, choose the Science class below or select Art or Commercial instead.`
-        : "Your placement score does not auto-place you in Science. Choose the Art or Commercial class you want to join."
+    ? !placement?.canChooseClass
+      ? destination.classId
+        ? `This is an earlier placement result. Your current saved class is ${destination.classLabel}; class changes are available only from your latest placement result.`
+        : "This is an earlier placement result. Open your latest placement result to choose or change your current class."
+      : destination.classId
+        ? placement.scienceEligible && destination.track !== "science"
+          ? `You qualified for Science and chose ${destination.classLabel}. Your saved class now controls the group you join.`
+          : `${destination.classLabel} is saved as your SS1 class. You can join the class group when it is available.`
+        : placement?.scienceEligible
+          ? `Your placement score is above ${SCIENCE_PLACEMENT_THRESHOLD}%, so Science is the default placement. If Science cannot be finalized automatically, choose the Science class below or select Art or Commercial instead.`
+          : "Your placement score does not auto-place you in Science. Choose the Art or Commercial class you want to join."
     : "This examination remains linked to the class already confirmed on your student record.";
 
   return (
@@ -265,8 +269,9 @@ export function PlacementClassActions({
     );
   }
 
-  const alternativeOptions =
-    destination.classId && destination.track === "science" && placement.scienceEligible
+  const alternativeOptions = !placement.canChooseClass
+    ? []
+    : destination.classId && destination.track === "science" && placement.scienceEligible
       ? placement.options.filter((option) => option.track !== "science")
       : destination.classId
         ? []
@@ -309,6 +314,19 @@ export function PlacementClassActions({
           whatsappUrl={destination.whatsappUrl}
           appearance={appearance}
         />
+      ) : null}
+
+      {!placement.canChooseClass ? (
+        <p
+          className={cn(
+            "text-xs leading-5",
+            cover
+              ? "text-result-cover-foreground/65"
+              : "text-muted-foreground",
+          )}
+        >
+          Class selection is read-only on an earlier placement result.
+        </p>
       ) : null}
 
       {alternativeOptions.length ? (
