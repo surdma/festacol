@@ -75,7 +75,7 @@ export function StudentExamAttemptList({
                 "grid min-w-0 gap-3 px-4 py-3 transition-colors hover:bg-muted/20",
                 variant === "history"
                   ? "md:grid-cols-[minmax(0,1fr)_7rem_7rem_8.5rem] md:items-center"
-                  : "sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center",
+                  : "sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center",
               )}
             >
               <div className="flex min-w-0 items-start gap-3">
