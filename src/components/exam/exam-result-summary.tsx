@@ -399,6 +399,124 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
   );
 }
 
+function ResultCoverCard({
+  summary,
+  onDashboard,
+  onRefresh,
+  subjectLine,
+  period,
+}: {
+  summary: ExamResultSummary;
+  onDashboard: () => void;
+  onRefresh: () => Promise<boolean>;
+  subjectLine: string;
+  period: string;
+}) {
+  return (
+    <section className="min-w-0 rounded-[2rem] border border-result-paper-edge bg-result-cover p-5 text-result-cover-foreground shadow-xl sm:p-7 lg:p-9 print:rounded-none print:shadow-none">
+      <div className="mb-7 min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-result-cover-foreground/65">
+          {modeLabel(summary.mode)}
+        </p>
+        <h1 className="mt-2 break-words text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+          {summary.sessionTitle}
+        </h1>
+        <p className="mt-3 break-words text-sm text-result-cover-foreground/75">
+          {subjectLine}
+        </p>
+        {period ? (
+          <p className="mt-1 text-xs text-result-cover-foreground/60">{period}</p>
+        ) : null}
+      </div>
+
+      <CandidateResultProfile
+        summary={summary}
+        onDashboard={onDashboard}
+        onRefresh={onRefresh}
+      />
+
+      <div className="mt-7">
+        <ScorePanel summary={summary} />
+      </div>
+
+      <dl className="mt-6 grid gap-3 border-t border-result-cover-foreground/20 pt-5 text-xs sm:grid-cols-2">
+        <div className="min-w-0">
+          <dt className="text-result-cover-foreground/60">How it ended</dt>
+          <dd className="mt-1 font-semibold">
+            {submissionLabel(summary.submissionReason)}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-result-cover-foreground/60">Submitted</dt>
+          <dd className="mt-1 font-semibold">{formatDateTime(summary.submittedAt)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function ResultDetailsCard({
+  summary,
+  onDashboard,
+  subjectLine,
+}: {
+  summary: ExamResultSummary;
+  onDashboard: () => void;
+  subjectLine: string;
+}) {
+  return (
+    <section className="min-w-0 rounded-[2rem] border border-result-paper-edge bg-result-paper p-5 text-result-paper-foreground shadow-xl sm:p-7 lg:p-9 print:rounded-none print:shadow-none">
+      <div className="animate-result-rise-2">
+        <ResultAchievements summary={summary} />
+      </div>
+
+      <div className="mt-5">
+        <ExamResultDestination summary={summary} onDashboard={onDashboard} />
+      </div>
+
+      <section
+        className="mt-7 border-y border-result-paper-edge py-6"
+        aria-labelledby="subject-performance-title"
+      >
+        <div className="mb-5 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-secondary">
+              Performance
+            </p>
+            <h2 id="subject-performance-title" className="mt-1 text-xl font-bold">
+              Subject breakdown
+            </h2>
+            <p className="mt-1 break-words text-sm text-muted-foreground">
+              {subjectLine}
+            </p>
+          </div>
+          <Badge variant="secondary" className="w-fit shrink-0">
+            {summary.subjectStats.length} subject
+            {summary.subjectStats.length === 1 ? "" : "s"}
+          </Badge>
+        </div>
+        <SubjectPerformance summary={summary} />
+      </section>
+
+      <div className="mt-6">
+        <AttemptIndicators summary={summary} />
+      </div>
+
+      <div className="mt-6">
+        <ExamActivityTimeline summary={summary} />
+      </div>
+
+      <div className="mt-6 flex items-start gap-2 border-t border-result-paper-edge pt-5 text-xs leading-5 text-muted-foreground">
+        <FileCheck2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <p>
+          Your result is saved. Refresh this page if you need the latest copy,
+          or use Print / Save from the result card.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function ExamResultSummarySection({
   summary,
   onDashboard,
@@ -421,85 +539,37 @@ export function ExamResultSummarySection({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         <header className="animate-result-rise-1 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between print:hidden">
           <div>
-            <Badge variant="outline" className="border-success-border bg-success text-success-foreground">
+            <Badge
+              variant="outline"
+              className="border-success-border bg-success text-success-foreground"
+            >
               <CheckCircle2 data-icon="inline-start" />
               Result ready
             </Badge>
-            <p className="mt-2 text-sm text-muted-foreground">Your examination has been submitted and your result is saved.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your examination has been submitted and your result is saved.
+            </p>
           </div>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">
             Keep this page for your records, or return to your dashboard when you are done.
           </p>
         </header>
 
-        <article className="animate-result-booklet overflow-hidden rounded-3xl border border-result-paper-edge bg-result-paper shadow-2xl print:rounded-none print:shadow-none">
-          <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
-            <section className="min-w-0 bg-result-cover p-5 text-result-cover-foreground sm:p-7 lg:p-9">
-              <div className="mb-7 min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-result-cover-foreground/65">{modeLabel(summary.mode)}</p>
-                <h1 className="mt-2 break-words text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{summary.sessionTitle}</h1>
-                <p className="mt-3 break-words text-sm text-result-cover-foreground/75">{subjectLine}</p>
-                {period ? <p className="mt-1 text-xs text-result-cover-foreground/60">{period}</p> : null}
-              </div>
-
-              <CandidateResultProfile summary={summary} onDashboard={onDashboard} onRefresh={onRefresh} />
-
-              <div className="mt-7">
-                <ScorePanel summary={summary} />
-              </div>
-
-              <dl className="mt-6 grid gap-3 border-t border-result-cover-foreground/20 pt-5 text-xs sm:grid-cols-2">
-                <div className="min-w-0">
-                  <dt className="text-result-cover-foreground/60">How it ended</dt>
-                  <dd className="mt-1 font-semibold">{submissionLabel(summary.submissionReason)}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-result-cover-foreground/60">Submitted</dt>
-                  <dd className="mt-1 font-semibold">{formatDateTime(summary.submittedAt)}</dd>
-                </div>
-              </dl>
-            </section>
-
-            <div className="hidden bg-result-paper-edge lg:block print:block" aria-hidden="true" />
-
-            <section className="min-w-0 bg-result-paper p-5 text-result-paper-foreground sm:p-7 lg:p-9">
-              <div className="animate-result-rise-2">
-                <ResultAchievements summary={summary} />
-              </div>
-
-              <div className="mt-5">
-                <ExamResultDestination summary={summary} onDashboard={onDashboard} />
-              </div>
-
-              <section className="mt-7 border-y border-result-paper-edge py-6" aria-labelledby="subject-performance-title">
-                <div className="mb-5 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-secondary">Performance</p>
-                    <h2 id="subject-performance-title" className="mt-1 text-xl font-bold">Subject breakdown</h2>
-                    <p className="mt-1 break-words text-sm text-muted-foreground">{subjectLine}</p>
-                  </div>
-                  <Badge variant="secondary" className="w-fit shrink-0">{summary.subjectStats.length} subject{summary.subjectStats.length === 1 ? "" : "s"}</Badge>
-                </div>
-                <SubjectPerformance summary={summary} />
-              </section>
-
-              <div className="mt-6">
-                <AttemptIndicators summary={summary} />
-              </div>
-
-              <div className="mt-6">
-                <ExamActivityTimeline summary={summary} />
-              </div>
-
-              <div className="mt-6 flex items-start gap-2 border-t border-result-paper-edge pt-5 text-xs leading-5 text-muted-foreground">
-                <FileCheck2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <p>Your result is saved. Refresh this page if you need the latest copy, or use Print / Save from the first page.</p>
-              </div>
-            </section>
-          </div>
+        <article className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start print:gap-3">
+          <ResultCoverCard
+            summary={summary}
+            onDashboard={onDashboard}
+            onRefresh={onRefresh}
+            subjectLine={subjectLine}
+            period={period}
+          />
+          <ResultDetailsCard
+            summary={summary}
+            onDashboard={onDashboard}
+            subjectLine={subjectLine}
+          />
         </article>
       </div>
     </section>
   );
 }
-
