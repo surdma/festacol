@@ -97,7 +97,8 @@ export async function getAdminTopbarNotifications(
         .order("created_at", { ascending: false })
         .limit(3)
     : { data: [] };
-  const supportRequests = (supportResult.data ?? []) as ExamSupportQueueRow[];
+  const supportRequests = ((supportResult.data ?? []) as ExamSupportQueueRow[])
+    .filter((request) => allowedSessionIds.has(request.session_id));
 
   const drafts = visibleSessions.filter((session) => session.status === "draft");
   const activeAttempts = attempts.filter((attempt) => attempt.started_at && !attempt.submitted_at);
