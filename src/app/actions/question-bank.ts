@@ -79,10 +79,12 @@ export async function seedSubjectCatalogFromFixtureAction(): Promise<ActionResul
 
     // Bulk path: one delete + one insert for every curriculum rule instead of
     // one delete + one insert per subject.
-    const subjectIds = fixture.subjects.map((subject) => idByCode.get(subject.code)!);
+    const subjectIds: string[] = [];
     const allRules: { subject_id: string; level_id: string; track: AcademicTrack; participation: "required" | "elective"; updated_at: string }[] = [];
     for (const subject of fixture.subjects) {
-      const subjectId = idByCode.get(subject.code)!;
+      const subjectId = idByCode.get(subject.code);
+      if (!subjectId) return { ok: false, error: `Subject ${subject.code} could not be resolved after publishing.` };
+      subjectIds.push(subjectId);
       for (const rule of subject.curriculum) {
         const levelId = levelIdByName.get(rule.level);
         if (!levelId) return { ok: false, error: `Academic level ${rule.level} is unavailable.` };

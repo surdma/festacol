@@ -225,7 +225,7 @@ jobs:
 
       - name: Biome lint canonical migration surfaces
         run: >-
-          pnpm exec biome lint
+          pnpm exec biome lint --max-diagnostics=100
           prisma.config.ts
           prisma/seed.ts
           src/app/actions

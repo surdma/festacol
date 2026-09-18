@@ -61,6 +61,8 @@ function examId(): string {
 
 async function teacherMayManageClass(ctx: StaffContext, classId: string): Promise<boolean> {
   if (ctx.scope.isAdmin) return true;
+  const staffId = ctx.scope.profileId;
+  if (!staffId) return false;
   const { data: offerings } = await ctx.supabase
     .from("class_subject_offerings")
     .select("id")
@@ -71,7 +73,7 @@ async function teacherMayManageClass(ctx: StaffContext, classId: string): Promis
   const { count } = await ctx.supabase
     .from("teaching_assignments")
     .select("id", { count: "exact", head: true })
-    .eq("staff_id", ctx.scope.profileId!)
+    .eq("staff_id", staffId)
     .in("offering_id", offeringIds)
     .is("ended_at", null);
   return (count ?? 0) > 0;
@@ -96,6 +98,8 @@ export interface ExamWizardInput {
 export async function createExamAction(input: ExamWizardInput): Promise<ActionResult & { id?: string }> {
   try {
     const ctx = await requireStaff();
+    const staffId = ctx.scope.profileId;
+    if (!staffId) return { ok: false, error: "Staff sign-in required." };
     const subjectIds = [...new Set(input.subjectIds.filter(Boolean))];
     const offeringIds = [...new Set(input.offeringIds.filter(Boolean))];
     const classIds = [...new Set(input.classIds.filter(Boolean))];
@@ -120,7 +124,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       const { data: assignments } = await ctx.supabase
         .from("teaching_assignments")
         .select("offering_id")
-        .eq("staff_id", ctx.scope.profileId!)
+        .eq("staff_id", staffId)
         .is("ended_at", null)
         .in("offering_id", offeringIds);
       const assigned = new Set(((assignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id));
@@ -174,7 +178,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       question_order: true,
       option_order: true,
       minimize_collisions: true,
-      created_by_id: ctx.scope.profileId,
+      created_by_id: staffId,
       created_at: now,
       updated_at: now,
     });
@@ -706,7 +710,7 @@ export async function upsertWhatsappAction(input: { id?: string; classId: string
     const write = input.id
       ? await ctx.admin.from("whatsapp_groups").update({ class_id: input.classId, name: input.name, invite_url: input.inviteUrl, updated_at: now }).eq("id", input.id)
       : await ctx.admin.from("whatsapp_groups").insert({ id: `WA-${Date.now().toString(36).toUpperCase()}`, class_id: input.classId, name: input.name, invite_url: input.inviteUrl, created_at: now, updated_at: now });
-    if (write.error) return { ok: false, error: write.error.message.includes("question_in_active_exam") ? activeQuestionMutationMessage(id) : write.error.message };
+    if (write.error) return { ok: false, error: write.error.message };
     revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {

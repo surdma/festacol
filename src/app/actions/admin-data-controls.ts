@@ -66,6 +66,19 @@ export interface CleanupChunk {
 
 type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
+interface CountQueryResult {
+  count: number | null;
+  error: { message: string } | null;
+}
+
+interface CountQuery extends PromiseLike<CountQueryResult> {
+  eq(column: string, value: unknown): CountQuery;
+  neq(column: string, value: unknown): CountQuery;
+  not(column: string, operator: string, value: unknown): CountQuery;
+  is(column: string, value: unknown): CountQuery;
+  lt(column: string, value: unknown): CountQuery;
+}
+
 async function requireAdmin(): Promise<AdminClient> {
   const current = await currentStaff();
   if (!current.scope.profileId || !current.scope.isAdmin) throw new Error("Administrator sign-in required.");
@@ -80,11 +93,11 @@ function olderThanCutoff(days?: number | null): number | null {
 async function headCount(
   admin: AdminClient,
   table: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  apply: (query: any) => any,
+  apply: (query: CountQuery) => CountQuery,
   column = "id",
 ): Promise<number> {
-  const { count, error } = await apply(admin.from(table).select(column, { count: "exact", head: true }));
+  const query = admin.from(table).select(column, { count: "exact", head: true }) as unknown as CountQuery;
+  const { count, error } = await apply(query);
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
@@ -188,8 +201,7 @@ export async function listCleanupOptionsAction(): Promise<ActionResult & { optio
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyAttemptFilter(query: any, filter: AttemptFilter) {
+function applyAttemptFilter(query: CountQuery, filter: AttemptFilter): CountQuery {
   let next = query;
   if (filter.mode === "submitted") next = next.not("submitted_at", "is", null);
   if (filter.mode === "unsubmitted") next = next.is("submitted_at", null);
@@ -199,8 +211,7 @@ function applyAttemptFilter(query: any, filter: AttemptFilter) {
   return next;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applySessionFilter(query: any, filter: SessionFilter) {
+function applySessionFilter(query: CountQuery, filter: SessionFilter): CountQuery {
   // Open sessions are never removable: they may be live in classrooms.
   let next = filter.status === "non-open" ? query.neq("status", "open") : query.eq("status", filter.status);
   const cutoff = olderThanCutoff(filter.olderThanDays);

@@ -223,12 +223,19 @@ async function syncAcademicStructureFromFixtureAction(): Promise<ActionResult & 
     const { error: classError } = await admin.from("classes").upsert(classRows, { onConflict: "id" });
     if (classError) return { ok: false, error: classError.message };
 
-    const offerings = fixture.classes.flatMap((item) => item.offerings.map((code) => ({
-      class_id: item.id,
-      subject_id: subjectIdByCode.get(code)!,
-      status: "active",
-      updated_at: now,
-    })));
+    const offerings: { class_id: string; subject_id: string; status: string; updated_at: string }[] = [];
+    for (const item of fixture.classes) {
+      for (const code of item.offerings) {
+        const subjectId = subjectIdByCode.get(code);
+        if (!subjectId) return { ok: false, error: `Subject ${code} is unavailable for class ${item.id}.` };
+        offerings.push({
+          class_id: item.id,
+          subject_id: subjectId,
+          status: "active",
+          updated_at: now,
+        });
+      }
+    }
     if (offerings.length) {
       const { error: offeringError } = await admin.from("class_subject_offerings").upsert(offerings, { onConflict: "class_id,subject_id" });
       if (offeringError) return { ok: false, error: offeringError.message };
