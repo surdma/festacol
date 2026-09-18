@@ -3,8 +3,10 @@
 import { BookOpenCheck, CheckCircle2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import type { SubmitSummary } from "@/app/actions/exam-state";
-import { ExamResultDestination } from "@/components/exam/exam-result-destination";
-import { ExamResultSummarySection } from "@/components/exam/exam-result-summary";
+import {
+  ExamResultSummarySection,
+  ResultCoverCard,
+} from "@/components/exam/exam-result-summary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -72,18 +74,31 @@ export function ExamResults({
 }) {
   if (view === "full") {
     return (
-      <ExamResultSummarySection
-        summary={summary}
-        onDashboard={onDashboard}
-        onRefresh={onRefresh}
-      />
+      <ExamResultSummarySection summary={summary} onRefresh={onRefresh} />
     );
   }
+
+  const period = [summary.academicSession, summary.term]
+    .filter(Boolean)
+    .join(" · ");
+  const submittedSubjects = summary.subjectStats.map((subject) => subject.subject);
+  const subjectLine = submittedSubjects.length
+    ? submittedSubjects.join(" · ")
+    : summary.subjectNames.length
+      ? summary.subjectNames.join(" · ")
+      : "Examination result";
 
   return (
     <section className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8 text-foreground sm:px-6">
       <div className="w-full max-w-2xl">
-        <ExamResultDestination summary={summary} onDashboard={onDashboard} />
+        <ResultCoverCard
+          view="completion"
+          summary={summary}
+          onDashboard={onDashboard}
+          onRefresh={onRefresh}
+          subjectLine={subjectLine}
+          period={period}
+        />
       </div>
     </section>
   );
