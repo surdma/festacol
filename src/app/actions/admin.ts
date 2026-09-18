@@ -193,6 +193,10 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
         const { error } = await ctx.admin.from("exam_offering_targets").insert(offeringIds.map((offeringId) => ({ session_id: id, offering_id: offeringId })));
         if (error) throw error;
       }
+      if (subjectIds.length) {
+        const { error } = await ctx.admin.from("exam_subject_targets").insert(subjectIds.map((subjectId) => ({ session_id: id, subject_id: subjectId })));
+        if (error) throw error;
+      }
       if (input.mode === "qualifier") {
         const { error } = await ctx.admin.from("exam_placement_tracks").insert([
           { session_id: id, track: "science" },
