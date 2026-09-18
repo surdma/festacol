@@ -33,7 +33,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -235,7 +234,7 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                 <p className="mt-2 text-xs text-muted-foreground">Scan to open this exam.{qrRevision ? ` Rev ${qrRevision}.` : ""}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={!canShare} onClick={downloadQr}><Download data-icon="inline-start" />QR PNG</Button>
-                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer" aria-label="Open candidate exam link" /> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer"><span className="sr-only">Open candidate exam link</span></a> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
                 </div>
               </div>
 
@@ -250,10 +249,10 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button type="button" size="sm" variant="default" disabled={!canShare} onClick={() => void nativeShare()}><Share2 data-icon="inline-start" />Share</Button>
                   <span className="text-xs text-muted-foreground">via</span>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="Share exam via WhatsApp" /> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer" aria-label="Share exam via Telegram" /> : undefined} aria-label="Share via Telegram"><Send /></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer" aria-label="Share exam via X" /> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref} aria-label="Share exam via email" /> : undefined} aria-label="Share via email"><Mail /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer"><span className="sr-only">Share exam via WhatsApp</span></a> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer"><span className="sr-only">Share exam via Telegram</span></a> : undefined} aria-label="Share via Telegram"><Send /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer"><span className="sr-only">Share exam via X</span></a> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref}><span className="sr-only">Share exam via email</span></a> : undefined} aria-label="Share via email"><Mail /></Button>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
@@ -364,12 +363,19 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
                 {([
                   { value: "open", title: "Open", hint: "New candidates can start" },
                   { value: "closed", title: "Closed", hint: "Finalize active attempts" },
-                ] as const).map((option) => (
-                  <label key={option.value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40 has-data-checked:border-neutral-950 has-data-checked:bg-neutral-950 has-data-checked:text-white">
-                    <RadioGroupItem value={option.value} />
-                    <span className="min-w-0"><strong className="block text-sm">{option.title}</strong><span className="mt-0.5 block text-xs opacity-70">{option.hint}</span></span>
-                  </label>
-                ))}
+                ] as const).map((option) => {
+                  const optionId = `ee-status-${option.value}`;
+                  return (
+                    <FieldLabel
+                      key={option.value}
+                      htmlFor={optionId}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40 has-data-checked:border-neutral-950 has-data-checked:bg-neutral-950 has-data-checked:text-white"
+                    >
+                      <RadioGroupItem id={optionId} value={option.value} />
+                      <span className="min-w-0"><strong className="block text-sm">{option.title}</strong><span className="mt-0.5 block text-xs opacity-70">{option.hint}</span></span>
+                    </FieldLabel>
+                  );
+                })}
               </RadioGroup>
               <p className="text-xs text-muted-foreground">Closing blocks new starts and finalizes every active attempt from server-saved responses.</p>
             </Field>

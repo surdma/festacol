@@ -100,12 +100,14 @@ function CompletionTrail({ progress }: { progress: number }) {
   ];
 
   return (
-    <div className="relative mx-auto hidden w-full max-w-3xl grid-cols-5 items-start px-4 sm:grid" role="group" aria-label={`Exam completion ${Math.round(progress)} percent`}>
-      <span className="absolute top-2.5 right-[10%] left-[10%] h-px bg-border" aria-hidden="true" />
+    <ol
+      className="relative mx-auto hidden w-full max-w-3xl grid-cols-5 items-start px-4 before:absolute before:top-2.5 before:right-[10%] before:left-[10%] before:h-px before:bg-border before:content-[''] sm:grid"
+      aria-label={`Exam completion ${Math.round(progress)} percent`}
+    >
       {points.map((point) => {
         const state = milestoneState(progress, point.threshold);
         return (
-          <div key={point.label} className="relative z-10 flex flex-col items-center gap-1.5 text-center">
+          <li key={point.label} className="relative z-10 flex flex-col items-center gap-1.5 text-center">
             <span
               className={cn(
                 "grid size-5 place-items-center rounded-full border bg-background transition-colors",
@@ -117,10 +119,10 @@ function CompletionTrail({ progress }: { progress: number }) {
               {state === "complete" && point.threshold > 0 ? <Check className="size-3" /> : null}
             </span>
             <span className={cn("text-[10px] font-medium text-muted-foreground", state === "current" && "text-foreground")}>{point.label}</span>
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
