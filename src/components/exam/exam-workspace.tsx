@@ -369,6 +369,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
       const restricted =
         event.key === "F12"
         || (modifier && event.shiftKey && ["i", "j", "c", "k"].includes(key))
+        || (event.metaKey && event.altKey && ["i", "j", "c", "u"].includes(key))
         || (modifier && key === "u");
       if (!restricted) return;
 
