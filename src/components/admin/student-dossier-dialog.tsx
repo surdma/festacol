@@ -210,7 +210,7 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
         id: `placement-${String(latestPlacement.id)}`,
         kind: "placement",
         title: `${trackLabel(latestPlacement.assigned_track)} placement`,
-        detail: `${confidencePercent(latestPlacement.placement_confidence)}% placement confidence`,
+        detail: `${confidencePercent(latestPlacement.placement_confidence)}% placement score`,
         date: formatDate(latestPlacement.submitted_at ?? latestPlacement.created_at),
       });
     }
@@ -274,7 +274,7 @@ export function StudentDossierDialog({ userId, onClose }: { userId: string; onCl
               <Fact label="Average score" value={submitted.length ? `${averageScore}%` : "—"} detail={`${submitted.length} submitted`} />
               <Fact label="Integrity" value={submitted.length ? `${averageIntegrity}%` : "—"} detail={`${events.length} recorded events`} />
               <Fact label="Attempts" value={String(attempts.length)} detail={live.length ? `${live.length} in progress` : "No live attempt"} />
-              <Fact label="Placement" value={latestPlacement ? trackLabel(latestPlacement.assigned_track) : "Pending"} detail={latestPlacement ? `${confidencePercent(latestPlacement.placement_confidence)}% confidence` : "No qualifier outcome"} />
+              <Fact label="Placement" value={latestPlacement ? trackLabel(latestPlacement.assigned_track) : "Pending"} detail={latestPlacement ? `${confidencePercent(latestPlacement.placement_confidence)}% placement score` : "No qualifier outcome"} />
               <Fact label="Promotion" value={readable(user.promotion_status, "Not recorded")} detail="Current academic status" />
             </dl>
 
