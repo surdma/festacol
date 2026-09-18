@@ -188,7 +188,7 @@ export function ExamCameraPanel({
             <h3 id="booklet-camera-title" className="mt-1 text-sm font-semibold">{statusLabel(status)}</h3>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {status === "active"
-                ? "The live camera is ready. Keep it active while you write."
+                ? "The live camera is active for monitoring."
                 : "Festacol requested camera access for monitoring. You can continue writing if access is denied or unavailable; microphone access is not requested."}
             </p>
           </div>
