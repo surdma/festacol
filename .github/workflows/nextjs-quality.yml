@@ -216,6 +216,14 @@ jobs:
             'active'
           );
 
+          insert into public.subject_curriculum_rules (subject_id,level_id,track,participation)
+          values (
+            '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000302',
+            'science',
+            'required'
+          );
+
           insert into public.class_subject_offerings (id,class_id,subject_id,status)
           values (
             '00000000-0000-4000-8000-000000000303',
