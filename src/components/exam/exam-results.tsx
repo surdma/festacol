@@ -43,9 +43,9 @@ function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainder = seconds % 60;
-  if (hours) return hours + "h " + minutes + "m";
-  if (minutes) return minutes + "m " + remainder + "s";
-  return remainder + "s";
+  if (hours) return `${hours}h ${minutes}m`;
+  if (minutes) return `${minutes}m ${remainder}s`;
+  return `${remainder}s`;
 }
 
 function formatDateTime(timestamp: number | null): string {
@@ -95,7 +95,9 @@ function ResultAchievements({ summary }: { summary: ExamResultSummary }) {
   const remainingSeconds = Math.max(0, summary.durationSeconds - summary.elapsedSeconds);
 
   return (
-    <div className="flex flex-wrap gap-2" aria-label="Result highlights">
+    <section aria-labelledby="result-highlights-title">
+      <h2 id="result-highlights-title" className="sr-only">Result highlights</h2>
+      <div className="flex flex-wrap gap-2">
       {strongest ? (
         <Badge variant="outline" className="border-info-border bg-info text-info-foreground">
           <Award data-icon="inline-start" />
@@ -104,7 +106,7 @@ function ResultAchievements({ summary }: { summary: ExamResultSummary }) {
       ) : null}
       <Badge variant="outline" className="border-success-border bg-success text-success-foreground">
         <BookOpenCheck data-icon="inline-start" />
-        {summary.unansweredCount === 0 ? "Every question answered" : Math.round(summary.completion) + "% completed"}
+        {summary.unansweredCount === 0 ? "Every question answered" : `${Math.round(summary.completion)}% completed`}
       </Badge>
       {remainingSeconds > 0 ? (
         <Badge variant="outline" className="border-warning-border bg-warning text-warning-foreground">
@@ -112,7 +114,8 @@ function ResultAchievements({ summary }: { summary: ExamResultSummary }) {
           Submitted before time ended
         </Badge>
       ) : null}
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -248,7 +251,7 @@ function ScorePanel({ summary }: { summary: ExamResultSummary }) {
 
       <Progress
         value={summary.completion}
-        aria-label={"Completion " + Math.round(summary.completion) + "%"}
+        aria-label={`Completion ${Math.round(summary.completion)}%`}
         className="mt-5 [&_[data-slot=progress-indicator]]:bg-result-score-foreground [&_[data-slot=progress-track]]:bg-result-score-foreground/20"
       >
         <ProgressLabel className="text-result-score-foreground">Paper completion</ProgressLabel>
@@ -288,21 +291,21 @@ function ExamActivityTimeline({ summary }: { summary: ExamResultSummary }) {
       icon: BookOpenCheck,
       tone: "border-success-border bg-success text-success-foreground",
       title: "Questions completed",
-      detail: summary.answeredCount + " of " + summary.total + " answered",
+      detail: `${summary.answeredCount} of ${summary.total} answered`,
     },
     {
       key: "time",
       icon: Activity,
       tone: "border-warning-border bg-warning text-warning-foreground",
       title: "Active writing time",
-      detail: formatDuration(summary.elapsedSeconds) + (remainingSeconds > 0 ? " · " + formatDuration(remainingSeconds) + " remained" : ""),
+      detail: `${formatDuration(summary.elapsedSeconds)}${remainingSeconds > 0 ? ` · ${formatDuration(remainingSeconds)} remained` : ""}`,
     },
     {
       key: "submitted",
       icon: FileCheck2,
       tone: "border-result-score/30 bg-result-score/10 text-result-score",
       title: "Attempt finalized",
-      detail: submissionLabel(summary.submissionReason) + " · " + formatDateTime(summary.submittedAt),
+      detail: `${submissionLabel(summary.submissionReason)} · ${formatDateTime(summary.submittedAt)}`,
     },
   ];
 
@@ -354,7 +357,7 @@ function SubjectPerformance({ summary }: { summary: ExamResultSummary }) {
         <Progress
           key={subject.subjectId}
           value={subject.percent}
-          aria-label={subject.subject + ": " + subject.percent + "%"}
+          aria-label={`${subject.subject}: ${subject.percent}%`}
           className={subjectTone(index)}
         >
           <ProgressLabel className="font-semibold">{subject.subject}</ProgressLabel>
@@ -379,7 +382,7 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
       <CardContent className="grid gap-5">
         <Progress
           value={summary.paceIndex}
-          aria-label={"Pace index " + summary.paceIndex}
+          aria-label={`Pace index ${summary.paceIndex}`}
           className="[&_[data-slot=progress-indicator]]:bg-result-activity"
         >
           <ProgressLabel>Pace</ProgressLabel>
@@ -387,7 +390,7 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
         </Progress>
         <Progress
           value={summary.reasoningIndex}
-          aria-label={"Reasoning index " + summary.reasoningIndex}
+          aria-label={`Reasoning index ${summary.reasoningIndex}`}
           className="[&_[data-slot=progress-indicator]]:bg-result-subject"
         >
           <ProgressLabel>Reasoning</ProgressLabel>
@@ -418,7 +421,7 @@ function PlacementOutcome({ summary }: { summary: ExamResultSummary }) {
       </div>
       <Progress
         value={summary.placement.confidence}
-        aria-label={"Placement confidence " + summary.placement.confidence + "%"}
+        aria-label={`Placement confidence ${summary.placement.confidence}%`}
         className="mt-5 [&_[data-slot=progress-indicator]]:bg-result-placement"
       >
         <ProgressLabel>Confidence</ProgressLabel>
@@ -450,7 +453,7 @@ function RecoveryActions({
         {status === "working" ? <Spinner data-icon="inline-start" /> : <RefreshCw data-icon="inline-start" />}
         Refresh result
       </Button>
-      {status === "success" ? <p className="text-xs text-success-foreground sm:col-span-2" role="status">Result refreshed.</p> : null}
+      {status === "success" ? <output className="text-xs text-success-foreground sm:col-span-2">Result refreshed.</output> : null}
       {status === "error" ? <p className="text-xs text-destructive sm:col-span-2" role="alert">Could not refresh the result. Check your connection and try again.</p> : null}
     </div>
   );
@@ -487,7 +490,7 @@ export function ExamResults({
             <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{summary.sessionTitle}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {modeLabel(summary.mode)}
-              {period ? " · " + period : ""}
+              {period ? ` · ${period}` : ""}
               {" · "}Submitted {formatDateTime(summary.submittedAt)}
             </p>
           </div>
