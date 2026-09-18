@@ -15,7 +15,7 @@ function uniqueIds(input: unknown): string[] {
 async function resolveScope(admin: ReturnType<typeof createSupabaseAdminClient>, subjectIds: string[], offeringIds: string[]) {
   const [{ data: subjects, error: subjectError }, { data: offerings, error: offeringError }] = await Promise.all([
     subjectIds.length
-      ? admin.from("subjects").select("id,code,name").in("id", subjectIds).eq("active", true)
+      ? admin.from("subjects").select("id,code,name").in("id", subjectIds).eq("active", true).eq("kind", "curriculum")
       : Promise.resolve({ data: [], error: null }),
     offeringIds.length
       ? admin.from("class_subject_offerings").select("id,class_id,subject_id,status").in("id", offeringIds)
@@ -99,7 +99,6 @@ export async function POST(req: Request) {
     first_name: firstName,
     last_name: lastName,
     staff_number: staffNumber,
-    qualifier_access: Boolean(body?.qualifierAccess),
   });
   if (memberError) {
     await removeProvisionedMember(admin, memberId, created.user.id);
@@ -184,7 +183,6 @@ export async function PATCH(req: Request) {
 
   const memberPatch: Record<string, unknown> = {};
   if (body.status !== undefined) memberPatch.status = body.status;
-  if (body.qualifierAccess !== undefined) memberPatch.qualifier_access = Boolean(body.qualifierAccess);
   if (Object.keys(memberPatch).length) {
     memberPatch.updated_at = new Date().toISOString();
     const { error } = await admin.from("school_members").update(memberPatch).eq("id", person.id);
