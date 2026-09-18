@@ -182,7 +182,15 @@ CREATE POLICY teaching_assignments_self_read ON public.teaching_assignments
 -- --------------------------------------------------------------- exam metadata
 CREATE POLICY exam_sessions_student_read ON public.exam_sessions
   FOR SELECT TO authenticated
-  USING (private.student_is_targeted_for_exam(id,private.current_school_member_id()));
+  USING (
+    private.student_is_targeted_for_exam(id,private.current_school_member_id())
+    OR EXISTS (
+      SELECT 1
+      FROM public.exam_attempts a
+      WHERE a.session_id = exam_sessions.id
+        AND a.student_id = private.current_school_member_id()
+    )
+  );
 CREATE POLICY exam_sessions_staff_read ON public.exam_sessions
   FOR SELECT TO authenticated
   USING (private.staff_can_access_exam(private.current_school_member_id(),id));
