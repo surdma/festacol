@@ -81,11 +81,11 @@ export function ExamResults({
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8 text-foreground sm:px-6">
+    <section className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8 text-foreground sm:px-6">
       <div className="w-full max-w-2xl">
         <ExamResultDestination summary={summary} onDashboard={onDashboard} />
       </div>
-    </main>
+    </section>
   );
 }
 
@@ -101,8 +101,8 @@ export function ExamSubmissionFallback({
   onRefresh: () => Promise<boolean>;
 }) {
   return (
-    <main className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8">
-      <section className="w-full max-w-xl rounded-[2rem] border bg-card p-6 shadow-xl sm:p-8">
+    <section className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8">
+      <div className="w-full max-w-xl rounded-[2rem] border bg-card p-6 shadow-xl sm:p-8">
         <Badge
           variant="outline"
           className="border-success-border bg-success text-success-foreground"
@@ -121,8 +121,8 @@ export function ExamSubmissionFallback({
         <div className="mt-6 border-t pt-5">
           <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }
 
@@ -138,8 +138,8 @@ export function ExamLockedResult({
   onRefresh: () => Promise<boolean>;
 }) {
   return (
-    <main className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8">
-      <section className="w-full max-w-xl rounded-[2rem] border bg-card p-6 shadow-xl sm:p-8">
+    <section className="grid min-h-dvh place-items-center bg-result-canvas px-4 py-8">
+      <div className="w-full max-w-xl rounded-[2rem] border bg-card p-6 shadow-xl sm:p-8">
         <Badge
           variant="outline"
           className="border-success-border bg-success text-success-foreground"
@@ -158,7 +158,7 @@ export function ExamLockedResult({
         <div className="mt-6 border-t pt-5">
           <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }
