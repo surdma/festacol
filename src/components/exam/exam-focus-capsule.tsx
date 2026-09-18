@@ -293,9 +293,9 @@ function SubmissionDialog({
           <AlertDialogMedia className="bg-primary/10 text-primary">
             <Send />
           </AlertDialogMedia>
-          <AlertDialogTitle>Submit this examination?</AlertDialogTitle>
+          <AlertDialogTitle>Submit and end this attempt?</AlertDialogTitle>
           <AlertDialogDescription>
-            Submission is final. You have answered {answeredCount} of {total} questions with {timeLeft} remaining. Unanswered or flagged questions never block manual submission.
+            Submission is final immediately, even with {timeLeft} remaining. You have answered {answeredCount} of {total} questions. After you submit, this writing screen cannot be reopened; only an authorized staff retake can make another attempt available in this examination session.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -329,7 +329,7 @@ function SubmissionDialog({
           {openCount > 0 ? (
             <AlertDialogCancel variant="secondary" onClick={onGoToOpen}>Go to unanswered</AlertDialogCancel>
           ) : null}
-          <AlertDialogAction disabled={!online} onClick={onSubmit}>Submit exam</AlertDialogAction>
+          <AlertDialogAction disabled={!online} onClick={onSubmit}>Submit final</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

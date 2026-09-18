@@ -25,18 +25,14 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
-  --color-result-canvas: var(--result-canvas);
-  --color-result-paper: var(--result-paper);
-  --color-result-paper-edge: var(--result-paper-edge);
-  --color-result-paper-foreground: var(--result-paper-foreground);
-  --color-result-cover: var(--result-cover);
-  --color-result-cover-foreground: var(--result-cover-foreground);
-  --color-result-accent: var(--result-accent);
-  --color-result-accent-foreground: var(--result-accent-foreground);
-  --color-result-secondary: var(--result-secondary);
-  --color-result-secondary-foreground: var(--result-secondary-foreground);
-  --color-result-highlight: var(--result-highlight);
-  --color-result-highlight-foreground: var(--result-highlight-foreground);
+  --color-result-score: var(--result-score);
+  --color-result-score-foreground: var(--result-score-foreground);
+  --color-result-profile: var(--result-profile);
+  --color-result-profile-foreground: var(--result-profile-foreground);
+  --color-result-activity: var(--result-activity);
+  --color-result-subject: var(--result-subject);
+  --color-result-placement: var(--result-placement);
+  --color-result-placement-foreground: var(--result-placement-foreground);
   --color-success-border: var(--success-border);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
@@ -72,9 +68,12 @@
   --animate-admin-enter: admin-enter 220ms cubic-bezier(.22,.61,.36,1) both;
   --animate-admin-pop: admin-pop 180ms cubic-bezier(.22,.61,.36,1) both;
   --animate-toast-in: toast-in 220ms cubic-bezier(.22,.61,.36,1) both;
-  --animate-result-booklet: result-booklet 360ms cubic-bezier(.22,.61,.36,1) both;
-  --animate-result-score: result-score 320ms cubic-bezier(.22,.61,.36,1) 90ms both;
-  --animate-result-stamp: result-stamp 300ms cubic-bezier(.22,.61,.36,1) 160ms both;
+  --animate-result-rise-1: result-rise 380ms cubic-bezier(.22,.61,.36,1) both;
+  --animate-result-rise-2: result-rise 420ms cubic-bezier(.22,.61,.36,1) 90ms both;
+  --animate-result-rise-3: result-rise 440ms cubic-bezier(.22,.61,.36,1) 170ms both;
+  --animate-result-rise-4: result-rise 460ms cubic-bezier(.22,.61,.36,1) 250ms both;
+  --animate-result-score: result-score 430ms cubic-bezier(.22,.61,.36,1) 120ms both;
+  --animate-result-stamp: result-stamp 430ms cubic-bezier(.22,.61,.36,1) 160ms both;
 }
 
 :root {
@@ -110,18 +109,14 @@
   --chart-3: oklch(0.556 0 0);
   --chart-4: oklch(0.708 0 0);
   --chart-5: oklch(0.87 0 0);
-  --result-canvas: oklch(0.958 0.018 88);
-  --result-paper: oklch(0.992 0.011 91);
-  --result-paper-edge: oklch(0.892 0.035 84);
-  --result-paper-foreground: oklch(0.205 0.018 63);
-  --result-cover: oklch(0.338 0.078 202);
-  --result-cover-foreground: oklch(0.98 0.014 91);
-  --result-accent: oklch(0.53 0.115 186);
-  --result-accent-foreground: oklch(0.985 0.01 190);
-  --result-secondary: oklch(0.53 0.145 258);
-  --result-secondary-foreground: oklch(0.985 0.008 258);
-  --result-highlight: oklch(0.79 0.142 82);
-  --result-highlight-foreground: oklch(0.275 0.055 61);
+  --result-score: oklch(0.55 0.19 258);
+  --result-score-foreground: oklch(0.985 0.006 258);
+  --result-profile: oklch(0.52 0.125 195);
+  --result-profile-foreground: oklch(0.985 0.006 195);
+  --result-activity: oklch(0.52 0.105 168);
+  --result-subject: oklch(0.54 0.18 303);
+  --result-placement: oklch(0.79 0.14 80);
+  --result-placement-foreground: oklch(0.25 0.055 60);
   --radius: 0.75rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -166,18 +161,14 @@
   --chart-3: oklch(0.556 0 0);
   --chart-4: oklch(0.439 0 0);
   --chart-5: oklch(0.269 0 0);
-  --result-canvas: oklch(0.17 0.018 202);
-  --result-paper: oklch(0.224 0.025 78);
-  --result-paper-edge: oklch(0.342 0.04 82);
-  --result-paper-foreground: oklch(0.955 0.018 90);
-  --result-cover: oklch(0.295 0.071 202);
-  --result-cover-foreground: oklch(0.965 0.016 91);
-  --result-accent: oklch(0.73 0.112 184);
-  --result-accent-foreground: oklch(0.205 0.038 191);
-  --result-secondary: oklch(0.72 0.13 258);
-  --result-secondary-foreground: oklch(0.205 0.04 258);
-  --result-highlight: oklch(0.82 0.136 83);
-  --result-highlight-foreground: oklch(0.245 0.047 61);
+  --result-score: oklch(0.43 0.16 258);
+  --result-score-foreground: oklch(0.985 0.006 258);
+  --result-profile: oklch(0.46 0.105 195);
+  --result-profile-foreground: oklch(0.985 0.006 195);
+  --result-activity: oklch(0.73 0.095 168);
+  --result-subject: oklch(0.72 0.14 303);
+  --result-placement: oklch(0.82 0.13 80);
+  --result-placement-foreground: oklch(0.24 0.05 60);
   --sidebar: oklch(0.145 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.985 0 0);
@@ -203,19 +194,19 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes result-booklet {
+@keyframes result-rise {
   from { opacity: 0; transform: translateY(10px) scale(.992); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes result-score {
-  from { opacity: 0; transform: translateY(8px) scale(.94); }
+  from { opacity: 0; transform: translateY(10px) scale(.95); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes result-stamp {
-  from { opacity: 0; transform: translateY(6px) rotate(-4deg) scale(.9); }
-  to { opacity: 1; transform: translateY(0) rotate(-2deg) scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @layer base {
