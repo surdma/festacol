@@ -72,7 +72,7 @@ function modeLabel(mode: ExamMode): string {
 }
 
 function submissionLabel(reason: ExamResultSummary["submissionReason"]): string {
-  if (reason === "potential-malpractice") return "Exam ended after a restricted browser action";
+  if (reason === "potential-malpractice") return "Potential malpractice — a blocked browser shortcut was used";
   if (reason === "time-expired") return "Submitted automatically when time ended";
   if (reason === "exam-closed") return "Submitted when the examination closed";
   if (reason === "manual") return "Submitted by you";
@@ -588,15 +588,15 @@ export function ExamSubmissionFallback({
         </CardHeader>
         <CardContent className="grid gap-5 py-6">
           <div className="rounded-3xl bg-result-score p-5 text-result-score-foreground">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">Stored submission score</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">Your score</p>
             <p className="mt-2 text-5xl font-black tabular-nums">{Math.round(summary.accuracy)}%</p>
             <p className="mt-2 text-sm opacity-80">{summary.correctCount} of {summary.total} correct · {Math.round(summary.completion)}% complete</p>
           </div>
           <Alert className="border-warning-border bg-warning text-warning-foreground">
             <CircleAlert />
-            <AlertTitle>Detailed result is still loading</AlertTitle>
+            <AlertTitle>Your full result is loading</AlertTitle>
             <AlertDescription className="text-warning-foreground/85">
-              Your submission is already final. Refresh only retrieves the richer stored result; it does not resubmit or reopen the examination.
+              Your exam has been submitted. Refresh to load the complete result page. This will not submit anything again.
             </AlertDescription>
           </Alert>
           <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
@@ -623,7 +623,7 @@ export function ExamLockedResult({
         <CardHeader className="border-b">
           <Badge variant="outline" className="w-fit">
             <BookOpenCheck data-icon="inline-start" />
-            Attempt complete
+            Exam complete
           </Badge>
           <CardTitle className="mt-3 text-2xl">{context.session.title}</CardTitle>
           <CardDescription>{context.candidate.fullName} · Current class · {context.candidate.classLabel}</CardDescription>
@@ -631,15 +631,15 @@ export function ExamLockedResult({
         <CardContent className="grid gap-5 py-6">
           {score !== null ? (
             <div className="rounded-3xl bg-result-score p-5 text-result-score-foreground">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">Recorded score</p>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">Your score</p>
               <p className="mt-2 text-5xl font-black tabular-nums">{Math.round(score)}%</p>
             </div>
           ) : null}
           <Alert className="border-info-border bg-info text-info-foreground">
             <FileCheck2 />
-            <AlertTitle>No further attempt is currently available</AlertTitle>
+            <AlertTitle>This exam is complete</AlertTitle>
             <AlertDescription className="text-info-foreground/85">
-              This submitted attempt cannot be reopened. Authorized staff can grant a retake when policy permits; that grant makes another attempt available in this same examination session.
+              You have finished the sitting currently available to you. If your school gives you another chance, it will appear on your dashboard.
             </AlertDescription>
           </Alert>
           <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
