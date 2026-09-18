@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CircleAlert, RotateCcw } from "lucide-react";
 import { getExamResultAction } from "@/app/actions/exam-experience";
 import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
-import { getExamPaperAction, saveProgressAction, submitExamAction, type SaveProgressResult, type SubmitSummary } from "@/app/actions/exam-state";
+import { disqualifyExamAction, getExamPaperAction, saveProgressAction, submitExamAction, type SaveProgressResult, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { ExamPreflight } from "@/components/exam/exam-preflight";
 import { ExamLockedResult, ExamResults, ExamSubmissionFallback } from "@/components/exam/exam-results";
@@ -21,6 +21,7 @@ type Q = ExamPaperQuestionDTO;
 type Phase = "preflight" | "loading" | "load-failed" | "exam" | "processing" | "submission-failed" | "submitted" | "locked";
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
 type PersistResult = SaveProgressResult;
+type CompletionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice";
 
 type BackgroundSnapshot = {
   hiddenAt: number;
@@ -30,23 +31,25 @@ type BackgroundSnapshot = {
   questionSeconds: number;
 };
 
-function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" | "exam-closed" }) {
+function ProcessingScreen({ reason }: { reason: CompletionReason }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-5 py-12" aria-live="polite">
       <div className="flex items-center gap-3">
         <Spinner className="size-6" />
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {reason === "time-expired" ? "Time ended" : reason === "exam-closed" ? "Exam closed" : "Submitting"}
+          {reason === "potential-malpractice" ? "Exam ended" : reason === "time-expired" ? "Time ended" : reason === "exam-closed" ? "Exam closed" : "Submitting"}
         </p>
       </div>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{reason === "time-expired" ? "Time has ended" : reason === "exam-closed" ? "This examination has closed" : "Submitting your examination"}</h1>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{reason === "potential-malpractice" ? "Your examination has ended" : reason === "time-expired" ? "Time has ended" : reason === "exam-closed" ? "This examination has closed" : "Submitting your examination"}</h1>
       <div className="mt-6 border-t pt-5">
         <p className="max-w-md text-sm leading-6 text-muted-foreground">
-          {reason === "time-expired"
-            ? "Your saved responses are being finalized and submitted automatically."
-            : reason === "exam-closed"
-              ? "Staff closed the examination. Festacol is finalizing the responses already accepted by the server."
-              : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
+          {reason === "potential-malpractice"
+            ? "A restricted browser action was detected. Your saved work is being submitted and the reason will appear with your result."
+            : reason === "time-expired"
+              ? "Your saved responses are being finalized and submitted automatically."
+              : reason === "exam-closed"
+                ? "Staff closed the examination. Festacol is finalizing the responses already accepted by the server."
+                : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
         </p>
       </div>
     </main>
@@ -70,7 +73,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [processingReason, setProcessingReason] = useState<"manual" | "time-expired" | "exam-closed">("manual");
+  const [processingReason, setProcessingReason] = useState<CompletionReason>("manual");
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [resultSummary, setResultSummary] = useState<ExamResultSummary | null>(null);
   const [fallbackSummary, setFallbackSummary] = useState<SubmitSummary | null>(null);
@@ -240,7 +243,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     }
   }, [fetchRichResult, session.id]);
 
-  const submitFinal = useCallback(async (reason: "manual" | "time-expired" | "exam-closed") => {
+  const submitFinal = useCallback(async (reason: Exclude<CompletionReason, "potential-malpractice">) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setProcessingReason(reason);
@@ -302,6 +305,46 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     }
   }, [camera, captureTiming, fetchRichResult, persist, session.id]);
 
+  const terminateForMalpractice = useCallback(async (detail: string) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setProcessingReason("potential-malpractice");
+    setProcessingError(null);
+    setError(null);
+    setPhase("processing");
+    captureTiming("");
+
+    try {
+      if (saveInFlightRef.current) await saveInFlightRef.current.catch(() => undefined);
+      await persist(true).catch(() => undefined);
+
+      const result = await disqualifyExamAction(session.id, detail);
+      if (!result.ok || !result.summary) {
+        if (result.error?.toLocaleLowerCase("en").includes("already submitted")) {
+          const recovered = await fetchRichResult();
+          if (recovered) {
+            camera.stop();
+            setPhase("submitted");
+            return;
+          }
+        }
+        setProcessingError(result.error ?? "Your examination has ended, but Festacol could not complete the submission. Keep this page open and reconnect.");
+        setPhase("submission-failed");
+        return;
+      }
+
+      setFallbackSummary(result.summary);
+      camera.stop();
+      await fetchRichResult();
+      setPhase("submitted");
+    } catch {
+      setProcessingError("Your examination has ended, but Festacol cannot reach the examination service. Keep this page open; submission will retry when your connection returns.");
+      setPhase("submission-failed");
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [camera, captureTiming, fetchRichResult, persist, session.id]);
+
   const timerActive = phase === "exam";
   const timer = useExamTimer(remaining, () => void submitFinal("time-expired"), timerActive);
   remainingRef.current = timer.remaining;
@@ -309,6 +352,41 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     focusMonitoring: session.integrityPolicy.focusMonitoring,
     clipboardGuard: session.integrityPolicy.clipboardGuard,
   });
+
+  useEffect(() => {
+    if (!timerActive) return;
+
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      recordIntegrity("context-menu-blocked", "Right-click menu blocked during the examination.");
+      setTimeNotice("Right-click is disabled during the examination.");
+      window.setTimeout(() => setTimeNotice(null), 4500);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const modifier = event.ctrlKey || event.metaKey;
+      const restricted =
+        event.key === "F12"
+        || (modifier && event.shiftKey && ["i", "j", "c", "k"].includes(key))
+        || (modifier && key === "u");
+      if (!restricted) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      const shortcut = event.key === "F12"
+        ? "F12"
+        : [event.metaKey ? "Meta" : "Ctrl", event.shiftKey ? "Shift" : "", event.key.toUpperCase()].filter(Boolean).join("+");
+      void terminateForMalpractice(`Restricted browser shortcut detected: ${shortcut}`);
+    };
+
+    document.addEventListener("contextmenu", onContextMenu);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("contextmenu", onContextMenu);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [recordIntegrity, terminateForMalpractice, timerActive]);
 
   useEffect(() => {
     if (bootstrappedRef.current) return;
@@ -333,6 +411,10 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     };
     const onOnline = () => {
       setOnline(true);
+      if (phase === "submission-failed" && processingReason === "potential-malpractice") {
+        void terminateForMalpractice("Restricted browser action previously detected; retrying final submission.");
+        return;
+      }
       if (phase === "submission-failed" && processingReason !== "manual") {
         void submitFinal(processingReason);
         return;
@@ -356,7 +438,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [persist, phase, processingReason, submitFinal, timerActive]);
+  }, [persist, phase, processingReason, submitFinal, terminateForMalpractice, timerActive]);
 
   useEffect(() => {
     const onSessionChanged = (event: Event) => {
@@ -634,11 +716,11 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         <h1 className="mb-6 mt-2 text-2xl font-semibold tracking-tight">{session.title}</h1>
         <Alert variant="destructive">
           <CircleAlert />
-          <AlertTitle>{processingReason === "time-expired" && timer.remaining === 0 ? "Time ended, submission needs connection" : processingReason === "exam-closed" ? "Exam closed, submission needs connection" : "Submission not completed"}</AlertTitle>
+          <AlertTitle>{processingReason === "potential-malpractice" ? "Exam ended, connection needed" : processingReason === "time-expired" && timer.remaining === 0 ? "Time ended, submission needs connection" : processingReason === "exam-closed" ? "Exam closed, submission needs connection" : "Submission not completed"}</AlertTitle>
           <AlertDescription>{failure}</AlertDescription>
         </Alert>
         <div className="mt-6 flex flex-wrap gap-2 border-t pt-5">
-          <Button type="button" onClick={() => void submitFinal(processingReason)}><RotateCcw data-icon="inline-start" />Retry submission</Button>
+          <Button type="button" onClick={() => processingReason === "potential-malpractice" ? void terminateForMalpractice("Restricted browser action previously detected; retrying final submission.") : void submitFinal(processingReason)}><RotateCcw data-icon="inline-start" />Retry submission</Button>
           {processingReason === "manual" && timer.remaining > 0 ? <Button type="button" variant="outline" onClick={() => setPhase("exam")}>Return to exam</Button> : null}
         </div>
       </main>
