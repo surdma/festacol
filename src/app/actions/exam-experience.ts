@@ -395,6 +395,28 @@ async function resolveResultDestination(input: {
   return loadWhatsappDestination(admin, enrollmentClass, "Your class", "class");
 }
 
+async function latestSubmittedQualifierAttemptId(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  studentId: string,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("exam_attempts")
+    .select("id,context_snapshot,submitted_at")
+    .eq("student_id", studentId)
+    .not("submitted_at", "is", null)
+    .order("submitted_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+
+  const latest = ((data ?? []) as {
+    id: string;
+    context_snapshot: ExamAttemptContextSnapshot;
+    submitted_at: number;
+  }[]).find((row) => row.context_snapshot?.mode === "qualifier");
+
+  return latest?.id ?? null;
+}
+
 async function buildResultSummary(
   ctx: StudentContext,
   runtimeSession: ExamSessionDTO,
@@ -407,12 +429,18 @@ async function buildResultSummary(
   const placementScore = Math.max(0, Math.min(100, Number(attempt.score ?? 0)));
 
   let placementOptions: PlacementClassOption[] = [];
+  let latestQualifierAttemptId: string | null = null;
   try {
-    const loadedOptions =
-      mode === "qualifier" ? await loadSs1PlacementClasses(admin) : [];
+    const [loadedOptions, latestQualifier] = await Promise.all([
+      mode === "qualifier" ? loadSs1PlacementClasses(admin) : Promise.resolve([]),
+      mode === "qualifier"
+        ? latestSubmittedQualifierAttemptId(admin, ctx.profile.profile_id)
+        : Promise.resolve(null),
+    ]);
     placementOptions = loadedOptions.filter((option) =>
       placementTrackEnabled(runtimeSession, option.track),
     );
+    latestQualifierAttemptId = latestQualifier;
   } catch {
     return { ok: false, error: "Placement class options could not be loaded." };
   }
@@ -480,6 +508,7 @@ async function buildResultSummary(
           recommendedTrack: scienceEligible ? ("science" as const) : null,
           scienceEligible,
           score: placementScore,
+          canChooseClass: latestQualifierAttemptId === attempt.id,
           options: placementOptions
             .filter((option) => scienceEligible || option.track !== "science")
             .map((option) => ({
@@ -611,6 +640,22 @@ export async function selectPlacementClassAction(
     );
   } catch {
     return { ok: false, error: "Placement classes could not be loaded." };
+  }
+
+  let latestQualifierAttemptId: string | null;
+  try {
+    latestQualifierAttemptId = await latestSubmittedQualifierAttemptId(
+      admin,
+      ctx.profile.profile_id,
+    );
+  } catch {
+    return { ok: false, error: "Your latest placement result could not be verified." };
+  }
+  if (latestQualifierAttemptId !== attempt.id) {
+    return {
+      ok: false,
+      error: "Only your latest placement result can change your current class.",
+    };
   }
 
   const target = options.find((option) => option.classId === parsedClassId.data);
