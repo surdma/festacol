@@ -181,6 +181,99 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rls.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/realtime.sql
 
+      - name: Assert teacher subject exam scope
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          begin;
+
+          insert into public.school_members (id,role,status,first_name,last_name,staff_number)
+          values
+            ('00000000-0000-4000-8000-000000000101','teacher','active','CI','Teacher','CI-TEACHER'),
+            ('00000000-0000-4000-8000-000000000102','administrator','active','CI','Admin','CI-ADMIN');
+
+          insert into public.subjects (id,code,name,kind,active)
+          values
+            ('00000000-0000-4000-8000-000000000201','ci-math','CI Mathematics','curriculum',true),
+            ('00000000-0000-4000-8000-000000000202','ci-english','CI English','curriculum',true),
+            ('00000000-0000-4000-8000-000000000203','ci-placement','CI Placement','qualifier',true);
+
+          insert into public.staff_subject_qualifications (staff_id,subject_id,active)
+          values ('00000000-0000-4000-8000-000000000101','00000000-0000-4000-8000-000000000201',true);
+
+          insert into public.exam_sessions (id,title,mode,status,duration_seconds,question_count)
+          values
+            ('CI-MATH','CI Mathematics exam','single','draft',600,5),
+            ('CI-ENGLISH','CI English exam','single','draft',600,5),
+            ('CI-MIXED','CI mixed exam','mixed','draft',600,5),
+            ('CI-PLACEMENT','CI placement exam','qualifier','draft',600,5);
+
+          insert into public.exam_subject_targets (session_id,subject_id)
+          values
+            ('CI-MATH','00000000-0000-4000-8000-000000000201'),
+            ('CI-ENGLISH','00000000-0000-4000-8000-000000000202'),
+            ('CI-MIXED','00000000-0000-4000-8000-000000000201'),
+            ('CI-MIXED','00000000-0000-4000-8000-000000000202'),
+            ('CI-PLACEMENT','00000000-0000-4000-8000-000000000203');
+
+          do $scope_test$
+          begin
+            if not private.staff_can_access_subject(
+              '00000000-0000-4000-8000-000000000101',
+              '00000000-0000-4000-8000-000000000201'
+            ) then raise exception 'teacher_math_subject_scope_missing'; end if;
+
+            if private.staff_can_access_subject(
+              '00000000-0000-4000-8000-000000000101',
+              '00000000-0000-4000-8000-000000000202'
+            ) then raise exception 'teacher_english_subject_scope_leaked'; end if;
+
+            if not private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-MATH')
+              then raise exception 'teacher_math_exam_scope_missing'; end if;
+            if private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-ENGLISH')
+              then raise exception 'teacher_english_exam_scope_leaked'; end if;
+            if private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-MIXED')
+              then raise exception 'teacher_partial_mixed_exam_scope_leaked'; end if;
+            if not private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-PLACEMENT')
+              then raise exception 'teacher_placement_exam_scope_missing'; end if;
+
+            if not private.staff_can_access_exam('00000000-0000-4000-8000-000000000102','CI-ENGLISH')
+              or not private.staff_can_access_exam('00000000-0000-4000-8000-000000000102','CI-MIXED')
+              or not private.staff_can_access_exam('00000000-0000-4000-8000-000000000102','CI-PLACEMENT')
+              then raise exception 'administrator_exam_scope_restricted'; end if;
+          end
+          $scope_test$;
+
+          insert into public.staff_subject_qualifications (staff_id,subject_id,active)
+          values ('00000000-0000-4000-8000-000000000101','00000000-0000-4000-8000-000000000202',true);
+
+          do $scope_test$
+          begin
+            if not private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-ENGLISH')
+              then raise exception 'added_subject_did_not_expand_exam_scope'; end if;
+            if not private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-MIXED')
+              then raise exception 'added_subject_did_not_expand_mixed_exam_scope'; end if;
+          end
+          $scope_test$;
+
+          update public.staff_subject_qualifications
+          set active=false
+          where staff_id='00000000-0000-4000-8000-000000000101'
+            and subject_id='00000000-0000-4000-8000-000000000201';
+
+          do $scope_test$
+          begin
+            if private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-MATH')
+              then raise exception 'removed_subject_still_visible'; end if;
+            if private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-MIXED')
+              then raise exception 'mixed_exam_visible_after_subject_removal'; end if;
+            if not private.staff_can_access_exam('00000000-0000-4000-8000-000000000101','CI-PLACEMENT')
+              then raise exception 'placement_access_depended_on_subject_scope'; end if;
+          end
+          $scope_test$;
+
+          rollback;
+          SQL
+
       - name: Assert platform integration
         run: |
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
@@ -255,7 +348,15 @@ jobs:
           prisma/seed.ts
           src/app/actions
           src/app/api/admin
+          'src/app/workspace/(staff)/page.tsx'
+          'src/app/workspace/(staff)/exams/page.tsx'
+          'src/app/workspace/(staff)/settings/page.tsx'
+          'src/app/workspace/(staff)/settings/teaching/page.tsx'
+          'src/app/workspace/(staff)/settings/account/page.tsx'
           src/components/admin/detail-dialogs.tsx
+          src/components/admin/exam-wizard.tsx
+          src/components/admin/major-picker.tsx
+          src/components/admin/staff-provision-dialog.tsx
           src/components/exam/exam-camera-panel.tsx
           src/components/exam/exam-focus-capsule.tsx
           src/components/exam/exam-results.tsx
@@ -266,6 +367,8 @@ jobs:
           src/lib/exam-finalization.ts
           src/lib/assessment.ts
           src/hooks/use-exam-camera.ts
+          src/hooks/use-teaching-subject-settings.ts
+          src/lib/admin-notifications.ts
           src/lib/exam-session.ts
           src/lib/student-notifications.ts
           src/lib/supabase/queries.ts
