@@ -576,41 +576,82 @@ export function ExamSubmissionFallback({
   onRefresh: () => Promise<boolean>;
 }) {
   return (
-    <main className="min-h-dvh bg-background px-3 py-5 sm:px-6 sm:py-8">
-      <Card className="mx-auto w-full max-w-3xl animate-result-rise-1">
-        <CardHeader className="border-b">
-          <Badge variant="outline" className="w-fit border-success-border bg-success text-success-foreground">
+    <main className="min-h-dvh bg-result-canvas px-3 py-5 sm:px-6 sm:py-8">
+      <article className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-result-paper-edge bg-result-paper shadow-2xl lg:grid-cols-[minmax(0,0.9fr)_1px_minmax(0,1.1fr)]">
+        <section className="min-w-0 bg-result-cover p-6 text-result-cover-foreground sm:p-8">
+          <Badge variant="outline" className="w-fit border-result-cover-foreground/25 bg-result-cover-foreground/10 text-result-cover-foreground">
             <CheckCircle2 data-icon="inline-start" />
-            Submission complete
+            Exam submitted
           </Badge>
-          <CardTitle className="mt-3 text-2xl">{context.session.title}</CardTitle>
-          <CardDescription>{context.candidate.fullName} · Current class · {context.candidate.classLabel}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-5 py-6">
-          <div className="rounded-3xl bg-result-score p-5 text-result-score-foreground">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">Your score</p>
-            <p className="mt-2 text-5xl font-black tabular-nums">{Math.round(summary.accuracy)}%</p>
-            <p className="mt-2 text-sm opacity-80">{summary.correctCount} of {summary.total} correct · {Math.round(summary.completion)}% complete</p>
+          <h1 className="mt-5 break-words text-3xl font-bold tracking-tight">{context.session.title}</h1>
+          <p className="mt-2 text-sm text-result-cover-foreground/70">{context.candidate.fullName} · {context.candidate.classLabel}</p>
+          <div className="mt-8 border-y border-result-cover-foreground/20 py-6">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-cover-foreground/65">Your score</p>
+            <p className="mt-2 text-7xl font-black tracking-[-0.06em] tabular-nums">{Math.round(summary.accuracy)}%</p>
+            <p className="mt-3 text-sm text-result-cover-foreground/75">{summary.correctCount} of {summary.total} correct · {Math.round(summary.completion)}% complete</p>
           </div>
-          <Alert className="border-warning-border bg-warning text-warning-foreground">
-            <CircleAlert />
-            <AlertTitle>Your full result is loading</AlertTitle>
-            <AlertDescription className="text-warning-foreground/85">
-              Your exam has been submitted. Refresh to load the complete result page. This will not submit anything again.
-            </AlertDescription>
-          </Alert>
-          <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
-        </CardContent>
-      </Card>
+        </section>
+
+        <div className="hidden bg-result-paper-edge lg:block" aria-hidden="true" />
+
+        <section className="min-w-0 p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-secondary">Result</p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight">Your full result is loading</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            Your exam has been submitted. Refresh to load the complete result page. This will not submit anything again.
+          </p>
+          <div className="mt-7 border-t border-result-paper-edge pt-6">
+            <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
+          </div>
+        </section>
+      </article>
     </main>
   );
 }
-
 export function ExamLockedResult({
   context,
   score,
   onDashboard,
   onRefresh,
+}: {
+  context: ExamExperienceContext;
+  score: number | null;
+  onDashboard: () => void;
+  onRefresh: () => Promise<boolean>;
+}) {
+  return (
+    <main className="min-h-dvh bg-result-canvas px-3 py-5 sm:px-6 sm:py-8">
+      <article className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-result-paper-edge bg-result-paper shadow-2xl lg:grid-cols-[minmax(0,0.9fr)_1px_minmax(0,1.1fr)]">
+        <section className="min-w-0 bg-result-cover p-6 text-result-cover-foreground sm:p-8">
+          <Badge variant="outline" className="w-fit border-result-cover-foreground/25 bg-result-cover-foreground/10 text-result-cover-foreground">
+            <BookOpenCheck data-icon="inline-start" />
+            Exam complete
+          </Badge>
+          <h1 className="mt-5 break-words text-3xl font-bold tracking-tight">{context.session.title}</h1>
+          <p className="mt-2 text-sm text-result-cover-foreground/70">{context.candidate.fullName} · {context.candidate.classLabel}</p>
+          {score !== null ? (
+            <div className="mt-8 border-y border-result-cover-foreground/20 py-6">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-cover-foreground/65">Your score</p>
+              <p className="mt-2 text-7xl font-black tracking-[-0.06em] tabular-nums">{Math.round(score)}%</p>
+            </div>
+          ) : null}
+        </section>
+
+        <div className="hidden bg-result-paper-edge lg:block" aria-hidden="true" />
+
+        <section className="min-w-0 p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-result-secondary">Next step</p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight">This exam is complete</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            You have finished the sitting currently available to you. If your school gives you another chance, it will appear on your dashboard.
+          </p>
+          <div className="mt-7 border-t border-result-paper-edge pt-6">
+            <RecoveryActions onDashboard={onDashboard} onRefresh={onRefresh} />
+          </div>
+        </section>
+      </article>
+    </main>
+  );
 }: {
   context: ExamExperienceContext;
   score: number | null;
