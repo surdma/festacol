@@ -252,11 +252,14 @@ jobs:
           src/app/actions
           src/app/api/admin
           src/components/admin/detail-dialogs.tsx
+          src/components/exam/exam-camera-panel.tsx
           src/components/exam/exam-focus-capsule.tsx
           src/components/exam/exam-workspace.tsx
+          src/components/exam/question-card.tsx
           src/components/shell/realtime-notification-sync.tsx
           src/lib/auth
           src/lib/exam-finalization.ts
+          src/hooks/use-exam-camera.ts
           src/lib/exam-session.ts
           src/lib/student-notifications.ts
           src/lib/supabase/queries.ts

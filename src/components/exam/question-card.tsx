@@ -141,8 +141,11 @@ export function QuestionCard({
   const values = q.type === "fill" || q.type === "fill-multi" ? fillValues(q, response) : {};
 
   return (
-    <article aria-labelledby={`question-${q.id}-title`} className="min-w-0">
-      <header className={cn("mb-5 flex flex-wrap items-start justify-between gap-3 border-b pb-4", variant === "focus" && "mb-6 border-b-0 pb-0")}>
+    <article
+      aria-labelledby={`question-${q.id}-title`}
+      className={cn("min-w-0", variant === "focus" && "flex h-full min-h-0 flex-col")}
+    >
+      <header className={cn("mb-5 flex flex-wrap items-start justify-between gap-3 border-b pb-4", variant === "focus" && "mb-4 shrink-0 border-b-0 pb-0")}>
         <div className="flex min-w-0 flex-col gap-2">
           <div className={cn("flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground", variant === "focus" && "text-[11px] uppercase tracking-[0.08em]")}>
             <span>Question {index + 1} of {total}</span>
@@ -179,9 +182,27 @@ export function QuestionCard({
         </div>
       </header>
 
-      <div className={cn("grid min-w-0 gap-6", passageLayout && "xl:grid-cols-[minmax(18rem,.85fr)_minmax(0,1.15fr)] xl:items-start")}>
+      {variant === "focus" && q.instruction ? (
+        <p className="mb-4 shrink-0 border-l-2 border-primary/30 pl-3 text-sm font-semibold leading-6 text-muted-foreground">
+          {q.instruction}
+        </p>
+      ) : null}
+
+      <div
+        className={cn(
+          "grid min-w-0 gap-6",
+          passageLayout && "xl:grid-cols-[minmax(18rem,.85fr)_minmax(0,1.15fr)] xl:items-start",
+          variant === "focus" && "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable]",
+        )}
+      >
         {content.passage ? (
-          <aside className={cn("rounded-xl border bg-muted/20 p-5 xl:sticky xl:top-24", variant === "focus" && "rounded-2xl bg-primary/5")} aria-label="Reading passage">
+          <aside
+            className={cn(
+              "rounded-xl border bg-muted/20 p-5 xl:sticky",
+              variant === "focus" ? "rounded-2xl bg-primary/5 xl:top-2" : "xl:top-24",
+            )}
+            aria-label="Reading passage"
+          >
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Reading passage</p>
             <div className="whitespace-pre-line text-[15px] leading-7 text-foreground">{content.passage}</div>
           </aside>
@@ -190,7 +211,7 @@ export function QuestionCard({
         <div className="min-w-0">
           {content.media ? <div className="mb-6"><QuestionMedia src={content.media.src} alt={content.media.alt} focus={variant === "focus"} /></div> : null}
 
-          {q.instruction ? (
+          {variant !== "focus" && q.instruction ? (
             <p className="mb-3 text-sm font-semibold leading-6 text-muted-foreground">{q.instruction}</p>
           ) : null}
           <h2 id={`question-${q.id}-title`} className={cn("max-w-4xl text-lg font-semibold leading-8 tracking-[-0.01em] text-foreground sm:text-xl sm:leading-9", variant === "focus" && "text-xl leading-8 sm:text-2xl sm:leading-10 lg:text-[1.7rem] lg:leading-[1.45]")}>

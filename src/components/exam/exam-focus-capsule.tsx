@@ -7,6 +7,7 @@ import {
   Check,
   CircleAlert,
   CircleCheckBig,
+  Clock3,
   Flag,
   Grid3X3,
   Send,
@@ -28,7 +29,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import {
   Sheet,
@@ -82,6 +85,62 @@ function syncCopy(status: SyncStatus) {
   if (status === "offline") return "Offline";
   if (status === "error") return "Save issue";
   return "Saved";
+}
+
+function candidateInitials(fullName: string) {
+  const initials = fullName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return initials || "ST";
+}
+
+function examModeLabel(mode: ExamExperienceContext["session"]["mode"]) {
+  if (mode === "qualifier") return "Entrance / placement examination";
+  if (mode === "single") return "Single-subject examination";
+  if (mode === "mixed") return "Multi-subject examination";
+  if (mode === "bece") return "BECE practice";
+  if (mode === "waec") return "WAEC practice";
+  if (mode === "neco") return "NECO practice";
+  return "JAMB practice";
+}
+
+function CountdownTimer({ text, remaining }: { text: string; remaining: number }) {
+  const critical = remaining <= 300;
+  const warning = !critical && remaining <= 600;
+
+  return (
+    <div
+      role="timer"
+      aria-live="off"
+      aria-label={`${text} remaining`}
+      className={cn(
+        "min-w-[6.75rem] rounded-2xl border bg-card px-3 py-2 shadow-sm sm:min-w-[8.5rem] lg:min-w-[9.5rem]",
+        critical && "border-destructive/40 bg-destructive/10 text-destructive",
+        warning && "border-warning-border bg-warning/30 text-warning-foreground",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.14em] opacity-70">Time left</span>
+        <span
+          className={cn(
+            "size-2 rounded-full motion-safe:animate-pulse",
+            critical ? "bg-destructive" : warning ? "bg-warning" : "bg-success",
+          )}
+          aria-hidden="true"
+        />
+      </div>
+      <div className="mt-0.5 flex items-center justify-end gap-1.5">
+        <Clock3 className="size-3.5 shrink-0 opacity-65 sm:size-4" aria-hidden="true" />
+        <span className="font-mono text-xl font-bold leading-none tabular-nums sm:text-2xl lg:text-[1.75rem]">
+          {text}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function milestoneState(progress: number, threshold: number) {
@@ -140,32 +199,53 @@ function QuestionRail({
   onJump: (index: number) => void;
 }) {
   const flaggedSet = new Set(flagged);
+  const indexedQuestions = paper.map((question, index) => ({ question, index }));
+  const useTwoColumns = paper.length > 15;
+  const splitAt = useTwoColumns ? Math.ceil(indexedQuestions.length / 2) : indexedQuestions.length;
+  const columns = useTwoColumns
+    ? [indexedQuestions.slice(0, splitAt), indexedQuestions.slice(splitAt)]
+    : [indexedQuestions];
+  const scrollable = paper.length > 30;
+
   return (
-    <nav className="flex max-h-[min(68dvh,38rem)] w-12 flex-col gap-1 overflow-y-auto overscroll-contain rounded-2xl border bg-card/95 p-1.5 shadow-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Question rail">
-      {paper.map((question, index) => {
-        const status = responseStatus(question, responses[String(question.id)]);
-        const current = index === currentIndex;
-        const isFlagged = flaggedSet.has(String(question.id));
-        return (
-          <Button
-            key={question.id}
-            type="button"
-            size="icon-xs"
-            variant={current ? "default" : "ghost"}
-            className={cn(
-              "relative size-9 shrink-0 rounded-xl text-[11px] tabular-nums",
-              !current && status === "answered" && "bg-success/10 text-success-foreground",
-              !current && status === "incomplete" && "border border-warning-border bg-warning/20",
-            )}
-            aria-current={current ? "step" : undefined}
-            aria-label={`Question ${index + 1}${isFlagged ? ", flagged" : ""}`}
-            onClick={() => onJump(index)}
-          >
-            {index + 1}
-            {isFlagged ? <Flag className="absolute -top-0.5 -right-0.5 size-2.5 fill-current" aria-hidden="true" /> : null}
-          </Button>
-        );
-      })}
+    <nav
+      className={cn(
+        "flex gap-1 rounded-2xl border bg-card/95 p-1.5 shadow-lg",
+        useTwoColumns ? "w-[5.5rem]" : "w-12",
+        scrollable
+          ? "max-h-[min(72dvh,40rem)] overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+          : "overflow-visible",
+      )}
+      aria-label="Question rail"
+    >
+      {columns.map((column, columnIndex) => (
+        <div key={columnIndex === 0 ? "primary" : "secondary"} className="grid content-start gap-1">
+          {column.map(({ question, index }) => {
+            const status = responseStatus(question, responses[String(question.id)]);
+            const current = index === currentIndex;
+            const isFlagged = flaggedSet.has(String(question.id));
+            return (
+              <Button
+                key={question.id}
+                type="button"
+                size="icon-xs"
+                variant={current ? "default" : "ghost"}
+                className={cn(
+                  "relative size-9 shrink-0 rounded-xl text-[11px] tabular-nums",
+                  !current && status === "answered" && "bg-success/10 text-success-foreground",
+                  !current && status === "incomplete" && "border border-warning-border bg-warning/20",
+                )}
+                aria-current={current ? "step" : undefined}
+                aria-label={`Question ${index + 1}${isFlagged ? ", flagged" : ""}`}
+                onClick={() => onJump(index)}
+              >
+                {index + 1}
+                {isFlagged ? <Flag className="absolute -top-0.5 -right-0.5 size-2.5 fill-current" aria-hidden="true" /> : null}
+              </Button>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
@@ -286,8 +366,9 @@ export function ExamFocusCapsule({
   const progress = paper.length ? Math.round((answeredCount / paper.length) * 100) : 0;
   const flaggedSet = new Set(flagged);
   const isFlagged = flaggedSet.has(currentQuestionId);
-  const timerCritical = timerRemaining <= 300;
-  const timerWarning = !timerCritical && timerRemaining <= 600;
+  const expandedRail = paper.length > 15;
+  const academicPeriod = [context.session.academicSession, context.session.term].filter(Boolean).join(" · ");
+  const subjectSummary = context.subjectNames.length ? context.subjectNames.join(" · ") : currentQuestion?.subject ?? "General paper";
 
   const navigator = (
     <ExamQuestionNavigator
@@ -322,7 +403,7 @@ export function ExamFocusCapsule({
   return (
     <div className="relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-primary/5 via-background to-success/5 pb-24 text-foreground xl:pb-8">
       <header className="sticky top-0 z-40 border-b bg-background/88 backdrop-blur-xl supports-[backdrop-filter]:bg-background/78">
-        <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-5 lg:px-7">
+        <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-2 px-3 py-2 sm:gap-3 sm:px-5 lg:px-7">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold tracking-tight sm:text-base">{context.session.title}</p>
             <p className="truncate text-[11px] text-muted-foreground">
@@ -330,7 +411,7 @@ export function ExamFocusCapsule({
             </p>
           </div>
 
-          <div className="hidden items-center gap-2 sm:flex">
+          <div className="hidden items-center gap-2 md:flex">
             <span className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
               syncStatus === "error" || syncStatus === "offline"
@@ -358,17 +439,7 @@ export function ExamFocusCapsule({
             </div>
           ) : null}
 
-          <div
-            className={cn(
-              "min-w-[5.5rem] rounded-2xl border px-3 py-1.5 text-right shadow-sm",
-              timerCritical && "border-destructive/30 bg-destructive/10 text-destructive",
-              timerWarning && "border-warning-border bg-warning/30 text-warning-foreground",
-              !timerCritical && !timerWarning && "bg-card",
-            )}
-          >
-            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-70">Time left</p>
-            <p className="font-mono text-base font-semibold tabular-nums sm:text-lg">{timerText}</p>
-          </div>
+          <CountdownTimer text={timerText} remaining={timerRemaining} />
         </div>
       </header>
 
@@ -396,8 +467,15 @@ export function ExamFocusCapsule({
         </div>
       ) : null}
 
-      <div className="relative mx-auto grid w-full max-w-[1600px] grid-cols-1 px-3 py-4 sm:px-5 sm:py-6 lg:px-7 xl:min-h-[calc(100dvh-7rem)] xl:grid-cols-[3rem_minmax(0,1fr)_14rem] xl:items-center xl:gap-4">
-        <aside className="hidden xl:block">
+      <div
+        className={cn(
+          "relative mx-auto grid w-full max-w-[1600px] grid-cols-1 px-3 py-4 sm:px-5 sm:py-6 lg:px-7 xl:min-h-[calc(100dvh-7rem)] xl:items-center xl:gap-4",
+          expandedRail
+            ? "xl:grid-cols-[5.5rem_minmax(0,1fr)_17rem]"
+            : "xl:grid-cols-[3rem_minmax(0,1fr)_17rem]",
+        )}
+      >
+        <aside className="hidden xl:flex xl:justify-center">
           <QuestionRail
             paper={paper}
             currentIndex={currentIndex}
@@ -408,8 +486,8 @@ export function ExamFocusCapsule({
         </aside>
 
         <main className="min-w-0 w-full">
-          <section className="relative overflow-hidden rounded-[2rem] border bg-card shadow-xl">
-            <div className="border-b bg-gradient-to-r from-primary/10 via-card to-success/10 px-4 py-4 sm:px-7 sm:py-5">
+          <section className="relative flex h-[clamp(28rem,calc(100dvh-10rem),44rem)] flex-col overflow-hidden rounded-[2rem] border bg-card shadow-xl xl:h-[clamp(32rem,calc(100dvh-7rem),46rem)]">
+            <div className="shrink-0 border-b bg-gradient-to-r from-primary/10 via-card to-success/10 px-4 py-4 sm:px-7 sm:py-5">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <Progress value={progress} className="gap-2" aria-label={`${answeredCount} of ${paper.length} questions answered`}>
@@ -424,7 +502,7 @@ export function ExamFocusCapsule({
               </div>
             </div>
 
-            <div className="px-4 py-5 sm:px-7 sm:py-7 lg:px-9 lg:py-8">
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-5 sm:px-7 sm:py-7 lg:px-9 lg:py-8">
               {currentQuestion ? (
                 <QuestionCard
                   q={currentQuestion}
@@ -442,7 +520,7 @@ export function ExamFocusCapsule({
               )}
             </div>
 
-            <div className="hidden items-center justify-between gap-4 border-t bg-muted/20 px-5 py-4 xl:flex">
+            <div className="hidden shrink-0 items-center justify-between gap-4 border-t bg-muted/20 px-5 py-4 xl:flex">
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="lg" disabled={currentIndex === 0} onClick={onPrevious}>
                   <ArrowLeft data-icon="inline-start" />
@@ -493,7 +571,7 @@ export function ExamFocusCapsule({
           </section>
         </main>
 
-        <aside className="hidden max-h-[calc(100dvh-7rem)] min-w-0 flex-col gap-3 overflow-y-auto xl:flex">
+        <aside className="hidden h-[clamp(32rem,calc(100dvh-7rem),46rem)] min-w-0 flex-col gap-3 overflow-y-auto pr-0.5 xl:flex [scrollbar-gutter:stable]">
           {context.cameraRequired ? (
             <ExamCameraPanel
               required
@@ -508,33 +586,82 @@ export function ExamFocusCapsule({
             />
           ) : null}
 
-          <div className="rounded-2xl border bg-card p-3 shadow-lg">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Keep moving</p>
-            {openQuestions.length ? (
-              <>
-                <p className="mt-2 text-sm font-semibold">{openQuestions.length} question{openQuestions.length === 1 ? "" : "s"} still need an answer.</p>
-                <Button type="button" variant="secondary" size="sm" className="mt-3 w-full" onClick={goToFirstOpen}>Go to unanswered</Button>
-              </>
-            ) : flagged.length ? (
-              <>
-                <p className="mt-2 text-sm font-semibold">All questions are answered. {flagged.length} remain flagged.</p>
-                <Sheet>
-                  <SheetTrigger render={<Button type="button" variant="secondary" size="sm" className="mt-3 w-full" />}>
-                    Open questions
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-[min(92vw,24rem)] overflow-hidden sm:max-w-md">
-                    <SheetHeader className="border-b px-5 pb-3 pt-5 pr-14">
-                      <SheetTitle>Questions</SheetTitle>
-                      <SheetDescription>Jump without losing your current response.</SheetDescription>
-                    </SheetHeader>
-                    <div className="min-h-0 flex-1 overflow-hidden px-5 pb-5 pt-1">{navigator}</div>
-                  </SheetContent>
-                </Sheet>
-              </>
-            ) : (
-              <p className="mt-2 text-sm font-semibold">Every question has an answer. Submit when you are ready.</p>
-            )}
-          </div>
+          <Card size="sm">
+            <CardHeader className="border-b">
+              <div className="flex items-center gap-3">
+                <Avatar size="lg">
+                  <AvatarFallback>{candidateInitials(context.candidate.fullName)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <CardTitle className="truncate">{context.candidate.fullName}</CardTitle>
+                  <CardDescription className="truncate">
+                    {context.candidate.studentNumber ?? "Verified candidate"}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-2.5 text-xs">
+                <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Class</dt>
+                  <dd className="font-semibold">{context.candidate.classLabel}</dd>
+                </div>
+                <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Exam</dt>
+                  <dd className="font-semibold">{examModeLabel(context.session.mode)}</dd>
+                </div>
+                <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Paper</dt>
+                  <dd className="font-semibold">{paper.length} question{paper.length === 1 ? "" : "s"}</dd>
+                </div>
+                <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Subjects</dt>
+                  <dd className="font-semibold leading-5">{subjectSummary}</dd>
+                </div>
+                {academicPeriod ? (
+                  <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2">
+                    <dt className="text-muted-foreground">Session</dt>
+                    <dd className="font-semibold leading-5">{academicPeriod}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Keep moving</CardTitle>
+              <CardDescription>
+                {openQuestions.length
+                  ? `${openQuestions.length} question${openQuestions.length === 1 ? "" : "s"} still need an answer.`
+                  : flagged.length
+                    ? `All questions are answered. ${flagged.length} remain flagged.`
+                    : "Every question has an answer. Submit when you are ready."}
+              </CardDescription>
+            </CardHeader>
+            {(openQuestions.length || flagged.length) ? (
+              <CardContent>
+                {openQuestions.length ? (
+                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={goToFirstOpen}>
+                    Go to unanswered
+                  </Button>
+                ) : (
+                  <Sheet>
+                    <SheetTrigger render={<Button type="button" variant="secondary" size="sm" className="w-full" />}>
+                      Open questions
+                    </SheetTrigger>
+                    <SheetContent side="right" className="w-[min(92vw,24rem)] overflow-hidden sm:max-w-md">
+                      <SheetHeader className="border-b px-5 pb-3 pt-5 pr-14">
+                        <SheetTitle>Questions</SheetTitle>
+                        <SheetDescription>Jump without losing your current response.</SheetDescription>
+                      </SheetHeader>
+                      <div className="min-h-0 flex-1 overflow-hidden px-5 pb-5 pt-1">{navigator}</div>
+                    </SheetContent>
+                  </Sheet>
+                )}
+              </CardContent>
+            ) : null}
+          </Card>
         </aside>
       </div>
 

@@ -126,10 +126,15 @@ export function ExamCameraPanel({
 
   useEffect(() => {
     const element = videoRef.current;
-    if (!element) return;
-    element.srcObject = stream;
-    if (stream) void element.play().catch(() => undefined);
-  }, [stream]);
+    if (!element || status !== "active" || !stream) return;
+
+    if (element.srcObject !== stream) element.srcObject = stream;
+    void element.play().catch(() => undefined);
+
+    return () => {
+      if (element.srcObject === stream) element.srcObject = null;
+    };
+  }, [status, stream]);
 
   if (!required) return null;
 
