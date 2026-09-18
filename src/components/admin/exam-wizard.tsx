@@ -327,15 +327,16 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
             <Field>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div><FieldLabel>Incoming candidates ({form.studentIds.length} selected)</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Pre-register known candidates, or leave empty for open entry. New students join with the exam link and their first + last name, and are enrolled automatically.</p></div>
-                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><Switch checked={showEnrolledCandidates} onCheckedChange={setShowEnrolledCandidates} />Show enrolled students</label>
+                <label htmlFor="w-show-enrolled-candidates" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><Switch id="w-show-enrolled-candidates" checked={showEnrolledCandidates} onCheckedChange={setShowEnrolledCandidates} />Show enrolled students</label>
               </div>
               <InputGroup className="mt-3 h-10"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput value={candidateQuery} onChange={(event) => setCandidateQuery(event.target.value)} placeholder="Search name or student number…" aria-label="Search candidates" /></InputGroup>
               <div className="mt-3 max-h-72 divide-y divide-border overflow-x-hidden overflow-y-auto border-y border-border">
-                {visibleCandidates.map((candidate) => {
+                {visibleCandidates.map((candidate, candidateIndex) => {
                   const checked = form.studentIds.includes(candidate.id);
+                  const controlId = `w-candidate-${candidateIndex}`;
                   return (
-                    <label key={candidate.id} className="flex min-h-14 cursor-pointer items-center gap-3 px-2 py-3 hover:bg-muted/40">
-                      <Checkbox checked={checked} onCheckedChange={() => toggleCandidate(candidate.id)} />
+                    <label key={candidate.id} htmlFor={controlId} className="flex min-h-14 cursor-pointer items-center gap-3 px-2 py-3 hover:bg-muted/40">
+                      <Checkbox id={controlId} checked={checked} onCheckedChange={() => toggleCandidate(candidate.id)} />
                       <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-foreground">{candidate.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{candidate.studentNumber ?? "No student number"} · {candidate.className ?? "Not yet assigned to a senior class"}</span></span>
                       {candidate.classId ? <Badge variant="outline">Enrolled</Badge> : <Badge variant="secondary">Incoming</Badge>}
                     </label>
@@ -347,12 +348,15 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
             <Field>
               <FieldLabel>Possible placement outcomes</FieldLabel>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {(["science", "humanities", "business"] as AcademicTrack[]).map((track) => (
-                  <label key={track} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-2 hover:bg-muted/40">
-                    <Checkbox checked={form.placementTracks.includes(track)} onCheckedChange={() => togglePlacementTrack(track)} />
+                {(["science", "humanities", "business"] as AcademicTrack[]).map((track) => {
+                  const controlId = `w-placement-track-${track}`;
+                  return (
+                  <label key={track} htmlFor={controlId} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-2 hover:bg-muted/40">
+                    <Checkbox id={controlId} checked={form.placementTracks.includes(track)} onCheckedChange={() => togglePlacementTrack(track)} />
                     <span className="text-sm font-medium">{trackLabels[track]}</span>
                   </label>
-                ))}
+                  );
+                })}
               </div>
             </Field>
           </FieldGroup>
@@ -365,9 +369,10 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <Field><FieldLabel htmlFor="w-track-filter">Study track filter</FieldLabel><NativeSelect id="w-track-filter" className={selectClass} value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as "all" | AcademicTrack)}><NativeSelectOption value="all">All tracks</NativeSelectOption><NativeSelectOption value="science">Science</NativeSelectOption><NativeSelectOption value="humanities">Humanities</NativeSelectOption><NativeSelectOption value="business">Business</NativeSelectOption></NativeSelect></Field>
             </div>
             <div className="grid max-h-72 gap-2 overflow-x-hidden overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-              {activeClasses.map((item) => {
+              {activeClasses.map((item, classIndex) => {
                 const checked = form.classIds.includes(item.id);
-                return <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-muted/40"><Checkbox checked={checked} onCheckedChange={() => toggleClass(item.id)} /><span className="min-w-0"><strong className="block truncate text-sm">{item.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{item.trackName}</span></span></label>;
+                const controlId = `w-class-${classIndex}`;
+                return <label key={item.id} htmlFor={controlId} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-muted/40"><Checkbox id={controlId} checked={checked} onCheckedChange={() => toggleClass(item.id)} /><span className="min-w-0"><strong className="block truncate text-sm">{item.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{item.trackName}</span></span></label>;
               })}
               {!activeClasses.length ? <p className="col-span-full py-8 text-center text-sm text-muted-foreground">No active classes match this level, track and staff scope. Subject offerings may not be configured yet — ask an administrator to activate them from the class record.</p> : null}
             </div>
@@ -379,10 +384,11 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
             <Field>
               <div className="flex flex-wrap items-end justify-between gap-2"><div><FieldLabel>{form.mode === "qualifier" ? `Qualifier subjects (${form.subjectIds.length} selected)` : `Paper subjects (${form.subjectIds.length} selected)`}</FieldLabel><p className="mt-1 text-xs text-muted-foreground">{form.mode === "qualifier" ? "Mathematics Aptitude and Basic Science & Technology are preselected as the placement core; adjust the bank when needed." : "Only subjects actually offered by the selected classes and available to your staff scope are shown."}</p></div>{form.mode === "qualifier" ? <Badge variant="secondary">Recommended core preset</Badge> : null}</div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {(form.mode === "qualifier" ? qualifierSubjects : normalSubjects).map((subject) => {
+                {(form.mode === "qualifier" ? qualifierSubjects : normalSubjects).map((subject, subjectIndex) => {
                   const checked = form.subjectIds.includes(subject.id);
                   const recommended = form.mode === "qualifier" && ["q-math", "q-bst"].includes(subject.code);
-                  return <label key={subject.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-muted/40"><Checkbox checked={checked} onCheckedChange={() => toggleSubject(subject.id)} /><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{subject.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{subject.code}{recommended ? " · preset" : ""}</span></span></label>;
+                  const controlId = `w-subject-${subjectIndex}`;
+                  return <label key={subject.id} htmlFor={controlId} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-muted/40"><Checkbox id={controlId} checked={checked} onCheckedChange={() => toggleSubject(subject.id)} /><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{subject.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{subject.code}{recommended ? " · preset" : ""}</span></span></label>;
                 })}
                 {form.mode !== "qualifier" && !normalSubjects.length ? <p className="col-span-full py-6 text-sm text-muted-foreground">{form.classIds.length ? "None of the selected classes offer subjects yet. An administrator can activate subject offerings from the class record → Subjects tab." : "Choose target classes first. Their active subject offerings will appear here."}</p> : null}
               </div>
@@ -414,9 +420,10 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
                 ] as const).map((option) => (
                   <label
                     key={option.value}
+                    htmlFor={`w-status-${option.value}`}
                     className="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40 has-data-checked:border-neutral-950 has-data-checked:bg-neutral-950 has-data-checked:text-white"
                   >
-                    <RadioGroupItem value={option.value} />
+                    <RadioGroupItem id={`w-status-${option.value}`} value={option.value} />
                     <span className="min-w-0">
                       <strong className="block text-sm">{option.title}</strong>
                       <span className="mt-0.5 block text-xs opacity-70">{option.hint}</span>
