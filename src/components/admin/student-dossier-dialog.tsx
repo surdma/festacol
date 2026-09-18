@@ -98,10 +98,6 @@ function placementRecommendation(attempt: GenericRow | undefined) {
     : "Art / Commercial choice";
 }
 
-function placementScorePercent(value: unknown) {
-  return Math.round(numberValue(value));
-}
-
 function useRecordNavigation() {
   const pathname = usePathname();
   const params = useSearchParams();
