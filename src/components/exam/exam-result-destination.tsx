@@ -1,17 +1,77 @@
 "use client";
 
 import {
-  ArrowRight,
   CheckCircle2,
-  Clock3,
   GraduationCap,
   MessageCircleMore,
   School,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import type { ExamResultSummary } from "@/types/exam";
+
+function JoinClassGroupAction({
+  classLabel,
+  groupName,
+  whatsappUrl,
+}: {
+  classLabel: string;
+  groupName: string | null;
+  whatsappUrl: string | null;
+}) {
+  if (whatsappUrl) {
+    return (
+      <Button
+        size="lg"
+        render={
+          <a
+            href={whatsappUrl}
+            aria-label={`Join ${groupName ?? classLabel} WhatsApp group`}
+          />
+        }
+      >
+        <MessageCircleMore data-icon="inline-start" />
+        Join group
+      </Button>
+    );
+  }
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger render={<Button size="lg" />}>
+        <MessageCircleMore data-icon="inline-start" />
+        Join group
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia>
+            <MessageCircleMore aria-hidden="true" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>WhatsApp group unavailable</AlertDialogTitle>
+          <AlertDialogDescription>
+            The official WhatsApp group for {classLabel} has not been published
+            yet. You can return later after your school configures the group.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction>Okay</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export function ExamResultDestination({
   summary,
@@ -22,13 +82,12 @@ export function ExamResultDestination({
 }) {
   const destination = summary.destination;
   const isPlacement = destination.kind === "placement";
-  const hasWhatsapp = Boolean(destination.whatsappUrl);
   const Icon = isPlacement ? GraduationCap : School;
 
   return (
     <section
       aria-labelledby="result-destination-title"
-      className="animate-result-stamp overflow-hidden rounded-[2rem] border border-result-placement/30 bg-card shadow-xl"
+      className="animate-result-stamp overflow-hidden rounded-[2rem] border border-result-placement/30 bg-card"
     >
       <div className="border-b border-border bg-result-placement/10 px-5 py-5 sm:px-7">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -60,8 +119,8 @@ export function ExamResultDestination({
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
               {isPlacement
-                ? "Your result has been matched to the school pathway shown above. Your class community link becomes available as soon as the matching class group is configured."
-                : "This exam remains connected to the class already confirmed on your student record."}
+                ? "Your placement result determines the pathway shown above. The class group follows the specific SS1 class linked to that pathway."
+                : "This examination remains linked to the class already confirmed on your student record."}
             </p>
           </div>
         </div>
@@ -80,55 +139,15 @@ export function ExamResultDestination({
         ) : null}
       </div>
 
-      <div className="grid gap-4 px-5 py-5 sm:px-7 sm:py-6">
-        <div className="rounded-2xl border bg-muted/25 p-4">
-          <div className="flex items-start gap-3">
-            <MessageCircleMore className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <div className="min-w-0">
-              <p className="text-sm font-bold">
-                {destination.whatsappName ?? "Class WhatsApp group"}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {hasWhatsapp
-                  ? "Open the official group configured for this class."
-                  : destination.classId
-                    ? "The class is confirmed, but its WhatsApp group has not been published yet."
-                    : isPlacement
-                      ? "Your pathway is confirmed. The group will appear after Festacol can resolve one specific SS1 class."
-                      : "A WhatsApp group will appear when one is configured for your confirmed class."}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          {destination.whatsappUrl ? (
-            <Button
-              size="lg"
-              render={
-                <a
-                  href={destination.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Open ${destination.whatsappName ?? destination.classLabel} WhatsApp group`}
-                />
-              }
-            >
-              <MessageCircleMore data-icon="inline-start" />
-              Open WhatsApp group
-              <ArrowRight data-icon="inline-end" />
-            </Button>
-          ) : (
-            <Button size="lg" disabled>
-              <Clock3 data-icon="inline-start" />
-              WhatsApp group coming soon
-            </Button>
-          )}
-
-          <Button type="button" size="lg" variant="outline" onClick={onDashboard}>
-            Return to dashboard
-          </Button>
-        </div>
+      <div className="grid gap-2 px-5 py-5 sm:grid-cols-2 sm:px-7 sm:py-6">
+        <JoinClassGroupAction
+          classLabel={destination.classLabel}
+          groupName={destination.whatsappName}
+          whatsappUrl={destination.whatsappUrl}
+        />
+        <Button type="button" size="lg" variant="outline" onClick={onDashboard}>
+          Return to dashboard
+        </Button>
       </div>
     </section>
   );
