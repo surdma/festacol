@@ -8,10 +8,10 @@ import { attemptDurationSeconds } from "@/lib/exam-finalization";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { qualifiesForScience } from "@/lib/placement-policy";
 import {
   assignStudentPlacementClass,
   loadSs1PlacementClasses,
-  qualifiesForScience,
   type PlacementClassOption,
 } from "@/lib/student-placement";
 import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
