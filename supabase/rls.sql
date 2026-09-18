@@ -301,6 +301,41 @@ CREATE POLICY integrity_staff_read ON public.exam_integrity_events
     )
   );
 
+-- Active attempts own an immutable allocated paper. Staff/service-role writes
+-- may update the reusable question bank only after every attempt using that
+-- question has been finalized. This trigger closes the race between an
+-- allocation and an admin edit/delete/fixture-sync request.
+CREATE OR REPLACE FUNCTION private.protect_active_exam_question()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, private
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.exam_attempts a
+    WHERE a.submitted_at IS NULL
+      AND OLD.id = ANY(a.question_ids)
+  ) THEN
+    RAISE EXCEPTION 'question_in_active_exam'
+      USING ERRCODE = 'P0001',
+            DETAIL = format('Question %s is allocated to an unfinished examination attempt.', OLD.id);
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS questions_protect_active_exam ON public.questions;
+CREATE TRIGGER questions_protect_active_exam
+BEFORE UPDATE OR DELETE ON public.questions
+FOR EACH ROW
+EXECUTE FUNCTION private.protect_active_exam_question();
+
 -- ------------------------------------------------------------- question bank
 CREATE POLICY questions_staff_read ON public.questions
   FOR SELECT TO authenticated

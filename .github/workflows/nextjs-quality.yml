@@ -106,6 +106,7 @@ jobs:
           test -f prisma/migrations/20260915220829/migration.sql
           test -f prisma/migrations/20260916000000_member_deletion_audit/migration.sql
           test -f prisma/migrations/20260917180000_exam_support_requests/migration.sql
+          test -f prisma/migrations/20260918094500_exam_session_closed_at/migration.sql
           test ! -e supabase/schema.sql
           test "$(find supabase -maxdepth 1 -type f -name '[0-9][0-9]-*.sql' | wc -l)" -eq 0
           test "$(find scripts -maxdepth 1 -type f \( -name '*.chunk*' -o -name '.sandbox*' -o -name '.pr13-*' \) | wc -l)" -eq 0
@@ -167,6 +168,12 @@ jobs:
             if to_regprocedure('public.allocate_my_exam_attempt(text)') is null then raise exception 'attempt_allocator_missing'; end if;
             if to_regprocedure('public.grant_exam_retake(text,uuid,integer,text)') is null then raise exception 'retake_rpc_missing'; end if;
             if to_regclass('public.exam_support_requests') is null then raise exception 'exam_support_requests_missing'; end if;
+            if not exists (
+              select 1 from information_schema.columns
+              where table_schema='public'
+                and table_name='exam_sessions'
+                and column_name='closed_at'
+            ) then raise exception 'exam_session_closed_at_missing'; end if;
             if not exists (select 1 from pg_class where oid='public.exam_support_requests'::regclass and relrowsecurity) then raise exception 'exam_support_requests_rls_missing'; end if;
             if not exists (select 1 from pg_policies where schemaname='public' and tablename='exam_attempt_responses') then raise exception 'attempt_response_rls_missing'; end if;
             if has_column_privilege('authenticated','public.exam_attempts','remaining_seconds','UPDATE')
@@ -193,6 +200,7 @@ jobs:
             if not exists (select 1 from pg_trigger where tgname='exam_retake_realtime_notify' and not tgisinternal) then raise exception 'retake_broadcast_trigger_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_attempt_lifecycle_realtime_notify' and not tgisinternal) then raise exception 'attempt_lifecycle_broadcast_trigger_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_session_realtime_notify' and not tgisinternal) then raise exception 'exam_session_broadcast_trigger_missing'; end if;
+            if not exists (select 1 from pg_trigger where tgname='questions_protect_active_exam' and not tgisinternal) then raise exception 'active_question_guard_trigger_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_support_request_realtime_notify' and not tgisinternal) then raise exception 'exam_support_broadcast_trigger_missing'; end if;
             if not exists (
               select 1 from pg_publication_tables

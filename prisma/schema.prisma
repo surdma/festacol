@@ -368,6 +368,7 @@ model ExamSession {
   instructions       String     @default("")
   startsAt           BigInt?    @map("starts_at")
   endsAt             BigInt?    @map("ends_at")
+  closedAt           BigInt?    @map("closed_at")
   attemptLimit       Int        @default(1) @map("attempt_limit")
   focusMonitoring    Boolean    @default(true) @map("focus_monitoring")
   fullscreenPrompt   Boolean    @default(true) @map("fullscreen_prompt")

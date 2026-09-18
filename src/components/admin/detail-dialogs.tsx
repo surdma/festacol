@@ -235,7 +235,7 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                 <p className="mt-2 text-xs text-muted-foreground">Scan to open this exam.{qrRevision ? ` Rev ${qrRevision}.` : ""}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={!canShare} onClick={downloadQr}><Download data-icon="inline-start" />QR PNG</Button>
-                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer" /> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer" aria-label="Open candidate exam link" /> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
                 </div>
               </div>
 
@@ -250,10 +250,10 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button type="button" size="sm" variant="default" disabled={!canShare} onClick={() => void nativeShare()}><Share2 data-icon="inline-start" />Share</Button>
                   <span className="text-xs text-muted-foreground">via</span>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via Telegram"><Send /></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref} /> : undefined} aria-label="Share via email"><Mail /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="Share exam via WhatsApp" /> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer" aria-label="Share exam via Telegram" /> : undefined} aria-label="Share via Telegram"><Send /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer" aria-label="Share exam via X" /> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref} aria-label="Share exam via email" /> : undefined} aria-label="Share via email"><Mail /></Button>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">

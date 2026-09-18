@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ExamAttemptContextSnapshot } from "@/types/db";
 import type { ApplicationNotification } from "@/types/admin";
 
@@ -61,11 +61,11 @@ export async function getStudentTopbarNotifications(
 
   const attemptSessionIds = [...new Set(attempts.map((attempt) => attempt.session_id))];
   const { data: attemptSessions } = attemptSessionIds.length
-    ? await supabase.from("exam_sessions").select("id,title,status,updated_at").in("id", attemptSessionIds)
+    ? await supabase.from("exam_sessions").select("id,title,status,closed_at").in("id", attemptSessionIds)
     : { data: [] };
-  const closedSessions = ((attemptSessions ?? []) as { id: string; title: string; status: string; updated_at: number }[])
-    .filter((session) => session.status === "closed" && Number(session.updated_at ?? 0) >= now - CLOSED_EXAM_NOTICE_WINDOW_MS)
-    .sort((left, right) => Number(right.updated_at ?? 0) - Number(left.updated_at ?? 0));
+  const closedSessions = ((attemptSessions ?? []) as { id: string; title: string; status: string; closed_at: number | null }[])
+    .filter((session) => session.status === "closed" && Number(session.closed_at ?? 0) >= now - CLOSED_EXAM_NOTICE_WINDOW_MS)
+    .sort((left, right) => Number(right.closed_at ?? 0) - Number(left.closed_at ?? 0));
 
   const activeAttempt = attempts.find(
     (attempt) => attempt.started_at && !attempt.submitted_at,
@@ -75,7 +75,7 @@ export async function getStudentTopbarNotifications(
 
   for (const session of closedSessions.slice(0, 2)) {
     notifications.push({
-      id: `exam-closed-${session.id}-${session.updated_at}`,
+      id: `exam-closed-${session.id}-${session.closed_at}`,
       title: `${session.title} is closed`,
       detail:
         "Staff closed this examination. If you were still writing, Festacol finalized the responses already saved to the server. Completed attempts remain available in Exam history.",

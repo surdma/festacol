@@ -107,6 +107,7 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
       academic_term_id: (activeTerm as { id?: string } | null)?.id ?? null,
       mode: "qualifier",
       status: input.status,
+      closed_at: input.status === "closed" ? now : null,
       duration_seconds: input.durationSeconds,
       question_count: input.questionCount,
       instructions: input.instructions.slice(0, 140),

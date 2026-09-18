@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff } from "@/lib/auth/staff";
+import { activeAllocatedQuestionIds } from "@/lib/question-integrity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type CleanupKind = "attempts" | "sessions" | "staff-questions" | "whatsapp" | "integrity-events";
@@ -231,8 +232,7 @@ export async function previewCleanupAction(
       const total = count ?? 0;
       // Questions used in marked results cannot be deleted (results reference them).
       // Enumerate candidates in chunks to find the referenced ones.
-      let checked = 0;
-      let used = 0;
+      let protectedCount = 0;
       const pageSize = 1000;
       for (let offset = 0; offset < total; offset += pageSize) {
         let page = admin.from("questions").select("id").not("creator_id", "is", null).order("id").range(offset, offset + pageSize - 1);
@@ -241,19 +241,22 @@ export async function previewCleanupAction(
         if (pageError) throw new Error(pageError.message);
         const ids = ((data ?? []) as { id: number }[]).map((row) => Number(row.id));
         if (!ids.length) break;
-        checked += ids.length;
+        const blocked = new Set(await activeAllocatedQuestionIds(admin, ids));
         for (let start = 0; start < ids.length; start += 500) {
           const slice = ids.slice(start, start + 500);
           const { data: refs, error: refError } = await admin.from("exam_attempt_responses").select("question_id").in("question_id", slice);
           if (refError) throw new Error(refError.message);
-          used += new Set(((refs ?? []) as { question_id: number }[]).map((row) => Number(row.question_id))).size;
+          for (const row of (refs ?? []) as { question_id: number }[]) blocked.add(Number(row.question_id));
         }
+        protectedCount += blocked.size;
       }
       return {
         ok: true,
         preview: {
-          total: Math.max(0, total - used),
-          note: used > 0 ? `${used} used in marked results will be skipped automatically.` : undefined,
+          total: Math.max(0, total - protectedCount),
+          note: protectedCount > 0
+            ? `${protectedCount} used by active papers or marked results will be skipped automatically.`
+            : undefined,
         },
       };
     }
@@ -342,12 +345,13 @@ export async function runCleanupChunkAction(
       if (!ids.length) return finish(0, 0, 0);
       const { data: refs, error: refError } = await admin.from("exam_attempt_responses").select("question_id").in("question_id", ids);
       if (refError) throw new Error(refError.message);
-      const used = new Set(((refs ?? []) as { question_id: number }[]).map((row) => Number(row.question_id)));
-      const removable = ids.filter((id) => !used.has(id));
+      const protectedIds = new Set(((refs ?? []) as { question_id: number }[]).map((row) => Number(row.question_id)));
+      for (const id of await activeAllocatedQuestionIds(admin, ids)) protectedIds.add(id);
+      const removable = ids.filter((id) => !protectedIds.has(id));
       if (removable.length) {
         // Class links and blanks cascade; prepared questions (creator_id null) are never matched here.
         const { error: deleteError } = await admin.from("questions").delete().in("id", removable);
-        if (deleteError) throw new Error(deleteError.message);
+        if (deleteError) throw new Error(deleteError.message.includes("question_in_active_exam") ? "A question became part of an active examination while cleanup was running. Retry after the active attempt finishes." : deleteError.message);
       }
       let remainingQuery = admin.from("questions").select("id", { count: "exact", head: true }).not("creator_id", "is", null);
       if (subjectId) remainingQuery = remainingQuery.eq("subject_id", subjectId);
@@ -358,7 +362,7 @@ export async function runCleanupChunkAction(
         removable.length,
         skipped,
         count ?? 0,
-        skipped > 0 ? `${skipped} used in marked results were skipped.` : undefined,
+        skipped > 0 ? `${skipped} used by active papers or marked results were skipped.` : undefined,
       );
     }
 

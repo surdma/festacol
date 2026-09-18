@@ -100,7 +100,7 @@ function CompletionTrail({ progress }: { progress: number }) {
   ];
 
   return (
-    <div className="relative mx-auto hidden w-full max-w-3xl grid-cols-5 items-start px-4 sm:grid" aria-label={"Exam completion " + Math.round(progress) + " percent"}>
+    <div className="relative mx-auto hidden w-full max-w-3xl grid-cols-5 items-start px-4 sm:grid" role="group" aria-label={`Exam completion ${Math.round(progress)} percent`}>
       <span className="absolute top-2.5 right-[10%] left-[10%] h-px bg-border" aria-hidden="true" />
       {points.map((point) => {
         const state = milestoneState(progress, point.threshold);
@@ -156,7 +156,7 @@ function QuestionRail({
               !current && status === "incomplete" && "border border-warning-border bg-warning/20",
             )}
             aria-current={current ? "step" : undefined}
-            aria-label={"Question " + (index + 1) + (isFlagged ? ", flagged" : "")}
+            aria-label={`Question ${index + 1}${isFlagged ? ", flagged" : ""}`}
             onClick={() => onJump(index)}
           >
             {index + 1}
@@ -410,7 +410,7 @@ export function ExamFocusCapsule({
             <div className="border-b bg-gradient-to-r from-primary/10 via-card to-success/10 px-4 py-4 sm:px-7 sm:py-5">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <Progress value={progress} className="gap-2" aria-label={answeredCount + " of " + paper.length + " questions answered"}>
+                  <Progress value={progress} className="gap-2" aria-label={`${answeredCount} of ${paper.length} questions answered`}>
                     <ProgressLabel className="text-xs font-semibold">Your progress</ProgressLabel>
                     <span className="ml-auto text-xs text-muted-foreground tabular-nums">{answeredCount}/{paper.length} answered</span>
                   </Progress>

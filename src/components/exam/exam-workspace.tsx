@@ -393,8 +393,11 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
 
   useEffect(() => {
     if (!timerActive) return;
-    elapsedRef.current += 1;
-  }, [timer.remaining, timerActive]);
+    const interval = window.setInterval(() => {
+      elapsedRef.current += 1;
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [timerActive]);
 
   useEffect(() => {
     if (!timerActive || dirtyTick === 0) return;

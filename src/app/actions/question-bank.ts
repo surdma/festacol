@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff } from "@/lib/auth/staff";
 import { loadQuestionBankFixture } from "@/lib/question-fixture-loader";
+import { activeAllocatedQuestionIds, activeQuestionMutationMessage } from "@/lib/question-integrity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack } from "@/types/db";
 
@@ -215,6 +216,11 @@ export async function getQuestionBankSyncPlanAction(): Promise<ActionResult & { 
       if (missing.length) return { ok: false, error: `Question ${String(question.id)} refers to an unavailable class (${missing.join(", ")}).` };
     }
     const existing = new Map(((existingRows ?? []) as { id: number; creator_id: string | null }[]).map((row) => [Number(row.id), row.creator_id]));
+    const activeReferences = await activeAllocatedQuestionIds(admin, ids);
+    if (activeReferences.size) {
+      const [questionId] = [...activeReferences].sort((left, right) => left - right);
+      return { ok: false, error: activeQuestionMutationMessage(questionId) };
+    }
     const protectedQuestion = fixture.questions.find((question) => existing.get(Number(question.id)) !== undefined && existing.get(Number(question.id)) !== null);
     if (protectedQuestion) return { ok: false, error: `Question ${String(protectedQuestion.id)} was written by staff and cannot be replaced by the prepared set.` };
 
@@ -258,6 +264,11 @@ export async function syncQuestionBankBatchAction(offset: number, limit: number)
     // insert per link table. ~5 round-trips per batch regardless of batch size,
     // instead of ~5 sequential round-trips per question.
     const ids = slice.map((question) => Number(question.id));
+    const activeReferences = await activeAllocatedQuestionIds(admin, ids);
+    if (activeReferences.size) {
+      const [questionId] = [...activeReferences].sort((left, right) => left - right);
+      return { ok: false, error: activeQuestionMutationMessage(questionId) };
+    }
     const questionRows: Record<string, unknown>[] = [];
     const allLevelLinks: { question_id: number; level_id: string }[] = [];
     const allBlanks: { question_id: number; position: number; blank_key: string; placeholder: string; accepted: string[] }[] = [];
@@ -277,7 +288,7 @@ export async function syncQuestionBankBatchAction(offset: number, limit: number)
     }
 
     const { error: questionError } = await admin.from("questions").upsert(questionRows, { onConflict: "id" });
-    if (questionError) return { ok: false, error: questionError.message };
+    if (questionError) return { ok: false, error: questionError.message.includes("question_in_active_exam") ? activeQuestionMutationMessage() : questionError.message };
 
     const { error: levelDeleteError } = await admin.from("question_academic_levels").delete().in("question_id", ids);
     if (levelDeleteError) return { ok: false, error: levelDeleteError.message };

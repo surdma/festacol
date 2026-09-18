@@ -14,6 +14,7 @@ import type { ActionResult } from "@/app/actions/student";
 import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/auth/staff";
 import { finalizeActiveExamAttemptsForSession } from "@/lib/exam-finalization";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
+import { activeAllocatedQuestionIds, activeQuestionMutationMessage } from "@/lib/question-integrity";
 import {
   generateStudentNumber,
   normalizeStudentNumber,
@@ -160,6 +161,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       duration_seconds: Math.min(14400, Math.max(30, input.durationSeconds)),
       question_count: Math.min(200, Math.max(5, input.questionCount)),
       status: input.status,
+      closed_at: input.status === "closed" ? now : null,
       instructions: input.instructions.slice(0, 140),
       starts_at: null,
       ends_at: null,
@@ -213,7 +215,16 @@ export async function updateExamAction(
 ): Promise<ActionResult> {
   try {
     const ctx = await requireStaff();
-    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
+    const existingSession = await scopedSession(ctx, id);
+    if (!existingSession) return { ok: false, error: "Exam not found or outside your scope." };
+    const previousStatus = String(existingSession.status ?? "");
+    const previousClosedAt = Number(existingSession.closed_at ?? 0);
+    const now = Date.now();
+    const closedAt = patch.status === "closed"
+      ? previousStatus === "closed" && previousClosedAt > 0
+        ? previousClosedAt
+        : now
+      : null;
     if (patch.status === "open") {
       const { count: offerings } = await ctx.admin.from("exam_offering_targets").select("offering_id", { count: "exact", head: true }).eq("session_id", id);
       const { data: row } = await ctx.admin.from("exam_sessions").select("mode").eq("id", id).maybeSingle();
@@ -227,9 +238,10 @@ export async function updateExamAction(
       question_count: patch.questionCount,
       instructions: patch.instructions.slice(0, 140),
       status: patch.status,
+      closed_at: closedAt,
       camera_required: patch.cameraRequired,
       warn_after: patch.warnAfter,
-      updated_at: Date.now(),
+      updated_at: now,
     }).eq("id", id);
     if (error) return { ok: false, error: error.message };
 
@@ -694,7 +706,7 @@ export async function upsertWhatsappAction(input: { id?: string; classId: string
     const write = input.id
       ? await ctx.admin.from("whatsapp_groups").update({ class_id: input.classId, name: input.name, invite_url: input.inviteUrl, updated_at: now }).eq("id", input.id)
       : await ctx.admin.from("whatsapp_groups").insert({ id: `WA-${Date.now().toString(36).toUpperCase()}`, class_id: input.classId, name: input.name, invite_url: input.inviteUrl, created_at: now, updated_at: now });
-    if (write.error) return { ok: false, error: write.error.message };
+    if (write.error) return { ok: false, error: write.error.message.includes("question_in_active_exam") ? activeQuestionMutationMessage(id) : write.error.message };
     revalidatePath("/workspace/classes");
     return { ok: true };
   } catch (error) {
@@ -744,6 +756,10 @@ async function upsertQuestionCore(input: {
     existing = data as { creator_id: string | null; created_at: string | null } | null;
     if (!existing) return { ok: false, error: "Question not found." };
     if (!ctx.scope.isAdmin && existing.creator_id !== ctx.scope.profileId) return { ok: false, error: "Teachers can edit only questions they authored." };
+    const activeReferences = await activeAllocatedQuestionIds(ctx.admin, [input.id]);
+    if (activeReferences.has(input.id)) {
+      return { ok: false, error: activeQuestionMutationMessage(input.id) };
+    }
   }
 
   const id = input.id ?? Number((await ctx.admin.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle()).data?.id ?? 0) + 1;
@@ -768,7 +784,7 @@ async function upsertQuestionCore(input: {
   const write = input.id === undefined
     ? await ctx.admin.from("questions").insert(row)
     : await ctx.admin.from("questions").update(row).eq("id", id);
-  if (write.error) return { ok: false, error: write.error.message };
+  if (write.error) return { ok: false, error: write.error.message.includes("question_in_active_exam") ? activeQuestionMutationMessage(id) : write.error.message };
 
   const requestedLevels = input.levels.length ? input.levels : ["SS1", "SS2", "SS3"];
   const { data: levels } = await ctx.admin.from("academic_levels").select("id,name").in("name", requestedLevels);
@@ -804,8 +820,10 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
     if (!question?.subject_id) return { ok: false, error: "Question not found." };
     if (!questionSubjectVisibleTo(question.subject_id, ctx.scope)) return { ok: false, error: "Outside your subject scope." };
     if (!ctx.scope.isAdmin && question.creator_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
+    const activeReferences = await activeAllocatedQuestionIds(ctx.admin, [id]);
+    if (activeReferences.has(id)) return { ok: false, error: activeQuestionMutationMessage(id) };
     const { error } = await ctx.admin.from("questions").delete().eq("id", id);
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: error.message.includes("question_in_active_exam") ? activeQuestionMutationMessage(id) : error.message };
     revalidatePath("/workspace/questions");
     return { ok: true };
   } catch (error) {

@@ -153,6 +153,7 @@ export interface ExamSessionRow {
   instructions: string;
   starts_at: number | null;
   ends_at: number | null;
+  closed_at: number | null;
   attempt_limit: number;
   focus_monitoring: boolean;
   fullscreen_prompt: boolean;
