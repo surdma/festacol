@@ -34,8 +34,8 @@ function modeLabel(mode: ExamAttemptRow["context_snapshot"]["mode"]) {
 
 function trackLabel(track: ExamAttemptRow["assigned_track"]) {
   if (track === "science") return "Science";
-  if (track === "humanities") return "Humanities";
-  if (track === "business") return "Business";
+  if (track === "humanities") return "Art";
+  if (track === "business") return "Commercial";
   return null;
 }
 
