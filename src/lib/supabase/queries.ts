@@ -148,8 +148,9 @@ export async function listSessions(client: SupabaseClient): Promise<ExamSessionD
   const sessions = (data ?? []) as ExamSessionRow[];
   if (!sessions.length) return [];
   const sessionIds = sessions.map((session) => session.id);
-  const [offeringTargetsResult, classTargetsResult, offeringsResult, subjectsResult] = await Promise.all([
+  const [offeringTargetsResult, subjectTargetsResult, classTargetsResult, offeringsResult, subjectsResult] = await Promise.all([
     client.from("exam_offering_targets").select("session_id,offering_id").in("session_id", sessionIds),
+    client.from("exam_subject_targets").select("session_id,subject_id").in("session_id", sessionIds),
     client.from("exam_class_targets").select("session_id,class_id").in("session_id", sessionIds),
     client.from("class_subject_offerings").select("id,class_id,subject_id"),
     client.from("subjects").select("id,name"),
@@ -159,10 +160,14 @@ export async function listSessions(client: SupabaseClient): Promise<ExamSessionD
   const offeringById = new Map(((offeringsResult.data ?? []) as { id: string; class_id: string; subject_id: string }[]).map((row) => [row.id, row]));
   const subjectById = new Map(((subjectsResult.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
   const offeringTargets = (offeringTargetsResult.data ?? []) as { session_id: string; offering_id: string }[];
+  const subjectTargets = (subjectTargetsResult.data ?? []) as { session_id: string; subject_id: string }[];
   const classTargets = (classTargetsResult.data ?? []) as { session_id: string; class_id: string }[];
   return sessions.map((session) => {
     const offeringRows = offeringTargets.filter((target) => target.session_id === session.id).map((target) => offeringById.get(target.offering_id)).filter(Boolean) as { id: string; class_id: string; subject_id: string }[];
-    const subjectIds = [...new Set(offeringRows.map((row) => row.subject_id))];
+    const subjectIds = [...new Set([
+      ...subjectTargets.filter((target) => target.session_id === session.id).map((target) => target.subject_id),
+      ...offeringRows.map((row) => row.subject_id),
+    ])];
     const targetedClassIds = new Set([
       ...classTargets.filter((target) => target.session_id === session.id).map((target) => target.class_id),
       ...offeringRows.map((row) => row.class_id),
