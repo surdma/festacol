@@ -271,11 +271,9 @@ export function PlacementClassActions({
 
   const alternativeOptions = !placement.canChooseClass
     ? []
-    : destination.classId && destination.track === "science" && placement.scienceEligible
-      ? placement.options.filter((option) => option.track !== "science")
-      : destination.classId
-        ? []
-        : placement.options;
+    : destination.classId
+      ? placement.options.filter((option) => option.classId !== destination.classId)
+      : placement.options;
 
   function chooseClass(option: ExamPlacementOption) {
     setPendingClassId(option.classId);
