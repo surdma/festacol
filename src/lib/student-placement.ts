@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { SCIENCE_PLACEMENT_THRESHOLD } from "@/lib/placement-policy";
 import type { AcademicTrack } from "@/types/db";
 
 export interface PlacementClassOption {
@@ -113,7 +114,7 @@ export async function assignStudentPlacementClass(input: {
   const target = options.find((item) => item.classId === input.classId);
   if (!target) throw new Error("Choose an active SS1 class.");
   if (!input.scienceEligible && target.track === "science") {
-    throw new Error("Science placement requires a score above 55%.");
+    throw new Error(`Science placement requires a score above ${SCIENCE_PLACEMENT_THRESHOLD}%.`);
   }
 
   const placementClassIds = new Set(options.map((item) => item.classId));
