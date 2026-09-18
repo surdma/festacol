@@ -38,7 +38,7 @@ function studentTrackLabel(track: ExamPlacementTrack): string {
 }
 
 function placementOptionLabel(option: ExamPlacementOption): string {
-  return `SS1 ${studentTrackLabel(option.track)} · Arm ${option.arm}`;
+  return `SS1 ${studentTrackLabel(option.track)} Class`;
 }
 
 export function JoinClassGroupAction({
@@ -122,7 +122,7 @@ export function ResultDestinationSummary({
       ? destination.classLabel
       : placement?.scienceEligible
         ? "Science qualified"
-        : "Choose Art or Commercial"
+        : "Join Art or Commercial"
     : destination.classLabel;
 
   const description = isPlacement
@@ -367,7 +367,7 @@ export function PlacementClassActions({
                 key={option.classId}
                 type="button"
                 size="lg"
-                variant="outline"
+                variant="destructive"
                 disabled={pending}
                 className={cn(
                   "h-auto min-h-11 justify-between whitespace-normal text-left",
@@ -378,8 +378,8 @@ export function PlacementClassActions({
               >
                 <span>
                   {option.track === "science" && placement.scienceEligible
-                    ? "Choose Science"
-                    : `Choose ${studentTrackLabel(option.track)}`}
+                    ? "Join Science"
+                    : `Join ${studentTrackLabel(option.track)}`}
                   <span className="ml-1 opacity-70">· Arm {option.arm}</span>
                 </span>
                 {pending && pendingClassId === option.classId ? (
