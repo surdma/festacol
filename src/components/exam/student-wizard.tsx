@@ -30,8 +30,8 @@ import { Spinner } from "@/components/ui/spinner";
 
 function trackLabel(value: string) {
   if (value === "science") return "Science";
-  if (value === "humanities") return "Humanities";
-  if (value === "business") return "Business";
+  if (value === "humanities") return "Art";
+  if (value === "business") return "Commercial";
   return value.replaceAll("_", " ");
 }
 
