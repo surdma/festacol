@@ -140,7 +140,7 @@ function QuestionRail({
 }) {
   const flaggedSet = new Set(flagged);
   return (
-    <nav className="flex max-h-[min(68dvh,38rem)] w-12 flex-col gap-1 overflow-y-auto rounded-2xl border bg-card/95 p-1.5 shadow-lg" aria-label="Question rail">
+    <nav className="flex max-h-[min(68dvh,38rem)] w-12 flex-col gap-1 overflow-y-auto overscroll-contain rounded-2xl border bg-card/95 p-1.5 shadow-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Question rail">
       {paper.map((question, index) => {
         const status = responseStatus(question, responses[String(question.id)]);
         const current = index === currentIndex;
@@ -504,12 +504,12 @@ export function ExamFocusCapsule({
                   <SheetTrigger render={<Button type="button" variant="secondary" size="sm" className="mt-3 w-full" />}>
                     Open questions
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-[min(92vw,24rem)] sm:max-w-md">
-                    <SheetHeader>
+                  <SheetContent side="right" className="w-[min(92vw,24rem)] overflow-hidden sm:max-w-md">
+                    <SheetHeader className="border-b px-5 pb-3 pt-5 pr-14">
                       <SheetTitle>Questions</SheetTitle>
                       <SheetDescription>Jump without losing your current response.</SheetDescription>
                     </SheetHeader>
-                    <div className="min-h-0 flex-1 px-4 pb-4">{navigator}</div>
+                    <div className="min-h-0 flex-1 overflow-hidden px-5 pb-5 pt-1">{navigator}</div>
                   </SheetContent>
                 </Sheet>
               </>
@@ -544,12 +544,17 @@ export function ExamFocusCapsule({
               <Grid3X3 className="size-4" />
               Questions
             </SheetTrigger>
-            <SheetContent side="bottom" className="max-h-[82dvh] rounded-t-[2rem]">
-              <SheetHeader className="border-b">
+            <SheetContent
+              side="bottom"
+              className="mx-2 mb-2 max-h-[min(82dvh,44rem)] overflow-hidden rounded-[2rem] border sm:mx-4 sm:mb-4"
+            >
+              <SheetHeader className="border-b px-5 pb-3 pt-5 pr-14 sm:px-6">
                 <SheetTitle>Question navigator</SheetTitle>
                 <SheetDescription>{answeredCount} of {paper.length} answered · {flagged.length} flagged</SheetDescription>
               </SheetHeader>
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{navigator}</div>
+              <div className="min-h-0 flex-1 overflow-hidden px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-1 sm:px-6">
+                {navigator}
+              </div>
             </SheetContent>
           </Sheet>
 
