@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Copy, Download, ExternalLink, Mail, MessageCircle, Pencil, Send, Share2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -21,6 +21,8 @@ import {
   getAdminFormOptionsAction,
   getExamEditorDetailAction,
   updateExamParityAction,
+  type OfferingOption,
+  type SubjectOption,
 } from "@/app/actions/admin-parity";
 import { getExamAccessLinkAction } from "@/app/actions/exam-access-links";
 import { getExamRelationSummaryAction, type ExamRelationSummary } from "@/app/actions/exam-relations";
@@ -30,6 +32,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -66,6 +69,8 @@ function formatExamDuration(seconds: number) {
   const rest = minutes % 60;
   return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
 }
+
+const SINGLE_SUBJECT_EDIT_MODES = new Set(["single", "waec", "bece", "neco", "jamb"]);
 
 export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
   const router = useRouter();
@@ -310,30 +315,107 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
   const [title, setTitle] = useState("");
+  const [mode, setMode] = useState("single");
   const [durationSeconds, setDurationSeconds] = useState(3600);
   const [questionCount, setQuestionCount] = useState(50);
   const [instructions, setInstructions] = useState("");
   const [status, setStatus] = useState("draft");
   const [cameraRequired, setCameraRequired] = useState(false);
   const [warnAfter, setWarnAfter] = useState(2);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [offerings, setOfferings] = useState<OfferingOption[]>([]);
+  const [classIds, setClassIds] = useState<string[]>([]);
+  const [subjectIds, setSubjectIds] = useState<string[]>([]);
+  const [offeringIds, setOfferingIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<{ isAdmin: boolean; subjectIds: string[]; qualifierAccess: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setError(null);
-    void getExamEditorDetailAction(examId).then((detail) => {
+    setLoaded(false);
+    void Promise.all([
+      getExamEditorDetailAction(examId),
+      getAdminFormOptionsAction(),
+    ]).then(([detail, options]) => {
       const session = detail.session as Record<string, unknown> | null;
       if (!session) { setError("Exam is unavailable or outside your scope."); return; }
+
+      const nextClassIds = ((detail.classes ?? []) as { class_id?: string }[])
+        .map((row) => String(row.class_id ?? ""))
+        .filter(Boolean);
+      const directSubjectIds = [...new Set(detail.subjectIds ?? [])];
+      const currentOfferingIds = [...new Set(detail.offeringIds ?? [])];
+      const offeringSubjectIds = currentOfferingIds
+        .map((offeringId) => options.offerings.find((offering) => offering.id === offeringId)?.subjectId)
+        .filter((subjectId): subjectId is string => Boolean(subjectId));
+
       setTitle(String(session.title ?? ""));
+      setMode(String(session.mode ?? "single"));
       setDurationSeconds(Number(session.duration_seconds ?? 3600));
       setQuestionCount(Number(session.question_count ?? 50));
       setInstructions(String(session.instructions ?? ""));
       setStatus(String(session.status ?? "draft") === "open" ? "open" : "closed");
       setCameraRequired(detail.cameraRequired);
       setWarnAfter(Number(session.warn_after ?? 2));
+      setSubjects(options.subjects);
+      setOfferings(options.offerings);
+      setClassIds(nextClassIds);
+      setSubjectIds(directSubjectIds.length ? directSubjectIds : [...new Set(offeringSubjectIds)]);
+      setOfferingIds(currentOfferingIds);
+      setScope({
+        isAdmin: options.scope.isAdmin,
+        subjectIds: options.scope.subjectIds,
+        qualifierAccess: options.scope.qualifierAccess,
+      });
       setLoaded(true);
     }).catch(() => setError("Exam could not be loaded."));
   }, [examId]);
+
+  const availableSubjects = useMemo(() => {
+    if (mode === "qualifier") {
+      if (scope && !scope.isAdmin && !scope.qualifierAccess) return [];
+      return subjects.filter((subject) => subject.kind === "qualifier");
+    }
+
+    const activeOfferingSubjectIds = new Set(
+      offerings
+        .filter((offering) => offering.status === "active" && classIds.includes(offering.classId))
+        .map((offering) => offering.subjectId),
+    );
+    return subjects.filter((subject) =>
+      subject.kind === "curriculum"
+      && activeOfferingSubjectIds.has(subject.id)
+      && (!scope || scope.isAdmin || scope.subjectIds.includes(subject.id)),
+    );
+  }, [classIds, mode, offerings, scope, subjects]);
+
+  function toggleExamSubject(subjectId: string) {
+    setSubjectIds((current) => {
+      const next = mode === "qualifier"
+        ? current.includes(subjectId)
+          ? current.filter((id) => id !== subjectId)
+          : [...current, subjectId]
+        : SINGLE_SUBJECT_EDIT_MODES.has(mode)
+          ? current[0] === subjectId ? [] : [subjectId]
+          : current.includes(subjectId)
+            ? current.filter((id) => id !== subjectId)
+            : [...current, subjectId];
+
+      setOfferingIds(
+        mode === "qualifier"
+          ? []
+          : offerings
+            .filter((offering) =>
+              offering.status === "active"
+              && classIds.includes(offering.classId)
+              && next.includes(offering.subjectId),
+            )
+            .map((offering) => offering.id),
+      );
+      return next;
+    });
+  }
 
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
@@ -341,6 +423,39 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
         <DialogHeader><DialogTitle>Edit examination</DialogTitle><DialogDescription>Duration and question-count changes apply only to candidates who start after you save. Candidates already writing keep the time and paper they started with. Closing the exam finalizes active attempts.</DialogDescription></DialogHeader>
         {loaded ? <FieldGroup>
           <Field><FieldLabel htmlFor="ee-title">Title</FieldLabel><Input id="ee-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={72} /></Field>
+          <Field>
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <FieldLabel>Subjects ({subjectIds.length} selected)</FieldLabel>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Changes apply only to students who start after you save. Students already writing keep the paper they started with.
+                </p>
+              </div>
+              <Badge variant="secondary">{mode === "qualifier" ? "Placement paper" : "Class offerings"}</Badge>
+            </div>
+            <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {availableSubjects.map((subject) => {
+                const checked = subjectIds.includes(subject.id);
+                return (
+                  <FieldLabel
+                    key={subject.id}
+                    className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => toggleExamSubject(subject.id)} />
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm">{subject.name}</strong>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">{subject.code}</span>
+                    </span>
+                  </FieldLabel>
+                );
+              })}
+              {!availableSubjects.length ? (
+                <p className="col-span-full py-5 text-sm text-muted-foreground">
+                  No subjects are available for this examination and your current staff scope.
+                </p>
+              ) : null}
+            </div>
+          </Field>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field>
               <div className="flex items-center justify-between gap-2"><FieldLabel>Duration</FieldLabel><Badge variant="secondary" className="tabular-nums">{formatExamDuration(durationSeconds)}</Badge></div>
@@ -384,7 +499,7 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
           <Field><div className="flex items-center justify-between rounded-xl border p-3"><div><FieldLabel htmlFor="ee-camera">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Require camera permission before the candidate enters the paper.</p></div><Switch id="ee-camera" checked={cameraRequired} onCheckedChange={setCameraRequired} /></div></Field>
         </FieldGroup> : <p className="text-sm text-muted-foreground">Loading examination…</p>}
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!loaded || pending} onClick={() => startTransition(async () => { setError(null); const result = await updateExamParityAction(examId, { title, durationSeconds, questionCount, instructions, status, cameraRequired, warnAfter }); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{pending ? "Saving…" : "Save changes"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!loaded || pending} onClick={() => startTransition(async () => { setError(null); const result = await updateExamParityAction(examId, { title, durationSeconds, questionCount, instructions, status, cameraRequired, warnAfter, subjectIds, offeringIds }); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{pending ? "Saving…" : "Save changes"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
