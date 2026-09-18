@@ -77,7 +77,7 @@ function accessError(reason: string | null): string {
 }
 
 function resultSubmissionReason(value: string): ExamResultSummary["submissionReason"] {
-  if (value === "manual" || value === "time-expired" || value === "exam-closed") return value;
+  if (value === "manual" || value === "time-expired" || value === "exam-closed" || value === "potential-malpractice") return value;
   return "unknown";
 }
 
