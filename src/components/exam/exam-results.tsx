@@ -652,3 +652,4 @@ export function ExamLockedResult({
       </article>
     </main>
   );
+}
