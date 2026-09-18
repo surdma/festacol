@@ -178,7 +178,6 @@ DECLARE
   v_submitted boolean := false;
   v_session_title text;
   v_student_name text;
-  v_creator_id uuid;
   v_recipient uuid;
   v_payload jsonb;
 BEGIN
@@ -194,8 +193,8 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT e.title,e.created_by_id
-  INTO v_session_title,v_creator_id
+  SELECT e.title
+  INTO v_session_title
   FROM public.exam_sessions e
   WHERE e.id = NEW.session_id;
 
@@ -238,42 +237,14 @@ BEGIN
     PERFORM realtime.send(v_payload,'exam_submitted','student:' || NEW.student_id::text || ':exam',true);
   END IF;
 
-  -- Match the durable staff access model without relying on the current request's role.
+  -- Reuse the same durable authorization rule as RLS so realtime never widens or
+  -- narrows a teacher's subject-scoped workspace independently.
   FOR v_recipient IN
-    SELECT DISTINCT m.id
+    SELECT m.id
     FROM public.school_members m
     WHERE m.status = 'active'
       AND m.role IN ('teacher','administrator')
-      AND (
-        m.role = 'administrator'
-        OR m.id = v_creator_id
-        OR EXISTS (
-          SELECT 1 FROM public.exam_staff_assignments a
-          WHERE a.session_id = NEW.session_id
-            AND a.staff_id = m.id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM public.exam_offering_targets t
-          JOIN public.teaching_assignments ta
-            ON ta.offering_id = t.offering_id
-           AND ta.staff_id = m.id
-           AND ta.ended_at IS NULL
-          WHERE t.session_id = NEW.session_id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM public.exam_class_targets t
-          JOIN public.class_subject_offerings o
-            ON o.class_id = t.class_id
-           AND o.status = 'active'
-          JOIN public.teaching_assignments ta
-            ON ta.offering_id = o.id
-           AND ta.staff_id = m.id
-           AND ta.ended_at IS NULL
-          WHERE t.session_id = NEW.session_id
-        )
-      )
+      AND private.staff_can_access_exam(m.id,NEW.session_id)
   LOOP
     IF v_started THEN
       v_payload := jsonb_build_object(
