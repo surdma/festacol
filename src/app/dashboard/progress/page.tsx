@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { currentStudent } from "@/lib/auth/current-student";
-import { SCIENCE_PLACEMENT_THRESHOLD } from "@/lib/student-placement";
+import { SCIENCE_PLACEMENT_THRESHOLD } from "@/lib/placement-policy";
 import { attemptsForStudent } from "@/lib/supabase/queries";
 
 function studentTrackLabel(value: string | null | undefined): string {
