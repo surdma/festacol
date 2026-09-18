@@ -680,7 +680,7 @@ LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
 SET search_path = public,private
-AS $
+AS $$
 DECLARE
   v_student uuid := private.current_school_member_id();
   v_session_id text;
@@ -812,7 +812,7 @@ BEGIN
 
   RETURN p_class_id;
 END;
-$;
+$$;
 
 DROP FUNCTION IF EXISTS public.grant_exam_retake(text,uuid,integer,text);
 
