@@ -6,6 +6,8 @@ import {
   MessageCircleMore,
   School,
 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { selectPlacementClassAction } from "@/app/actions/exam-experience";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,8 +22,23 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import type { ExamResultSummary } from "@/types/exam";
+import type {
+  ExamPlacementOption,
+  ExamPlacementTrack,
+  ExamResultSummary,
+} from "@/types/exam";
+
+function studentTrackLabel(track: ExamPlacementTrack): string {
+  if (track === "science") return "Science";
+  if (track === "humanities") return "Art";
+  return "Commercial";
+}
+
+function placementOptionLabel(option: ExamPlacementOption): string {
+  return `SS1 ${studentTrackLabel(option.track)} · Arm ${option.arm}`;
+}
 
 export function JoinClassGroupAction({
   classLabel,
@@ -73,7 +90,8 @@ export function JoinClassGroupAction({
           <AlertDialogTitle>WhatsApp group unavailable</AlertDialogTitle>
           <AlertDialogDescription>
             The official WhatsApp group for {classLabel} has not been published
-            yet. You can return later after your school configures the group.
+            yet. Your class is still saved; return later after the school
+            configures the group.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -92,9 +110,29 @@ export function ResultDestinationSummary({
   appearance?: "paper" | "cover";
 }) {
   const destination = summary.destination;
+  const placement = summary.placement;
   const isPlacement = destination.kind === "placement";
-  const Icon = isPlacement ? GraduationCap : School;
+  const needsChoice = isPlacement && !destination.classId;
   const cover = appearance === "cover";
+  const Icon = isPlacement ? GraduationCap : School;
+
+  const title = isPlacement
+    ? destination.classId
+      ? destination.classLabel
+      : placement?.scienceEligible
+        ? "Science qualified"
+        : "Choose Art or Commercial"
+    : destination.classLabel;
+
+  const description = isPlacement
+    ? destination.classId
+      ? placement?.scienceEligible && destination.track !== "science"
+        ? `You qualified for Science and chose ${destination.classLabel}. Your saved class now controls the group you join.`
+        : `${destination.classLabel} is saved as your SS1 class. You can join the class group when it is available.`
+      : placement?.scienceEligible
+        ? "Your placement score is above 55%, so Science is the default placement. If Science cannot be finalized automatically, choose the Science class below or select Art or Commercial instead."
+        : "Your placement score does not auto-place you in Science. Choose the Art or Commercial class you want to join."
+    : "This examination remains linked to the class already confirmed on your student record.";
 
   return (
     <div>
@@ -108,7 +146,11 @@ export function ResultDestinationSummary({
           )}
         >
           <CheckCircle2 data-icon="inline-start" />
-          {isPlacement ? "Placement complete" : "Exam complete"}
+          {isPlacement
+            ? needsChoice
+              ? "Placement result"
+              : "Placement complete"
+            : "Exam complete"}
         </Badge>
         <span
           className={cn(
@@ -150,7 +192,7 @@ export function ResultDestinationSummary({
               cover ? "text-result-cover-foreground" : "text-foreground",
             )}
           >
-            {destination.classLabel}
+            {title}
           </h2>
           <p
             className={cn(
@@ -160,17 +202,15 @@ export function ResultDestinationSummary({
                 : "text-muted-foreground",
             )}
           >
-            {isPlacement
-              ? "Your placement result determines the pathway shown above. The class group follows the specific SS1 class linked to that pathway."
-              : "This examination remains linked to the class already confirmed on your student record."}
+            {description}
           </p>
         </div>
       </div>
 
-      {isPlacement && summary.placement ? (
+      {isPlacement && placement ? (
         <Progress
-          value={summary.placement.confidence}
-          aria-label={`Placement confidence ${Math.round(summary.placement.confidence)}%`}
+          value={placement.score}
+          aria-label={`Placement score ${Math.round(placement.score)}%`}
           className={cn(
             "mt-6",
             cover
@@ -181,7 +221,7 @@ export function ResultDestinationSummary({
           <ProgressLabel
             className={cover ? "text-result-cover-foreground" : undefined}
           >
-            Placement confidence
+            Placement score
           </ProgressLabel>
           <span
             className={cn(
@@ -189,7 +229,7 @@ export function ResultDestinationSummary({
               cover ? "text-result-cover-foreground" : undefined,
             )}
           >
-            {Math.round(summary.placement.confidence)}%
+            {Math.round(placement.score)}%
           </span>
         </Progress>
       ) : null}
@@ -197,29 +237,162 @@ export function ResultDestinationSummary({
   );
 }
 
-export function ExamResultDestination({
+export function PlacementClassActions({
   summary,
+  onRefresh,
+  appearance = "cover",
 }: {
   summary: ExamResultSummary;
+  onRefresh: () => Promise<boolean>;
+  appearance?: "paper" | "cover";
 }) {
   const destination = summary.destination;
+  const placement = summary.placement;
+  const [pending, startTransition] = useTransition();
+  const [pendingClassId, setPendingClassId] = useState<string | null>(null);
+  const [dialogMessage, setDialogMessage] = useState<string | null>(null);
+  const cover = appearance === "cover";
+
+  if (destination.kind !== "placement" || !placement) {
+    return (
+      <JoinClassGroupAction
+        classLabel={destination.classLabel}
+        groupName={destination.whatsappName}
+        whatsappUrl={destination.whatsappUrl}
+        appearance={appearance}
+      />
+    );
+  }
+
+  const alternativeOptions =
+    destination.classId && destination.track === "science" && placement.scienceEligible
+      ? placement.options.filter((option) => option.track !== "science")
+      : destination.classId
+        ? []
+        : placement.options;
+
+  function chooseClass(option: ExamPlacementOption) {
+    setPendingClassId(option.classId);
+    setDialogMessage(null);
+    startTransition(async () => {
+      const result = await selectPlacementClassAction(
+        summary.attemptId,
+        option.classId,
+      );
+      if (!result.ok) {
+        setDialogMessage(result.error);
+        setPendingClassId(null);
+        return;
+      }
+
+      await onRefresh();
+      setPendingClassId(null);
+
+      if (result.whatsappUrl) {
+        window.location.assign(result.whatsappUrl);
+        return;
+      }
+
+      setDialogMessage(
+        `${placementOptionLabel(option)} is saved, but its WhatsApp group is not available yet.`,
+      );
+    });
+  }
 
   return (
-    <section
-      aria-label="Result destination"
-      className="animate-result-stamp overflow-hidden rounded-[2rem] border border-result-placement/30 bg-card"
-    >
-      <div className="border-b border-border bg-result-placement/10 px-5 py-5 sm:px-7">
-        <ResultDestinationSummary summary={summary} />
-      </div>
-
-      <div className="px-5 py-5 sm:px-7 sm:py-6">
+    <div className="grid gap-4">
+      {destination.classId ? (
         <JoinClassGroupAction
           classLabel={destination.classLabel}
           groupName={destination.whatsappName}
           whatsappUrl={destination.whatsappUrl}
+          appearance={appearance}
         />
-      </div>
-    </section>
+      ) : null}
+
+      {alternativeOptions.length ? (
+        <div
+          className={cn(
+            "grid gap-2 rounded-2xl border p-3",
+            cover
+              ? "border-result-cover-foreground/20 bg-result-cover-foreground/8"
+              : "bg-muted/25",
+          )}
+        >
+          <div>
+            <p
+              className={cn(
+                "text-xs font-bold uppercase tracking-[0.13em]",
+                cover
+                  ? "text-result-cover-foreground/65"
+                  : "text-muted-foreground",
+              )}
+            >
+              {destination.classId ? "Prefer another class?" : "Choose your class"}
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-xs leading-5",
+                cover
+                  ? "text-result-cover-foreground/70"
+                  : "text-muted-foreground",
+              )}
+            >
+              {placement.scienceEligible
+                ? "Science is available from your score. You may still choose Art or Commercial."
+                : "Choose Art or Commercial to save your SS1 class and continue to its group."}
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {alternativeOptions.map((option) => (
+              <Button
+                key={option.classId}
+                type="button"
+                size="lg"
+                variant="outline"
+                disabled={pending}
+                className={cn(
+                  "h-auto min-h-11 justify-between whitespace-normal text-left",
+                  cover &&
+                    "border-result-cover-foreground/30 bg-transparent text-result-cover-foreground hover:bg-result-cover-foreground/10 hover:text-result-cover-foreground",
+                )}
+                onClick={() => chooseClass(option)}
+              >
+                <span>
+                  {option.track === "science" && placement.scienceEligible
+                    ? "Choose Science"
+                    : `Choose ${studentTrackLabel(option.track)}`}
+                  <span className="ml-1 opacity-70">· Arm {option.arm}</span>
+                </span>
+                {pending && pendingClassId === option.classId ? (
+                  <Spinner data-icon="inline-end" />
+                ) : null}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <AlertDialog
+        open={Boolean(dialogMessage)}
+        onOpenChange={(open) => {
+          if (!open) setDialogMessage(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <MessageCircleMore aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Class group update</AlertDialogTitle>
+            <AlertDialogDescription>{dialogMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Okay</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
