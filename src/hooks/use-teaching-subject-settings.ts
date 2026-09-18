@@ -8,6 +8,7 @@ import { getMyScopeAction, updateMySubjectsAction } from "@/app/actions/admin";
 export interface TeachingSubjectOption {
   id: string;
   name: string;
+  kind: "curriculum" | "qualifier";
 }
 
 export function useTeachingSubjectSettings() {
@@ -24,8 +25,10 @@ export function useTeachingSubjectSettings() {
     void Promise.all([getSubjectCatalogAction(), getMyScopeAction()])
       .then(([subjects, scope]) => {
         if (!active) return;
-        setCatalog(subjects);
-        setSelected(scope.subjectIds);
+        const curriculumSubjects = subjects.filter((subject) => subject.kind === "curriculum");
+        const curriculumIds = new Set(curriculumSubjects.map((subject) => subject.id));
+        setCatalog(curriculumSubjects);
+        setSelected(scope.subjectIds.filter((subjectId) => curriculumIds.has(subjectId)));
       })
       .catch(() => {
         if (active) setError("Your teaching subjects could not be loaded.");
