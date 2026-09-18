@@ -136,6 +136,7 @@ export interface ExamResultSummary {
     recommendedTrack: "science" | null;
     scienceEligible: boolean;
     score: number;
+    canChooseClass: boolean;
     options: ExamPlacementOption[];
   };
 }
