@@ -1,7 +1,7 @@
 # Festacol `exam/**` design program
 
 Date: 2026-09-17
-Status: Phase 01 Option A implemented; Phase 02 Ready to Write brainstorm generated; selection pending
+Status: Phases 01–03 selected/implemented; Phase 04 Result / Completion ten-option board generated; product selection pending
 Target branch: `design/exam-flow-phase-01-brainstorm`
 
 ## Product objective
@@ -24,11 +24,11 @@ Authoritative implementation surfaces include:
 
 - `src/app/(exam)/exam/page.tsx` — token validation, authentication handoff, access decision and examination workspace entry.
 - `src/app/page.tsx` — candidate identity/authentication surface when an examination link redirects an anonymous candidate.
-- `src/components/exam/student-wizard.tsx` — missing level/class/SS1 placement input.
+- `src/components/exam/student-wizard.tsx` — minimal academic exception surface when the candidate still lacks required class/placement information.
 - `src/app/actions/exam-onboarding.ts` — class/placement persistence and access re-check.
-- `src/components/exam/exam-preflight.tsx` — currently separates overview, instructions, device check and final start/resume into four stages.
-- `src/components/exam/exam-workspace.tsx` — paper restore, attempt start/resume, live examination, autosave, timer, camera/integrity states, review, processing and submission recovery.
-- `src/components/exam/exam-results.tsx` — persisted result interpretation and policy-gated answer review.
+- `src/components/exam/exam-preflight.tsx` — selected single-surface Folded Examination Booklet for instructions, readiness and Start/Resume.
+- `src/components/exam/exam-workspace.tsx` — paper restore, attempt start/resume, Focus Capsule live examination, autosave, timer, camera/integrity states, in-place submit confirmation, processing, result/fallback and locked recovery states.
+- `src/components/exam/exam-results.tsx` — candidate-facing aggregate persisted result presentation; no per-question answer-key review.
 - `prisma/schema.prisma` and Supabase RPCs — examination session/access/attempt/response/integrity/retake persistence and authority.
 
 ## Non-negotiable domain contracts
@@ -46,7 +46,7 @@ The visual redesign preserves the current server-owned contracts:
 - canonical question types: `single`, `multi`, `boolean`, `fill`, `fill-multi`;
 - one deliberate final submission path plus timeout finalization;
 - result values from persisted/scored attempt data;
-- answer review only when the existing reveal policy permits it;
+- candidate result remains aggregate-only; per-question correct answers and answer-key review are not sent to the candidate client;
 - explicit staff retake authority after a consumed attempt.
 
 No design concept may invent pass/fail thresholds, ranks, AI-proctor scores, microphone requirements, biometric claims, question data, or server capabilities that do not exist.
@@ -55,14 +55,14 @@ No design concept may invent pass/fail thresholds, ranks, AI-proctor scores, mic
 
 The old seven-phase design decomposition is superseded. Academic eligibility/placement, briefing/instructions and device readiness/start are now one phase because they are one student job: **get ready and begin writing**.
 
-Each phase receives its own low-fi `brainstorm.html` with **seven full-screen alternatives** before high-fidelity production implementation for that phase begins.
+Each phase receives its own low-fi `brainstorm.html` before high-fidelity production implementation. Phases 01–02 retain their historical seven-option boards; the mature comparison gate used for Phases 03–04 is **ten full-screen alternatives**.
 
 | Phase | Student operation | Current production owner(s) | Status / gate |
 | --- | --- | --- | --- |
 | 01. Arrival & Identity | Understand the examination link and identify/sign in as the candidate | `/exam` + root student auth | **Option A selected and implemented** |
-| 02. Ready to Write | Resolve missing academic information only when necessary, understand the essential examination instructions, satisfy only required device conditions, then Start/Resume | `student-wizard.tsx` + `exam-preflight.tsx` + pre-exam state in `exam-workspace.tsx` | **Seven-option board generated; product selection required** |
+| 02. Ready to Write | Resolve missing academic information only when necessary, understand the essential examination instructions, satisfy only required device conditions, then Start/Resume | `student-wizard.tsx` + `exam-preflight.tsx` + pre-exam state in `exam-workspace.tsx` | **Folded Examination Booklet selected and implemented** |
 | 03. Write & Submit Examination | Read, answer, navigate, flag, save, monitor time and required camera/integrity state, then confirm submission in place | `exam-workspace.tsx`, Focus Capsule, question/navigator/camera/submission components | **Focus Capsule implemented; Review & Submit merged here** |
-| 04. Result / Completion | Interpret score/subject performance, review released answers when allowed, or understand locked/retake state | `exam-results.tsx` + locked/completion states | Seven low-fi alternatives first |
+| 04. Result / Completion | Interpret aggregate score, answer composition, subject performance, optional placement and attempt facts, or understand fallback/locked state | `exam-results.tsx` + submitted/fallback/locked states in `exam-workspace.tsx` | **Ten-option snapped board generated; product selection required** |
 
 ## Phase 01 data boundary
 
@@ -195,25 +195,49 @@ All seven preserve the same server-owned behavior while reducing visible process
 
 ## Brainstorm artifact contract
 
-For every remaining phase:
+For Phase 04 and any later comparison board derived from this program:
 
-1. `COMMAND.md` records the exact `/using-superpowers` + design-skill generation brief and any reproducible search command.
-2. `brainstorm.html` contains exactly seven alternatives for that phase.
-3. Every alternative occupies one viewport and uses `scroll-snap-align: start`; the page uses vertical mandatory snap scrolling.
-4. Alternatives must differ in interaction model, spatial composition, hierarchy and motion idea, not merely colors or rounded corners.
-5. The artifact remains low fidelity: grayscale/wireframe semantics, representative labels, no claim of production fidelity and no backend simulation.
-6. Accessibility and reduced-motion intent must remain visible even in the wireframe.
-7. Prototype HTML/CSS/JS is never copied or imported into `src/**`; the selected direction is re-authored with the installed Next.js/shadcn/Tailwind system.
-8. For Phase 02 specifically, every option is one pre-exam surface rather than a disguised sequence of preparation screens.
+1. `COMMAND.md` records the exact `/using-superpowers` + design-skill generation brief and any relevant repository evidence.
+2. `brainstorm.html` contains exactly ten alternatives, A–J.
+3. Every alternative occupies exactly one `100dvh` selection frame and uses `scroll-snap-align: start` plus `scroll-snap-stop: always`; the page uses vertical mandatory snap scrolling.
+4. Alternatives must differ in interaction model, spatial composition, dominant component family, hierarchy, density and data treatment, not merely colors or rounded corners.
+5. Overflow on short/mobile viewports stays inside the concept frame through an internal scroll region; concept content must not spill into the next snapped proposal.
+6. The artifact remains low fidelity: restrained neutral wireframe semantics, representative labels, no claim of production fidelity and no backend simulation.
+7. Accessibility, keyboard focus, 44px-ish targets and reduced-motion intent remain visible even in the wireframe.
+8. Prototype HTML/CSS/JS is never copied or imported into `src/**`; the selected direction is re-authored with the installed Next.js/shadcn/Tailwind system.
+9. Phase 04 concepts may use only the verified candidate result contract; no concept may invent answer keys, ranks, pass/fail thresholds, letter grades or self-service retake authority.
 
-## Existing branch-scope warning
+## Phase 04 selection artifact
 
-The current PR contains a previously merged/unselected refactor touching later examination surfaces, including the student wizard, preflight, live workspace and result components.
+The governing Phase 04 plan is:
 
-Those existing presentation changes do **not** become approved merely because they are present on the branch. Phase 02 remains selection-gated by the new Ready to Write A–G board, and later-phase presentation changes are not automatically approved Phase 03–04 designs.
+`docs/plans/2026-09-18-phase-04-result-completion.md`
+
+The reproducible design brief is:
+
+`docs/design/exam/phase-04-result-completion/COMMAND.md`
+
+The ten-option snapped comparison board is:
+
+`docs/design/exam/phase-04-result-completion/brainstorm.html`
+
+The board explores:
+
+- A — Statement of Result
+- B — Score Orbit
+- C — Subject Columns
+- D — Folded Result Booklet
+- E — Debrief Timeline
+- F — Academic Receipt
+- G — Diagnostic Compass
+- H — Subject Spotlight
+- I — Marks Matrix
+- J — Result Dossier
+
+All ten use the same aggregate persisted result boundary and are selection references only.
 
 ## Next gate
 
-**Do not implement the new Phase 02 production UI yet.**
+**Do not implement the Phase 04 production result redesign yet.**
 
-The next product decision is to select **A, B, C, D, E, F, G, or an explicit hybrid** from the Ready to Write board. After selection, the chosen direction can be re-authored in production React/shadcn/Tailwind while preserving the existing server authority and minimizing candidate friction.
+The next product decision is to select **A, B, C, D, E, F, G, H, I, J, or an explicit hybrid** from the Result / Completion board. After selection, the chosen spatial grammar can be re-authored in production React/shadcn/Tailwind while preserving the aggregate-only result security boundary and existing server authority.
