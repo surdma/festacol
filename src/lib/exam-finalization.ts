@@ -4,7 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
 import type { ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
-export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed";
+export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice";
 
 export interface AttemptClockState {
   started_at: number | null;
@@ -229,11 +229,13 @@ export async function finalizeExamAttempt(input: {
 
   const now = Date.now();
   const effectiveReason: ExamSubmissionReason =
-    input.reason === "exam-closed" || input.session.status !== "open"
-      ? "exam-closed"
-      : clock.remainingSeconds <= 0
-        ? "time-expired"
-        : input.reason;
+    input.reason === "potential-malpractice"
+      ? "potential-malpractice"
+      : input.reason === "exam-closed" || input.session.status !== "open"
+        ? "exam-closed"
+        : clock.remainingSeconds <= 0
+          ? "time-expired"
+          : input.reason;
 
   const { data: updated, error: updateError } = await admin
     .from("exam_attempts")
