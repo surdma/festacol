@@ -386,7 +386,7 @@ jobs:
           SQL
 
       - name: Typecheck
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
 
       - name: Build
         run: pnpm build
