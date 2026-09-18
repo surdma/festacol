@@ -201,23 +201,24 @@ export async function listCleanupOptionsAction(): Promise<ActionResult & { optio
   }
 }
 
-function applyAttemptFilter(query: CountQuery, filter: AttemptFilter): CountQuery {
-  let next = query;
+function applyAttemptFilter<T>(query: T, filter: AttemptFilter): T {
+  let next = query as unknown as CountQuery;
   if (filter.mode === "submitted") next = next.not("submitted_at", "is", null);
   if (filter.mode === "unsubmitted") next = next.is("submitted_at", null);
   const cutoff = olderThanCutoff(filter.olderThanDays);
   if (cutoff !== null) next = next.lt("created_at", cutoff);
   if (filter.sessionId) next = next.eq("session_id", filter.sessionId);
-  return next;
+  return next as unknown as T;
 }
 
-function applySessionFilter(query: CountQuery, filter: SessionFilter): CountQuery {
+function applySessionFilter<T>(query: T, filter: SessionFilter): T {
   // Open sessions are never removable: they may be live in classrooms.
-  let next = filter.status === "non-open" ? query.neq("status", "open") : query.eq("status", filter.status);
+  let next = query as unknown as CountQuery;
+  next = filter.status === "non-open" ? next.neq("status", "open") : next.eq("status", filter.status);
   const cutoff = olderThanCutoff(filter.olderThanDays);
   if (cutoff !== null) next = next.lt("created_at", cutoff);
   if (filter.termId) next = next.eq("academic_term_id", filter.termId);
-  return next;
+  return next as unknown as T;
 }
 
 export async function previewCleanupAction(
