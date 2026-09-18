@@ -1,3 +1,4 @@
+import { qualifiesForScience } from "@/lib/placement-policy";
 import type { ExamMode, ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
 export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -260,7 +261,7 @@ function placementFor(
   const scienceEnabled =
     session.placementTracks.length === 0 ||
     session.placementTracks.includes("Science");
-  const scienceEligible = scienceEnabled && result.accuracy > 55;
+  const scienceEligible = scienceEnabled && qualifiesForScience(result.accuracy);
 
   return {
     assignedTrack: scienceEligible ? "Science" : null,
