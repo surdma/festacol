@@ -120,19 +120,6 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       return { ok: false, error: "Exam subjects and subject offerings do not match." };
     }
 
-    if (!ctx.scope.isAdmin && offeringIds.length) {
-      const { data: assignments } = await ctx.supabase
-        .from("teaching_assignments")
-        .select("offering_id")
-        .eq("staff_id", staffId)
-        .is("ended_at", null)
-        .in("offering_id", offeringIds);
-      const assigned = new Set(((assignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id));
-      if (offeringIds.some((offeringId) => !assigned.has(offeringId))) {
-        return { ok: false, error: "You may create exams only for subject offerings you teach." };
-      }
-    }
-
     const allClassIds = [...new Set([...classIds, ...offeringRows.map((row) => row.class_id)])];
     const [{ data: classes }, { data: level }] = await Promise.all([
       ctx.admin.from("classes").select("id,level_id,academic_year_id").in("id", allClassIds),
@@ -1055,9 +1042,14 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
     if (ctx.scope.isAdmin || !ctx.scope.profileId) return { ok: false, error: "Teachers only." };
     const clean = [...new Set(subjectIds.filter(Boolean))].slice(0, 24);
     if (!clean.length) return { ok: false, error: "Choose at least one subject." };
-    const valid = await ctx.admin.from("subjects").select("id").in("id", clean).eq("active", true);
+    const valid = await ctx.admin
+      .from("subjects")
+      .select("id")
+      .in("id", clean)
+      .eq("active", true)
+      .eq("kind", "curriculum");
     const rows = (valid.data ?? []) as { id: string }[];
-    if (rows.length !== clean.length) return { ok: false, error: "One or more subjects are unavailable." };
+    if (rows.length !== clean.length) return { ok: false, error: "Choose only active teaching subjects. Placement subjects are available automatically." };
     await ctx.admin.from("staff_subject_qualifications").update({ active: false }).eq("staff_id", ctx.scope.profileId);
     const { error } = await ctx.admin.from("staff_subject_qualifications").upsert(
       rows.map((subject) => ({ staff_id: ctx.scope.profileId, subject_id: subject.id, active: true })),
@@ -1065,6 +1057,11 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
     );
     if (error) return { ok: false, error: error.message };
     revalidatePath("/workspace");
+    revalidatePath("/workspace/exams");
+    revalidatePath("/workspace/questions");
+    revalidatePath("/workspace/reports");
+    revalidatePath("/workspace/settings");
+    revalidatePath("/workspace/settings/teaching");
     revalidatePath("/workspace/staff");
     return { ok: true };
   } catch (error) {
