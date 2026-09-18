@@ -22,6 +22,7 @@ type Phase = "preflight" | "loading" | "load-failed" | "exam" | "processing" | "
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
 type PersistResult = SaveProgressResult;
 type CompletionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice";
+type StandardCompletionReason = Exclude<CompletionReason, "potential-malpractice">;
 
 type BackgroundSnapshot = {
   hiddenAt: number;
@@ -243,7 +244,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     }
   }, [fetchRichResult, session.id]);
 
-  const submitFinal = useCallback(async (reason: Exclude<CompletionReason, "potential-malpractice">) => {
+  const submitFinal = useCallback(async (reason: StandardCompletionReason) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setProcessingReason(reason);
@@ -416,7 +417,10 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         void terminateForMalpractice("Restricted browser action previously detected; retrying final submission.");
         return;
       }
-      if (phase === "submission-failed" && processingReason !== "manual") {
+      if (
+        phase === "submission-failed"
+        && (processingReason === "time-expired" || processingReason === "exam-closed")
+      ) {
         void submitFinal(processingReason);
         return;
       }
