@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ExamExperienceContext, ExamMode, ExamResultSummary } from "@/types/exam";
@@ -210,7 +210,7 @@ function SubjectPerformance({ summary }: { summary: ExamResultSummary }) {
           className={subjectTone(index)}
         >
           <ProgressLabel>{subject.subject}</ProgressLabel>
-          <ProgressValue>{subject.correct}/{subject.total} · {subject.percent}%</ProgressValue>
+          <span className="ml-auto text-sm tabular-nums text-muted-foreground">{subject.correct}/{subject.total} · {subject.percent}%</span>
           <p className="w-full text-xs text-muted-foreground">{formatDuration(subject.seconds)} active time</p>
         </Progress>
       ))}
@@ -232,7 +232,7 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
           className="[&_[data-slot=progress-indicator]]:bg-result-secondary"
         >
           <ProgressLabel>Pace</ProgressLabel>
-          <ProgressValue>{Math.round(summary.paceIndex)}</ProgressValue>
+          <span className="ml-auto text-sm tabular-nums text-muted-foreground">{Math.round(summary.paceIndex)}</span>
         </Progress>
         <Progress
           value={summary.reasoningIndex}
@@ -240,7 +240,7 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
           className="[&_[data-slot=progress-indicator]]:bg-result-accent"
         >
           <ProgressLabel>Reasoning</ProgressLabel>
-          <ProgressValue>{Math.round(summary.reasoningIndex)}</ProgressValue>
+          <span className="ml-auto text-sm tabular-nums text-muted-foreground">{Math.round(summary.reasoningIndex)}</span>
         </Progress>
       </CardContent>
     </Card>
@@ -268,7 +268,7 @@ function PlacementOutcome({ summary }: { summary: ExamResultSummary }) {
         className="mt-4 [&_[data-slot=progress-indicator]]:bg-result-highlight-foreground [&_[data-slot=progress-track]]:bg-result-highlight-foreground/20"
       >
         <ProgressLabel>Confidence</ProgressLabel>
-        <ProgressValue className="text-result-highlight-foreground">{Math.round(summary.placement.confidence)}%</ProgressValue>
+        <span className="ml-auto text-sm font-semibold tabular-nums text-result-highlight-foreground">{Math.round(summary.placement.confidence)}%</span>
       </Progress>
     </section>
   );
@@ -401,7 +401,7 @@ export function ExamResults({
                       className="[&_[data-slot=progress-indicator]]:bg-result-highlight"
                     >
                       <ProgressLabel>Active time</ProgressLabel>
-                      <ProgressValue>{formatDuration(Math.max(0, summary.durationSeconds - summary.elapsedSeconds))} remained</ProgressValue>
+                      <span className="ml-auto text-sm tabular-nums text-muted-foreground">{formatDuration(Math.max(0, summary.durationSeconds - summary.elapsedSeconds))} remained</span>
                     </Progress>
                   </CardContent>
                 </Card>
