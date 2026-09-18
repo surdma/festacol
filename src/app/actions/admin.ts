@@ -218,6 +218,19 @@ export async function updateExamAction(
   patch: { title: string; durationSeconds: number; questionCount: number; instructions: string; status: string; cameraRequired: boolean; warnAfter: number },
 ): Promise<ActionResult> {
   try {
+    if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 14400) {
+      return { ok: false, error: "Duration must be between 30 seconds and 4 hours." };
+    }
+    if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 200) {
+      return { ok: false, error: "Question count must be between 5 and 200." };
+    }
+    if (!Number.isInteger(patch.warnAfter) || patch.warnAfter < 1 || patch.warnAfter > 10) {
+      return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
+    }
+    if (!["open", "draft", "closed"].includes(patch.status)) {
+      return { ok: false, error: "Choose a valid examination status." };
+    }
+
     const ctx = await requireStaff();
     const existingSession = await scopedSession(ctx, id);
     if (!existingSession) return { ok: false, error: "Exam not found or outside your scope." };

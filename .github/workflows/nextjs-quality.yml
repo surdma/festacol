@@ -100,13 +100,14 @@ jobs:
 
       - name: Assert canonical migration history
         run: |
-          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 6
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 7
           test -f prisma/migrations/20260915190000_initial/migration.sql
           test -f prisma/migrations/20260915220633/migration.sql
           test -f prisma/migrations/20260915220829/migration.sql
           test -f prisma/migrations/20260916000000_member_deletion_audit/migration.sql
           test -f prisma/migrations/20260917180000_exam_support_requests/migration.sql
           test -f prisma/migrations/20260918094500_exam_session_closed_at/migration.sql
+          test -f prisma/migrations/20260918110000_exam_session_limits_alignment/migration.sql
           test ! -e supabase/schema.sql
           test "$(find supabase -maxdepth 1 -type f -name '[0-9][0-9]-*.sql' | wc -l)" -eq 0
           test "$(find scripts -maxdepth 1 -type f \( -name '*.chunk*' -o -name '.sandbox*' -o -name '.pr13-*' \) | wc -l)" -eq 0
@@ -119,6 +120,26 @@ jobs:
 
       - name: Apply canonical Prisma migrations
         run: pnpm exec prisma migrate deploy
+
+      - name: Assert exam session editing limits
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          begin;
+          insert into public.exam_sessions (
+            id,
+            title,
+            mode,
+            duration_seconds,
+            question_count
+          ) values (
+            'CI-LIMIT-BOUNDARY',
+            'CI exam limits',
+            'single',
+            14400,
+            200
+          );
+          rollback;
+          SQL
 
       - name: Seed canonical relational fixtures
         run: pnpm db:seed
