@@ -26,8 +26,13 @@ interface AccessRow {
 
 interface ResultAttemptRow {
   id: string;
+  attempt_number: number;
+  context_snapshot: ExamAttemptContextSnapshot;
   started_at: number | null;
   submitted_at: number | null;
+  submission_reason: string;
+  remaining_seconds: number | null;
+  last_active_at: number | null;
   score: number | null;
   correct_count: number | null;
   completion: number | null;
@@ -69,6 +74,11 @@ function accessError(reason: string | null): string {
   if (reason === "not_qualified") return "Your current level does not qualify for this examination.";
   if (reason === "not_eligible") return "This examination is not assigned to your confirmed class.";
   return "This examination is unavailable for your account.";
+}
+
+function resultSubmissionReason(value: string): ExamResultSummary["submissionReason"] {
+  if (value === "manual" || value === "time-expired" || value === "exam-closed") return value;
+  return "unknown";
 }
 
 function responseIsAnswered(row: ResultResponseRow | undefined): boolean {
@@ -202,7 +212,7 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
 
   const { data: attemptData, error: attemptError } = await ctx.supabase
     .from("exam_attempts")
-    .select("id,started_at,submitted_at,score,correct_count,completion,pace_index,reasoning_index,assigned_track,placement_confidence,elapsed_active_seconds,question_ids")
+    .select("id,attempt_number,context_snapshot,started_at,submitted_at,submission_reason,remaining_seconds,last_active_at,score,correct_count,completion,pace_index,reasoning_index,assigned_track,placement_confidence,elapsed_active_seconds,question_ids")
     .eq("session_id", runtime.session.id)
     .eq("student_id", ctx.profile.profile_id)
     .not("submitted_at", "is", null)
@@ -263,11 +273,25 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
         confidence: Math.max(0, Number(attempt.placement_confidence ?? 0)),
       }
     : undefined;
+  const snapshotQuestionCount = Math.max(0, Number(attempt.context_snapshot?.questionCount ?? 0));
+  const durationSeconds = attemptDurationSeconds(attempt, runtime.session);
+  const questionCount = attempt.question_ids.length || (snapshotQuestionCount > 0 ? Math.round(snapshotQuestionCount) : total);
+  const sessionTitle = String(attempt.context_snapshot?.sessionTitle ?? runtime.session.title);
+  const candidateName = String(attempt.context_snapshot?.studentName ?? ctx.profile.full_name);
+  const snapshotMode = attempt.context_snapshot?.mode;
+  const mode = snapshotMode ?? runtime.session.mode;
 
   const summary: ExamResultSummary = {
     attemptId: attempt.id,
+    attemptNumber: Math.max(1, Math.round(Number(attempt.attempt_number) || 1)),
     submittedAt: Number(attempt.submitted_at),
     startedAt: attempt.started_at === null ? null : Number(attempt.started_at),
+    submissionReason: resultSubmissionReason(attempt.submission_reason),
+    sessionTitle,
+    candidateName,
+    mode,
+    durationSeconds,
+    questionCount,
     score: Math.max(0, Number(attempt.score ?? 0)),
     completion: Math.max(0, Number(attempt.completion ?? 0)),
     correctCount,

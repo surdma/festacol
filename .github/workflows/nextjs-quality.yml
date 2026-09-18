@@ -254,6 +254,7 @@ jobs:
           src/components/admin/detail-dialogs.tsx
           src/components/exam/exam-camera-panel.tsx
           src/components/exam/exam-focus-capsule.tsx
+          src/components/exam/exam-results.tsx
           src/components/exam/exam-workspace.tsx
           src/components/exam/question-card.tsx
           src/components/shell/realtime-notification-sync.tsx

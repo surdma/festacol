@@ -1,7 +1,7 @@
 # Phase 04 — Result / Completion
 
 Date: 2026-09-18
-Status: PLANNED — high-depth ten-direction wireframe board generated; product selection required
+Status: SELECTED — D Folded Result Booklet chosen for production; implementation validation pending
 Target PR: #18
 Planning owner: festacol-planner
 Production owner after selection: festacol-frontend-engineer
@@ -335,16 +335,34 @@ Evaluate A–J on:
 - clear dashboard/recovery actions;
 - honesty about current versus future contracts.
 
-## Production gate
+## Selected production direction — D Folded Result Booklet
 
-Do not modify src/components/exam/exam-results.tsx or the result server contract until the product owner selects A–J or an explicit hybrid.
+The product owner selected **D — Folded Result Booklet** on 2026-09-18.
 
-After selection:
-1. freeze the chosen spatial/interaction grammar;
-2. separate current-contract fields from any future promotion contract;
-3. re-author the design using installed React/shadcn/Tailwind primitives;
-4. implement rich, fallback, locked, single-subject, multi-subject and placement states;
-5. add any required backend promotion contract before consuming promotion-specific values;
-6. validate typecheck/build/scoped Biome/React diagnostics;
-7. browser-test required viewports, themes, keyboard/focus, reduced motion, console/network;
-8. independently review before Git completion.
+Production requirements:
+
+- re-author the booklet in React/shadcn/Tailwind rather than copying prototype HTML/CSS/JS;
+- use the persisted submitted attempt as the result authority;
+- expose frozen attempt title/name/mode/duration/question count from the existing context snapshot so later administrator edits do not rewrite result history;
+- preserve aggregate-only result security: no answer keys or per-question correctness review;
+- automatically elevate a real placement outcome when `assignedTrack` + confidence exist;
+- do not render a promotion decision until an authoritative promotion result contract exists;
+- implement rich-result, temporary rich-result fallback, and consumed/locked-attempt states in the same visual language;
+- use semantic theme tokens for all Folded Result Booklet colors in both light and dark themes;
+- provide real Refresh result and browser Print / Save behavior;
+- use restrained result-entry motion that respects reduced motion;
+- preserve staff-controlled retake authority.
+
+### Validation gate
+
+The implementation is not complete until:
+
+1. the server/client result contract compiles with the frozen attempt fields;
+2. fixture/runtime/security-boundary validators pass;
+3. Prisma validate/generate pass;
+4. TypeScript passes;
+5. production Next.js build passes;
+6. scoped Biome includes the result component and passes;
+7. React Doctor is run when an executable checkout is available;
+8. real browser Dogfood covers rich normal result, placement result, fallback/locked state, responsive viewports, themes, keyboard/focus, reduced motion, print affordance, console and network when an authenticated runnable environment is available;
+9. an independent review finds no blocking result-authority, UI, accessibility or contract issue.

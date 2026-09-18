@@ -1,7 +1,7 @@
 # Festacol `exam/**` design program
 
 Date: 2026-09-17
-Status: Phases 01–03 selected/implemented; Phase 04 high-depth ten-option Result / Completion board generated; product selection pending
+Status: Phases 01–03 selected/implemented; Phase 04 D Folded Result Booklet selected; production validation pending
 Target branch: `design/exam-flow-phase-01-brainstorm`
 
 ## Product objective
@@ -62,7 +62,7 @@ Each phase receives its own low-fi `brainstorm.html` before high-fidelity produc
 | 01. Arrival & Identity | Understand the examination link and identify/sign in as the candidate | `/exam` + root student auth | **Option A selected and implemented** |
 | 02. Ready to Write | Resolve missing academic information only when necessary, understand the essential examination instructions, satisfy only required device conditions, then Start/Resume | `student-wizard.tsx` + `exam-preflight.tsx` + pre-exam state in `exam-workspace.tsx` | **Folded Examination Booklet selected and implemented** |
 | 03. Write & Submit Examination | Read, answer, navigate, flag, save, monitor time and required camera/integrity state, then confirm submission in place | `exam-workspace.tsx`, Focus Capsule, question/navigator/camera/submission components | **Focus Capsule implemented; Review & Submit merged here** |
-| 04. Result / Completion | Interpret aggregate score, answer composition, subject performance, optional placement and attempt facts, or understand fallback/locked state | `exam-results.tsx` + submitted/fallback/locked states in `exam-workspace.tsx` | **High-depth ten-option snapped board generated with Normal vs Placement/Promotion modes; product selection required** |
+| 04. Result / Completion | Interpret aggregate score, answer composition, subject performance, optional placement and attempt facts, or understand fallback/locked state | `exam-results.tsx` + submitted/fallback/locked states in `exam-workspace.tsx` | **D — Folded Result Booklet selected; production validation pending** |
 
 ## Phase 01 data boundary
 
@@ -237,8 +237,8 @@ The board explores:
 
 All ten remain selection references only. Each concept now contains two comparison states behind a working **Normal Exam ↔ Placement / Promotion** toggle. Placement uses the current aggregate placement contract; any promotion-decision field is visibly marked as a future-contract concept.
 
-## Next gate
+## Phase 04 selected direction
 
-**Do not implement the Phase 04 production result redesign yet.**
+The product owner selected **D — Folded Result Booklet**.
 
-The next product decision is to select **A, B, C, D, E, F, G, H, I, J, or an explicit hybrid** from the Result / Completion board. After selection, the chosen spatial grammar can be re-authored in production React/shadcn/Tailwind while preserving the aggregate-only result security boundary and existing server authority.
+The current implementation gate is production validation of that direction: frozen attempt-history result metadata, semantic theme-token colors, rich/placement/fallback/locked result states, refresh/print behavior, responsive/accessibility behavior, independent review and runtime Dogfood where the authenticated browser environment is available.

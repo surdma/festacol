@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CircleAlert, ListChecks, RotateCcw } from "lucide-react";
+import { CircleAlert, RotateCcw } from "lucide-react";
 import { getExamResultAction } from "@/app/actions/exam-experience";
 import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
 import { getExamPaperAction, saveProgressAction, submitExamAction, type SaveProgressResult, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { ExamPreflight } from "@/components/exam/exam-preflight";
-import { ExamResults } from "@/components/exam/exam-results";
+import { ExamLockedResult, ExamResults, ExamSubmissionFallback } from "@/components/exam/exam-results";
 import { ExamFocusCapsule } from "@/components/exam/exam-focus-capsule";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -49,24 +49,6 @@ function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" | "exa
               : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
         </p>
       </div>
-    </main>
-  );
-}
-
-function SubmissionFallback({ title, summary, onDashboard }: { title: string; summary: SubmitSummary; onDashboard: () => void }) {
-  return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center px-4 py-10 sm:px-6">
-      <div className="flex size-11 items-center justify-center rounded-full bg-success text-success-foreground"><Check className="size-5" aria-hidden="true" /></div>
-      <p className="mt-5 text-sm font-semibold text-muted-foreground">Submission complete</p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title}</h1>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">Your final responses were received. Detailed result information is temporarily unavailable, but the submission itself is complete.</p>
-      <dl className="mt-6 grid grid-cols-2 gap-3 border-y py-5 sm:grid-cols-4">
-        <div><dt className="text-xs text-muted-foreground">Score</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(summary.accuracy)}%</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Correct</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{summary.correctCount}/{summary.total}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Completion</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(summary.completion)}%</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Pace</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(summary.paceIndex)}</dd></div>
-      </dl>
-      <Button type="button" className="mt-6 self-start" onClick={onDashboard}>Return to dashboard</Button>
     </main>
   );
 }
@@ -608,31 +590,39 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
 
   if (phase === "submitted") {
     if (resultSummary) {
-      return <ExamResults title={session.title} subjectNames={context.subjectNames} summary={resultSummary} onDashboard={() => router.push("/dashboard")} />;
+      return (
+        <ExamResults
+          context={context}
+          summary={resultSummary}
+          onDashboard={() => router.push("/dashboard")}
+          onRefresh={fetchRichResult}
+        />
+      );
     }
     if (fallbackSummary) {
-      return <SubmissionFallback title={session.title} summary={fallbackSummary} onDashboard={() => router.push("/dashboard")} />;
+      return (
+        <ExamSubmissionFallback
+          context={context}
+          summary={fallbackSummary}
+          onDashboard={() => router.push("/dashboard")}
+          onRefresh={fetchRichResult}
+        />
+      );
     }
   }
 
   if (phase === "locked") {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-6">
-        <div className="flex size-11 items-center justify-center rounded-full bg-muted"><ListChecks className="size-5" aria-hidden="true" /></div>
-        <p className="mt-5 text-sm font-semibold text-muted-foreground">Attempt complete</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{session.title}</h1>
-        {lockedScore !== null ? (
-          <div className="mt-6 border-y py-4">
-            <p className="text-xs text-muted-foreground">Recorded score</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{Math.round(lockedScore)}%</p>
-          </div>
-        ) : null}
-        <p className="mt-5 text-sm leading-6 text-muted-foreground">No further attempt is currently available. Staff must explicitly authorize a retake when the examination policy permits one.</p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Button type="button" onClick={() => router.push("/dashboard")}>Return to dashboard</Button>
-          <Button type="button" variant="outline" onClick={() => void (async () => { if (await fetchRichResult()) setPhase("submitted"); })()}><RotateCcw data-icon="inline-start" />Refresh result</Button>
-        </div>
-      </main>
+      <ExamLockedResult
+        context={context}
+        score={lockedScore}
+        onDashboard={() => router.push("/dashboard")}
+        onRefresh={async () => {
+          const ok = await fetchRichResult();
+          if (ok) setPhase("submitted");
+          return ok;
+        }}
+      />
     );
   }
 

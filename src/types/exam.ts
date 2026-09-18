@@ -82,10 +82,19 @@ export interface ExamSubjectPerformance {
   seconds: number;
 }
 
+export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "unknown";
+
 export interface ExamResultSummary {
   attemptId: string;
+  attemptNumber: number;
   submittedAt: number;
   startedAt: number | null;
+  submissionReason: ExamSubmissionReason;
+  sessionTitle: string;
+  candidateName: string;
+  mode: ExamMode;
+  durationSeconds: number;
+  questionCount: number;
   score: number;
   completion: number;
   correctCount: number;
