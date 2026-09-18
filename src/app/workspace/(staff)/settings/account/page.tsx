@@ -26,7 +26,7 @@ export default async function AccountSettingsPage() {
     scope.profileId
       ? supabase
           .from("school_members")
-          .select("first_name,last_name,staff_number,role,status,qualifier_access")
+          .select("first_name,last_name,staff_number,role,status")
           .eq("id", scope.profileId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -37,7 +37,6 @@ export default async function AccountSettingsPage() {
     staff_number: string | null;
     role: string;
     status: string;
-    qualifier_access: boolean;
   } | null;
   const displayRole = scope.isAdmin ? "Administrator" : "Teacher";
   const fullName = member ? `${member.first_name} ${member.last_name}` : "Staff account";
@@ -95,7 +94,7 @@ export default async function AccountSettingsPage() {
           <Alert>
             <ShieldCheck />
             <AlertTitle>Teacher access</AlertTitle>
-            <AlertDescription>{scope.qualifierAccess ? "Qualifier examination access is enabled for this teacher account." : "Qualifier examination access is not assigned to this teacher account. An administrator controls that permission."}</AlertDescription>
+            <AlertDescription>Your selected teaching subjects control normal exam, question-bank, report and activity access. Entrance and placement examinations are always available to teacher workspaces.</AlertDescription>
           </Alert>
         )}
       </section>
