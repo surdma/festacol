@@ -256,8 +256,8 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
-AS $
+SET search_path = ''
+AS $staff_scope$
   SELECT EXISTS (
     SELECT 1
     FROM public.school_members m
@@ -277,7 +277,7 @@ AS $
         )
       )
   );
-$;
+$staff_scope$;
 
 CREATE OR REPLACE FUNCTION private.staff_can_access_exam(
   p_staff_id uuid,
@@ -287,8 +287,8 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
-AS $
+SET search_path = ''
+AS $staff_scope$
   WITH actor AS (
     SELECT m.role
     FROM public.school_members m
@@ -333,7 +333,7 @@ AS $
         )
       )
     );
-$;
+$staff_scope$;
 
 CREATE OR REPLACE FUNCTION private.student_is_targeted_for_exam(
   p_session_id text,
