@@ -490,3 +490,48 @@ export async function submitExamAction(
 
   return { ok: true, summary: finalized.summary };
 }
+
+export async function disqualifyExamAction(
+  sessionId: string,
+  detail: string,
+): Promise<{ ok: boolean; summary?: SubmitSummary; error?: string }> {
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (!parsedSessionId.success) return { ok: false, error: "The examination request is invalid." };
+
+  const ctx = await currentStudent();
+  if (!ctx) return { ok: false, error: "Sign in required." };
+
+  const runtimeSession = await sessionDTO(parsedSessionId.data);
+  if (!runtimeSession) return { ok: false, error: "Exam not found or not assigned to you." };
+
+  const attempt = await latestAttempt(runtimeSession.session.id);
+  if (!attempt) return { ok: false, error: "No active attempt." };
+  if (attempt.submitted_at) return { ok: false, error: "Already submitted." };
+
+  const admin = createSupabaseAdminClient();
+  const { error: integrityError } = await admin.from("exam_integrity_events").insert({
+    attempt_id: attempt.id,
+    type: "restricted-browser-action",
+    detail: detail.trim().slice(0, 500),
+    at: Date.now(),
+  });
+  if (integrityError) {
+    return { ok: false, error: "The examination integrity event could not be recorded." };
+  }
+
+  const finalized = await finalizeExamAttempt({
+    session: runtimeSession.session,
+    attemptId: attempt.id,
+    studentId: ctx.profile.profile_id,
+    reason: "potential-malpractice",
+  });
+
+  if (!finalized.ok) {
+    return {
+      ok: false,
+      error: finalized.code === "already-submitted" ? "Already submitted." : finalized.error,
+    };
+  }
+
+  return { ok: true, summary: finalized.summary };
+}
