@@ -417,7 +417,7 @@ export function ExamResultSummarySection({
       : "Examination result";
 
   return (
-    <main className="min-h-dvh bg-result-canvas px-3 py-4 text-foreground sm:px-5 sm:py-6 lg:px-8 print:bg-background print:p-0">
+    <section className="bg-result-canvas px-3 py-4 text-foreground sm:px-5 sm:py-6 lg:px-8 print:bg-background print:p-0">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         <header className="animate-result-rise-1 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between print:hidden">
           <div>
@@ -499,7 +499,7 @@ export function ExamResultSummarySection({
           </div>
         </article>
       </div>
-    </main>
+    </section>
   );
 }
 
