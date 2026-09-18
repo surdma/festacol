@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { SCIENCE_PLACEMENT_THRESHOLD } from "@/lib/placement-policy";
 import { cn } from "@/lib/utils";
 import type {
   ExamPlacementOption,
@@ -130,7 +131,7 @@ export function ResultDestinationSummary({
         ? `You qualified for Science and chose ${destination.classLabel}. Your saved class now controls the group you join.`
         : `${destination.classLabel} is saved as your SS1 class. You can join the class group when it is available.`
       : placement?.scienceEligible
-        ? "Your placement score is above 55%, so Science is the default placement. If Science cannot be finalized automatically, choose the Science class below or select Art or Commercial instead."
+        ? `Your placement score is above ${SCIENCE_PLACEMENT_THRESHOLD}%, so Science is the default placement. If Science cannot be finalized automatically, choose the Science class below or select Art or Commercial instead.`
         : "Your placement score does not auto-place you in Science. Choose the Art or Commercial class you want to join."
     : "This examination remains linked to the class already confirmed on your student record.";
 
