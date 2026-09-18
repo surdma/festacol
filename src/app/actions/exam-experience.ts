@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { paperFromQuestionIds } from "@/lib/assessment";
 import { currentStudent } from "@/lib/auth/current-student";
@@ -7,7 +8,13 @@ import { attemptDurationSeconds } from "@/lib/exam-finalization";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { ExamAttemptContextSnapshot } from "@/types/db";
+import {
+  assignStudentPlacementClass,
+  loadSs1PlacementClasses,
+  qualifiesForScience,
+  type PlacementClassOption,
+} from "@/lib/student-placement";
+import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
 import type {
   ExamExperienceContext,
   ExamResultSummary,
@@ -17,6 +24,7 @@ import type {
 
 const sessionIdSchema = z.string().trim().min(1).max(64).transform((value) => value.toUpperCase());
 const attemptIdSchema = z.string().uuid();
+const placementClassIdSchema = z.string().trim().min(1).max(128);
 
 interface AccessRow {
   eligible: boolean;
@@ -65,9 +73,22 @@ export type ExamResultActionResult =
 
 function displayTrack(value: string): string {
   if (value === "science") return "Science";
-  if (value === "humanities") return "Humanities";
-  if (value === "business") return "Business";
+  if (value === "humanities") return "Art";
+  if (value === "business") return "Commercial";
   return value.replaceAll("_", " ");
+}
+
+function canonicalTrackLabel(track: AcademicTrack): string {
+  if (track === "science") return "Science";
+  if (track === "humanities") return "Humanities";
+  return "Business";
+}
+
+function placementTrackEnabled(session: ExamSessionDTO, track: AcademicTrack): boolean {
+  return (
+    session.placementTracks.length === 0 ||
+    session.placementTracks.includes(canonicalTrackLabel(track))
+  );
 }
 
 function accessError(reason: string | null): string {
@@ -208,7 +229,7 @@ type StudentContext = NonNullable<Awaited<ReturnType<typeof currentStudent>>>;
 interface ResultClassRow {
   id: string;
   level_id: string;
-  track: string;
+  track: AcademicTrack;
   arm: string;
 }
 
@@ -280,6 +301,7 @@ async function loadWhatsappDestination(
         kind,
         classId: null,
         classLabel: fallbackLabel,
+        track: null,
         whatsappName: null,
         whatsappUrl: null,
       },
@@ -302,72 +324,67 @@ async function loadWhatsappDestination(
       kind,
       classId: resolved.row.id,
       classLabel: resolved.label,
+      track: resolved.row.track,
       whatsappName: group?.name?.trim() || null,
       whatsappUrl: safeWhatsappInvite(group?.invite_url),
     },
   };
 }
 
-async function resolveResultDestination(
-  ctx: StudentContext,
-  attempt: ResultAttemptRow,
-  mode: ExamResultSummary["mode"],
-): Promise<{ ok: true; value: ExamResultSummary["destination"] } | { ok: false }> {
+function placementDestination(option: PlacementClassOption): ExamResultSummary["destination"] {
+  return {
+    kind: "placement",
+    classId: option.classId,
+    classLabel: `${option.levelName} ${displayTrack(option.track)} · Arm ${option.arm}`,
+    track: option.track,
+    whatsappName: option.whatsappName,
+    whatsappUrl: option.whatsappUrl,
+  };
+}
+
+async function resolveResultDestination(input: {
+  ctx: StudentContext;
+  mode: ExamResultSummary["mode"];
+  score: number;
+  placementOptions: PlacementClassOption[];
+}): Promise<{ ok: true; value: ExamResultSummary["destination"] } | { ok: false }> {
   const admin = createSupabaseAdminClient();
   let enrollmentClass: ResolvedClass | null = null;
 
-  if (ctx.enrollment?.class_id) {
-    const loaded = await loadResolvedClass(admin, ctx.enrollment.class_id);
+  if (input.ctx.enrollment?.class_id) {
+    const loaded = await loadResolvedClass(admin, input.ctx.enrollment.class_id);
     if (!loaded.ok) return { ok: false };
     enrollmentClass = loaded.value;
   }
 
-  if (mode === "qualifier" && attempt.assigned_track) {
-    // Placement candidates do not have a class enrollment yet. At this point
-    // the submitted attempt is already ownership-checked above, so resolve the
-    // destination only from its server-authored assigned track. Never accept a
-    // placement class id from the browser, and never guess when multiple arms
-    // match the track.
-    const assignedTrack = attempt.assigned_track;
-    const placementLabel = `SS1 ${displayTrack(assignedTrack)}`;
+  if (input.mode === "qualifier") {
+    const selected = input.placementOptions.find(
+      (option) => option.classId === input.ctx.enrollment?.class_id,
+    );
+    if (selected) return { ok: true, value: placementDestination(selected) };
 
-    if (
-      enrollmentClass &&
-      enrollmentClass.levelName === "SS1" &&
-      enrollmentClass.row.track === assignedTrack
-    ) {
-      return loadWhatsappDestination(admin, enrollmentClass, placementLabel, "placement");
+    if (enrollmentClass) {
+      const current = await loadWhatsappDestination(
+        admin,
+        enrollmentClass,
+        enrollmentClass.label,
+        "placement",
+      );
+      return current;
     }
 
-    const { data: levelData, error: levelError } = await admin
-      .from("academic_levels")
-      .select("id")
-      .eq("name", "SS1")
-      .eq("active", true)
-      .maybeSingle();
-    if (levelError) return { ok: false };
-    const levelId = String((levelData as { id?: string } | null)?.id ?? "");
-    if (!levelId) {
-      return loadWhatsappDestination(admin, null, placementLabel, "placement");
-    }
-
-    const { data: classData, error: classError } = await admin
-      .from("classes")
-      .select("id,level_id,track,arm")
-      .eq("level_id", levelId)
-      .eq("track", assignedTrack)
-      .eq("status", "active")
-      .order("arm", { ascending: true })
-      .limit(2);
-    if (classError) return { ok: false };
-    const candidates = (classData ?? []) as ResultClassRow[];
-    if (candidates.length !== 1) {
-      return loadWhatsappDestination(admin, null, placementLabel, "placement");
-    }
-
-    const loaded = await loadResolvedClass(admin, candidates[0].id);
-    if (!loaded.ok) return { ok: false };
-    return loadWhatsappDestination(admin, loaded.value, placementLabel, "placement");
+    const scienceEligible = qualifiesForScience(input.score);
+    return {
+      ok: true,
+      value: {
+        kind: "placement",
+        classId: null,
+        classLabel: scienceEligible ? "SS1 Science" : "Choose Art or Commercial",
+        track: scienceEligible ? "science" : null,
+        whatsappName: null,
+        whatsappUrl: null,
+      },
+    };
   }
 
   return loadWhatsappDestination(admin, enrollmentClass, "Your class", "class");
@@ -381,16 +398,31 @@ async function buildResultSummary(
   if (attempt.submitted_at === null) return { ok: false, error: "This attempt has not been submitted." };
 
   const admin = createSupabaseAdminClient();
+  const mode = attempt.context_snapshot?.mode ?? runtimeSession.mode;
+  const placementScore = Math.max(0, Math.min(100, Number(attempt.score ?? 0)));
+
+  let placementOptions: PlacementClassOption[] = [];
+  try {
+    const loadedOptions =
+      mode === "qualifier" ? await loadSs1PlacementClasses(admin) : [];
+    placementOptions = loadedOptions.filter((option) =>
+      placementTrackEnabled(runtimeSession, option.track),
+    );
+  } catch {
+    return { ok: false, error: "Placement class options could not be loaded." };
+  }
+
   const [{ data: responseData, error: responseError }, destinationResult] = await Promise.all([
     admin
       .from("exam_attempt_responses")
       .select("question_id,response_text,response_values,seconds,correct")
       .eq("attempt_id", attempt.id),
-    resolveResultDestination(
+    resolveResultDestination({
       ctx,
-      attempt,
-      attempt.context_snapshot?.mode ?? runtimeSession.mode,
-    ),
+      mode,
+      score: placementScore,
+      placementOptions,
+    }),
   ]);
   if (responseError) return { ok: false, error: "Your question results could not be loaded." };
   if (!destinationResult.ok) {
@@ -433,18 +465,32 @@ async function buildResultSummary(
     percent: item.total ? Math.round((item.correct / item.total) * 100) : 0,
   }));
 
-  const placement = attempt.assigned_track
-    ? {
-        assignedTrack: displayTrack(attempt.assigned_track),
-        confidence: Math.max(0, Number(attempt.placement_confidence ?? 0)),
-      }
-    : undefined;
+  const scienceEligible =
+    mode === "qualifier" &&
+    placementTrackEnabled(runtimeSession, "science") &&
+    qualifiesForScience(placementScore);
+  const placement =
+    mode === "qualifier"
+      ? {
+          recommendedTrack: scienceEligible ? ("science" as const) : null,
+          scienceEligible,
+          score: placementScore,
+          options: placementOptions
+            .filter((option) => scienceEligible || option.track !== "science")
+            .map((option) => ({
+              classId: option.classId,
+              track: option.track,
+              arm: option.arm,
+              whatsappName: option.whatsappName,
+              whatsappUrl: option.whatsappUrl,
+            })),
+        }
+      : undefined;
   const snapshotQuestionCount = Math.max(0, Number(attempt.context_snapshot?.questionCount ?? 0));
   const durationSeconds = attemptDurationSeconds(attempt, runtimeSession);
   const questionCount = attempt.question_ids.length || (snapshotQuestionCount > 0 ? Math.round(snapshotQuestionCount) : total);
   const sessionTitle = String(attempt.context_snapshot?.sessionTitle ?? runtimeSession.title);
   const candidateName = String(attempt.context_snapshot?.studentName ?? ctx.profile.full_name);
-  const mode = attempt.context_snapshot?.mode ?? runtimeSession.mode;
   const snapshotSubjects = Array.isArray(attempt.context_snapshot?.subjectNames)
     ? attempt.context_snapshot.subjectNames.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
     : [];
@@ -509,6 +555,91 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
   if (!attemptData) return { ok: false, error: "No submitted attempt is available yet." };
 
   return buildResultSummary(ctx, runtime.session, attemptData as ResultAttemptRow);
+}
+
+
+export type PlacementClassSelectionResult =
+  | { ok: true; whatsappUrl: string | null }
+  | { ok: false; error: string };
+
+export async function selectPlacementClassAction(
+  attemptId: string,
+  classId: string,
+): Promise<PlacementClassSelectionResult> {
+  const parsedAttemptId = attemptIdSchema.safeParse(attemptId);
+  const parsedClassId = placementClassIdSchema.safeParse(classId);
+  if (!parsedAttemptId.success || !parsedClassId.success) {
+    return { ok: false, error: "The placement selection is invalid." };
+  }
+
+  const ctx = await currentStudent();
+  if (!ctx) return { ok: false, error: "Sign in with your student account to choose a class." };
+
+  const admin = createSupabaseAdminClient();
+  const { data: attemptData, error: attemptError } = await admin
+    .from("exam_attempts")
+    .select("id,session_id,student_id,context_snapshot,submitted_at,score")
+    .eq("id", parsedAttemptId.data)
+    .eq("student_id", ctx.profile.profile_id)
+    .not("submitted_at", "is", null)
+    .maybeSingle();
+  if (attemptError) return { ok: false, error: "Your placement result could not be verified." };
+  if (!attemptData) return { ok: false, error: "This placement result is not available for your account." };
+
+  const attempt = attemptData as {
+    id: string;
+    session_id: string;
+    student_id: string;
+    context_snapshot: ExamAttemptContextSnapshot;
+    submitted_at: number;
+    score: number | null;
+  };
+  const runtime = await loadExamRuntimeSession(admin, attempt.session_id);
+  if (!runtime || runtime.session.mode !== "qualifier") {
+    return { ok: false, error: "Class selection is available only for an SS1 placement result." };
+  }
+
+  let options: PlacementClassOption[];
+  try {
+    options = (await loadSs1PlacementClasses(admin)).filter((option) =>
+      placementTrackEnabled(runtime.session, option.track),
+    );
+  } catch {
+    return { ok: false, error: "Placement classes could not be loaded." };
+  }
+
+  const target = options.find((option) => option.classId === parsedClassId.data);
+  if (!target) return { ok: false, error: "Choose one of the active SS1 placement classes." };
+
+  const placementScore = Math.max(0, Math.min(100, Number(attempt.score ?? 0)));
+  const scienceEligible =
+    placementTrackEnabled(runtime.session, "science") &&
+    qualifiesForScience(placementScore);
+  if (target.track === "science" && !scienceEligible) {
+    return {
+      ok: false,
+      error: "Science placement is available only when the placement score is above 55%.",
+    };
+  }
+
+  try {
+    const selected = await assignStudentPlacementClass({
+      client: admin,
+      studentId: ctx.profile.profile_id,
+      classId: target.classId,
+      scienceEligible,
+    });
+    revalidatePath("/exam");
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/history");
+    revalidatePath(`/dashboard/history/result/${attempt.id}`);
+    return { ok: true, whatsappUrl: selected.whatsappUrl };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Your class selection could not be saved.",
+    };
+  }
 }
 
 export async function getExamResultByAttemptAction(attemptId: string): Promise<ExamResultActionResult> {
