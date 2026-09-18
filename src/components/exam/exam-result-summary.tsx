@@ -32,7 +32,11 @@ import {
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { ExamResultDestination } from "@/components/exam/exam-result-destination";
+import {
+  ExamResultDestination,
+  JoinClassGroupAction,
+  ResultDestinationSummary,
+} from "@/components/exam/exam-result-destination";
 import type { ExamMode, ExamResultSummary } from "@/types/exam";
 
 type AsyncActionStatus = "idle" | "working" | "success" | "error";
@@ -121,11 +125,9 @@ function ResultAchievements({ summary }: { summary: ExamResultSummary }) {
 
 function CandidateResultProfile({
   summary,
-  onDashboard,
   onRefresh,
 }: {
   summary: ExamResultSummary;
-  onDashboard: () => void;
   onRefresh: () => Promise<boolean>;
 }) {
   const [refreshStatus, setRefreshStatus] = useState<AsyncActionStatus>("idle");
@@ -208,9 +210,13 @@ function CandidateResultProfile({
           </div>
         </dl>
 
-        <div className="mt-6 grid w-full grid-cols-2 gap-2 print:hidden">
-          <Button type="button" className="bg-result-cover-foreground text-result-cover hover:bg-result-cover-foreground/90" onClick={onDashboard}>Dashboard</Button>
-          <Button type="button" variant="outline" className="border-result-cover-foreground/30 bg-transparent text-result-cover-foreground hover:bg-result-cover-foreground/10 hover:text-result-cover-foreground" onClick={() => window.print()}>
+        <div className="mt-6 w-full print:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-result-cover-foreground/30 bg-transparent text-result-cover-foreground hover:bg-result-cover-foreground/10 hover:text-result-cover-foreground"
+            onClick={() => window.print()}
+          >
             <Printer data-icon="inline-start" />
             Print / Save
           </Button>
@@ -399,19 +405,23 @@ function AttemptIndicators({ summary }: { summary: ExamResultSummary }) {
   );
 }
 
-function ResultCoverCard({
+export function ResultCoverCard({
+  view,
   summary,
-  onDashboard,
   onRefresh,
   subjectLine,
   period,
+  ...completionProps
 }: {
+  view: "record" | "completion";
   summary: ExamResultSummary;
-  onDashboard: () => void;
   onRefresh: () => Promise<boolean>;
   subjectLine: string;
   period: string;
+  onDashboard?: () => void;
 }) {
+  const destination = summary.destination;
+
   return (
     <section className="min-w-0 rounded-[2rem] border border-result-paper-edge bg-result-cover p-5 text-result-cover-foreground shadow-xl sm:p-7 lg:p-9 print:rounded-none print:shadow-none">
       <div className="mb-7 min-w-0">
@@ -429,11 +439,7 @@ function ResultCoverCard({
         ) : null}
       </div>
 
-      <CandidateResultProfile
-        summary={summary}
-        onDashboard={onDashboard}
-        onRefresh={onRefresh}
-      />
+      <CandidateResultProfile summary={summary} onRefresh={onRefresh} />
 
       <div className="mt-7">
         <ScorePanel summary={summary} />
@@ -451,17 +457,40 @@ function ResultCoverCard({
           <dd className="mt-1 font-semibold">{formatDateTime(summary.submittedAt)}</dd>
         </div>
       </dl>
+
+      {view === "completion" ? (
+        <div className="mt-7 border-t border-result-cover-foreground/20 pt-6">
+          <ResultDestinationSummary summary={summary} appearance="cover" />
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 print:hidden">
+            <JoinClassGroupAction
+              classLabel={destination.classLabel}
+              groupName={destination.whatsappName}
+              whatsappUrl={destination.whatsappUrl}
+              appearance="cover"
+            />
+            {completionProps.onDashboard ? (
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                className="border-result-cover-foreground/30 bg-transparent text-result-cover-foreground hover:bg-result-cover-foreground/10 hover:text-result-cover-foreground"
+                onClick={completionProps.onDashboard}
+              >
+                Dashboard
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
 
 function ResultDetailsCard({
   summary,
-  onDashboard,
   subjectLine,
 }: {
   summary: ExamResultSummary;
-  onDashboard: () => void;
   subjectLine: string;
 }) {
   return (
@@ -471,7 +500,7 @@ function ResultDetailsCard({
       </div>
 
       <div className="mt-5">
-        <ExamResultDestination summary={summary} onDashboard={onDashboard} />
+        <ExamResultDestination summary={summary} />
       </div>
 
       <section
@@ -519,11 +548,9 @@ function ResultDetailsCard({
 
 export function ExamResultSummarySection({
   summary,
-  onDashboard,
   onRefresh,
 }: {
   summary: ExamResultSummary;
-  onDashboard: () => void;
   onRefresh: () => Promise<boolean>;
 }) {
   const period = [summary.academicSession, summary.term].filter(Boolean).join(" · ");
@@ -557,17 +584,13 @@ export function ExamResultSummarySection({
 
         <article className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start print:gap-3">
           <ResultCoverCard
+            view="record"
             summary={summary}
-            onDashboard={onDashboard}
             onRefresh={onRefresh}
             subjectLine={subjectLine}
             period={period}
           />
-          <ResultDetailsCard
-            summary={summary}
-            onDashboard={onDashboard}
-            subjectLine={subjectLine}
-          />
+          <ResultDetailsCard summary={summary} subjectLine={subjectLine} />
         </article>
       </div>
     </section>
