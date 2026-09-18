@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AcademicTrack } from "@/types/db";
 
-export const SCIENCE_PLACEMENT_THRESHOLD = 55;
-
 export interface PlacementClassOption {
   classId: string;
   levelName: string;
@@ -26,10 +24,6 @@ function safeWhatsappInvite(value: string | null | undefined): string | null {
   } catch {
     return null;
   }
-}
-
-export function qualifiesForScience(score: number): boolean {
-  return Number.isFinite(score) && score > SCIENCE_PLACEMENT_THRESHOLD;
 }
 
 export async function loadSs1PlacementClasses(
