@@ -92,6 +92,7 @@ function applyOptionOrder(question: QuestionDTO, session: ExamSessionDTO, attemp
 export function eligibleQuestions(payload: { questions: QuestionDTO[] }, session: ExamSessionDTO): QuestionDTO[] {
   return payload.questions.filter((question) => {
     if (!question.levels.includes(session.classLevel) || !question.examModes.includes(session.mode)) return false;
+    if (!session.allowFillQuestions && (question.type === "fill" || question.type === "fill-multi")) return false;
     if (session.mode === "qualifier") return !session.subjectIds.length || session.subjectIds.includes(question.subjectId);
     return session.subjectIds.includes(question.subjectId);
   });

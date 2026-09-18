@@ -9,6 +9,7 @@ interface SessionRow {
   status: ExamSessionDTO["status"];
   duration_seconds: number;
   question_count: number;
+  allow_fill_questions: boolean;
   instructions: string;
   starts_at: number | null;
   ends_at: number | null;
@@ -38,7 +39,7 @@ export async function loadExamRuntimeSession(
   const id = sessionId.toUpperCase();
   const { data: rawSession, error: sessionError } = await client
     .from("exam_sessions")
-    .select("id,title,academic_term_id,mode,status,duration_seconds,question_count,instructions,starts_at,ends_at,focus_monitoring,fullscreen_prompt,clipboard_guard,camera_required,warn_after,question_order,option_order,minimize_collisions")
+    .select("id,title,academic_term_id,mode,status,duration_seconds,question_count,allow_fill_questions,instructions,starts_at,ends_at,focus_monitoring,fullscreen_prompt,clipboard_guard,camera_required,warn_after,question_order,option_order,minimize_collisions")
     .eq("id", id)
     .maybeSingle();
   if (sessionError || !rawSession) return null;
@@ -119,6 +120,7 @@ export async function loadExamRuntimeSession(
       placementTracks,
       durationSeconds: Number(row.duration_seconds),
       questionCount: Number(row.question_count),
+      allowFillQuestions: row.allow_fill_questions === true,
       status: row.status,
       instructions: row.instructions ?? "",
       startsAt: row.starts_at == null ? null : Number(row.starts_at),

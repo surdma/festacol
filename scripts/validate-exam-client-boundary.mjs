@@ -80,6 +80,8 @@ if (sanitizeStart < 0) {
 const stateAction = await source("src/app/actions/exam-state.ts");
 const finalization = await source("src/lib/exam-finalization.ts");
 const attemptRpc = await source("supabase/auth-rpc.sql");
+const assessment = await source("src/lib/assessment.ts");
+const adminParity = await source("src/app/actions/admin-parity.ts");
 const focusCapsule = await source("src/components/exam/exam-focus-capsule.tsx");
 if (!stateAction.includes('paper: ExamPaperQuestionDTO[]')) {
   violations.push("src/app/actions/exam-state.ts: PaperStatus does not expose the answer-free ExamPaperQuestionDTO[] shape");
@@ -90,8 +92,14 @@ if (!finalization.includes("scoreAttempt")) {
 if (!finalization.includes("context_snapshot?.durationSeconds") || !finalization.includes("persistedBudget")) {
   violations.push("src/lib/exam-finalization.ts: attempt duration is not frozen to the start-time snapshot/fallback budget");
 }
-if (!attemptRpc.includes("'durationSeconds',v_session.duration_seconds") || !attemptRpc.includes("'questionCount',v_session.question_count")) {
-  violations.push("supabase/auth-rpc.sql: attempt allocator does not snapshot duration/question count");
+if (!attemptRpc.includes("'durationSeconds',v_session.duration_seconds") || !attemptRpc.includes("'questionCount',v_session.question_count") || !attemptRpc.includes("'allowFillQuestions',v_session.allow_fill_questions")) {
+  violations.push("supabase/auth-rpc.sql: attempt allocator does not snapshot duration/question count/fill policy");
+}
+if (!assessment.includes("session.allowFillQuestions") || !assessment.includes('question.type === "fill"') || !assessment.includes('question.type === "fill-multi"')) {
+  violations.push("src/lib/assessment.ts: paper eligibility does not enforce the exam fill-question policy");
+}
+if (!adminParity.includes("input.allowFillQuestions") || !adminParity.includes('question.qtype !== "fill"') || !adminParity.includes('question.qtype !== "fill-multi"')) {
+  violations.push("src/app/actions/admin-parity.ts: creation coverage does not match the runtime fill-question policy");
 }
 if (focusCapsule.includes("ExamStatusWatch")) {
   violations.push("src/components/exam/exam-focus-capsule.tsx: generic session refresh would let future-starter edits disturb active writers");
@@ -128,6 +136,18 @@ for (const required of [
 }
 
 const workspace = await source("src/components/exam/exam-workspace.tsx");
+if (workspace.includes("<ExamPreflight")) {
+  violations.push("src/components/exam/exam-workspace.tsx: Phase 2 preflight friction was reintroduced into the active candidate path");
+}
+if (!workspace.includes("if (context.cameraRequired) void camera.start();") || !workspace.includes("void loadPaper();")) {
+  violations.push("src/components/exam/exam-workspace.tsx: eligible candidates do not auto-request camera and proceed directly to paper loading");
+}
+if (workspace.includes("context.cameraRequired && !camera.ready")) {
+  violations.push("src/components/exam/exam-workspace.tsx: camera permission still blocks paper entry or recovery");
+}
+if (!focusCapsule.includes("isLastQuestion") || !focusCapsule.includes('variant="destructive"')) {
+  violations.push("src/components/exam/exam-focus-capsule.tsx: final-question destructive submission affordance is missing");
+}
 for (const token of ["remainingSeconds: Math.max", "elapsedActiveSeconds: Math.max"]) {
   if (workspace.includes(token)) {
     violations.push(`src/components/exam/exam-workspace.tsx: candidate save payload still supplies authoritative clock field ${JSON.stringify(token)}`);

@@ -91,6 +91,7 @@ export interface ExamWizardInput {
   questionCount: number;
   status: "open" | "draft" | "closed";
   instructions: string;
+  allowFillQuestions: boolean;
   cameraRequired: boolean;
   warnAfter: number;
 }
@@ -151,6 +152,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       mode: input.mode,
       duration_seconds: Math.min(14400, Math.max(30, input.durationSeconds)),
       question_count: Math.min(200, Math.max(5, input.questionCount)),
+      allow_fill_questions: input.allowFillQuestions,
       status: input.status,
       closed_at: input.status === "closed" ? now : null,
       instructions: input.instructions.slice(0, 140),
@@ -206,7 +208,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
 
 export async function updateExamAction(
   id: string,
-  patch: { title: string; durationSeconds: number; questionCount: number; instructions: string; status: string; cameraRequired: boolean; warnAfter: number },
+  patch: { title: string; durationSeconds: number; questionCount: number; instructions: string; status: string; allowFillQuestions: boolean; cameraRequired: boolean; warnAfter: number },
 ): Promise<ActionResult> {
   try {
     if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 14400) {
@@ -244,6 +246,7 @@ export async function updateExamAction(
       title: patch.title.trim().slice(0, 72),
       duration_seconds: patch.durationSeconds,
       question_count: patch.questionCount,
+      allow_fill_questions: patch.allowFillQuestions,
       instructions: patch.instructions.slice(0, 140),
       status: patch.status,
       closed_at: closedAt,
@@ -280,7 +283,7 @@ export async function updateExamAction(
 
 export async function setExamStatusAction(id: string, status: "open" | "draft" | "closed"): Promise<ActionResult> {
   const detail = await getExamDetailAction(id);
-  const session = detail.session as { title?: string; duration_seconds?: number; question_count?: number; instructions?: string; warn_after?: number } | null;
+  const session = detail.session as { title?: string; duration_seconds?: number; question_count?: number; allow_fill_questions?: boolean; instructions?: string; warn_after?: number } | null;
   if (!session) return { ok: false, error: "Exam not found or outside your scope." };
   return updateExamAction(id, {
     title: String(session.title ?? "Exam"),
@@ -288,6 +291,7 @@ export async function setExamStatusAction(id: string, status: "open" | "draft" |
     questionCount: Number(session.question_count ?? 50),
     instructions: String(session.instructions ?? ""),
     status,
+    allowFillQuestions: Boolean(session.allow_fill_questions),
     cameraRequired: detail.cameraRequired ?? false,
     warnAfter: Number(session.warn_after ?? 2),
   });
@@ -329,6 +333,7 @@ export async function duplicateExamAction(id: string): Promise<ActionResult & { 
       questionCount: Number(row.question_count),
       status: "draft",
       instructions: String(row.instructions ?? ""),
+      allowFillQuestions: Boolean(row.allow_fill_questions),
       cameraRequired: Boolean(row.camera_required),
       warnAfter: Number(row.warn_after ?? 2),
     });

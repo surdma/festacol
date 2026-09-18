@@ -16,6 +16,7 @@ export interface QualifierExamInput {
   questionCount: number;
   status: "open" | "draft" | "closed";
   instructions: string;
+  allowFillQuestions: boolean;
   cameraRequired: boolean;
   warnAfter: number;
 }
@@ -106,6 +107,7 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
       closed_at: input.status === "closed" ? now : null,
       duration_seconds: input.durationSeconds,
       question_count: input.questionCount,
+      allow_fill_questions: input.allowFillQuestions,
       instructions: input.instructions.slice(0, 140),
       starts_at: null,
       ends_at: null,

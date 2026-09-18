@@ -16,6 +16,7 @@ export interface ExamSessionDTO {
   placementTracks: string[];
   durationSeconds: number;
   questionCount: number;
+  allowFillQuestions: boolean;
   status: ExamStatus;
   instructions: string;
   startsAt: number | null;

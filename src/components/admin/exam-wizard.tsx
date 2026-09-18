@@ -70,6 +70,7 @@ const initialForm: ExamCreationInput = {
   questionCount: 50,
   status: "open",
   instructions: "",
+  allowFillQuestions: false,
   cameraRequired: false,
   warnAfter: 2,
 };
@@ -405,6 +406,15 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
                 <div className="flex justify-between text-xs text-muted-foreground"><span>5</span><span>200</span></div>
               </Field>
             </div>
+            <Field>
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 p-4">
+                <div>
+                  <FieldLabel htmlFor="w-fill-questions">Allow fill-in questions</FieldLabel>
+                  <p className="mt-1 text-xs text-neutral-500">Off by default. When off, generated papers use option-based and True/False questions only.</p>
+                </div>
+                <Switch id="w-fill-questions" checked={form.allowFillQuestions} onCheckedChange={(value) => set("allowFillQuestions", value)} />
+              </div>
+            </Field>
             <Field><FieldLabel htmlFor="w-inst">Candidate instructions</FieldLabel><Textarea id="w-inst" className="min-h-24 rounded-lg border-neutral-300" value={form.instructions} onChange={(event) => set("instructions", event.target.value)} maxLength={140} placeholder={form.mode === "qualifier" ? "Complete every section. Your result will support senior-school placement." : "Read every question carefully before submitting."} /></Field>
             <Field>
               <FieldLabel>Exam availability</FieldLabel>
@@ -438,15 +448,15 @@ export function ExamWizard({ open, onClose }: { open: boolean; onClose: () => vo
 
         {step === 3 ? (
           <FieldGroup>
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><div className="flex items-center justify-between gap-4"><div className="flex gap-3"><span className="grid size-9 place-items-center rounded-lg bg-white"><Camera className="size-4" /></span><div><FieldLabel htmlFor="w-cam">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-neutral-500">Require candidate camera permission for this session.</p></div></div><Switch id="w-cam" checked={form.cameraRequired} onCheckedChange={(value) => set("cameraRequired", value)} /></div></div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><div className="flex items-center justify-between gap-4"><div className="flex gap-3"><span className="grid size-9 place-items-center rounded-lg bg-white"><Camera className="size-4" /></span><div><FieldLabel htmlFor="w-cam">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-neutral-500">Ask for camera access automatically. Candidates can continue if permission is denied or unavailable.</p></div></div><Switch id="w-cam" checked={form.cameraRequired} onCheckedChange={(value) => set("cameraRequired", value)} /></div></div>
             <Field><FieldLabel htmlFor="w-warn">Warn after serious integrity events</FieldLabel><Input id="w-warn" className={inputClass} type="number" min={1} max={10} value={form.warnAfter} onChange={(event) => set("warnAfter", Number(event.target.value))} /></Field>
-            <Alert><ShieldCheck /><AlertTitle>Core integrity controls remain enabled</AlertTitle><AlertDescription>Focus monitoring, fullscreen prompt, clipboard guard, question randomization and option randomization are preserved by the current exam-session defaults. These will move into the advanced exam editor instead of crowding this creation flow.</AlertDescription></Alert>
+            <Alert><ShieldCheck /><AlertTitle>Core integrity controls remain enabled</AlertTitle><AlertDescription>Focus monitoring, clipboard guard, question randomization and option randomization are preserved by the current exam-session defaults. These will move into the advanced exam editor instead of crowding this creation flow.</AlertDescription></Alert>
           </FieldGroup>
         ) : null}
 
         {step === 4 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><BookOpenCheck className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Paper</p><strong className="mt-1 block text-sm">{form.questionCount} questions · {formatDuration(form.durationSeconds)}</strong><p className="mt-1 text-xs text-neutral-500">{selectedSubjectNames.join(", ") || "No subjects"}</p></div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><BookOpenCheck className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Paper</p><strong className="mt-1 block text-sm">{form.questionCount} questions · {formatDuration(form.durationSeconds)}</strong><p className="mt-1 text-xs text-neutral-500">{selectedSubjectNames.join(", ") || "No subjects"} · {form.allowFillQuestions ? "Fill-in enabled" : "Options + True/False"}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><Users className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Audience</p><strong className="mt-1 block text-sm">{form.mode === "qualifier" ? (form.studentIds.length ? `${form.studentIds.length} candidate${form.studentIds.length === 1 ? "" : "s"}` : "Open entry") : `${form.classIds.length} class${form.classIds.length === 1 ? "" : "es"}`}</strong><p className="mt-1 line-clamp-2 text-xs text-neutral-500">{form.mode === "qualifier" ? (form.studentIds.length ? selectedCandidateNames.slice(0, 4).join(", ") : "New students enroll with first + last name") : selectedClassNames.join(", ")}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><GraduationCap className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">{form.mode === "qualifier" ? "Placement outcomes" : "Study scope"}</p><strong className="mt-1 block text-sm">{form.mode === "qualifier" ? form.placementTracks.map((track) => trackLabels[track]).join(" · ") : form.classLevel}</strong><p className="mt-1 text-xs text-neutral-500">{modeLabels[form.mode]}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><CheckCircle2 className="size-5" /><p className="mt-3 text-xs font-medium text-neutral-500">Question coverage</p><strong className="mt-1 block text-sm">{coverage?.count ?? 0} eligible</strong><p className="mt-1 text-xs text-neutral-500">Validated against mode, subject and question level</p></div>

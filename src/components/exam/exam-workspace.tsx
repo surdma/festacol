@@ -7,7 +7,6 @@ import { getExamResultAction } from "@/app/actions/exam-experience";
 import { getExamResumeMetricsAction } from "@/app/actions/exam-resume";
 import { disqualifyExamAction, getExamPaperAction, saveProgressAction, submitExamAction, type SaveProgressResult, type SubmitSummary } from "@/app/actions/exam-state";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
-import { ExamPreflight } from "@/components/exam/exam-preflight";
 import { ExamLockedResult, ExamResults, ExamSubmissionFallback } from "@/components/exam/exam-results";
 import { ExamFocusCapsule } from "@/components/exam/exam-focus-capsule";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -18,7 +17,7 @@ import { useExamCamera } from "@/hooks/use-exam-camera";
 import type { ExamExperienceContext, ExamPaperQuestionDTO, ExamResultSummary } from "@/types/exam";
 
 type Q = ExamPaperQuestionDTO;
-type Phase = "preflight" | "loading" | "load-failed" | "exam" | "processing" | "submission-failed" | "submitted" | "locked";
+type Phase = "loading" | "load-failed" | "exam" | "processing" | "submission-failed" | "submitted" | "locked";
 type SyncStatus = "saved" | "saving" | "pending" | "offline" | "error";
 type PersistResult = SaveProgressResult;
 type CompletionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice";
@@ -61,7 +60,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const router = useRouter();
   const { session } = context;
   const noAttemptRemaining = !context.access.activeAttemptId && context.access.usedAttempts >= context.access.allowedAttempts;
-  const [phase, setPhase] = useState<Phase>(noAttemptRemaining ? "locked" : "preflight");
+  const [phase, setPhase] = useState<Phase>(noAttemptRemaining ? "locked" : "loading");
   const [paper, setPaper] = useState<Q[]>([]);
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, unknown>>({});
@@ -70,8 +69,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const [remaining, setRemaining] = useState(session.durationSeconds);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("saved");
   const [online, setOnline] = useState(true);
-  const [cameraSupported, setCameraSupported] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [processingReason, setProcessingReason] = useState<CompletionReason>("manual");
@@ -197,7 +194,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   }, [session.id]);
 
   const loadPaper = useCallback(async () => {
-    setBusy(true);
     setError(null);
     setPhase("loading");
     try {
@@ -239,8 +235,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     } catch {
       setError("The examination paper could not be prepared. Check your connection and retry.");
       setPhase("load-failed");
-    } finally {
-      setBusy(false);
     }
   }, [fetchRichResult, session.id]);
 
@@ -398,8 +392,12 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         const hasResult = await fetchRichResult();
         setPhase(hasResult ? "submitted" : "locked");
       })();
+      return;
     }
-  }, [fetchRichResult, noAttemptRemaining]);
+
+    if (context.cameraRequired) void camera.start();
+    void loadPaper();
+  }, [camera.start, context.cameraRequired, fetchRichResult, loadPaper, noAttemptRemaining]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setSlowLoad(true), 10000);
@@ -409,7 +407,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   useEffect(() => {
     const syncCapabilities = () => {
       setOnline(navigator.onLine);
-      setCameraSupported(Boolean(navigator.mediaDevices?.getUserMedia));
     };
     const onOnline = () => {
       setOnline(true);
@@ -589,35 +586,6 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     markDirty();
   }, [currentQuestionId, markDirty]);
 
-  async function startFromFinalCheckpoint() {
-    if (!online) {
-      setError("Reconnect to the internet before starting this examination.");
-      return;
-    }
-    if (context.cameraRequired && !camera.ready) {
-      setError("The required camera must be active before the examination can start.");
-      return;
-    }
-    if (session.integrityPolicy.fullscreenPrompt && document.fullscreenEnabled && !document.fullscreenElement) {
-      await document.documentElement.requestFullscreen().catch(() => undefined);
-    }
-    await loadPaper();
-  }
-
-  if (phase === "preflight") {
-    return (
-      <ExamPreflight
-        context={context}
-        camera={camera}
-        online={online}
-        cameraSupported={cameraSupported}
-        onStart={() => void startFromFinalCheckpoint()}
-        starting={busy}
-        error={error}
-      />
-    );
-  }
-
   if (phase === "loading") {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-5 py-12" aria-live="polite">
@@ -664,7 +632,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
           />
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => void loadPaper()} disabled={!online || (context.cameraRequired && !camera.ready)}>
+          <Button type="button" onClick={() => void loadPaper()} disabled={!online}>
             <RotateCcw data-icon="inline-start" />Retry paper restore
           </Button>
           <Button type="button" variant="outline" onClick={() => router.push("/dashboard")}>Return to dashboard</Button>
