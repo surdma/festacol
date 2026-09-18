@@ -87,7 +87,7 @@ export function ExamAdmissionPass({
     <main className="min-h-dvh bg-muted/35 px-3 py-3 text-foreground sm:px-6 sm:py-6 lg:grid lg:place-items-center lg:px-8">
       <div className="mx-auto w-full max-w-7xl motion-safe:animate-admin-enter">
         <div className="relative grid overflow-hidden rounded-[1.75rem] border-2 border-foreground bg-card shadow-2xl lg:grid-cols-[minmax(0,1.35fr)_minmax(22rem,.65fr)]">
-          <section className="relative flex min-h-[36rem] flex-col justify-between gap-10 p-5 sm:p-8 lg:min-h-[46rem] lg:border-r-2 lg:border-dashed lg:border-foreground/40 lg:p-12 xl:p-14">
+          <section className="relative order-2 flex min-h-[36rem] flex-col justify-between gap-10 p-5 sm:p-8 lg:order-1 lg:min-h-[46rem] lg:border-r-2 lg:border-dashed lg:border-foreground/40 lg:p-12 xl:p-14">
             <div aria-hidden="true" className="absolute -right-4 top-20 hidden size-7 rounded-full border-2 border-foreground bg-background lg:block" />
             <div aria-hidden="true" className="absolute -right-4 bottom-20 hidden size-7 rounded-full border-2 border-foreground bg-background lg:block" />
 
@@ -169,18 +169,18 @@ export function ExamAdmissionPass({
             </div>
           </section>
 
-          <aside className="relative flex flex-col justify-center border-t-2 border-dashed border-foreground/40 bg-muted/20 p-5 motion-safe:animate-admin-pop motion-safe:[animation-delay:80ms] sm:p-8 lg:border-t-0 lg:p-10 xl:p-12">
-            <div aria-hidden="true" className="absolute -top-4 left-10 size-7 rounded-full border-2 border-foreground bg-background lg:hidden" />
-            <div aria-hidden="true" className="absolute -top-4 right-10 size-7 rounded-full border-2 border-foreground bg-background lg:hidden" />
+          <aside className="relative order-1 flex flex-col justify-start border-b-2 border-dashed border-foreground/40 bg-muted/20 p-5 motion-safe:animate-admin-pop motion-safe:[animation-delay:80ms] sm:p-8 lg:order-2 lg:justify-center lg:border-b-0 lg:p-10 xl:p-12">
+            <div aria-hidden="true" className="absolute -bottom-4 left-10 size-7 rounded-full border-2 border-foreground bg-background lg:hidden" />
+            <div aria-hidden="true" className="absolute -bottom-4 right-10 size-7 rounded-full border-2 border-foreground bg-background lg:hidden" />
 
             <div className="mx-auto w-full max-w-md">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Candidate identity</p>
-              <h2 className="mt-3 font-display text-3xl font-black tracking-[-0.035em] sm:text-4xl">Confirm it is you.</h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              <h2 className="mt-2 font-display text-2xl font-black tracking-[-0.035em] sm:mt-3 sm:text-4xl">Confirm it is you.</h2>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground sm:mt-3 sm:text-sm sm:leading-6">
                 Use the same candidate credentials used for the Festacol student workspace. You will return directly to this examination after identity confirmation.
               </p>
 
-              <div className="mt-7">
+              <div className="mt-5 sm:mt-7">
                 <StudentLoginForm
                   next={destination}
                   submitLabel="Continue to examination"
