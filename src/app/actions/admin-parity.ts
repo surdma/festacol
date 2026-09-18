@@ -16,7 +16,7 @@ import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listClasses } from "@/lib/supabase/queries";
 import type { AcademicTrack } from "@/types/db";
-import type { QuestionType } from "@/types/exam";
+import type { ExamMode, QuestionType } from "@/types/exam";
 
 export interface SubjectOption {
   id: string;
@@ -266,18 +266,84 @@ export async function createExamParityAction(input: ExamCreationInput): Promise<
   }
 }
 
+export interface ExamEditorPatch {
+  title: string;
+  durationSeconds: number;
+  questionCount: number;
+  instructions: string;
+  status: string;
+  cameraRequired: boolean;
+  warnAfter: number;
+  subjectIds: string[];
+  offeringIds: string[];
+}
+
 export async function getExamEditorDetailAction(examId: string) {
   const detail = await getExamDetailAction(examId);
-  return { ...detail, structureLocked: false };
+  if (!detail.session) {
+    return { ...detail, structureLocked: false, subjectIds: [] as string[], offeringIds: [] as string[] };
+  }
+
+  const { admin } = await staffContext();
+  const sessionId = examId.toUpperCase();
+  const [subjectResult, offeringResult] = await Promise.all([
+    admin.from("exam_subject_targets").select("subject_id").eq("session_id", sessionId),
+    admin.from("exam_offering_targets").select("offering_id").eq("session_id", sessionId),
+  ]);
+  if (subjectResult.error || offeringResult.error) {
+    throw new Error(subjectResult.error?.message ?? offeringResult.error?.message ?? "Exam subjects could not be loaded.");
+  }
+
+  return {
+    ...detail,
+    structureLocked: false,
+    subjectIds: ((subjectResult.data ?? []) as { subject_id: string }[]).map((row) => row.subject_id),
+    offeringIds: ((offeringResult.data ?? []) as { offering_id: string }[]).map((row) => row.offering_id),
+  };
+}
+
+async function replaceExamEditorTargets(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  sessionId: string,
+  subjectIds: string[],
+  offeringIds: string[],
+): Promise<string | null> {
+  const { error: deleteSubjectError } = await admin.from("exam_subject_targets").delete().eq("session_id", sessionId);
+  if (deleteSubjectError) return deleteSubjectError.message;
+
+  if (subjectIds.length) {
+    const { error } = await admin.from("exam_subject_targets").insert(
+      subjectIds.map((subjectId) => ({ session_id: sessionId, subject_id: subjectId })),
+    );
+    if (error) return error.message;
+  }
+
+  const { error: deleteOfferingError } = await admin.from("exam_offering_targets").delete().eq("session_id", sessionId);
+  if (deleteOfferingError) return deleteOfferingError.message;
+
+  if (offeringIds.length) {
+    const { error } = await admin.from("exam_offering_targets").insert(
+      offeringIds.map((offeringId) => ({ session_id: sessionId, offering_id: offeringId })),
+    );
+    if (error) return error.message;
+  }
+
+  return null;
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const expected = new Set(left);
+  return right.every((value) => expected.has(value));
 }
 
 export async function updateExamParityAction(
   id: string,
-  patch: { title: string; durationSeconds: number; questionCount: number; instructions: string; status: string; cameraRequired: boolean; warnAfter: number },
+  patch: ExamEditorPatch,
 ): Promise<ActionResult> {
   try {
     const detail = await getExamDetailAction(id);
-    const session = detail.session as { duration_seconds?: number; question_count?: number } | null;
+    const session = detail.session as { mode?: ExamMode; duration_seconds?: number; question_count?: number } | null;
     if (!session) return { ok: false, error: "Exam not found or outside your scope." };
     if (patch.title.trim().length < 3) return { ok: false, error: "Enter an exam title of at least 3 characters." };
     if (!Number.isInteger(patch.warnAfter) || patch.warnAfter < 1 || patch.warnAfter > 10) return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
@@ -285,26 +351,149 @@ export async function updateExamParityAction(
     if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 200) return { ok: false, error: "Question count must be between 5 and 200." };
     if (!["open", "closed"].includes(patch.status)) return { ok: false, error: "Exam availability must be Open or Closed." };
 
-    if (patch.questionCount !== Number(session.question_count)) {
-      const { admin } = await staffContext();
-      const runtime = await loadExamRuntimeSession(admin, id);
-      if (!runtime) return { ok: false, error: "Exam runtime details could not be loaded for question coverage validation." };
+    const mode = session.mode;
+    if (!mode) return { ok: false, error: "Exam mode is unavailable." };
+
+    const subjectIds = [...new Set(patch.subjectIds.filter(Boolean))];
+    const offeringIds = [...new Set(patch.offeringIds.filter(Boolean))];
+    const { admin, scope } = await staffContext();
+    const sessionId = id.toUpperCase();
+
+    const [existingSubjectResult, existingOfferingResult, classTargetResult] = await Promise.all([
+      admin.from("exam_subject_targets").select("subject_id").eq("session_id", sessionId),
+      admin.from("exam_offering_targets").select("offering_id").eq("session_id", sessionId),
+      admin.from("exam_class_targets").select("class_id").eq("session_id", sessionId),
+    ]);
+    if (existingSubjectResult.error || existingOfferingResult.error || classTargetResult.error) {
+      return {
+        ok: false,
+        error: existingSubjectResult.error?.message
+          ?? existingOfferingResult.error?.message
+          ?? classTargetResult.error?.message
+          ?? "Exam relationships could not be loaded.",
+      };
+    }
+
+    const previousSubjectIds = ((existingSubjectResult.data ?? []) as { subject_id: string }[]).map((row) => row.subject_id);
+    const previousOfferingIds = ((existingOfferingResult.data ?? []) as { offering_id: string }[]).map((row) => row.offering_id);
+    const targetClassIds = new Set(((classTargetResult.data ?? []) as { class_id: string }[]).map((row) => row.class_id));
+
+    if (mode === "qualifier") {
+      if (!scope.isAdmin && !scope.qualifierAccess) return { ok: false, error: "Qualifier examination access is not enabled for this staff account." };
+      if (!subjectIds.length || subjectIds.length > 6) return { ok: false, error: "Choose between 1 and 6 qualifier subjects." };
+      if (offeringIds.length) return { ok: false, error: "Placement examinations do not use class subject offerings." };
+
+      const { data: selectedSubjects, error } = await admin
+        .from("subjects")
+        .select("id")
+        .in("id", subjectIds)
+        .eq("kind", "qualifier")
+        .eq("active", true);
+      if (error) return { ok: false, error: error.message };
+      if ((selectedSubjects ?? []).length !== subjectIds.length) {
+        return { ok: false, error: "Every selected subject must be an active placement subject." };
+      }
+    } else {
+      if (mode === "mixed" && (subjectIds.length < 2 || subjectIds.length > 12)) {
+        return { ok: false, error: "Mixed examinations require between 2 and 12 subjects." };
+      }
+      if (["single", "waec", "bece", "neco", "jamb"].includes(mode) && subjectIds.length !== 1) {
+        return { ok: false, error: "This examination mode requires exactly one subject." };
+      }
+      if (!subjectIds.length) return { ok: false, error: "Choose at least one subject." };
+      if (!offeringIds.length) return { ok: false, error: "Every exam subject needs an active class subject offering." };
+      if (!scope.isAdmin && subjectIds.some((subjectId) => !questionSubjectVisibleTo(subjectId, scope))) {
+        return { ok: false, error: "One or more selected subjects are outside your teaching scope." };
+      }
+
+      const { data: offerings, error } = await admin
+        .from("class_subject_offerings")
+        .select("id,class_id,subject_id,status")
+        .in("id", offeringIds);
+      if (error) return { ok: false, error: error.message };
+      const rows = (offerings ?? []) as { id: string; class_id: string; subject_id: string; status: string }[];
+      if (rows.length !== offeringIds.length || rows.some((row) => row.status !== "active")) {
+        return { ok: false, error: "One or more selected subject offerings are unavailable." };
+      }
+      if (rows.some((row) => !targetClassIds.has(row.class_id))) {
+        return { ok: false, error: "Subject offerings must belong to classes already targeted by this examination." };
+      }
+      if (rows.some((row) => !subjectIds.includes(row.subject_id))) {
+        return { ok: false, error: "Remove class offerings that do not belong to the selected subjects." };
+      }
+      const offeredSubjects = new Set(rows.map((row) => row.subject_id));
+      if (subjectIds.some((subjectId) => !offeredSubjects.has(subjectId))) {
+        return { ok: false, error: "Every selected subject needs an active offering in the target classes." };
+      }
+    }
+
+    const subjectChanged = !sameStringSet(previousSubjectIds, subjectIds);
+    if (patch.questionCount !== Number(session.question_count) || subjectChanged) {
+      const runtime = await loadExamRuntimeSession(admin, sessionId);
+      if (!runtime) return { ok: false, error: "Exam details could not be loaded for question coverage validation." };
 
       const payload = await loadQuestionPayload();
       const candidatePaper = paperForStudent(
         { questions: payload.questions },
-        { ...runtime.session, questionCount: patch.questionCount },
-        `editor-coverage:${id}`,
+        { ...runtime.session, subjectIds, questionCount: patch.questionCount },
+        `editor-coverage:${sessionId}`,
       );
       if (candidatePaper.length < patch.questionCount) {
         return {
           ok: false,
-          error: `Only ${candidatePaper.length} eligible questions are available for this paper.`,
+          error: `Only ${candidatePaper.length} eligible questions are available for the selected subjects.`,
         };
       }
     }
 
-    return updateExamAction(id, patch);
+    const relationshipError = await replaceExamEditorTargets(admin, sessionId, subjectIds, offeringIds);
+    if (relationshipError) {
+      await replaceExamEditorTargets(admin, sessionId, previousSubjectIds, previousOfferingIds);
+      return { ok: false, error: relationshipError };
+    }
+
+    const result = await updateExamAction(id, {
+      title: patch.title,
+      durationSeconds: patch.durationSeconds,
+      questionCount: patch.questionCount,
+      instructions: patch.instructions,
+      status: patch.status,
+      cameraRequired: patch.cameraRequired,
+      warnAfter: patch.warnAfter,
+    });
+
+    if (!result.ok) {
+      const { data: currentSession } = await admin
+        .from("exam_sessions")
+        .select("title,duration_seconds,question_count,instructions,status,camera_required,warn_after")
+        .eq("id", sessionId)
+        .maybeSingle();
+      const row = currentSession as {
+        title?: string;
+        duration_seconds?: number;
+        question_count?: number;
+        instructions?: string;
+        status?: string;
+        camera_required?: boolean;
+        warn_after?: number;
+      } | null;
+      const scalarUpdateApplied = Boolean(
+        row
+        && row.title === patch.title.trim().slice(0, 72)
+        && Number(row.duration_seconds) === patch.durationSeconds
+        && Number(row.question_count) === patch.questionCount
+        && String(row.instructions ?? "") === patch.instructions.slice(0, 140)
+        && row.status === patch.status
+        && Boolean(row.camera_required) === patch.cameraRequired
+        && Number(row.warn_after) === patch.warnAfter,
+      );
+      if (!scalarUpdateApplied) {
+        await replaceExamEditorTargets(admin, sessionId, previousSubjectIds, previousOfferingIds);
+      }
+      return result;
+    }
+
+    return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
   }
