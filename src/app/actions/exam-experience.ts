@@ -376,7 +376,9 @@ async function resolveResultDestination(input: {
       return current;
     }
 
-    const scienceEligible = qualifiesForScience(input.score);
+    const scienceEligible =
+      input.placementOptions.some((option) => option.track === "science") &&
+      qualifiesForScience(input.score);
     return {
       ok: true,
       value: {
