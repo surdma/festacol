@@ -37,7 +37,8 @@ export function ExamAccessDenied({
 
   return (
     <Card className="mx-auto max-w-md border-0 bg-transparent shadow-none">
-      <CardHeader className="gap-4 text-center">
+      <CardHeader className="gap-4 px-1 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Examination access</p>
         <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-muted">
           <IconComponent className="size-7 text-muted-foreground" aria-hidden="true" />
         </div>
@@ -46,7 +47,7 @@ export function ExamAccessDenied({
           <CardDescription className="text-sm leading-relaxed">{message}</CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-col gap-3 px-1 pt-2">
         {signInHref ? (
           <Link
             href={signInHref}

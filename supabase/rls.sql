@@ -18,6 +18,7 @@ ALTER TABLE public.teaching_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_class_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_offering_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_subject_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_placement_tracks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_session_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_qr_codes ENABLE ROW LEVEL SECURITY;
@@ -46,7 +47,7 @@ BEGIN
         'school_members','academic_years','academic_terms','academic_levels','classes',
         'class_enrollments','subjects','subject_curriculum_rules','class_subject_offerings',
         'student_subject_enrollments','staff_subject_qualifications','teaching_assignments',
-        'exam_sessions','exam_class_targets','exam_offering_targets','exam_placement_tracks',
+        'exam_sessions','exam_class_targets','exam_offering_targets','exam_subject_targets','exam_placement_tracks',
         'exam_session_links','exam_qr_codes','exam_staff_assignments','exam_student_access',
         'exam_retake_grants','exam_attempts','exam_attempt_responses','exam_integrity_events',
         'questions','question_academic_levels','question_blanks','whatsapp_groups',
@@ -73,25 +74,25 @@ GRANT SELECT ON public.academic_years,public.academic_terms,public.academic_leve
   public.teaching_assignments TO authenticated;
 
 GRANT SELECT ON public.exam_sessions,public.exam_class_targets,public.exam_offering_targets,
-  public.exam_placement_tracks,public.exam_session_links,public.exam_qr_codes,
+  public.exam_subject_targets,public.exam_placement_tracks,public.exam_session_links,public.exam_qr_codes,
   public.exam_staff_assignments,public.exam_student_access,public.exam_retake_grants,
   public.exam_attempts TO authenticated;
 
--- Candidate runtime state lives directly on exam_attempts. Students can update
--- only transient runtime columns while an attempt is open.
-GRANT UPDATE(
+-- Candidate attempt/runtime mutation is server-owned. Revoke legacy direct
+-- browser writes so a modified client cannot extend time, rewrite the allocated
+-- paper, or submit response changes outside the validated Server Action path.
+REVOKE UPDATE(
   current_index,remaining_seconds,elapsed_active_seconds,last_active_at,
   paper_fingerprint,question_ids,updated_at
-) ON public.exam_attempts TO authenticated;
+) ON public.exam_attempts FROM authenticated;
 
--- Students never receive write privilege for grading fields. After submission,
--- the row-level student SELECT policy also stops exposing response rows so
--- correct_answer cannot leak after server-side grading.
+-- Students may read their ungraded responses while the attempt is open, but
+-- response mutation is also server-owned. This prevents direct Data API writes
+-- from bypassing paper membership and server-authoritative expiry checks.
 GRANT SELECT ON public.exam_attempt_responses TO authenticated;
-GRANT INSERT(attempt_id,question_id,response_text,response_values,seconds,flagged,updated_at)
-  ON public.exam_attempt_responses TO authenticated;
-GRANT UPDATE(response_text,response_values,seconds,flagged,updated_at)
-  ON public.exam_attempt_responses TO authenticated;
+REVOKE INSERT(attempt_id,question_id,response_text,response_values,seconds,flagged,updated_at),
+  UPDATE(response_text,response_values,seconds,flagged,updated_at)
+  ON public.exam_attempt_responses FROM authenticated;
 
 GRANT SELECT,INSERT ON public.exam_integrity_events TO authenticated;
 GRANT USAGE,SELECT ON SEQUENCE public.exam_integrity_events_id_seq TO authenticated;
@@ -182,7 +183,15 @@ CREATE POLICY teaching_assignments_self_read ON public.teaching_assignments
 -- --------------------------------------------------------------- exam metadata
 CREATE POLICY exam_sessions_student_read ON public.exam_sessions
   FOR SELECT TO authenticated
-  USING (private.student_is_targeted_for_exam(id,private.current_school_member_id()));
+  USING (
+    private.student_is_targeted_for_exam(id,private.current_school_member_id())
+    OR EXISTS (
+      SELECT 1
+      FROM public.exam_attempts a
+      WHERE a.session_id = exam_sessions.id
+        AND a.student_id = private.current_school_member_id()
+    )
+  );
 CREATE POLICY exam_sessions_staff_read ON public.exam_sessions
   FOR SELECT TO authenticated
   USING (private.staff_can_access_exam(private.current_school_member_id(),id));
@@ -194,6 +203,12 @@ CREATE POLICY exam_class_targets_access_read ON public.exam_class_targets
     OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
   );
 CREATE POLICY exam_offering_targets_access_read ON public.exam_offering_targets
+  FOR SELECT TO authenticated
+  USING (
+    private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
+    OR private.staff_can_access_exam(private.current_school_member_id(),session_id)
+  );
+CREATE POLICY exam_subject_targets_access_read ON public.exam_subject_targets
   FOR SELECT TO authenticated
   USING (
     private.student_is_targeted_for_exam(session_id,private.current_school_member_id())
@@ -247,16 +262,6 @@ CREATE POLICY exam_qr_codes_access_read ON public.exam_qr_codes
 CREATE POLICY exam_attempts_student_read ON public.exam_attempts
   FOR SELECT TO authenticated
   USING (student_id = private.current_school_member_id());
-CREATE POLICY exam_attempts_student_runtime_update ON public.exam_attempts
-  FOR UPDATE TO authenticated
-  USING (
-    student_id = private.current_school_member_id()
-    AND submitted_at IS NULL
-  )
-  WITH CHECK (
-    student_id = private.current_school_member_id()
-    AND submitted_at IS NULL
-  );
 CREATE POLICY exam_attempts_staff_read ON public.exam_attempts
   FOR SELECT TO authenticated
   USING (private.staff_can_access_exam(private.current_school_member_id(),session_id));
@@ -265,41 +270,6 @@ CREATE POLICY attempt_responses_student_read_open ON public.exam_attempt_respons
   FOR SELECT TO authenticated
   USING (
     graded_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.exam_attempts a
-      WHERE a.id = exam_attempt_responses.attempt_id
-        AND a.student_id = private.current_school_member_id()
-        AND a.submitted_at IS NULL
-    )
-  );
-CREATE POLICY attempt_responses_student_insert_open ON public.exam_attempt_responses
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    correct IS NULL
-    AND correct_answer IS NULL
-    AND graded_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.exam_attempts a
-      WHERE a.id = exam_attempt_responses.attempt_id
-        AND a.student_id = private.current_school_member_id()
-        AND a.submitted_at IS NULL
-    )
-  );
-CREATE POLICY attempt_responses_student_update_open ON public.exam_attempt_responses
-  FOR UPDATE TO authenticated
-  USING (
-    graded_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.exam_attempts a
-      WHERE a.id = exam_attempt_responses.attempt_id
-        AND a.student_id = private.current_school_member_id()
-        AND a.submitted_at IS NULL
-    )
-  )
-  WITH CHECK (
-    correct IS NULL
-    AND correct_answer IS NULL
-    AND graded_at IS NULL
     AND EXISTS (
       SELECT 1 FROM public.exam_attempts a
       WHERE a.id = exam_attempt_responses.attempt_id
@@ -345,6 +315,41 @@ CREATE POLICY integrity_staff_read ON public.exam_integrity_events
         AND private.staff_can_access_exam(private.current_school_member_id(),a.session_id)
     )
   );
+
+-- Active attempts own an immutable allocated paper. Staff/service-role writes
+-- may update the reusable question bank only after every attempt using that
+-- question has been finalized. This trigger closes the race between an
+-- allocation and an admin edit/delete/fixture-sync request.
+CREATE OR REPLACE FUNCTION private.protect_active_exam_question()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, private
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.exam_attempts a
+    WHERE a.submitted_at IS NULL
+      AND OLD.id = ANY(a.question_ids)
+  ) THEN
+    RAISE EXCEPTION 'question_in_active_exam'
+      USING ERRCODE = 'P0001',
+            DETAIL = format('Question %s is allocated to an unfinished examination attempt.', OLD.id);
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS questions_protect_active_exam ON public.questions;
+CREATE TRIGGER questions_protect_active_exam
+BEFORE UPDATE OR DELETE ON public.questions
+FOR EACH ROW
+EXECUTE FUNCTION private.protect_active_exam_question();
 
 -- ------------------------------------------------------------- question bank
 CREATE POLICY questions_staff_read ON public.questions

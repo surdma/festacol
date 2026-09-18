@@ -1,29 +1,45 @@
 "use server";
 
+import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { currentStudent } from "@/lib/auth/current-student";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload, sanitizePaper } from "@/lib/questions";
-import { effectiveStatus, hashText, paperForStudent, paperFromQuestionIds, scoreAttempt } from "@/lib/assessment";
-import type { AcademicTrack } from "@/types/db";
-import type { ExamSessionDTO, QuestionDTO } from "@/types/exam";
+import { effectiveStatus, hashText, paperForStudent, paperFromQuestionIds } from "@/lib/assessment";
+import { attemptDurationSeconds, authoritativeAttemptClock, finalizeExamAttempt } from "@/lib/exam-finalization";
+import type { ExamAttemptContextSnapshot } from "@/types/db";
+import type { ExamPaperQuestionDTO, ExamSessionDTO, QuestionDTO } from "@/types/exam";
+
+const sessionIdSchema = z.string().trim().min(1).max(64).transform((value) => value.toUpperCase());
+const questionIdKeySchema = z.string().regex(/^\d+$/u);
+const progressPatchSchema = z.object({
+  responses: z.record(questionIdKeySchema, z.unknown()),
+  currentIndex: z.number().int().nonnegative().max(10_000),
+  questionTimings: z.record(questionIdKeySchema, z.number().finite().nonnegative().max(86_400)),
+  flagged: z.array(questionIdKeySchema).max(10_000),
+}).strip();
+const submitReasonSchema = z.enum(["manual", "time-expired", "exam-closed"]);
+const MAX_PROGRESS_PAYLOAD_CHARS = 262_144;
+const EXPIRY_SAVE_GRACE_SECONDS = 15;
 
 export type PaperStatus =
-  | { status: "ready"; paper: Omit<QuestionDTO, "answer">[]; remainingSeconds: number; currentIndex: number; responses: Record<string, unknown>; flagged: string[]; cameraRequired: boolean }
+  | { status: "ready"; paper: ExamPaperQuestionDTO[]; remainingSeconds: number; currentIndex: number; responses: Record<string, unknown>; flagged: string[]; cameraRequired: boolean }
   | { status: "locked"; score: number | null }
   | { status: "unavailable"; error: string };
 
 export type SaveProgressResult =
-  | { ok: true }
-  | { ok: false; error: string };
+  | { ok: true; remainingSeconds: number; elapsedActiveSeconds: number }
+  | { ok: false; error: string; code?: "expired" | "invalid" | "unavailable" };
 
 interface RuntimeState {
   id: string;
+  started_at: number | null;
   current_index: number;
   remaining_seconds: number | null;
   elapsed_active_seconds: number;
   last_active_at: number | null;
+  context_snapshot: ExamAttemptContextSnapshot;
   paper_fingerprint: string;
   question_ids: number[];
   updated_at: number;
@@ -120,26 +136,12 @@ function responseForQuestion(response: RuntimeResponse, question: QuestionDTO | 
   return { [blankKeys[0]]: String(decoded) };
 }
 
-function serializeAnswer(question: QuestionDTO | undefined): string {
-  const answer = (question as { answer?: unknown } | undefined)?.answer;
-  if (Array.isArray(answer)) return answer.map(String).join(", ");
-  if (answer && typeof answer === "object") return JSON.stringify(answer);
-  return String(answer ?? "");
-}
-
-function placementTrack(value: string | undefined): AcademicTrack | null {
-  if (value === "Science") return "science";
-  if (value === "Humanities") return "humanities";
-  if (value === "Business") return "business";
-  return null;
-}
-
 async function stateForAttempt(attemptId: string) {
   const supabase = await createSupabaseServerClient();
   const [{ data: state }, { data: responses }] = await Promise.all([
     supabase
       .from("exam_attempts")
-      .select("id,current_index,remaining_seconds,elapsed_active_seconds,last_active_at,paper_fingerprint,question_ids,updated_at")
+      .select("id,started_at,current_index,remaining_seconds,elapsed_active_seconds,last_active_at,context_snapshot,paper_fingerprint,question_ids,updated_at")
       .eq("id", attemptId)
       .maybeSingle(),
     supabase.from("exam_attempt_responses").select("question_id,response_text,response_values,seconds,flagged").eq("attempt_id", attemptId),
@@ -148,6 +150,40 @@ async function stateForAttempt(attemptId: string) {
     state: (state ?? null) as RuntimeState | null,
     responses: (responses ?? []) as RuntimeResponse[],
   };
+}
+
+function invalidQuestionId(
+  ids: Iterable<string>,
+  allowedQuestionIds: Set<string>,
+): string | null {
+  for (const id of ids) {
+    if (!allowedQuestionIds.has(id)) return id;
+  }
+  return null;
+}
+
+function normalizedQuestionTimings(
+  currentRows: RuntimeResponse[],
+  incoming: Record<string, number>,
+  allowedQuestionIds: Set<string>,
+  authoritativeElapsed: number,
+): Record<string, number> {
+  const merged = new Map<string, number>();
+  for (const row of currentRows) {
+    const id = String(row.question_id);
+    if (allowedQuestionIds.has(id)) merged.set(id, Math.max(0, Number(row.seconds ?? 0)));
+  }
+  for (const [id, seconds] of Object.entries(incoming)) {
+    if (allowedQuestionIds.has(id)) merged.set(id, Math.max(0, Number(seconds) || 0));
+  }
+
+  const elapsed = Math.max(0, authoritativeElapsed);
+  const total = [...merged.values()].reduce((sum, seconds) => sum + seconds, 0);
+  const scale = total > elapsed && total > 0 ? elapsed / total : 1;
+
+  return Object.fromEntries(
+    [...merged.entries()].map(([id, seconds]) => [id, Math.min(elapsed, seconds * scale)]),
+  );
 }
 
 function accessErrorMessage(message: string): string {
@@ -161,12 +197,19 @@ function accessErrorMessage(message: string): string {
 }
 
 export async function getExamPaperAction(sessionId: string): Promise<PaperStatus> {
-  if (!(await currentStudent())) return { status: "unavailable", error: "Sign in to open this exam." };
-  const runtimeSession = await sessionDTO(sessionId);
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (!parsedSessionId.success) return { status: "unavailable", error: "The examination session identifier is invalid." };
+  const ctx = await currentStudent();
+  if (!ctx) return { status: "unavailable", error: "Sign in to open this exam." };
+  const runtimeSession = await sessionDTO(parsedSessionId.data);
   if (!runtimeSession) return { status: "unavailable", error: "Exam not found or not assigned to you." };
   const { session, cameraRequired } = runtimeSession;
   const status = effectiveStatus(session);
-  if (status !== "open") return { status: "unavailable", error: `Session unavailable: ${status}.` };
+  if (status !== "open") {
+    const previous = await latestAttempt(session.id);
+    if (previous?.submitted_at) return { status: "locked", score: previous.score };
+    return { status: "unavailable", error: `Session unavailable: ${status}.` };
+  }
 
   const allocation = await allocateAttempt(session.id);
   if (!allocation.ok) {
@@ -181,21 +224,36 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const { state, responses: savedResponses } = await stateForAttempt(attemptId);
   if (!state) return { status: "unavailable", error: "Attempt state is unavailable." };
 
+  const attemptSession: ExamSessionDTO = {
+    ...session,
+    durationSeconds: attemptDurationSeconds(state, session),
+    questionCount: state.question_ids.length || Number(state.context_snapshot?.questionCount ?? session.questionCount),
+  };
+
   const now = Date.now();
-  const lastActiveAt = Number(state.last_active_at ?? now);
-  const awaySeconds = Math.max(0, Math.floor((now - lastActiveAt) / 1000));
-  const remaining = Math.max(0, Number(state.remaining_seconds ?? session.durationSeconds) - awaySeconds);
-  const reconciledElapsed = Math.max(0, Number(state.elapsed_active_seconds ?? 0) + awaySeconds);
+  const clock = authoritativeAttemptClock(state, attemptSession, now);
+  const remaining = clock.remainingSeconds;
+  const reconciledElapsed = clock.elapsedActiveSeconds;
   if (remaining <= 0) {
-    const supabase = await createSupabaseServerClient();
-    const { error: expirationStateError } = await supabase.from("exam_attempts").update({
+    const admin = createSupabaseAdminClient();
+    const { data: expiredAttempt, error: expirationStateError } = await admin.from("exam_attempts").update({
       remaining_seconds: 0,
       elapsed_active_seconds: reconciledElapsed,
       last_active_at: now,
       updated_at: now,
-    }).eq("id", attemptId);
+    }).eq("id", attemptId)
+      .eq("student_id", ctx.profile.profile_id)
+      .is("submitted_at", null)
+      .select("id")
+      .maybeSingle();
     if (expirationStateError) {
       return { status: "unavailable", error: "Time expired, but the attempt state could not be finalized. Retry without closing this page." };
+    }
+    if (!expiredAttempt) {
+      const previous = await latestAttempt(session.id);
+      return previous?.submitted_at
+        ? { status: "locked", score: previous.score }
+        : { status: "unavailable", error: "The active attempt changed while the paper was being restored. Retry without closing this page." };
     }
     const submitted = await submitExamAction(session.id, "time-expired");
     return submitted.ok
@@ -206,23 +264,33 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const payload = await loadQuestionPayload();
   if (!payload.questions.length) return { status: "unavailable", error: "Question bank is empty." };
   const paper = state.question_ids.length
-    ? paperFromQuestionIds({ questions: payload.questions }, session, attemptId, state.question_ids)
-    : paperForStudent({ questions: payload.questions }, session, attemptId);
+    ? paperFromQuestionIds({ questions: payload.questions }, attemptSession, attemptId, state.question_ids)
+    : paperForStudent({ questions: payload.questions }, attemptSession, attemptId);
   if (!paper.length) return { status: "unavailable", error: "No questions match this exam." };
 
   const fingerprint = state.paper_fingerprint || await hashText(
     `${session.id}|${attemptId}|${paper.map((question) => `${question.id}:${(question.options ?? []).join("~")}`).join("|")}`,
   );
-  const supabase = await createSupabaseServerClient();
-  const { error: stateError } = await supabase.from("exam_attempts").update({
+  const admin = createSupabaseAdminClient();
+  const { data: activeAttempt, error: stateError } = await admin.from("exam_attempts").update({
     remaining_seconds: remaining,
     elapsed_active_seconds: reconciledElapsed,
     last_active_at: now,
     paper_fingerprint: fingerprint,
     question_ids: state.question_ids.length ? state.question_ids : paper.map((question) => question.id),
     updated_at: now,
-  }).eq("id", attemptId);
+  }).eq("id", attemptId)
+    .eq("student_id", ctx.profile.profile_id)
+    .is("submitted_at", null)
+    .select("id")
+    .maybeSingle();
   if (stateError) return { status: "unavailable", error: "Attempt state could not be saved." };
+  if (!activeAttempt) {
+    const previous = await latestAttempt(session.id);
+    return previous?.submitted_at
+      ? { status: "locked", score: previous.score }
+      : { status: "unavailable", error: "The active attempt changed while the paper was being restored. Retry without closing this page." };
+  }
 
   const questionById = new Map(paper.map((question) => [question.id, question]));
   const responses: Record<string, unknown> = {};
@@ -244,42 +312,135 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
 
 export async function saveProgressAction(
   sessionId: string,
-  patch: { responses: Record<string, unknown>; currentIndex: number; questionTimings: Record<string, number>; remainingSeconds: number; elapsedActiveSeconds: number; flagged: string[] },
+  patch: {
+    responses: Record<string, unknown>;
+    currentIndex: number;
+    questionTimings: Record<string, number>;
+    flagged: string[];
+  },
 ): Promise<SaveProgressResult> {
-  const attempt = await latestAttempt(sessionId);
-  if (!attempt) return { ok: false, error: "No active attempt is available to save." };
-  if (attempt.submitted_at) return { ok: false, error: "This attempt has already been submitted." };
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  const parsedPatch = progressPatchSchema.safeParse(patch);
+  if (!parsedSessionId.success || !parsedPatch.success) {
+    return { ok: false, code: "invalid", error: "The exam progress update is invalid." };
+  }
 
-  const supabase = await createSupabaseServerClient();
+  let serializedResponses = "";
+  try {
+    serializedResponses = JSON.stringify(parsedPatch.data.responses);
+  } catch {
+    return { ok: false, code: "invalid", error: "The exam response data is invalid." };
+  }
+  if (serializedResponses.length > MAX_PROGRESS_PAYLOAD_CHARS) {
+    return { ok: false, code: "invalid", error: "The exam response update is too large to save safely." };
+  }
+
+  const ctx = await currentStudent();
+  if (!ctx) return { ok: false, code: "unavailable", error: "Sign in required." };
+
+  const runtimeSession = await sessionDTO(parsedSessionId.data);
+  if (!runtimeSession) {
+    return { ok: false, code: "unavailable", error: "This examination is unavailable." };
+  }
+  if (effectiveStatus(runtimeSession.session) !== "open") {
+    return {
+      ok: false,
+      code: "expired",
+      error: "This examination is no longer open. Festacol will finalize the responses already accepted by the server.",
+    };
+  }
+
+  const attempt = await latestAttempt(parsedSessionId.data);
+  if (!attempt) return { ok: false, code: "unavailable", error: "No active attempt is available to save." };
+  if (attempt.submitted_at) return { ok: false, code: "unavailable", error: "This attempt has already been submitted." };
+
+  const { state, responses: savedResponses } = await stateForAttempt(attempt.id);
+  if (!state) return { ok: false, code: "unavailable", error: "Attempt state is unavailable." };
+  if (!state.question_ids.length) {
+    return { ok: false, code: "unavailable", error: "The allocated examination paper is unavailable." };
+  }
+
+  const allowedQuestionIds = new Set(state.question_ids.map((id) => String(id)));
+  const responseQuestionError = invalidQuestionId(Object.keys(parsedPatch.data.responses), allowedQuestionIds);
+  const timingQuestionError = invalidQuestionId(Object.keys(parsedPatch.data.questionTimings), allowedQuestionIds);
+  const flaggedQuestionError = invalidQuestionId(parsedPatch.data.flagged, allowedQuestionIds);
+  if (responseQuestionError || timingQuestionError || flaggedQuestionError) {
+    return { ok: false, code: "invalid", error: "The progress update contains a question outside this examination paper." };
+  }
+  if (parsedPatch.data.currentIndex >= state.question_ids.length) {
+    return { ok: false, code: "invalid", error: "The requested question position is outside this examination paper." };
+  }
+
   const now = Date.now();
-  const { error: stateError } = await supabase.from("exam_attempts").update({
-    current_index: Math.max(0, patch.currentIndex),
-    remaining_seconds: Math.max(0, Math.round(patch.remainingSeconds)),
-    elapsed_active_seconds: Math.max(0, patch.elapsedActiveSeconds),
+  const clock = authoritativeAttemptClock(state, runtimeSession.session, now);
+  if (clock.remainingSeconds <= 0 && clock.overdueSeconds > EXPIRY_SAVE_GRACE_SECONDS) {
+    return {
+      ok: false,
+      code: "expired",
+      error: "The examination time has ended. Festacol will submit the responses already accepted by the server.",
+    };
+  }
+
+  const normalizedTimings = normalizedQuestionTimings(
+    savedResponses,
+    parsedPatch.data.questionTimings,
+    allowedQuestionIds,
+    clock.elapsedActiveSeconds,
+  );
+  const flagged = new Set(parsedPatch.data.flagged);
+  const existingByQuestion = new Map(savedResponses.map((response) => [String(response.question_id), response]));
+  const rowIds = new Set<string>([
+    ...existingByQuestion.keys(),
+    ...Object.keys(parsedPatch.data.responses),
+    ...flagged,
+  ]);
+
+  const admin = createSupabaseAdminClient();
+  const { data: updatedAttempt, error: stateError } = await admin.from("exam_attempts").update({
+    current_index: parsedPatch.data.currentIndex,
+    remaining_seconds: clock.remainingSeconds,
+    elapsed_active_seconds: clock.elapsedActiveSeconds,
     last_active_at: now,
     updated_at: now,
-  }).eq("id", attempt.id);
-  if (stateError) return { ok: false, error: "Your exam progress could not be saved." };
+  }).eq("id", attempt.id)
+    .eq("student_id", ctx.profile.profile_id)
+    .is("submitted_at", null)
+    .select("id")
+    .maybeSingle();
+  if (stateError || !updatedAttempt) {
+    return { ok: false, code: "unavailable", error: "Your exam progress could not be saved." };
+  }
 
-  const flagged = new Set(patch.flagged);
-  const rows = Object.entries(patch.responses).map(([questionId, value]) => {
-    const response = splitResponse(value);
+  const rows = [...rowIds].map((questionId) => {
+    const existing = existingByQuestion.get(questionId);
+    const hasIncomingResponse = Object.hasOwn(parsedPatch.data.responses, questionId);
+    const response = hasIncomingResponse
+      ? splitResponse(parsedPatch.data.responses[questionId])
+      : { text: existing?.response_text ?? null, values: existing?.response_values ?? [] };
+
     return {
       attempt_id: attempt.id,
       question_id: Number(questionId),
       response_text: response.text,
       response_values: response.values,
-      seconds: Math.max(0, Number(patch.questionTimings[questionId] ?? 0)),
+      seconds: Math.max(0, Number(normalizedTimings[questionId] ?? existing?.seconds ?? 0)),
       flagged: flagged.has(questionId),
       updated_at: now,
     };
   });
+
   if (rows.length) {
-    const { error: responseError } = await supabase.from("exam_attempt_responses").upsert(rows, { onConflict: "attempt_id,question_id" });
-    if (responseError) return { ok: false, error: "Your answers could not be saved." };
+    const { error: responseError } = await admin
+      .from("exam_attempt_responses")
+      .upsert(rows, { onConflict: "attempt_id,question_id" });
+    if (responseError) return { ok: false, code: "unavailable", error: "Your answers could not be saved." };
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    remainingSeconds: clock.remainingSeconds,
+    elapsedActiveSeconds: clock.elapsedActiveSeconds,
+  };
 }
 
 export interface SubmitSummary {
@@ -293,112 +454,84 @@ export interface SubmitSummary {
   placement?: { assignedTrack: string; confidence: number };
 }
 
-export async function submitExamAction(sessionId: string, reason: string): Promise<{ ok: boolean; summary?: SubmitSummary; error?: string }> {
+export async function submitExamAction(
+  sessionId: string,
+  reason: string,
+): Promise<{ ok: boolean; summary?: SubmitSummary; error?: string }> {
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  const parsedReason = submitReasonSchema.safeParse(reason);
+  if (!parsedSessionId.success || !parsedReason.success) {
+    return { ok: false, error: "The submission request is invalid." };
+  }
+
   const ctx = await currentStudent();
   if (!ctx) return { ok: false, error: "Sign in required." };
-  const runtimeSession = await sessionDTO(sessionId);
+
+  const runtimeSession = await sessionDTO(parsedSessionId.data);
   if (!runtimeSession) return { ok: false, error: "Exam not found or not assigned to you." };
-  const { session } = runtimeSession;
-  const attempt = await latestAttempt(session.id);
-  if (!attempt || attempt.submitted_at) return { ok: false, error: attempt?.submitted_at ? "Already submitted." : "No active attempt." };
-  const { state, responses: savedResponses } = await stateForAttempt(attempt.id);
-  if (!state) return { ok: false, error: "Attempt state is unavailable." };
+
+  const attempt = await latestAttempt(runtimeSession.session.id);
+  if (!attempt) return { ok: false, error: "No active attempt." };
+  if (attempt.submitted_at) return { ok: false, error: "Already submitted." };
+
+  const finalized = await finalizeExamAttempt({
+    session: runtimeSession.session,
+    attemptId: attempt.id,
+    studentId: ctx.profile.profile_id,
+    reason: parsedReason.data,
+  });
+
+  if (!finalized.ok) {
+    return {
+      ok: false,
+      error: finalized.code === "already-submitted" ? "Already submitted." : finalized.error,
+    };
+  }
+
+  return { ok: true, summary: finalized.summary };
+}
+
+export async function disqualifyExamAction(
+  sessionId: string,
+  detail: string,
+): Promise<{ ok: boolean; summary?: SubmitSummary; error?: string }> {
+  const parsedSessionId = sessionIdSchema.safeParse(sessionId);
+  if (!parsedSessionId.success) return { ok: false, error: "The examination request is invalid." };
+
+  const ctx = await currentStudent();
+  if (!ctx) return { ok: false, error: "Sign in required." };
+
+  const runtimeSession = await sessionDTO(parsedSessionId.data);
+  if (!runtimeSession) return { ok: false, error: "Exam not found or not assigned to you." };
+
+  const attempt = await latestAttempt(runtimeSession.session.id);
+  if (!attempt) return { ok: false, error: "No active attempt." };
+  if (attempt.submitted_at) return { ok: false, error: "Already submitted." };
 
   const admin = createSupabaseAdminClient();
-  const { data: integrityRows } = await admin.from("exam_integrity_events").select("type,detail,at").eq("attempt_id", attempt.id).order("at");
-  const events = ((integrityRows ?? []) as { type: string; detail: string; at: number }[]).map((event) => ({ type: event.type }));
-  const payload = await loadQuestionPayload();
-  const paper = state.question_ids.length
-    ? paperFromQuestionIds({ questions: payload.questions }, session, attempt.id, state.question_ids)
-    : paperForStudent({ questions: payload.questions }, session, attempt.id);
-  if (!paper.length) return { ok: false, error: "Attempt paper is unavailable." };
-
-  const questionById = new Map(paper.map((question) => [question.id, question]));
-  const responses: Record<string, unknown> = {};
-  const timings: Record<string, number> = {};
-  const flaggedByQuestion = new Map<number, boolean>();
-  for (const response of savedResponses) {
-    responses[String(response.question_id)] = responseForQuestion(response, questionById.get(response.question_id));
-    timings[String(response.question_id)] = Number(response.seconds ?? 0);
-    flaggedByQuestion.set(Number(response.question_id), response.flagged);
+  const { error: integrityError } = await admin.from("exam_integrity_events").insert({
+    attempt_id: attempt.id,
+    type: "restricted-browser-action",
+    detail: detail.trim().slice(0, 500),
+    at: Date.now(),
+  });
+  if (integrityError) {
+    return { ok: false, error: "The examination integrity event could not be recorded." };
   }
 
-  const result = scoreAttempt(paper, {
-    responses,
-    questionTimings: timings,
-    elapsedActiveSeconds: state.elapsed_active_seconds,
-    startedAt: attempt.started_at ?? Date.now(),
-    submittedAt: null,
-    integrityEvents: events,
-  }, session) as unknown as {
-    accuracy: number; completion: number; paceIndex: number; reasoningIndex: number;
-    integrityScore: number; correctCount: number;
-    details: { questionId: number; subjectId: string; subject: string; correct: boolean | null; response: unknown; seconds: number }[];
-    placement?: { assignedTrack: string; confidence: number };
-  };
-  const now = Date.now();
-  const { data: updated, error: updateError } = await admin.from("exam_attempts").update({
-    submitted_at: now,
-    score: result.accuracy,
-    correct_count: result.correctCount,
-    completion: result.completion,
-    pace_index: result.paceIndex,
-    reasoning_index: result.reasoningIndex,
-    integrity_score: result.integrityScore,
-    assigned_track: placementTrack(result.placement?.assignedTrack),
-    placement_confidence: result.placement?.confidence ?? null,
-    submission_reason: reason.slice(0, 80),
-    updated_at: now,
-  }).eq("id", attempt.id)
-    .eq("student_id", ctx.profile.profile_id)
-    .is("submitted_at", null)
-    .select("id")
-    .maybeSingle();
-  if (updateError) return { ok: false, error: updateError.message };
-  if (!updated) return { ok: false, error: "This attempt has already been submitted." };
+  const finalized = await finalizeExamAttempt({
+    session: runtimeSession.session,
+    attemptId: attempt.id,
+    studentId: ctx.profile.profile_id,
+    reason: "potential-malpractice",
+  });
 
-  if (result.details.length) {
-    const gradedRows = result.details.map((detail) => {
-      const response = splitResponse(detail.response);
-      const question = paper.find((item) => item.id === detail.questionId);
-      return {
-        attempt_id: attempt.id,
-        question_id: detail.questionId,
-        response_text: response.text,
-        response_values: response.values,
-        seconds: detail.seconds,
-        flagged: flaggedByQuestion.get(detail.questionId) ?? false,
-        correct: detail.correct,
-        correct_answer: serializeAnswer(question),
-        graded_at: now,
-        updated_at: now,
-      };
-    });
-    const writeGrading = () => admin.from("exam_attempt_responses").upsert(gradedRows, { onConflict: "attempt_id,question_id" });
-    const firstWrite = await writeGrading();
-    if (firstWrite.error) {
-      const retryWrite = await writeGrading();
-      if (retryWrite.error) {
-        console.error("Submitted attempt grading details could not be persisted", {
-          attemptId: attempt.id,
-          sessionId: session.id,
-          error: retryWrite.error.message,
-        });
-      }
-    }
+  if (!finalized.ok) {
+    return {
+      ok: false,
+      error: finalized.code === "already-submitted" ? "Already submitted." : finalized.error,
+    };
   }
 
-  return {
-    ok: true,
-    summary: {
-      accuracy: result.accuracy,
-      completion: result.completion,
-      paceIndex: result.paceIndex,
-      reasoningIndex: result.reasoningIndex,
-      integrityScore: result.integrityScore,
-      correctCount: result.correctCount,
-      total: paper.length,
-      placement: result.placement,
-    },
-  };
+  return { ok: true, summary: finalized.summary };
 }

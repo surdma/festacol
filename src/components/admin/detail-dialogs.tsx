@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Copy, Download, ExternalLink, Mail, MessageCircle, Pencil, Send, Share2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -21,6 +21,8 @@ import {
   getAdminFormOptionsAction,
   getExamEditorDetailAction,
   updateExamParityAction,
+  type OfferingOption,
+  type SubjectOption,
 } from "@/app/actions/admin-parity";
 import { getExamAccessLinkAction } from "@/app/actions/exam-access-links";
 import { getExamRelationSummaryAction, type ExamRelationSummary } from "@/app/actions/exam-relations";
@@ -28,11 +30,14 @@ import { getQuestionEditorDetailAction } from "@/app/actions/question-bank";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
@@ -56,6 +61,16 @@ function trackLabel(track: AcademicTrack) {
   if (track === "humanities") return "Humanities";
   return "Business";
 }
+function formatExamDuration(seconds: number) {
+  if (seconds < 60) return `${seconds} sec`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
+}
+
+const SINGLE_SUBJECT_EDIT_MODES = new Set(["single", "waec", "bece", "neco", "jamb"]);
 
 export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
   const router = useRouter();
@@ -224,7 +239,7 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                 <p className="mt-2 text-xs text-muted-foreground">Scan to open this exam.{qrRevision ? ` Rev ${qrRevision}.` : ""}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={!canShare} onClick={downloadQr}><Download data-icon="inline-start" />QR PNG</Button>
-                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer" /> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={!canShare} render={canShare ? <a href={sharePath} target="_blank" rel="noreferrer"><span className="sr-only">Open candidate exam link</span></a> : undefined}><ExternalLink data-icon="inline-start" />Open</Button>
                 </div>
               </div>
 
@@ -239,10 +254,10 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button type="button" size="sm" variant="default" disabled={!canShare} onClick={() => void nativeShare()}><Share2 data-icon="inline-start" />Share</Button>
                   <span className="text-xs text-muted-foreground">via</span>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via Telegram"><Send /></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer" /> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
-                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref} /> : undefined} aria-label="Share via email"><Mail /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={whatsappHref} target="_blank" rel="noreferrer"><span className="sr-only">Share exam via WhatsApp</span></a> : undefined} aria-label="Share via WhatsApp"><MessageCircle /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={telegramHref} target="_blank" rel="noreferrer"><span className="sr-only">Share exam via Telegram</span></a> : undefined} aria-label="Share via Telegram"><Send /></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={xHref} target="_blank" rel="noreferrer"><span className="sr-only">Share exam via X</span></a> : undefined} aria-label="Share via X"><span aria-hidden="true" className="text-xs font-extrabold">X</span></Button>
+                  <Button type="button" size="icon-sm" variant="outline" disabled={!canShare} render={canShare ? <a href={emailHref}><span className="sr-only">Share exam via email</span></a> : undefined} aria-label="Share via email"><Mail /></Button>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
@@ -254,7 +269,6 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                     <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this examination?</AlertDialogTitle><AlertDialogDescription>The session can be deleted only when its relational history permits it. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => act(() => deleteExamAction(examId))}>Delete exam</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                   </AlertDialog>
                 </div>
-                {data?.structureLocked ? <p className="mt-2 text-xs text-muted-foreground">Paper structure locked — first attempt already recorded.</p> : null}
               </div>
             </div>
 
@@ -300,47 +314,192 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
 export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
-  const [locked, setLocked] = useState(false);
   const [title, setTitle] = useState("");
+  const [mode, setMode] = useState("single");
   const [durationSeconds, setDurationSeconds] = useState(3600);
   const [questionCount, setQuestionCount] = useState(50);
   const [instructions, setInstructions] = useState("");
   const [status, setStatus] = useState("draft");
   const [cameraRequired, setCameraRequired] = useState(false);
   const [warnAfter, setWarnAfter] = useState(2);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [offerings, setOfferings] = useState<OfferingOption[]>([]);
+  const [classIds, setClassIds] = useState<string[]>([]);
+  const [subjectIds, setSubjectIds] = useState<string[]>([]);
+  const [offeringIds, setOfferingIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<{ isAdmin: boolean; subjectIds: string[]; qualifierAccess: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setError(null);
-    void getExamEditorDetailAction(examId).then((detail) => {
+    setLoaded(false);
+    void Promise.all([
+      getExamEditorDetailAction(examId),
+      getAdminFormOptionsAction(),
+    ]).then(([detail, options]) => {
       const session = detail.session as Record<string, unknown> | null;
       if (!session) { setError("Exam is unavailable or outside your scope."); return; }
+
+      const nextClassIds = ((detail.classes ?? []) as { class_id?: string }[])
+        .map((row) => String(row.class_id ?? ""))
+        .filter(Boolean);
+      const directSubjectIds = [...new Set(detail.subjectIds ?? [])];
+      const currentOfferingIds = [...new Set(detail.offeringIds ?? [])];
+      const offeringSubjectIds = currentOfferingIds
+        .map((offeringId) => options.offerings.find((offering) => offering.id === offeringId)?.subjectId)
+        .filter((subjectId): subjectId is string => Boolean(subjectId));
+
       setTitle(String(session.title ?? ""));
+      setMode(String(session.mode ?? "single"));
       setDurationSeconds(Number(session.duration_seconds ?? 3600));
       setQuestionCount(Number(session.question_count ?? 50));
       setInstructions(String(session.instructions ?? ""));
-      setStatus(String(session.status ?? "draft"));
+      setStatus(String(session.status ?? "draft") === "open" ? "open" : "closed");
       setCameraRequired(detail.cameraRequired);
       setWarnAfter(Number(session.warn_after ?? 2));
-      setLocked(detail.structureLocked);
+      setSubjects(options.subjects);
+      setOfferings(options.offerings);
+      setClassIds(nextClassIds);
+      setSubjectIds(directSubjectIds.length ? directSubjectIds : [...new Set(offeringSubjectIds)]);
+      setOfferingIds(currentOfferingIds);
+      setScope({
+        isAdmin: options.scope.isAdmin,
+        subjectIds: options.scope.subjectIds,
+        qualifierAccess: options.scope.qualifierAccess,
+      });
       setLoaded(true);
     }).catch(() => setError("Exam could not be loaded."));
   }, [examId]);
 
+  const availableSubjects = useMemo(() => {
+    if (mode === "qualifier") {
+      if (scope && !scope.isAdmin && !scope.qualifierAccess) return [];
+      return subjects.filter((subject) => subject.kind === "qualifier");
+    }
+
+    const activeOfferingSubjectIds = new Set(
+      offerings
+        .filter((offering) => offering.status === "active" && classIds.includes(offering.classId))
+        .map((offering) => offering.subjectId),
+    );
+    return subjects.filter((subject) =>
+      subject.kind === "curriculum"
+      && activeOfferingSubjectIds.has(subject.id)
+      && (!scope || scope.isAdmin || scope.subjectIds.includes(subject.id)),
+    );
+  }, [classIds, mode, offerings, scope, subjects]);
+
+  function toggleExamSubject(subjectId: string) {
+    setSubjectIds((current) => {
+      const next = mode === "qualifier"
+        ? current.includes(subjectId)
+          ? current.filter((id) => id !== subjectId)
+          : [...current, subjectId]
+        : SINGLE_SUBJECT_EDIT_MODES.has(mode)
+          ? current[0] === subjectId ? [] : [subjectId]
+          : current.includes(subjectId)
+            ? current.filter((id) => id !== subjectId)
+            : [...current, subjectId];
+
+      setOfferingIds(
+        mode === "qualifier"
+          ? []
+          : offerings
+            .filter((offering) =>
+              offering.status === "active"
+              && classIds.includes(offering.classId)
+              && next.includes(offering.subjectId),
+            )
+            .map((offering) => offering.id),
+      );
+      return next;
+    });
+  }
+
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader><DialogTitle>Edit examination</DialogTitle><DialogDescription>{locked ? "Candidate activity exists, so duration and question count are structurally locked." : "Paper structure remains editable until the first candidate starts."}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Edit examination</DialogTitle><DialogDescription>Duration and question-count changes apply only to candidates who start after you save. Candidates already writing keep the time and paper they started with. Closing the exam finalizes active attempts.</DialogDescription></DialogHeader>
         {loaded ? <FieldGroup>
           <Field><FieldLabel htmlFor="ee-title">Title</FieldLabel><Input id="ee-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={72} /></Field>
-          <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-duration">Duration (seconds)</FieldLabel><Input id="ee-duration" type="number" disabled={locked} min={30} max={14400} value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))} /></Field><Field><FieldLabel htmlFor="ee-count">Questions</FieldLabel><Input id="ee-count" type="number" disabled={locked} min={5} max={200} value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} /></Field></div>
+          <Field>
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <FieldLabel>Subjects ({subjectIds.length} selected)</FieldLabel>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Changes apply only to students who start after you save. Students already writing keep the paper they started with.
+                </p>
+              </div>
+              <Badge variant="secondary">{mode === "qualifier" ? "Placement paper" : "Class offerings"}</Badge>
+            </div>
+            <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {availableSubjects.map((subject) => {
+                const checked = subjectIds.includes(subject.id);
+                return (
+                  <FieldLabel
+                    key={subject.id}
+                    className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => toggleExamSubject(subject.id)} />
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm">{subject.name}</strong>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">{subject.code}</span>
+                    </span>
+                  </FieldLabel>
+                );
+              })}
+              {!availableSubjects.length ? (
+                <p className="col-span-full py-5 text-sm text-muted-foreground">
+                  No subjects are available for this examination and your current staff scope.
+                </p>
+              ) : null}
+            </div>
+          </Field>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field>
+              <div className="flex items-center justify-between gap-2"><FieldLabel>Duration</FieldLabel><Badge variant="secondary" className="tabular-nums">{formatExamDuration(durationSeconds)}</Badge></div>
+              <Slider aria-label="Exam duration" min={30} max={14400} step={30} value={[durationSeconds]} onValueChange={(value) => setDurationSeconds(Array.isArray(value) ? (value[0] ?? 30) : value)} />
+              <div className="flex justify-between text-xs text-muted-foreground"><span>30 sec</span><span>4 hrs</span></div>
+              <p className="text-xs text-muted-foreground">Applies only to candidates who have not started yet.</p>
+            </Field>
+            <Field>
+              <div className="flex items-center justify-between gap-2"><FieldLabel>Questions</FieldLabel><Badge variant="secondary" className="tabular-nums">{questionCount} questions</Badge></div>
+              <Slider aria-label="Question count" min={5} max={200} step={1} value={[questionCount]} onValueChange={(value) => setQuestionCount(Array.isArray(value) ? (value[0] ?? 5) : value)} />
+              <div className="flex justify-between text-xs text-muted-foreground"><span>5</span><span>200</span></div>
+              <p className="text-xs text-muted-foreground">Existing attempts keep their allocated question IDs.</p>
+            </Field>
+          </div>
           <Field><FieldLabel htmlFor="ee-instructions">Instructions</FieldLabel><Textarea id="ee-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={140} /></Field>
-          <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-status">Status</FieldLabel><NativeSelect id="ee-status" value={status} onChange={(event) => setStatus(event.target.value)}>{["draft", "open", "closed"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></Field><Field><FieldLabel htmlFor="ee-warn">Integrity warning threshold</FieldLabel><Input id="ee-warn" type="number" min={1} max={10} value={warnAfter} onChange={(event) => setWarnAfter(Number(event.target.value))} /></Field></div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Exam availability</FieldLabel>
+              <RadioGroup aria-label="Exam availability" value={status} onValueChange={(value) => setStatus(value === "open" ? "open" : "closed")} className="grid grid-cols-2 gap-2">
+                {([
+                  { value: "open", title: "Open", hint: "New candidates can start" },
+                  { value: "closed", title: "Closed", hint: "Finalize active attempts" },
+                ] as const).map((option) => {
+                  const optionId = `ee-status-${option.value}`;
+                  return (
+                    <FieldLabel
+                      key={option.value}
+                      htmlFor={optionId}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40 has-data-checked:border-neutral-950 has-data-checked:bg-neutral-950 has-data-checked:text-white"
+                    >
+                      <RadioGroupItem id={optionId} value={option.value} />
+                      <span className="min-w-0"><strong className="block text-sm">{option.title}</strong><span className="mt-0.5 block text-xs opacity-70">{option.hint}</span></span>
+                    </FieldLabel>
+                  );
+                })}
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">Closing blocks new starts and finalizes every active attempt from server-saved responses.</p>
+            </Field>
+            <Field><FieldLabel htmlFor="ee-warn">Integrity warning threshold</FieldLabel><Input id="ee-warn" type="number" min={1} max={10} value={warnAfter} onChange={(event) => setWarnAfter(Number(event.target.value))} /></Field>
+          </div>
           <Field><div className="flex items-center justify-between rounded-xl border p-3"><div><FieldLabel htmlFor="ee-camera">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Require camera permission before the candidate enters the paper.</p></div><Switch id="ee-camera" checked={cameraRequired} onCheckedChange={setCameraRequired} /></div></Field>
         </FieldGroup> : <p className="text-sm text-muted-foreground">Loading examination…</p>}
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!loaded || pending} onClick={() => startTransition(async () => { setError(null); const result = await updateExamParityAction(examId, { title, durationSeconds, questionCount, instructions, status, cameraRequired, warnAfter }); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{pending ? "Saving…" : "Save changes"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!loaded || pending} onClick={() => startTransition(async () => { setError(null); const result = await updateExamParityAction(examId, { title, durationSeconds, questionCount, instructions, status, cameraRequired, warnAfter, subjectIds, offeringIds }); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{pending ? "Saving…" : "Save changes"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

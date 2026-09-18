@@ -117,7 +117,7 @@ export default async function TeachingSettingsPage() {
         <Badge variant="outline">Teacher</Badge>
         <Badge variant="secondary">{scope.subjectIds.length} qualified subjects</Badge>
         <Badge variant="secondary">{assignmentDetails.length} active assignments</Badge>
-        <Badge variant={scope.qualifierAccess ? "secondary" : "outline"}>Qualifier {scope.qualifierAccess ? "enabled" : "not assigned"}</Badge>
+        <Badge variant="secondary">Placement & entrance always available</Badge>
       </div>
 
       <MajorPicker />

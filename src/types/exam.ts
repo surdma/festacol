@@ -33,20 +33,23 @@ export interface ExamSessionDTO {
   };
 }
 
-export interface QuestionDTO {
+export interface ExamPaperQuestionDTO {
   id: number;
   subjectId: string;
   subject: string;
   type: QuestionType;
   prompt: string;
   options?: string[];
-  levels: ClassLevel[];
-  examModes: ExamMode[];
   fillTemplate?: { text?: string; blank?: boolean; placeholder?: string; key?: string }[];
   instruction?: string;
   domain?: string;
-  difficulty?: string;
   requiredSelections?: number;
+}
+
+export interface QuestionDTO extends ExamPaperQuestionDTO {
+  levels: ClassLevel[];
+  examModes: ExamMode[];
+  difficulty?: string;
   answer?: unknown;
 }
 
@@ -79,24 +82,19 @@ export interface ExamSubjectPerformance {
   seconds: number;
 }
 
-export interface ExamResultReviewItem {
-  questionId: number;
-  questionNumber: number;
-  subject: string;
-  type: QuestionType;
-  prompt: string;
-  response: unknown;
-  correctAnswer: string;
-  correct: boolean | null;
-  seconds: number;
-  domain?: string;
-  explanation?: string;
-}
+export type ExamSubmissionReason = "manual" | "time-expired" | "exam-closed" | "potential-malpractice" | "unknown";
 
 export interface ExamResultSummary {
   attemptId: string;
+  attemptNumber: number;
   submittedAt: number;
   startedAt: number | null;
+  submissionReason: ExamSubmissionReason;
+  sessionTitle: string;
+  candidateName: string;
+  mode: ExamMode;
+  durationSeconds: number;
+  questionCount: number;
   score: number;
   completion: number;
   correctCount: number;
@@ -109,8 +107,6 @@ export interface ExamResultSummary {
   reasoningIndex: number;
   subjectStats: ExamSubjectPerformance[];
   placement?: { assignedTrack: string; confidence: number };
-  canReviewAnswers: boolean;
-  review: ExamResultReviewItem[];
 }
 
 export interface IntegrityEvent {

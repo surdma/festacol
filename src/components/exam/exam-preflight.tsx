@@ -1,265 +1,286 @@
 "use client";
 
-import { Camera, Check, ChevronLeft, ChevronRight, Clock3, Cloud, FileText, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  CircleAlert,
+  FileText,
+  ShieldCheck,
+  WifiOff,
+} from "lucide-react";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
-import type { ExamExperienceContext } from "@/types/exam";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Spinner } from "@/components/ui/spinner";
 import type { useExamCamera } from "@/hooks/use-exam-camera";
+import type { ExamExperienceContext } from "@/types/exam";
 
-export type ExamPreflightStage = "overview" | "instructions" | "readiness" | "final";
 type CameraController = ReturnType<typeof useExamCamera>;
-
-const STAGES: { id: ExamPreflightStage; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "instructions", label: "Instructions" },
-  { id: "readiness", label: "Device check" },
-  { id: "final", label: "Ready" },
-];
 
 function formatDuration(seconds: number) {
   const totalMinutes = Math.max(1, Math.round(seconds / 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
+
   if (!hours) return `${minutes} minutes`;
-  return minutes ? `${hours} hr ${minutes} min` : `${hours} hour${hours === 1 ? "" : "s"}`;
+  return minutes
+    ? `${hours} hr ${minutes} min`
+    : `${hours} hour${hours === 1 ? "" : "s"}`;
 }
 
 function modeLabel(mode: ExamExperienceContext["session"]["mode"]) {
-  if (mode === "qualifier") return "Entrance / placement assessment";
-  if (mode === "single") return "Single-subject assessment";
-  if (mode === "mixed") return "Multi-subject assessment";
+  if (mode === "qualifier") return "Entrance / placement examination";
+  if (mode === "single") return "Single-subject examination";
+  if (mode === "mixed") return "Multi-subject examination";
   return mode.toUpperCase();
 }
 
-function Availability({ startsAt, endsAt }: { startsAt: number | null; endsAt: number | null }) {
-  if (!startsAt && !endsAt) return <span>Open examination window</span>;
-  if (startsAt && endsAt) return <span>{new Date(startsAt).toLocaleString()} – {new Date(endsAt).toLocaleString()}</span>;
-  if (startsAt) return <span>Starts {new Date(startsAt).toLocaleString()}</span>;
-  return <span>Closes {new Date(endsAt ?? 0).toLocaleString()}</span>;
+function formatAvailability(startsAt: number | null, endsAt: number | null) {
+  if (!startsAt && !endsAt) return "Open examination window";
+  if (startsAt && endsAt) {
+    return `${new Date(startsAt).toLocaleString()} – ${new Date(endsAt).toLocaleString()}`;
+  }
+  if (startsAt) return `Opens ${new Date(startsAt).toLocaleString()}`;
+  return `Closes ${new Date(endsAt ?? 0).toLocaleString()}`;
 }
 
-function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function BookFact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b py-3 last:border-b-0">
-      <span className="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground">{icon}</span>
-      <div className="min-w-0">
-        <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-        <dd className="mt-0.5 text-sm font-semibold leading-6 text-foreground">{value}</dd>
-      </div>
+    <div className="min-w-0">
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm font-semibold leading-5 text-foreground">
+        {value}
+      </dd>
     </div>
   );
 }
 
-function ReadinessRow({ ready, title, description }: { ready: boolean; title: string; description: string }) {
+function BookRule({ number, children }: { number: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 border-b py-3 last:border-b-0">
-      <span className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border", ready ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground")}>
-        {ready ? <Check className="size-3.5" aria-hidden="true" /> : <span className="size-2 rounded-full bg-current" aria-hidden="true" />}
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>
-      </div>
+    <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 border-b border-border/70 py-4 last:border-b-0">
+      <span className="font-mono text-xs font-semibold text-muted-foreground">{number}</span>
+      <p className="text-sm leading-6 text-foreground">{children}</p>
     </div>
   );
 }
 
 export function ExamPreflight({
   context,
-  stage,
-  onStageChange,
   camera,
   online,
   cameraSupported,
-  fullscreenSupported,
   onStart,
   starting,
   error,
 }: {
   context: ExamExperienceContext;
-  stage: ExamPreflightStage;
-  onStageChange: (stage: ExamPreflightStage) => void;
   camera: CameraController;
   online: boolean;
   cameraSupported: boolean;
-  fullscreenSupported: boolean;
   onStart: () => void;
   starting: boolean;
   error: string | null;
 }) {
-  const currentStep = STAGES.findIndex((item) => item.id === stage);
   const { session, candidate, subjectNames, access, cameraRequired } = context;
   const resuming = Boolean(access.activeAttemptId);
-  const canContinueFromReadiness = online && (!cameraRequired || camera.ready);
+  const remainingAttempts = Math.max(0, access.allowedAttempts - access.usedAttempts);
   const subjects = subjectNames.length ? subjectNames.join(" · ") : modeLabel(session.mode);
+  const academicPeriod = [session.academicSession, session.term].filter(Boolean).join(" · ");
+  const canStart = online && (!cameraRequired || camera.ready) && !starting;
+
+  const readinessLabel = !online
+    ? "Reconnect to continue"
+    : cameraRequired && !camera.ready
+      ? "Camera required"
+      : "Ready to write";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 py-5 sm:px-6 sm:py-8 lg:py-10">
-      <header className="border-b pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Festacol Assessment</p>
-            <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{session.title}</h1>
+    <main className="min-h-dvh overflow-x-hidden bg-muted/20 px-3 py-5 text-foreground sm:px-5 sm:py-8 lg:px-8 lg:py-10">
+      <section className="mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-[1240px] items-center sm:min-h-[calc(100dvh-4rem)]">
+        <div className="relative w-full pb-0 lg:pb-12">
+          <div className="relative border border-border bg-background shadow-2xl">
+            <div
+              className="pointer-events-none absolute inset-y-0 left-1/2 z-10 hidden w-10 -translate-x-1/2 bg-gradient-to-r from-transparent via-muted/55 to-transparent lg:block"
+              aria-hidden="true"
+            />
+            <div
+              className="pointer-events-none absolute inset-y-0 left-1/2 z-20 hidden w-px -translate-x-1/2 bg-border lg:block"
+              aria-hidden="true"
+            />
+
+            <div className="grid lg:grid-cols-2">
+              <article className="relative flex min-h-[39rem] flex-col border-b bg-gradient-to-r from-background via-background to-muted/30 p-6 sm:p-9 lg:min-h-[42rem] lg:border-b-0 lg:border-r lg:p-12">
+                <div className="relative max-w-xl">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Examination booklet · {modeLabel(session.mode)}
+                  </p>
+                  <h1 className="mt-8 max-w-lg font-serif text-4xl font-medium leading-[0.94] tracking-[-0.045em] sm:mt-10 sm:text-5xl lg:text-6xl">
+                    {session.title}
+                  </h1>
+                  <p className="mt-4 max-w-lg text-sm font-medium leading-6 text-muted-foreground">
+                    {subjects}
+                  </p>
+                  {academicPeriod ? (
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{academicPeriod}</p>
+                  ) : null}
+                </div>
+
+                <div className="relative mt-auto pt-12">
+                  <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-t-2 border-foreground pt-5 sm:grid-cols-4 lg:grid-cols-2">
+                    <BookFact label="Candidate" value={candidate.fullName} />
+                    <BookFact label="Class" value={candidate.classLabel} />
+                    <BookFact label="Questions" value={session.questionCount} />
+                    <BookFact label="Duration" value={formatDuration(session.durationSeconds)} />
+                  </dl>
+
+                  <div className="mt-6 border-t border-dashed border-border pt-4 text-[11px] leading-5 text-muted-foreground">
+                    <p>
+                      <span className="font-semibold text-foreground">Window:</span>{" "}
+                      {formatAvailability(session.startsAt, session.endsAt)}
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-semibold text-foreground">Attempt:</span>{" "}
+                      {resuming
+                        ? "Already in progress — Resume Examination returns to the saved paper and server-calculated time."
+                        : `${remainingAttempts} of ${access.allowedAttempts} available. Opening this booklet does not use one.`}
+                    </p>
+                    {session.mode === "qualifier" && session.placementTracks.length ? (
+                      <p className="mt-1">
+                        <span className="font-semibold text-foreground">Placement:</span>{" "}
+                        {session.placementTracks.join(" · ")}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+
+              <article className="flex min-h-[39rem] flex-col bg-gradient-to-r from-muted/30 via-background to-background p-6 sm:p-9 lg:min-h-[42rem] lg:p-12">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Inside cover · read once
+                  </p>
+                  <div className="mt-5 border-t border-border/80">
+                    <BookRule number="1">
+                      Answer in any order. Use the navigator to move around the paper, and flag a question when you want to return to it.
+                    </BookRule>
+                    <BookRule number="2">
+                      Your work saves quietly while you write. If the connection drops, keep the examination open while Festacol reconnects.
+                    </BookRule>
+                    <BookRule number="3">
+                      Review unanswered or flagged questions before final submission. When the official time reaches zero, saved responses are finalized.
+                    </BookRule>
+                  </div>
+
+                  {session.instructions.trim() ? (
+                    <Collapsible className="border-b border-border/70">
+                      <CollapsibleTrigger className="flex min-h-12 w-full items-center justify-between gap-4 py-3 text-left">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          <span className="text-xs font-semibold uppercase tracking-[0.12em]">School note</span>
+                        </span>
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pb-4">
+                        <p className="whitespace-pre-line border-l-2 border-border pl-4 text-sm leading-6 text-muted-foreground">
+                          {session.instructions}
+                        </p>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : null}
+                </div>
+
+                <div className="mt-auto pt-8">
+                  {!online ? (
+                    <Alert variant="destructive">
+                      <WifiOff />
+                      <AlertTitle>Reconnect to continue</AlertTitle>
+                      <AlertDescription>
+                        Keep this page open and reconnect before {resuming ? "resuming" : "starting"} the examination.
+                      </AlertDescription>
+                    </Alert>
+                  ) : cameraRequired && !cameraSupported ? (
+                    <Alert variant="destructive">
+                      <CircleAlert />
+                      <AlertTitle>This examination needs a camera</AlertTitle>
+                      <AlertDescription>
+                        This browser cannot provide webcam access. Use a supported browser or device before continuing.
+                      </AlertDescription>
+                    </Alert>
+                  ) : cameraRequired ? (
+                    <ExamCameraPanel
+                      required
+                      variant="booklet"
+                      status={camera.status}
+                      stream={camera.stream}
+                      devices={camera.devices}
+                      deviceId={camera.deviceId}
+                      error={camera.error}
+                      onStart={() => void camera.start()}
+                      onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
+                    />
+                  ) : null}
+
+                  <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-dashed border-border pt-5">
+                    <div>
+                      <span className="inline-block border-4 border-double border-foreground px-3 py-2 font-serif text-base font-semibold uppercase tracking-[0.12em]">
+                        {readinessLabel}
+                      </span>
+                    </div>
+                    <ShieldCheck className="size-5 text-muted-foreground" aria-hidden="true" />
+                  </div>
+
+                  {error ? (
+                    <Alert variant="destructive" className="mt-4">
+                      <CircleAlert />
+                      <AlertTitle>Cannot {resuming ? "resume" : "start"} yet</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                </div>
+              </article>
+            </div>
           </div>
-          <div className="text-right text-xs leading-5 text-muted-foreground">
-            <p className="font-semibold text-foreground">{candidate.fullName}</p>
-            <p>{candidate.studentNumber ?? candidate.classLabel}</p>
-          </div>
-        </div>
-        <Progress value={((currentStep + 1) / STAGES.length) * 100} className="mt-5" aria-label={`Preparation step ${currentStep + 1} of ${STAGES.length}`} />
-        <ol className="mt-3 grid grid-cols-4 gap-2 text-[11px] text-muted-foreground">
-          {STAGES.map((item, index) => (
-            <li key={item.id} className={cn("truncate", index === currentStep && "font-semibold text-foreground")} aria-current={index === currentStep ? "step" : undefined}>
-              <span className="hidden sm:inline">{index + 1}. </span>{item.label}
-            </li>
-          ))}
-        </ol>
-      </header>
 
-      <div className="flex-1 py-6 sm:py-8">
-        {stage === "overview" ? (
-          <section aria-labelledby="exam-overview-title" className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,.8fr)]">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Examination overview</p>
-              <h2 id="exam-overview-title" className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">Know the examination state before you continue.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                {resuming
-                  ? "Your attempt is already in progress. Its server-side time continues while you restore the required device state, then Resume Exam returns you to the saved paper."
-                  : "Your attempt is not started on this screen. Continue through the preparation checks, then use the final Start Exam action when you are ready."}
-              </p>
-
-              <dl className="mt-6 border-y">
-                <DetailRow icon={<FileText className="size-4" aria-hidden="true" />} label="Subject and mode" value={<>{subjects}<span className="block text-xs font-normal text-muted-foreground">{modeLabel(session.mode)}</span></>} />
-                <DetailRow icon={<UserRound className="size-4" aria-hidden="true" />} label="Candidate and class" value={<>{candidate.fullName}<span className="block text-xs font-normal text-muted-foreground">{candidate.classLabel}</span></>} />
-                <DetailRow icon={<Clock3 className="size-4" aria-hidden="true" />} label="Duration and availability" value={<>{formatDuration(session.durationSeconds)}<span className="block text-xs font-normal text-muted-foreground"><Availability startsAt={session.startsAt} endsAt={session.endsAt} /></span></>} />
-              </dl>
-            </div>
-
-            <aside className="self-start rounded-xl border bg-muted/20 p-4" aria-label="Exam summary">
-              <dl className="grid gap-4">
-                <div><dt className="text-xs text-muted-foreground">Questions</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{session.questionCount}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Attempt status</dt><dd className="mt-1 text-sm font-semibold">{resuming ? "In progress" : `${Math.max(0, access.allowedAttempts - access.usedAttempts)} attempt${Math.max(0, access.allowedAttempts - access.usedAttempts) === 1 ? "" : "s"} available`}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Saving</dt><dd className="mt-1 text-sm font-semibold">Automatic progress saving</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Camera</dt><dd className="mt-1 text-sm font-semibold">{cameraRequired ? "Required throughout the exam" : "Not required"}</dd></div>
-              </dl>
-            </aside>
-          </section>
-        ) : null}
-
-        {stage === "instructions" ? (
-          <section aria-labelledby="exam-instructions-title">
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold text-muted-foreground">Instructions</p>
-              <h2 id="exam-instructions-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">How this examination works</h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">Scan each section now. During the exam, the interface keeps the timer, save state, question navigation and camera status visible.</p>
-            </div>
-
-            <div className="mt-7 grid gap-x-8 gap-y-6 md:grid-cols-2">
-              <div><h3 className="text-sm font-semibold">Answering questions</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Select the complete response row for objective questions. Multi-select questions say when more than one response is required. Fill-in questions save what you type.</p></div>
-              <div><h3 className="text-sm font-semibold">Navigation</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">You can move backward and forward, jump through the question navigator, flag questions for review and return to them before final submission.</p></div>
-              <div><h3 className="text-sm font-semibold">Time management</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">The countdown continues while the attempt is active. When it reaches zero, Festacol finalizes and submits the saved responses automatically.</p></div>
-              <div><h3 className="text-sm font-semibold">Saving responses</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Answers save quietly in the background. If the connection drops, keep the exam open. Your on-screen choices stay in place while Festacol reconnects and retries.</p></div>
-              <div><h3 className="text-sm font-semibold">Review and submission</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Before submitting, you will see answered, unanswered and flagged questions. Final submission is deliberate and cannot be undone.</p></div>
-              <div><h3 className="text-sm font-semibold">Examination conduct</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Stay in the examination window. {session.integrityPolicy.focusMonitoring ? "Leaving the window can be recorded as an integrity event. " : ""}{session.integrityPolicy.clipboardGuard ? "Clipboard activity may be recorded. " : ""}{cameraRequired ? "Keep the required camera active throughout the attempt." : ""}</p></div>
-            </div>
-
-            {session.instructions.trim() ? (
-              <Alert className="mt-7">
-                <FileText />
-                <AlertTitle>School instructions</AlertTitle>
-                <AlertDescription className="whitespace-pre-line">{session.instructions}</AlertDescription>
-              </Alert>
-            ) : null}
-          </section>
-        ) : null}
-
-        {stage === "readiness" ? (
-          <section aria-labelledby="device-check-title" className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_22rem]">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Device and browser check</p>
-              <h2 id="device-check-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Make sure your exam environment is ready</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">These checks only verify the capabilities this examination actually needs. No facial-recognition score or behavior score is generated here.</p>
-
-              <div className="mt-6 border-y">
-                <ReadinessRow ready={online} title={online ? "Internet connection available" : "You are currently offline"} description={online ? "Autosave can reach the examination service." : resuming ? "Reconnect before resuming so saved progress can be restored safely." : "Reconnect before starting so your first response can be saved."} />
-                <ReadinessRow ready={!cameraRequired || cameraSupported} title={cameraRequired ? "Browser camera support" : "Camera not required"} description={cameraRequired ? (cameraSupported ? "This browser can request a live webcam stream." : "Use a browser or device that supports webcam access.") : "This examination does not require webcam access."} />
-                {session.integrityPolicy.fullscreenPrompt ? <ReadinessRow ready={fullscreenSupported} title="Full-screen capability" description={fullscreenSupported ? "This browser can enter full screen when requested." : "Full-screen mode is not available in this browser."} /> : null}
-                <ReadinessRow ready title="Microphone" description="Microphone access is not requested for this examination." />
-                <ReadinessRow ready title="Autosave" description="Your responses, flags, question position and remaining time are saved to the active exam session." />
+          <footer className="border-t-2 border-dashed border-background/40 bg-foreground px-5 py-4 text-background shadow-xl lg:absolute lg:-bottom-1 lg:left-[8%] lg:right-[8%] sm:px-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-sm font-semibold">
+                  {resuming ? "Return to your active paper" : "Open the examination paper"}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-background/70">
+                  {resuming
+                    ? "Resume restores your saved answers, question position and remaining server-calculated time."
+                    : "Starting allocates the attempt and begins the official countdown. Opening this booklet alone does not."}
+                </p>
               </div>
-            </div>
-
-            <div className="self-start">
-              <ExamCameraPanel
-                required={cameraRequired}
-                status={camera.status}
-                stream={camera.stream}
-                devices={camera.devices}
-                deviceId={camera.deviceId}
-                error={camera.error}
-                onStart={() => void camera.start()}
-                onSelectDevice={(deviceId) => void camera.selectDevice(deviceId)}
-              />
-            </div>
-          </section>
-        ) : null}
-
-        {stage === "final" ? (
-          <section aria-labelledby="final-check-title" className="mx-auto max-w-3xl">
-            <div className="flex size-11 items-center justify-center rounded-full bg-muted"><ShieldCheck className="size-5" aria-hidden="true" /></div>
-            <p className="mt-5 text-sm font-semibold text-muted-foreground">Final checkpoint</p>
-            <h2 id="final-check-title" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Ready to {resuming ? "resume" : "start"} {session.title}?</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              {resuming
-                ? "Resuming restores your saved paper, answers and remaining server-calculated time. Keep the required camera active and this browser window open until submission completes."
-                : "Starting allocates your examination attempt and starts the active countdown. Keep this browser window open until submission completes."}
-            </p>
-
-            <dl className="mt-7 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border p-4"><dt className="text-xs text-muted-foreground">Duration</dt><dd className="mt-1 text-sm font-semibold">{formatDuration(session.durationSeconds)}</dd></div>
-              <div className="rounded-xl border p-4"><dt className="text-xs text-muted-foreground">Questions</dt><dd className="mt-1 text-sm font-semibold">{session.questionCount}</dd></div>
-              <div className="rounded-xl border p-4"><dt className="text-xs text-muted-foreground">Connection</dt><dd className="mt-1 flex items-center gap-2 text-sm font-semibold"><Cloud className="size-4" aria-hidden="true" />{online ? "Connected" : "Offline"}</dd></div>
-              <div className="rounded-xl border p-4"><dt className="text-xs text-muted-foreground">Camera</dt><dd className="mt-1 flex items-center gap-2 text-sm font-semibold"><Camera className="size-4" aria-hidden="true" />{cameraRequired ? (camera.ready ? "Ready and active" : "Not ready") : "Not required"}</dd></div>
-            </dl>
-
-            {error ? <Alert variant="destructive" className="mt-5"><AlertTitle>Cannot {resuming ? "resume" : "start"} yet</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-
-            <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <Button type="button" variant="outline" size="lg" onClick={() => onStageChange("readiness")} disabled={starting}>
-                <ChevronLeft data-icon="inline-start" />Device check
-              </Button>
-              <Button type="button" size="lg" onClick={onStart} disabled={starting || !online || (cameraRequired && !camera.ready)}>
-                {starting ? "Preparing your paper…" : resuming ? "Resume Exam" : "Start Exam"}
+              <Button
+                type="button"
+                size="lg"
+                variant="secondary"
+                className="min-h-12 shrink-0 px-6"
+                onClick={onStart}
+                disabled={!canStart}
+              >
+                {starting ? <Spinner data-icon="inline-start" /> : <Check data-icon="inline-start" />}
+                {starting
+                  ? resuming
+                    ? "Restoring paper…"
+                    : "Preparing paper…"
+                  : resuming
+                    ? "Resume Examination"
+                    : "Start Examination"}
               </Button>
             </div>
-          </section>
-        ) : null}
-      </div>
-
-      {stage !== "final" ? (
-        <footer className="flex items-center justify-between gap-3 border-t py-4">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            disabled={currentStep === 0}
-            onClick={() => onStageChange(STAGES[Math.max(0, currentStep - 1)].id)}
-          >
-            <ChevronLeft data-icon="inline-start" />Back
-          </Button>
-          <Button
-            type="button"
-            size="lg"
-            disabled={stage === "readiness" && !canContinueFromReadiness}
-            onClick={() => onStageChange(STAGES[Math.min(STAGES.length - 1, currentStep + 1)].id)}
-          >
-            Continue<ChevronRight data-icon="inline-end" />
-          </Button>
-        </footer>
-      ) : null}
+          </footer>
+        </div>
+      </section>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { QuestionDTO } from "@/types/exam";
+import type { ExamPaperQuestionDTO, QuestionDTO } from "@/types/exam";
 
 interface BankPayload {
   questions: QuestionDTO[];
@@ -168,15 +168,17 @@ export function buildTemplate(parts: { text?: string; blank?: boolean; key?: str
   return { template, blanks };
 }
 
-export function sanitizePaper(questions: QuestionDTO[]): Omit<QuestionDTO, "answer">[] {
-  return questions.map((question) => {
-    const {
-      answer: _answer,
-      blanks: _scoringBlanks,
-      ...rest
-    } = question as ScoringQuestionDTO;
-    void _answer;
-    void _scoringBlanks;
-    return rest;
-  });
+export function sanitizePaper(questions: QuestionDTO[]): ExamPaperQuestionDTO[] {
+  return questions.map((question) => ({
+    id: question.id,
+    subjectId: question.subjectId,
+    subject: question.subject,
+    type: question.type,
+    prompt: question.prompt,
+    options: question.options,
+    fillTemplate: question.fillTemplate,
+    instruction: question.instruction,
+    domain: question.domain,
+    requiredSelections: question.requiredSelections,
+  }));
 }

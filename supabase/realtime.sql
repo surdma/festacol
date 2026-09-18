@@ -178,7 +178,6 @@ DECLARE
   v_submitted boolean := false;
   v_session_title text;
   v_student_name text;
-  v_creator_id uuid;
   v_recipient uuid;
   v_payload jsonb;
 BEGIN
@@ -194,8 +193,8 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT e.title,e.created_by_id
-  INTO v_session_title,v_creator_id
+  SELECT e.title
+  INTO v_session_title
   FROM public.exam_sessions e
   WHERE e.id = NEW.session_id;
 
@@ -238,42 +237,14 @@ BEGIN
     PERFORM realtime.send(v_payload,'exam_submitted','student:' || NEW.student_id::text || ':exam',true);
   END IF;
 
-  -- Match the durable staff access model without relying on the current request's role.
+  -- Reuse the same durable authorization rule as RLS so realtime never widens or
+  -- narrows a teacher's subject-scoped workspace independently.
   FOR v_recipient IN
-    SELECT DISTINCT m.id
+    SELECT m.id
     FROM public.school_members m
     WHERE m.status = 'active'
       AND m.role IN ('teacher','administrator')
-      AND (
-        m.role = 'administrator'
-        OR m.id = v_creator_id
-        OR EXISTS (
-          SELECT 1 FROM public.exam_staff_assignments a
-          WHERE a.session_id = NEW.session_id
-            AND a.staff_id = m.id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM public.exam_offering_targets t
-          JOIN public.teaching_assignments ta
-            ON ta.offering_id = t.offering_id
-           AND ta.staff_id = m.id
-           AND ta.ended_at IS NULL
-          WHERE t.session_id = NEW.session_id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM public.exam_class_targets t
-          JOIN public.class_subject_offerings o
-            ON o.class_id = t.class_id
-           AND o.status = 'active'
-          JOIN public.teaching_assignments ta
-            ON ta.offering_id = o.id
-           AND ta.staff_id = m.id
-           AND ta.ended_at IS NULL
-          WHERE t.session_id = NEW.session_id
-        )
-      )
+      AND private.staff_can_access_exam(m.id,NEW.session_id)
   LOOP
     IF v_started THEN
       v_payload := jsonb_build_object(
@@ -319,6 +290,96 @@ AFTER INSERT OR UPDATE OF started_at,submitted_at
 ON public.exam_attempts
 FOR EACH ROW
 EXECUTE FUNCTION private.broadcast_exam_attempt_lifecycle();
+
+-- Candidate support requests are durable rows. Broadcast only to the staff member who
+-- created the examination; the bell can reconstruct the same message from the durable row.
+CREATE OR REPLACE FUNCTION private.broadcast_exam_support_request()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public,private,realtime
+AS $$
+DECLARE
+  v_session_title text;
+BEGIN
+  SELECT e.title INTO v_session_title
+  FROM public.exam_sessions e
+  WHERE e.id = NEW.session_id;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'eventId', 'support:' || NEW.id::text,
+      'requestId', NEW.id,
+      'sessionId', NEW.session_id,
+      'sessionTitle', coalesce(v_session_title, 'Examination'),
+      'requesterName', NEW.requester_name,
+      'category', NEW.category,
+      'message', NEW.message,
+      'createdAt', NEW.created_at
+    ),
+    'exam_help_requested',
+    'staff:' || NEW.recipient_staff_id::text || ':exam',
+    true
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS exam_support_request_realtime_notify ON public.exam_support_requests;
+CREATE TRIGGER exam_support_request_realtime_notify
+AFTER INSERT ON public.exam_support_requests
+FOR EACH ROW
+EXECUTE FUNCTION private.broadcast_exam_support_request();
+
+-- Exam availability changes fan out to every student who already has an attempt for
+-- the session. Active writers receive the close event immediately; previously submitted
+-- candidates receive the same event so their dashboard can refresh its durable signal.
+CREATE OR REPLACE FUNCTION private.broadcast_exam_session_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public,private,realtime
+AS $$
+DECLARE
+  v_recipient uuid;
+  v_payload jsonb;
+BEGIN
+  IF OLD.status IS NOT DISTINCT FROM NEW.status THEN
+    RETURN NEW;
+  END IF;
+
+  v_payload := jsonb_build_object(
+    'eventId', 'session:' || NEW.id || ':' || NEW.updated_at::text,
+    'sessionId', NEW.id,
+    'sessionTitle', NEW.title,
+    'status', NEW.status::text,
+    'previousStatus', OLD.status::text,
+    'updatedAt', NEW.updated_at
+  );
+
+  FOR v_recipient IN
+    SELECT DISTINCT a.student_id
+    FROM public.exam_attempts a
+    WHERE a.session_id = NEW.id
+  LOOP
+    PERFORM realtime.send(
+      v_payload,
+      'exam_session_changed',
+      'student:' || v_recipient::text || ':exam',
+      true
+    );
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS exam_session_realtime_notify ON public.exam_sessions;
+CREATE TRIGGER exam_session_realtime_notify
+AFTER UPDATE OF status ON public.exam_sessions
+FOR EACH ROW
+EXECUTE FUNCTION private.broadcast_exam_session_event();
 
 -- ---------------------------------------------------------------- authorization
 -- Supabase owns realtime.messages and already enables RLS on it. Only policies are managed here.

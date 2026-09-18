@@ -44,12 +44,13 @@ export async function loadExamRuntimeSession(
   if (sessionError || !rawSession) return null;
   const row = rawSession as SessionRow;
 
-  const [offeringTargetResult, classTargetResult, placementResult] = await Promise.all([
+  const [offeringTargetResult, subjectTargetResult, classTargetResult, placementResult] = await Promise.all([
     client.from("exam_offering_targets").select("offering_id").eq("session_id", id),
+    client.from("exam_subject_targets").select("subject_id").eq("session_id", id),
     client.from("exam_class_targets").select("class_id").eq("session_id", id),
     client.from("exam_placement_tracks").select("track").eq("session_id", id),
   ]);
-  if (offeringTargetResult.error || classTargetResult.error || placementResult.error) return null;
+  if (offeringTargetResult.error || subjectTargetResult.error || classTargetResult.error || placementResult.error) return null;
 
   const offeringIds = ((offeringTargetResult.data ?? []) as { offering_id: string }[]).map((item) => item.offering_id);
   const { data: offeringRows, error: offeringError } = offeringIds.length
@@ -98,7 +99,10 @@ export async function loadExamRuntimeSession(
     termName = String((term as { name?: string } | null)?.name ?? "");
   }
 
-  const subjectIds = [...new Set(offerings.map((item) => item.subject_id))];
+  const subjectIds = [...new Set([
+    ...((subjectTargetResult.data ?? []) as { subject_id: string }[]).map((item) => item.subject_id),
+    ...offerings.map((item) => item.subject_id),
+  ])];
   const classGroup = classes.map((item) => item.arm).filter(Boolean).join(", ");
   const placementTracks = ((placementResult.data ?? []) as { track: string }[]).map((item) => displayTrack(item.track));
 

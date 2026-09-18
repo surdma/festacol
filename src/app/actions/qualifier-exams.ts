@@ -36,10 +36,6 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
     if (!current.scope.profileId || (!current.scope.isAdmin && !current.scope.isTeacher)) {
       return { ok: false, error: "Staff sign-in required." };
     }
-    if (!current.scope.qualifierAccess) {
-      return { ok: false, error: "Qualifier examination access is not enabled for this staff account." };
-    }
-
     const title = input.title.trim();
     const subjectIds = [...new Set(input.subjectIds.filter(Boolean))];
     const studentIds = [...new Set(input.studentIds.filter(Boolean))];
@@ -107,6 +103,7 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
       academic_term_id: (activeTerm as { id?: string } | null)?.id ?? null,
       mode: "qualifier",
       status: input.status,
+      closed_at: input.status === "closed" ? now : null,
       duration_seconds: input.durationSeconds,
       question_count: input.questionCount,
       instructions: input.instructions.slice(0, 140),
@@ -128,6 +125,11 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
     if (sessionError) return { ok: false, error: sessionError.message };
 
     try {
+      const { error: subjectTargetError } = await admin.from("exam_subject_targets").insert(
+        subjectIds.map((subjectId) => ({ session_id: id, subject_id: subjectId })),
+      );
+      if (subjectTargetError) throw subjectTargetError;
+
       const { error: trackError } = await admin.from("exam_placement_tracks").insert(
         placementTracks.map((track) => ({ session_id: id, track })),
       );

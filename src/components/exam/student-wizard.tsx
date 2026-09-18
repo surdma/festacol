@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, GraduationCap, School } from "lucide-react";
+import { Check, GraduationCap, School } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
@@ -9,15 +9,24 @@ import {
   type ExamOnboardingData,
 } from "@/app/actions/exam-onboarding";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-
-type Step = "level" | "path" | "class" | "confirm";
-type PathChoice = "class" | "placement";
 
 function trackLabel(value: string) {
   if (value === "science") return "Science";
@@ -30,121 +39,163 @@ function classLabel(item: { levelName: string; track: string; arm: string }) {
   return `${item.levelName} ${trackLabel(item.track)} · Arm ${item.arm}`;
 }
 
-export function StudentWizard({ token }: { token: string }) {
+function deniedMessage(reason: string | null | undefined) {
+  if (reason === "not_qualified") {
+    return "This examination is for a different school level. Your confirmed class has not been changed.";
+  }
+  if (reason === "not_eligible") {
+    return "This examination is not assigned to your confirmed class. Your school record is already complete.";
+  }
+  return "This examination is not available for your confirmed class. Your school record does not need another setup step.";
+}
+
+function LoadingInsert({ slowLoad }: { slowLoad: boolean }) {
+  return (
+    <main className="grid min-h-dvh place-items-center bg-muted/20 px-4 py-8">
+      <section className="w-full max-w-2xl border-y border-dashed border-border bg-background px-6 py-9 text-center shadow-lg" aria-live="polite">
+        <Spinner className="mx-auto size-6" />
+        <h1 className="mt-5 font-serif text-3xl font-medium tracking-[-0.03em]">Opening your examination</h1>
+        <output className="mt-3 block text-sm leading-6 text-muted-foreground">
+          Festacol is checking the school record linked to this paper.
+        </output>
+        {slowLoad ? (
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            This is taking longer than usual. Keep this page open while the school record service responds.
+          </p>
+        ) : null}
+      </section>
+    </main>
+  );
+}
+
+export function StudentWizard({
+  token,
+  denialReason = null,
+}: {
+  token: string;
+  denialReason?: string | null;
+}) {
   const router = useRouter();
   const [data, setData] = useState<ExamOnboardingData | null>(null);
-  const [step, setStep] = useState<Step>("level");
-  const [levelId, setLevelId] = useState("");
   const [classId, setClassId] = useState("");
-  const [pathChoice, setPathChoice] = useState<PathChoice | "">("");
   const [error, setError] = useState<string | null>(null);
+  const [slowLoad, setSlowLoad] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     let active = true;
+
     void getExamOnboardingDataAction(token).then((result) => {
       if (!active) return;
       if (!result.ok) {
         setError(result.error);
         return;
       }
+
       setData(result.data);
-      if (result.data.enrollment) {
-        setLevelId(result.data.enrollment.levelId);
-        setClassId(result.data.enrollment.classId);
-        setPathChoice("class");
-        setStep("confirm");
-      }
+      if (result.data.enrollment) setClassId(result.data.enrollment.classId);
     });
+
     return () => {
       active = false;
     };
   }, [token]);
 
-  const selectedLevel = useMemo(
-    () => data?.levels.find((level) => level.id === levelId) ?? null,
-    [data, levelId],
-  );
-  const availableClasses = useMemo(
-    () => data?.classes.filter((item) => item.levelId === levelId) ?? [],
-    [data, levelId],
-  );
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setSlowLoad(true), 8000);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   const selectedClass = useMemo(
     () => data?.classes.find((item) => item.id === classId) ?? null,
-    [data, classId],
-  );
-  const placementAvailable = Boolean(
-    data && !data.enrollment && data.exam.mode === "qualifier" && selectedLevel?.name === "SS1",
+    [classId, data],
   );
 
-  if (!data && !error) {
-    return (
-      <Card className="mx-auto w-full max-w-2xl">
-        <CardContent className="flex min-h-56 items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Spinner /> Loading your school setup…
-        </CardContent>
-      </Card>
-    );
-  }
+  const ss1Level = useMemo(
+    () => data?.levels.find((level) => level.name === "SS1") ?? null,
+    [data],
+  );
+
+  const groupedClasses = useMemo(
+    () =>
+      (data?.levels ?? [])
+        .map((level) => ({
+          level,
+          classes: (data?.classes ?? []).filter((item) => item.levelId === level.id),
+        }))
+        .filter((group) => group.classes.length > 0),
+    [data],
+  );
+
+  if (!data && !error) return <LoadingInsert slowLoad={slowLoad} />;
 
   if (!data) {
     return (
-      <Alert variant="destructive" className="mx-auto max-w-2xl">
-        <AlertTitle>Academic setup unavailable</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <main className="grid min-h-dvh place-items-center bg-muted/20 px-4 py-8">
+        <section className="w-full max-w-2xl border-y border-dashed border-border bg-background px-6 py-9 shadow-lg sm:px-9">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Examination booklet insert</p>
+          <h1 className="mt-4 font-serif text-3xl font-medium tracking-[-0.03em]">We cannot open the paper yet</h1>
+          <Alert variant="destructive" className="mt-6">
+            <AlertTitle>School record unavailable</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </section>
+      </main>
     );
   }
 
-  function continueFromLevel() {
-    if (!selectedLevel) {
-      setError("Choose your current school level.");
-      return;
-    }
-    setError(null);
-    setClassId("");
-    setPathChoice("");
-    setStep(placementAvailable ? "path" : "class");
-  }
+  const placementFlow = data.exam.mode === "qualifier" && !data.enrollment;
+  const enrollmentClass = data.enrollment
+    ? data.classes.find((item) => item.id === data.enrollment?.classId) ?? null
+    : null;
+  const chosenClass = enrollmentClass ?? selectedClass;
+  const hasConfirmedClass = Boolean(data.enrollment);
+  const qualifierWithConfirmedClass = data.exam.mode === "qualifier" && hasConfirmedClass;
+  const canContinue = placementFlow ? Boolean(ss1Level) : Boolean(chosenClass);
 
-  function continueFromPath() {
-    if (!pathChoice) {
-      setError("Choose whether you need placement or already know your SS1 class.");
-      return;
-    }
-    setError(null);
-    setStep(pathChoice === "placement" ? "confirm" : "class");
-  }
-
-  function continueFromClass() {
-    if (!selectedClass) {
-      setError("Choose the class you currently belong to.");
-      return;
-    }
-    setError(null);
-    setPathChoice("class");
-    setStep("confirm");
+  function returnToDashboard() {
+    router.replace("/dashboard");
+    router.refresh();
   }
 
   function submit() {
-    if (!selectedLevel) return;
+    if (hasConfirmedClass) {
+      returnToDashboard();
+      return;
+    }
+
+    const levelId = placementFlow ? ss1Level?.id : chosenClass?.levelId;
+    if (!levelId) {
+      setError(
+        placementFlow
+          ? "SS1 placement is not configured. Ask a staff member for help."
+          : "Choose your class to continue.",
+      );
+      return;
+    }
+
     setError(null);
     startTransition(async () => {
       const result = await completeExamOnboardingAction({
         token,
-        levelId: selectedLevel.id,
-        classId: pathChoice === "placement" ? null : selectedClass?.id ?? null,
-        placementConsent: pathChoice === "placement",
+        levelId,
+        classId: placementFlow ? null : chosenClass?.id ?? null,
+        placementConsent: placementFlow,
       });
+
       if (!result.ok) {
-        setError(result.error ?? "Your school setup could not be confirmed.");
+        setError(
+          result.error ??
+            "Festacol could not confirm the school record. Ask a staff member for help if this continues.",
+        );
         return;
       }
+
       if (result.next === "dashboard") {
-        router.replace("/dashboard");
-        router.refresh();
+        returnToDashboard();
         return;
       }
+
       if (result.next === "exam") {
         router.replace(`/exam?token=${encodeURIComponent(token)}`);
         router.refresh();
@@ -153,138 +204,128 @@ export function StudentWizard({ token }: { token: string }) {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">Student setup</Badge>
-          <Badge variant="secondary">{data.exam.title}</Badge>
-        </div>
-        <CardTitle>Confirm where you belong in school</CardTitle>
-        <CardDescription>
-          This is saved to your student record. You can confirm an existing class here, but only staff can change a class after it has been confirmed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        {data.enrollment ? (
-          <Alert>
-            <CheckCircle2 />
-            <AlertTitle>Class already confirmed</AlertTitle>
-            <AlertDescription>
-              {classLabel({ levelName: data.enrollment.levelName, track: data.enrollment.track, arm: data.enrollment.arm })}. Confirm this record to continue.
-            </AlertDescription>
-          </Alert>
-        ) : null}
+    <main className="grid min-h-dvh place-items-center bg-muted/20 px-4 py-8 text-foreground">
+      <section
+        className="relative w-full max-w-4xl border-y-2 border-dashed border-border bg-background px-6 py-8 shadow-xl sm:px-9 lg:px-12"
+        aria-labelledby="academic-insert-title"
+      >
+        <div className="pointer-events-none absolute inset-y-0 left-5 border-l border-dashed border-border/70 sm:left-7" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-y-0 right-5 border-r border-dashed border-border/70 sm:right-7" aria-hidden="true" />
 
-        {step === "level" ? (
-          <FieldGroup>
-            <Field>
-              <FieldLabel>Current level</FieldLabel>
-              <RadioGroup value={levelId} onValueChange={(value) => setLevelId(String(value))}>
-                {data.levels.map((level) => (
-                  <label key={level.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
-                    <RadioGroupItem value={level.id} />
-                    <span className="flex-1">
-                      <strong className="block text-sm">{level.name}</strong>
-                      <span className="text-xs text-muted-foreground">Senior secondary level {level.ordinal}</span>
-                    </span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </Field>
-            <Button type="button" onClick={continueFromLevel}>Continue</Button>
-          </FieldGroup>
-        ) : null}
-
-        {step === "path" ? (
-          <FieldGroup>
-            <Field>
-              <FieldLabel>SS1 placement</FieldLabel>
-              <RadioGroup value={pathChoice} onValueChange={(value) => setPathChoice(String(value) as PathChoice)}>
-                <label className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
-                  <RadioGroupItem value="placement" />
-                  <GraduationCap aria-hidden="true" />
-                  <span className="flex-1">
-                    <strong className="block text-sm">Let the placement exam decide my SS1 track</strong>
-                    <span className="text-xs leading-5 text-muted-foreground">Choose this only if you are entering SS1 and have not yet been placed in Science, Humanities or Business.</span>
-                  </span>
-                </label>
-                <label className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
-                  <RadioGroupItem value="class" />
-                  <School aria-hidden="true" />
-                  <span className="flex-1">
-                    <strong className="block text-sm">I already know my SS1 class</strong>
-                    <span className="text-xs leading-5 text-muted-foreground">Choose your actual class instead. You will not write this placement exam.</span>
-                  </span>
-                </label>
-              </RadioGroup>
-            </Field>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => setStep("level")}>Back</Button>
-              <Button type="button" onClick={continueFromPath}>Continue</Button>
+        <div className="mx-auto max-w-3xl">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Examination booklet insert</p>
+              <h1 id="academic-insert-title" className="mt-2 font-serif text-2xl font-medium tracking-[-0.03em] sm:text-3xl">
+                {data.exam.title}
+              </h1>
             </div>
-          </FieldGroup>
-        ) : null}
-
-        {step === "class" ? (
-          <FieldGroup>
-            <Field>
-              <FieldLabel>{selectedLevel?.name} class</FieldLabel>
-              <RadioGroup value={classId} onValueChange={(value) => setClassId(String(value))}>
-                {availableClasses.map((item) => (
-                  <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-input p-4 has-data-checked:border-primary has-data-checked:bg-muted/50">
-                    <RadioGroupItem value={item.id} />
-                    <span className="flex-1">
-                      <strong className="block text-sm">{classLabel(item)}</strong>
-                      <span className="text-xs text-muted-foreground">{trackLabel(item.track)} track</span>
-                    </span>
-                  </label>
-                ))}
-              </RadioGroup>
-              {!availableClasses.length ? <p className="text-sm text-destructive">No active classes are configured for this level. Ask a staff member for help.</p> : null}
-            </Field>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => setStep(placementAvailable ? "path" : "level")}>Back</Button>
-              <Button type="button" disabled={!availableClasses.length} onClick={continueFromClass}>Continue</Button>
-            </div>
-          </FieldGroup>
-        ) : null}
-
-        {step === "confirm" ? (
-          <div className="flex flex-col gap-4">
-            <Alert>
-              <CheckCircle2 />
-              <AlertTitle>{pathChoice === "placement" ? "Confirm placement consent" : "Confirm your class"}</AlertTitle>
-              <AlertDescription>
-                {pathChoice === "placement"
-                  ? "You are confirming that you are entering SS1 and do not yet belong to Science, Humanities or Business. This placement exam decides the suggested SS1 track. You normally get one attempt."
-                  : selectedClass
-                    ? `Your student record will use ${classLabel(selectedClass)}.`
-                    : data.enrollment
-                      ? `Your persisted class is ${classLabel({ levelName: data.enrollment.levelName, track: data.enrollment.track, arm: data.enrollment.arm })}.`
-                      : "Confirm your academic setup."}
-              </AlertDescription>
-            </Alert>
-            {pathChoice === "placement" ? (
-              <p className="text-xs leading-5 text-muted-foreground">
-                After you submit a placement attempt, another attempt is blocked unless a teacher or administrator explicitly grants a retake from the staff workspace.
-              </p>
-            ) : data.exam.mode === "qualifier" ? (
-              <p className="text-xs leading-5 text-muted-foreground">
-                Because you already know your class, you will go to your dashboard instead of writing this placement exam.
-              </p>
-            ) : null}
-            {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-            <div className="flex flex-wrap gap-2">
-              {!data.enrollment ? <Button type="button" variant="outline" disabled={pending} onClick={() => setStep(pathChoice === "placement" ? "path" : "class")}>Back</Button> : null}
-              <Button type="button" disabled={pending} onClick={submit}>
-                {pending ? <><Spinner data-icon="inline-start" />Saving…</> : pathChoice === "placement" ? "I consent — open placement exam" : "Confirm and continue"}
-              </Button>
-            </div>
+            <span className="font-mono text-xs font-semibold text-muted-foreground">02 / READY</span>
           </div>
-        ) : null}
 
-        {step !== "confirm" && error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-      </CardContent>
-    </Card>
+          <div className="py-7">
+            {qualifierWithConfirmedClass && chosenClass ? (
+              <div className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+                <Check className="mt-1 size-5 text-muted-foreground" aria-hidden="true" />
+                <div>
+                  <h2 className="font-serif text-2xl font-medium tracking-[-0.02em]">Your class is already confirmed.</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {classLabel(chosenClass)} is already on your school record, so you do not need this SS1 placement examination.
+                  </p>
+                </div>
+              </div>
+            ) : hasConfirmedClass && chosenClass ? (
+              <div className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+                <School className="mt-1 size-5 text-muted-foreground" aria-hidden="true" />
+                <div>
+                  <h2 className="font-serif text-2xl font-medium tracking-[-0.02em]">Your class is already on your record.</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {classLabel(chosenClass)} · {deniedMessage(denialReason)}
+                  </p>
+                </div>
+              </div>
+            ) : placementFlow ? (
+              <div className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+                <GraduationCap className="mt-1 size-5 text-muted-foreground" aria-hidden="true" />
+                <div>
+                  <h2 className="font-serif text-2xl font-medium tracking-[-0.02em]">Continue to your SS1 placement examination.</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    No level or pathway questionnaire is needed. Continue once, then the selected Ready to Write booklet opens before the examination starts.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <FieldGroup>
+                <Field data-invalid={Boolean(error)}>
+                  <FieldLabel htmlFor="exam-class">Your class</FieldLabel>
+                  <FieldDescription>
+                    Choose the class you already belong to. This is the only school detail needed before Festacol checks the paper.
+                  </FieldDescription>
+                  <Select
+                    value={classId}
+                    onValueChange={(value) => {
+                      setClassId(String(value));
+                      setError(null);
+                    }}
+                  >
+                    <SelectTrigger id="exam-class" className="mt-2 w-full" aria-invalid={Boolean(error)}>
+                      <SelectValue placeholder="Choose your class" />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      {groupedClasses.map(({ level, classes }) => (
+                        <SelectGroup key={level.id}>
+                          <SelectLabel>{level.name}</SelectLabel>
+                          {classes.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {classLabel(item)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!groupedClasses.length ? (
+                    <FieldError>No active classes are configured. Ask a staff member for help.</FieldError>
+                  ) : null}
+                </Field>
+              </FieldGroup>
+            )}
+
+            {error ? (
+              <Alert variant="destructive" className="mt-6">
+                <AlertTitle>Cannot continue yet</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-4 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-xl text-xs leading-5 text-muted-foreground">
+              {hasConfirmedClass
+                ? "No academic change is being made here."
+                : placementFlow
+                  ? "Continuing grants access to this placement paper; the attempt begins later when you choose Start Examination."
+                  : "Festacol saves the class once and immediately re-checks access to this examination."}
+            </p>
+            <Button
+              type="button"
+              size="lg"
+              className="shrink-0"
+              disabled={!hasConfirmedClass && (!canContinue || pending)}
+              onClick={submit}
+            >
+              {pending ? <Spinner data-icon="inline-start" /> : hasConfirmedClass ? <Check data-icon="inline-start" /> : placementFlow ? <GraduationCap data-icon="inline-start" /> : <School data-icon="inline-start" />}
+              {pending
+                ? "Continuing…"
+                : hasConfirmedClass
+                  ? "Return to dashboard"
+                  : placementFlow
+                    ? "Continue to placement exam"
+                    : "Continue to examination"}
+            </Button>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

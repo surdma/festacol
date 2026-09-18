@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { responseStatus } from "@/components/exam/question-card";
 import { cn } from "@/lib/utils";
-import type { QuestionDTO } from "@/types/exam";
+import type { ExamPaperQuestionDTO } from "@/types/exam";
 
-type Q = Omit<QuestionDTO, "answer">;
+type Q = ExamPaperQuestionDTO;
 type NavigatorFilter = "all" | "unanswered" | "flagged";
 
 interface ExamQuestionNavigatorProps {
@@ -53,7 +53,7 @@ export function ExamQuestionNavigator({
   const incompleteCount = paper.filter((question) => responseStatus(question, responses[String(question.id)]) === "incomplete").length;
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 flex-col gap-4 px-0.5">
       <div className="grid grid-cols-3 gap-2 border-b pb-3 text-center">
         <div><p className="text-base font-semibold tabular-nums">{answeredCount}</p><p className="text-[11px] text-muted-foreground">Answered</p></div>
         <div><p className="text-base font-semibold tabular-nums">{paper.length - answeredCount}</p><p className="text-[11px] text-muted-foreground">Need answer</p></div>
@@ -68,55 +68,75 @@ export function ExamQuestionNavigator({
         </TabsList>
       </Tabs>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {grouped.length ? grouped.map(([subject, items]) => (
-          <section key={subject} className="mb-4" aria-label={`${subject} questions`}>
-            {grouped.length > 1 ? <h3 className="mb-2 truncate text-xs font-semibold text-muted-foreground">{subject}</h3> : null}
-            <div className="grid grid-cols-5 gap-1.5">
-              {items.map(({ question, index }) => {
-                const id = String(question.id);
-                const status = responseStatus(question, responses[id]);
-                const current = index === currentIndex;
-                const isFlagged = flaggedSet.has(id);
-                const hasVisited = visitedSet.has(id);
-                const label = [
-                  `Question ${index + 1}`,
-                  current ? "current" : null,
-                  status === "answered" ? "answered" : status === "incomplete" ? "incomplete" : hasVisited ? "visited, unanswered" : "not visited",
-                  isFlagged ? "flagged for review" : null,
-                ].filter(Boolean).join(", ");
-                return (
-                  <Button
-                    key={question.id}
-                    type="button"
-                    variant="outline"
-                    size="icon-lg"
-                    onClick={(event) => {
-                      onJump(index);
-                      const sheet = event.currentTarget.closest('[data-slot="sheet-content"]');
-                      const closeButton = sheet?.querySelector<HTMLButtonElement>('[data-slot="sheet-close"]');
-                      closeButton?.click();
-                    }}
-                    aria-current={current ? "step" : undefined}
-                    aria-label={label}
-                    className={cn(
-                      "relative rounded-lg p-0 text-xs tabular-nums",
-                      current && "border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background",
-                      !current && status === "answered" && "bg-muted font-semibold",
-                      !current && status === "incomplete" && "border-dashed bg-warning/20",
-                      !current && status === "unanswered" && hasVisited && "border-dashed",
-                    )}
-                  >
-                    {index + 1}
-                    {status === "answered" ? <Check className="absolute -right-1 -bottom-1 size-3 rounded-full bg-background text-foreground" aria-hidden="true" /> : null}
-                    {status === "incomplete" ? <Minus className="absolute -right-1 -bottom-1 size-3 rounded-full bg-background text-foreground" aria-hidden="true" /> : null}
-                    {isFlagged ? <Flag className="absolute -right-1 -top-1 size-3 fill-current" aria-hidden="true" /> : null}
-                  </Button>
-                );
-              })}
-            </div>
-          </section>
-        )) : (
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {grouped.length ? grouped.map(([subject, items]) => {
+          const useComfortableTiles = items.length <= 10;
+          return (
+            <section key={subject} className="mb-5 last:mb-0" aria-label={`${subject} questions`}>
+              {grouped.length > 1 ? (
+                <h3 className="mb-2.5 truncate px-0.5 text-xs font-semibold text-muted-foreground">{subject}</h3>
+              ) : null}
+              <div className={cn("grid gap-2", useComfortableTiles ? "grid-cols-2" : "grid-cols-5 sm:grid-cols-6")}>
+                {items.map(({ question, index }) => {
+                  const id = String(question.id);
+                  const status = responseStatus(question, responses[id]);
+                  const current = index === currentIndex;
+                  const isFlagged = flaggedSet.has(id);
+                  const hasVisited = visitedSet.has(id);
+                  const statusText = status === "answered"
+                    ? "Answered"
+                    : status === "incomplete"
+                      ? "Partial"
+                      : hasVisited
+                        ? "Open"
+                        : "New";
+                  const label = [
+                    `Question ${index + 1}`,
+                    current ? "current" : null,
+                    status === "answered" ? "answered" : status === "incomplete" ? "incomplete" : hasVisited ? "visited, unanswered" : "not visited",
+                    isFlagged ? "flagged for review" : null,
+                  ].filter(Boolean).join(", ");
+                  return (
+                    <Button
+                      key={question.id}
+                      type="button"
+                      variant="outline"
+                      size={useComfortableTiles ? "default" : "icon-lg"}
+                      onClick={(event) => {
+                        onJump(index);
+                        const sheet = event.currentTarget.closest('[data-slot="sheet-content"]');
+                        const closeButton = sheet?.querySelector<HTMLButtonElement>('[data-slot="sheet-close"]');
+                        closeButton?.click();
+                      }}
+                      aria-current={current ? "step" : undefined}
+                      aria-label={label}
+                      className={cn(
+                        "relative tabular-nums",
+                        useComfortableTiles
+                          ? "h-12 w-full justify-between rounded-xl px-3 text-left"
+                          : "rounded-lg p-0 text-xs",
+                        current && "border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background",
+                        !current && status === "answered" && "bg-muted font-semibold",
+                        !current && status === "incomplete" && "border-dashed bg-warning/20",
+                        !current && status === "unanswered" && hasVisited && "border-dashed",
+                      )}
+                    >
+                      {useComfortableTiles ? (
+                        <>
+                          <span className="font-semibold">Q{index + 1}</span>
+                          <span className={cn("text-[10px] font-medium", current ? "text-background/70" : "text-muted-foreground")}>{statusText}</span>
+                        </>
+                      ) : index + 1}
+                      {status === "answered" ? <Check className="absolute -right-1 -bottom-1 size-3 rounded-full bg-background text-foreground" aria-hidden="true" /> : null}
+                      {status === "incomplete" ? <Minus className="absolute -right-1 -bottom-1 size-3 rounded-full bg-background text-foreground" aria-hidden="true" /> : null}
+                      {isFlagged ? <Flag className="absolute -right-1 -top-1 size-3 fill-current" aria-hidden="true" /> : null}
+                    </Button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        }) : (
           <p className="rounded-lg border border-dashed p-4 text-center text-xs leading-5 text-muted-foreground">
             No questions match this filter.
           </p>

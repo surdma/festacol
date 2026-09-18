@@ -153,18 +153,19 @@ model SchoolMember {
   createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  classEnrollments    ClassEnrollment[]
-  subjectEnrollments  StudentSubjectEnrollment[]
-  qualifications      StaffSubjectQualification[]
-  teachingAssignments TeachingAssignment[]
-  createdExams        ExamSession[]             @relation("ExamCreator")
-  authoredQuestions   Question[]                @relation("QuestionAuthor")
-  examAssignments     ExamStaffAssignment[]
-  examAccess          ExamStudentAccess[]       @relation("ExamAccessStudent")
-  grantedExamAccess   ExamStudentAccess[]       @relation("ExamAccessGrantor")
-  retakeGrants        ExamRetakeGrant[]         @relation("ExamRetakeStudent")
-  grantedRetakes      ExamRetakeGrant[]         @relation("ExamRetakeGrantor")
-  attempts            ExamAttempt[]
+  classEnrollments     ClassEnrollment[]
+  subjectEnrollments   StudentSubjectEnrollment[]
+  qualifications       StaffSubjectQualification[]
+  teachingAssignments  TeachingAssignment[]
+  createdExams         ExamSession[]             @relation("ExamCreator")
+  authoredQuestions    Question[]                @relation("QuestionAuthor")
+  examAssignments      ExamStaffAssignment[]
+  examAccess           ExamStudentAccess[]       @relation("ExamAccessStudent")
+  grantedExamAccess    ExamStudentAccess[]       @relation("ExamAccessGrantor")
+  retakeGrants         ExamRetakeGrant[]         @relation("ExamRetakeStudent")
+  grantedRetakes       ExamRetakeGrant[]         @relation("ExamRetakeGrantor")
+  receivedExamSupport  ExamSupportRequest[]      @relation("ExamSupportRecipient")
+  attempts             ExamAttempt[]
 
   @@index([role, status])
   @@index([lastName, firstName, role, status])
@@ -271,6 +272,7 @@ model Subject {
   offerings       ClassSubjectOffering[]
   qualifications  StaffSubjectQualification[]
   questions       Question[]
+  examTargets     ExamSubjectTarget[]
 
   @@index([kind, active, name])
   @@map("subjects")
@@ -367,6 +369,7 @@ model ExamSession {
   instructions       String     @default("")
   startsAt           BigInt?    @map("starts_at")
   endsAt             BigInt?    @map("ends_at")
+  closedAt           BigInt?    @map("closed_at")
   attemptLimit       Int        @default(1) @map("attempt_limit")
   focusMonitoring    Boolean    @default(true) @map("focus_monitoring")
   fullscreenPrompt   Boolean    @default(true) @map("fullscreen_prompt")
@@ -384,11 +387,13 @@ model ExamSession {
   creator          SchoolMember?         @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
   classTargets     ExamClassTarget[]
   offeringTargets  ExamOfferingTarget[]
+  subjectTargets   ExamSubjectTarget[]
   placementTracks  ExamPlacementTrack[]
   accessLink       ExamSessionLink?
   staffAssignments ExamStaffAssignment[]
   studentAccess    ExamStudentAccess[]
   retakeGrants     ExamRetakeGrant[]
+  supportRequests  ExamSupportRequest[]
   attempts         ExamAttempt[]
 
   @@index([status, startsAt, endsAt])
@@ -419,6 +424,19 @@ model ExamOfferingTarget {
   @@id([sessionId, offeringId])
   @@index([offeringId])
   @@map("exam_offering_targets")
+}
+
+model ExamSubjectTarget {
+  sessionId String   @map("session_id")
+  subjectId String   @map("subject_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subject Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@id([sessionId, subjectId])
+  @@index([subjectId])
+  @@map("exam_subject_targets")
 }
 
 model ExamPlacementTrack {
@@ -460,6 +478,23 @@ model ExamQrCode {
   link ExamSessionLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
 
   @@map("exam_qr_codes")
+}
+
+model ExamSupportRequest {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId        String   @map("session_id")
+  recipientStaffId String   @map("recipient_staff_id") @db.Uuid
+  requesterName    String   @map("requester_name")
+  category         String
+  message          String
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session        ExamSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  recipientStaff SchoolMember @relation("ExamSupportRecipient", fields: [recipientStaffId], references: [id], onDelete: Cascade)
+
+  @@index([recipientStaffId, createdAt])
+  @@index([sessionId, createdAt])
+  @@map("exam_support_requests")
 }
 
 model ExamStaffAssignment {

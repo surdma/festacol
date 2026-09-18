@@ -1,4 +1,5 @@
 import type { StaffScope } from "@/lib/auth/staff";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ApplicationNotification } from "@/types/admin";
 
@@ -35,36 +36,18 @@ interface WhatsappQueueRow {
   class_id: string;
 }
 
-async function visibleSessionIds(
-  supabase: ServerSupabaseClient,
-  scope: StaffScope,
-  sessions: SessionRow[],
-): Promise<Set<string>> {
-  if (scope.isAdmin) return new Set(sessions.map((session) => session.id));
-  if (!scope.profileId) return new Set();
+interface ExamSupportQueueRow {
+  id: string;
+  session_id: string;
+  requester_name: string;
+  category: string;
+  message: string;
+  created_at: string;
+}
 
-  const [{ data: examAssignments }, { data: teachingAssignments }] = await Promise.all([
-    supabase.from("exam_staff_assignments").select("session_id").eq("staff_id", scope.profileId),
-    supabase.from("teaching_assignments").select("offering_id").eq("staff_id", scope.profileId).is("ended_at", null),
-  ]);
-  const offeringIds = ((teachingAssignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id);
-  const [{ data: offeringTargets }, { data: assignedOfferings }] = offeringIds.length
-    ? await Promise.all([
-        supabase.from("exam_offering_targets").select("session_id").in("offering_id", offeringIds),
-        supabase.from("class_subject_offerings").select("id,class_id").in("id", offeringIds),
-      ])
-    : [{ data: [] }, { data: [] }];
-  const classIds = [...new Set(((assignedOfferings ?? []) as { id: string; class_id: string }[]).map((row) => row.class_id))];
-  const { data: classTargets } = classIds.length
-    ? await supabase.from("exam_class_targets").select("session_id").in("class_id", classIds)
-    : { data: [] };
-
-  return new Set([
-    ...sessions.filter((session) => session.created_by_id === scope.profileId).map((session) => session.id),
-    ...((examAssignments ?? []) as { session_id: string }[]).map((row) => row.session_id),
-    ...((offeringTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
-    ...((classTargets ?? []) as { session_id: string }[]).map((row) => row.session_id),
-  ]);
+function compactSupportMessage(message: string) {
+  const value = message.trim();
+  return value.length > 180 ? `${value.slice(0, 177)}…` : value;
 }
 
 export async function getAdminTopbarNotifications(
@@ -79,12 +62,13 @@ export async function getAdminTopbarNotifications(
       .order("updated_at", { ascending: false })
       .limit(500),
     supabase.from("exam_integrity_events").select("attempt_id").limit(500),
-    supabase.from("classes").select("id,status").limit(200),
-    supabase.from("whatsapp_groups").select("class_id").limit(300),
+    scope.isAdmin ? supabase.from("classes").select("id,status").limit(200) : Promise.resolve({ data: [] }),
+    scope.isAdmin ? supabase.from("whatsapp_groups").select("class_id").limit(300) : Promise.resolve({ data: [] }),
   ]);
 
   const sessions = (sessionsResult.data ?? []) as SessionRow[];
-  const allowedSessionIds = await visibleSessionIds(supabase, scope, sessions);
+  // exam_sessions is already filtered by the same RLS authority used by the workspace.
+  const allowedSessionIds = new Set(sessions.map((session) => session.id));
   const visibleSessions = sessions.filter((session) => allowedSessionIds.has(session.id));
   const attempts = ((attemptsResult.data ?? []) as AttemptQueueRow[]).filter((attempt) => allowedSessionIds.has(attempt.session_id));
   const visibleAttemptIds = new Set(attempts.map((attempt) => attempt.id));
@@ -101,6 +85,20 @@ export async function getAdminTopbarNotifications(
       .map((student) => [student.id, `${student.first_name} ${student.last_name}`.trim()]),
   );
   const sessionTitles = new Map(visibleSessions.map((session) => [session.id, session.title]));
+
+  const admin = createSupabaseAdminClient();
+  const supportCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const supportResult = scope.profileId
+    ? await admin
+        .from("exam_support_requests")
+        .select("id,session_id,requester_name,category,message,created_at")
+        .eq("recipient_staff_id", scope.profileId)
+        .gte("created_at", supportCutoff)
+        .order("created_at", { ascending: false })
+        .limit(3)
+    : { data: [] };
+  const supportRequests = ((supportResult.data ?? []) as ExamSupportQueueRow[])
+    .filter((request) => allowedSessionIds.has(request.session_id));
 
   const drafts = visibleSessions.filter((session) => session.status === "draft");
   const activeAttempts = attempts.filter((attempt) => attempt.started_at && !attempt.submitted_at);
@@ -127,6 +125,17 @@ export async function getAdminTopbarNotifications(
     .slice(0, 2);
 
   const items: ApplicationNotification[] = [];
+
+  for (const request of supportRequests) {
+    const sessionTitle = sessionTitles.get(request.session_id) ?? "Examination";
+    items.push({
+      id: `exam-support-${request.id}`,
+      title: `Examination support · ${sessionTitle}`,
+      detail: `${request.requester_name} · ${request.category}: ${compactSupportMessage(request.message)}`,
+      icon: "school",
+      tone: "amber",
+    });
+  }
 
   if (integrityAttempts.size) {
     items.push({
@@ -172,8 +181,8 @@ export async function getAdminTopbarNotifications(
   if (drafts.length) {
     items.push({
       id: "draft-exams",
-      title: `${drafts.length} draft exam${drafts.length === 1 ? "" : "s"} need review`,
-      detail: "Review questions, targeting, duration and controls before publishing these examinations.",
+      title: `${drafts.length} draft examination${drafts.length === 1 ? "" : "s"} need review`,
+      detail: "Review questions, targeting, duration and examination controls before publishing.",
       icon: "book",
       tone: "amber",
     });

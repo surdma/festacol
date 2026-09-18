@@ -31,6 +31,26 @@ interface ExamLifecycleBroadcastPayload {
   score?: number | null;
 }
 
+interface ExamSessionBroadcastPayload {
+  eventId: string;
+  sessionId: string;
+  sessionTitle: string;
+  status: "draft" | "open" | "closed" | "scheduled";
+  previousStatus: "draft" | "open" | "closed" | "scheduled";
+  updatedAt: number;
+}
+
+interface ExamHelpRequestBroadcastPayload {
+  eventId: string;
+  requestId: string;
+  sessionId: string;
+  sessionTitle: string;
+  requesterName: string;
+  category: string;
+  message: string;
+  createdAt: string;
+}
+
 const STAFF_BATCH_WINDOW_MS = 700;
 
 export function RealtimeNotificationSync({
@@ -119,10 +139,10 @@ export function RealtimeNotificationSync({
       const active = payload.status === "active";
       toast.add({
         type: active ? "success" : "warning",
-        title: active ? "Exam retake approved" : "Exam retake access changed",
+        title: active ? "Examination retake approved" : "Examination retake access changed",
         description: active
-          ? `${payload.sessionTitle} now has ${attempts} additional attempt${attempts === 1 ? "" : "s"} available. Your access is updating now.`
-          : `${payload.sessionTitle} no longer has an active retake grant. Your exam access is updating now.`,
+          ? `${payload.sessionTitle} now has ${attempts} additional attempt${attempts === 1 ? "" : "s"} available. Your examination access is updating now.`
+          : `${payload.sessionTitle} no longer has an active retake grant. Your examination access is updating now.`,
       });
       router.refresh();
     };
@@ -138,7 +158,38 @@ export function RealtimeNotificationSync({
       const payload = message.payload as ExamLifecycleBroadcastPayload | undefined;
       if (!payload?.eventId || seenRef.current.has(payload.eventId)) return;
       seenRef.current.add(payload.eventId);
+      const activeHere = payload.sessionId === examSessionId && presenceAttemptId === payload.attemptId;
       if (presenceAttemptId === payload.attemptId) void leavePresence();
+      if (!activeHere) router.refresh();
+    };
+
+    const handleStudentSessionChanged = (message: { payload?: unknown }) => {
+      const payload = message.payload as ExamSessionBroadcastPayload | undefined;
+      if (!payload?.eventId || seenRef.current.has(payload.eventId)) return;
+      seenRef.current.add(payload.eventId);
+
+      if (payload.status === "closed") {
+        const activeHere = payload.sessionId === examSessionId && Boolean(presenceAttemptId || activeAttemptId);
+        toast.add({
+          type: "warning",
+          title: `${payload.sessionTitle} has closed`,
+          description: activeHere
+            ? "The examination was closed by staff. Festacol is finalizing the answers already accepted by the server."
+            : "The examination is now closed. Your completed attempt remains recorded in Exam history.",
+          priority: "high",
+        });
+        if (activeHere) {
+          window.dispatchEvent(new CustomEvent("festacol:exam-session-changed", { detail: payload }));
+          return;
+        }
+      } else if (payload.status === "open") {
+        toast.add({
+          type: "info",
+          title: `${payload.sessionTitle} is open`,
+          description: "Examination availability changed. Your dashboard is updating now.",
+        });
+      }
+
       router.refresh();
     };
 
@@ -175,7 +226,7 @@ export function RealtimeNotificationSync({
         ].filter(Boolean).join(" · ");
         toast.add({
           type: submitted ? "success" : "info",
-          title: `${batch.length} exam updates`,
+          title: `${batch.length} examination updates`,
           description: `${segments}${sessions > 1 ? ` across ${sessions} examinations` : ""}. Open Examinations or a student record for individual details.`,
         });
       }
@@ -192,12 +243,24 @@ export function RealtimeNotificationSync({
       }
     };
 
+    const handleStaffHelpRequest = (message: { payload?: unknown }) => {
+      const payload = message.payload as ExamHelpRequestBroadcastPayload | undefined;
+      if (!payload?.eventId || seenRef.current.has(payload.eventId)) return;
+      seenRef.current.add(payload.eventId);
+      toast.add({
+        type: "warning",
+        title: `Examination support · ${payload.sessionTitle}`,
+        description: `${payload.requesterName} · ${payload.category}: ${payload.message}`,
+      });
+      router.refresh();
+    };
+
     const warnRealtimeUnavailable = (description: string) => {
       if (realtimeWarningShown || cancelled) return;
       realtimeWarningShown = true;
       toast.add({
         type: "warning",
-        title: "Live exam updates are unavailable",
+        title: "Live examination updates are unavailable",
         description,
       });
     };
@@ -217,11 +280,13 @@ export function RealtimeNotificationSync({
           channel
             .on("broadcast", { event: "exam_retake_changed" }, handleStudentRetake)
             .on("broadcast", { event: "exam_started" }, handleStudentStarted)
-            .on("broadcast", { event: "exam_submitted" }, handleStudentSubmitted);
+            .on("broadcast", { event: "exam_submitted" }, handleStudentSubmitted)
+            .on("broadcast", { event: "exam_session_changed" }, handleStudentSessionChanged);
         } else {
           channel
             .on("broadcast", { event: "exam_started" }, handleStaffLifecycle)
-            .on("broadcast", { event: "exam_submitted" }, handleStaffLifecycle);
+            .on("broadcast", { event: "exam_submitted" }, handleStaffLifecycle)
+            .on("broadcast", { event: "exam_help_requested" }, handleStaffHelpRequest);
         }
 
         channel.subscribe((status) => {

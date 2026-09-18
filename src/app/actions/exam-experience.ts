@@ -1,17 +1,17 @@
 "use server";
 
 import { z } from "zod";
-import { answersMayBeRevealed, effectiveStatus, paperFromQuestionIds } from "@/lib/assessment";
+import { paperFromQuestionIds } from "@/lib/assessment";
 import { currentStudent } from "@/lib/auth/current-student";
+import { attemptDurationSeconds } from "@/lib/exam-finalization";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { ExamAttemptContextSnapshot } from "@/types/db";
 import type {
   ExamExperienceContext,
-  ExamResultReviewItem,
   ExamResultSummary,
   ExamSubjectPerformance,
-  QuestionDTO,
 } from "@/types/exam";
 
 const sessionIdSchema = z.string().trim().min(1).max(64).transform((value) => value.toUpperCase());
@@ -26,8 +26,13 @@ interface AccessRow {
 
 interface ResultAttemptRow {
   id: string;
+  attempt_number: number;
+  context_snapshot: ExamAttemptContextSnapshot;
   started_at: number | null;
   submitted_at: number | null;
+  submission_reason: string;
+  remaining_seconds: number | null;
+  last_active_at: number | null;
   score: number | null;
   correct_count: number | null;
   completion: number | null;
@@ -45,7 +50,6 @@ interface ResultResponseRow {
   response_values: string[];
   seconds: number;
   correct: boolean | null;
-  correct_answer: string | null;
 }
 
 export type ExamExperienceResult =
@@ -72,23 +76,9 @@ function accessError(reason: string | null): string {
   return "This examination is unavailable for your account.";
 }
 
-function decodeResponse(row: ResultResponseRow): unknown {
-  if (Array.isArray(row.response_values) && row.response_values.length > 0) {
-    return row.response_values.map(String);
-  }
-  if (typeof row.response_text !== "string") return null;
-  const value = row.response_text.trim();
-  if (!value) return "";
-  if (value === "true" || value === "false") return value === "true";
-  if (value.startsWith("{") && value.endsWith("}")) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
-    } catch {
-      // A normal text response may contain braces. Keep it as text when it is not JSON.
-    }
-  }
-  return row.response_text;
+function resultSubmissionReason(value: string): ExamResultSummary["submissionReason"] {
+  if (value === "manual" || value === "time-expired" || value === "exam-closed" || value === "potential-malpractice") return value;
+  return "unknown";
 }
 
 function responseIsAnswered(row: ResultResponseRow | undefined): boolean {
@@ -112,13 +102,6 @@ function responseIsAnswered(row: ResultResponseRow | undefined): boolean {
   return true;
 }
 
-function serializeAnswer(question: QuestionDTO | undefined): string {
-  const answer = (question as { answer?: unknown } | undefined)?.answer;
-  if (Array.isArray(answer)) return answer.map(String).join(", ");
-  if (answer && typeof answer === "object") return JSON.stringify(answer);
-  return String(answer ?? "");
-}
-
 export async function getExamExperienceContextAction(sessionId: string): Promise<ExamExperienceResult> {
   const parsed = sessionIdSchema.safeParse(sessionId);
   if (!parsed.success) return { ok: false, error: "The examination session identifier is invalid." };
@@ -135,6 +118,36 @@ export async function getExamExperienceContextAction(sessionId: string): Promise
   if (accessReadError) return { ok: false, error: "Exam eligibility could not be verified." };
   const access = (Array.isArray(accessData) ? accessData[0] : accessData) as AccessRow | null;
   if (!access?.eligible) return { ok: false, error: accessError(access?.denial_reason ?? null) };
+
+  let effectiveSession = runtime.session;
+  if (access.active_attempt_id) {
+    const { data: activeAttempt, error: activeAttemptError } = await ctx.supabase
+      .from("exam_attempts")
+      .select("started_at,last_active_at,remaining_seconds,elapsed_active_seconds,context_snapshot,question_ids")
+      .eq("id", access.active_attempt_id)
+      .eq("student_id", ctx.profile.profile_id)
+      .maybeSingle();
+
+    if (activeAttemptError || !activeAttempt) {
+      return { ok: false, error: "Your active examination timing could not be restored safely. Retry without starting a new attempt." };
+    }
+
+    if (activeAttempt) {
+      const row = activeAttempt as {
+        started_at: number | null;
+        last_active_at: number | null;
+        remaining_seconds: number | null;
+        elapsed_active_seconds: number;
+        context_snapshot: ExamAttemptContextSnapshot;
+        question_ids: number[];
+      };
+      effectiveSession = {
+        ...runtime.session,
+        durationSeconds: attemptDurationSeconds(row, runtime.session),
+        questionCount: row.question_ids.length || Number(row.context_snapshot?.questionCount ?? runtime.session.questionCount),
+      };
+    }
+  }
 
   const [{ data: subjectRows, error: subjectError }, classResult] = await Promise.all([
     runtime.session.subjectIds.length
@@ -170,7 +183,7 @@ export async function getExamExperienceContextAction(sessionId: string): Promise
   return {
     ok: true,
     data: {
-      session: runtime.session,
+      session: effectiveSession,
       cameraRequired: runtime.cameraRequired,
       subjectNames,
       candidate: {
@@ -199,7 +212,7 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
 
   const { data: attemptData, error: attemptError } = await ctx.supabase
     .from("exam_attempts")
-    .select("id,started_at,submitted_at,score,correct_count,completion,pace_index,reasoning_index,assigned_track,placement_confidence,elapsed_active_seconds,question_ids")
+    .select("id,attempt_number,context_snapshot,started_at,submitted_at,submission_reason,remaining_seconds,last_active_at,score,correct_count,completion,pace_index,reasoning_index,assigned_track,placement_confidence,elapsed_active_seconds,question_ids")
     .eq("session_id", runtime.session.id)
     .eq("student_id", ctx.profile.profile_id)
     .not("submitted_at", "is", null)
@@ -215,7 +228,7 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
   const admin = createSupabaseAdminClient();
   const { data: responseData, error: responseError } = await admin
     .from("exam_attempt_responses")
-    .select("question_id,response_text,response_values,seconds,correct,correct_answer")
+    .select("question_id,response_text,response_values,seconds,correct")
     .eq("attempt_id", attempt.id);
   if (responseError) return { ok: false, error: "Your question results could not be loaded." };
   const responseRows = (responseData ?? []) as ResultResponseRow[];
@@ -254,54 +267,31 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
     percent: item.total ? Math.round((item.correct / item.total) * 100) : 0,
   }));
 
-  const currentStatus = effectiveStatus(runtime.session);
-  const canReviewAnswers = currentStatus === "draft"
-    || currentStatus === "open"
-    || currentStatus === "closed"
-    || currentStatus === "scheduled"
-    ? answersMayBeRevealed(runtime.session, currentStatus)
-    : false;
-  let review: ExamResultReviewItem[] = [];
-  if (canReviewAnswers && paper.length) {
-    const questionIds = paper.map((question) => question.id);
-    const { data: explanationRows } = await admin
-      .from("questions")
-      .select("id,explanation")
-      .in("id", questionIds);
-    const explanationById = new Map(
-      ((explanationRows ?? []) as { id: number; explanation: string | null }[]).map((row) => [Number(row.id), row.explanation ?? ""]),
-    );
-    review = paper.map((question, index) => {
-      const response = responseByQuestion.get(question.id);
-      const item: ExamResultReviewItem = {
-        questionId: question.id,
-        questionNumber: index + 1,
-        subject: question.subject,
-        type: question.type,
-        prompt: question.prompt,
-        response: response ? decodeResponse(response) : null,
-        correctAnswer: response?.correct_answer || serializeAnswer(question),
-        correct: response?.correct ?? null,
-        seconds: Math.max(0, Number(response?.seconds ?? 0)),
-      };
-      if (question.domain) item.domain = question.domain;
-      const explanation = explanationById.get(question.id)?.trim();
-      if (explanation) item.explanation = explanation;
-      return item;
-    });
-  }
-
   const placement = attempt.assigned_track
     ? {
         assignedTrack: displayTrack(attempt.assigned_track),
         confidence: Math.max(0, Number(attempt.placement_confidence ?? 0)),
       }
     : undefined;
+  const snapshotQuestionCount = Math.max(0, Number(attempt.context_snapshot?.questionCount ?? 0));
+  const durationSeconds = attemptDurationSeconds(attempt, runtime.session);
+  const questionCount = attempt.question_ids.length || (snapshotQuestionCount > 0 ? Math.round(snapshotQuestionCount) : total);
+  const sessionTitle = String(attempt.context_snapshot?.sessionTitle ?? runtime.session.title);
+  const candidateName = String(attempt.context_snapshot?.studentName ?? ctx.profile.full_name);
+  const snapshotMode = attempt.context_snapshot?.mode;
+  const mode = snapshotMode ?? runtime.session.mode;
 
   const summary: ExamResultSummary = {
     attemptId: attempt.id,
+    attemptNumber: Math.max(1, Math.round(Number(attempt.attempt_number) || 1)),
     submittedAt: Number(attempt.submitted_at),
     startedAt: attempt.started_at === null ? null : Number(attempt.started_at),
+    submissionReason: resultSubmissionReason(attempt.submission_reason),
+    sessionTitle,
+    candidateName,
+    mode,
+    durationSeconds,
+    questionCount,
     score: Math.max(0, Number(attempt.score ?? 0)),
     completion: Math.max(0, Number(attempt.completion ?? 0)),
     correctCount,
@@ -313,8 +303,6 @@ export async function getExamResultAction(sessionId: string): Promise<ExamResult
     paceIndex: Math.max(0, Number(attempt.pace_index ?? 0)),
     reasoningIndex: Math.max(0, Number(attempt.reasoning_index ?? 0)),
     subjectStats,
-    canReviewAnswers,
-    review,
   };
   if (placement) summary.placement = placement;
 

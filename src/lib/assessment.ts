@@ -83,8 +83,8 @@ function shuffled<T>(items: T[], seed: string): T[] {
 
 function applyOptionOrder(question: QuestionDTO, session: ExamSessionDTO, attemptSeed: string, index: number): QuestionDTO {
   const clone = { ...question };
-  if (Array.isArray(question.options) && session.randomization.optionOrder !== false) {
-    clone.options = shuffled(question.options, `${attemptSeed}|${session.id}|${question.id}|${index}`);
+  if (Array.isArray(question.options) && question.options.length > 1) {
+    clone.options = shuffled(question.options, `${attemptSeed}|${session.id}|${question.id}|${index}|options`);
   }
   return clone;
 }
@@ -112,14 +112,14 @@ export function paperForStudent(
     : session.subjectIds.length
       ? session.subjectIds
       : [...new Set(candidates.map((question) => question.subjectId))];
-  const randomizeQuestions = session.randomization.questionOrder !== false;
-  const salt = session.randomization.minimizePaperCollisions !== false ? `${attemptSeed}|${session.id}` : String(session.id);
-  const ordered = randomizeQuestions ? shuffled(subjectOrder, `${salt}|subjects`) : [...subjectOrder];
+  // Candidate papers are always randomized from the unique attempt id. Session
+  // flags remain in the DTO for backwards compatibility, but they cannot disable
+  // question or option randomization for a live candidate paper.
+  const salt = `${attemptSeed}|${session.id}|paper`;
+  const ordered = shuffled(subjectOrder, `${salt}|subjects`);
   const buckets = new Map(ordered.map((subjectId) => [
     subjectId,
-    randomizeQuestions
-      ? shuffled(candidates.filter((question) => question.subjectId === subjectId), `${salt}|${subjectId}`)
-      : candidates.filter((question) => question.subjectId === subjectId),
+    shuffled(candidates.filter((question) => question.subjectId === subjectId), `${salt}|${subjectId}`),
   ]));
   const selected: QuestionDTO[] = [];
   let cursor = 0;

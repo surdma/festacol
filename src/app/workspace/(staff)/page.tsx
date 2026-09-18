@@ -51,11 +51,11 @@ function Metric({ label, value, detail, icon }: { label: string; value: string |
 export default async function AdminOverviewPage() {
   const { supabase, scope } = await currentStaff();
   const [students, classes, sessions, attemptsResult, groupsResult, eventsResult, questionsResult] = await Promise.all([
-    listUsers(supabase, "student"),
-    listClasses(supabase),
+    scope.isAdmin ? listUsers(supabase, "student") : Promise.resolve([]),
+    scope.isAdmin ? listClasses(supabase) : Promise.resolve([]),
     listSessions(supabase),
     supabase.from("exam_attempts").select("*").order("created_at", { ascending: false }).limit(500),
-    supabase.from("whatsapp_groups").select("class_id").limit(300),
+    scope.isAdmin ? supabase.from("whatsapp_groups").select("class_id").limit(300) : Promise.resolve({ data: [] }),
     supabase.from("exam_integrity_events").select("attempt_id,type").order("at", { ascending: false }).limit(500),
     supabase.from("questions").select("id,subject_id").limit(1000),
   ]);
@@ -89,19 +89,39 @@ export default async function AdminOverviewPage() {
   }
   const operationalExams = [...sessions].sort((a, b) => Number(b.updated_at) - Number(a.updated_at)).slice(0, 5);
   const recent = [...attempts].sort((a, b) => Number(b.submitted_at ?? b.started_at ?? 0) - Number(a.submitted_at ?? a.started_at ?? 0)).slice(0, 6);
-  const setupEmpty = !students.length && !activeClasses.length && !sessions.length;
+  const setupEmpty = scope.isAdmin && !students.length && !activeClasses.length && !sessions.length;
 
   return (
     <div data-admin-dashboard>
-      <PageHead eyebrow="Academic operations" title="Administration overview" detail="Examination delivery, enrolment, class capacity, communication and integrity from the normalized academic graph." actions={<Link href="/workspace/exams?modal=create-exam" className={btnPrimary}><PrototypeAdminIcon name="plus" className="size-4" />Create exam</Link>} />
+      <PageHead
+        eyebrow={scope.isAdmin ? "Academic operations" : "Teaching workspace"}
+        title={scope.isAdmin ? "Administration overview" : "My teaching overview"}
+        detail={scope.isAdmin
+          ? "Examination delivery, enrolment, class capacity, communication and integrity from the normalized academic graph."
+          : "Your selected teaching subjects control the normal examinations, question bank, reports and activity shown here. Entrance and placement examinations are always included."}
+        actions={<Link href="/workspace/exams?modal=create-exam" className={btnPrimary}><PrototypeAdminIcon name="plus" className="size-4" />Create exam</Link>}
+      />
       {setupEmpty ? <section className="mb-5 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 text-white"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Workspace setup</p><h3 className="mt-1 font-display text-xl font-extrabold">Start with your academic structure</h3><p className="mt-1 text-sm text-neutral-400">Create the academic year, levels, classes and subject offerings before publishing examinations.</p></div>{scope.isAdmin ? <Link href="/workspace/classes" className={btnSecondary}>Set up classes</Link> : null}</div></section> : null}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <Metric label="Students" value={students.length} detail={`${activeStudents.length} active records`} icon="users" />
-        <Metric label="Active classes" value={activeClasses.length} detail={`${fullClasses.length} currently at capacity`} icon="school" />
-        <Metric label="Live exams" value={active.length} detail={`${drafts.length} draft · ${sessions.length} total`} icon="book" />
-        <Metric label="Live attempts" value={liveAttempts.length} detail="unfinished candidate sessions" icon="clock" />
-        <Metric label="Submitted" value={submitted.length} detail={`${averageScore}% current average`} icon="check" />
-        <Metric label="Integrity events" value={integrityEvents.length} detail={`${integrityAttempts.size} submitted attempts affected`} icon="shield" />
+        {scope.isAdmin ? (
+          <>
+            <Metric label="Students" value={students.length} detail={`${activeStudents.length} active records`} icon="users" />
+            <Metric label="Active classes" value={activeClasses.length} detail={`${fullClasses.length} currently at capacity`} icon="school" />
+            <Metric label="Live exams" value={active.length} detail={`${drafts.length} draft · ${sessions.length} total`} icon="book" />
+            <Metric label="Live attempts" value={liveAttempts.length} detail="unfinished candidate sessions" icon="clock" />
+            <Metric label="Submitted" value={submitted.length} detail={`${averageScore}% current average`} icon="check" />
+            <Metric label="Integrity events" value={integrityEvents.length} detail={`${integrityAttempts.size} submitted attempts affected`} icon="shield" />
+          </>
+        ) : (
+          <>
+            <Metric label="Teaching subjects" value={scope.subjectIds.length} detail="selected on your account" icon="book" />
+            <Metric label="Visible exams" value={sessions.length} detail="subject scope plus placement" icon="book" />
+            <Metric label="Live exams" value={active.length} detail={`${drafts.length} draft in your scope`} icon="clock" />
+            <Metric label="Live attempts" value={liveAttempts.length} detail="current candidate sessions" icon="clock" />
+            <Metric label="Submitted" value={submitted.length} detail={`${averageScore}% current average`} icon="check" />
+            <Metric label="Question bank" value={questions.length} detail="questions in selected subjects" icon="book" />
+          </>
+        )}
       </section>
 
       <div className="mt-5 grid gap-5 2xl:grid-cols-[1.2fr_.8fr]">
@@ -110,7 +130,16 @@ export default async function AdminOverviewPage() {
           {operationalExams.length ? <div className="divide-y divide-neutral-100">{operationalExams.map((session) => { const counts = attemptCounts.get(session.id) ?? { total: 0, submitted: 0 }; const state = examState(session); return <Link key={session.id} href={`/workspace/exams?modal=exam&exam=${encodeURIComponent(session.id)}`} className="flex items-center gap-3 p-4 hover:bg-neutral-50"><span className="grid size-10 place-items-center rounded-xl bg-neutral-950 text-white"><PrototypeAdminIcon name="book" /></span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{session.title}</strong><span className="mt-1 block truncate text-xs text-neutral-500">{session.targetLabels.join(", ") || "Explicit audience"} · {counts.submitted}/{counts.total} submitted</span></span><Badge tone={badgeTone(state)}>{state}</Badge></Link>; })}</div> : <Empty title="No examinations configured" detail="Create an examination when the academic structure is ready." />}
         </section>
 
-        <aside className={`${card} p-5`}><p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Workspace readiness</p><h3 className="mt-1 font-display text-lg font-extrabold">Operational coverage</h3><div className="mt-4 grid gap-2">{[["Question inventory", `${questions.length} visible`, "book" as const], ["Class communication", `${communicationCoverage}% coverage`, "qr" as const], ["Inactive students", `${inactiveStudents.length}`, "users" as const], ["Exam definitions", `${sessions.length} configured`, "book" as const]].map(([name, value, icon]) => <div key={name} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3"><PrototypeAdminIcon name={icon as PrototypeAdminIconName} className="size-4 text-neutral-600" /><span className="flex-1 text-xs font-semibold text-neutral-600">{name}</span><strong className="text-xs">{value}</strong></div>)}</div></aside>
+        <aside className={`${card} p-5`}>
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-neutral-500">Workspace scope</p>
+          <h3 className="mt-1 font-display text-lg font-extrabold">{scope.isAdmin ? "Operational coverage" : "What is available to you"}</h3>
+          <div className="mt-4 grid gap-2">
+            {(scope.isAdmin
+              ? [["Question inventory", `${questions.length} visible`, "book" as const], ["Class communication", `${communicationCoverage}% coverage`, "qr" as const], ["Inactive students", `${inactiveStudents.length}`, "users" as const], ["Exam definitions", `${sessions.length} configured`, "book" as const]]
+              : [["Selected subjects", `${scope.subjectIds.length} active`, "book" as const], ["Question inventory", `${questions.length} visible`, "book" as const], ["Entrance & placement", "Always available", "school" as const], ["Integrity signals", `${integrityEvents.length} visible`, "shield" as const]]
+            ).map(([name, value, icon]) => <div key={name} className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3"><PrototypeAdminIcon name={icon as PrototypeAdminIconName} className="size-4 text-neutral-600" /><span className="flex-1 text-xs font-semibold text-neutral-600">{name}</span><strong className="text-xs">{value}</strong></div>)}
+          </div>
+        </aside>
       </div>
 
       <section className={`${card} mt-5 overflow-hidden`}>

@@ -68,7 +68,7 @@ export default async function AdminExamsPage({ searchParams }: { searchParams: P
       <AdminPageHeader
         eyebrow="Assessment operations"
         title="Examinations"
-        description={scope.isAdmin ? "Create, distribute, update and audit examinations without exposing raw candidate URLs." : `Scoped to ${scopedNames.join(", ") || "your assigned subject offerings"}${scope.qualifierAccess ? " plus qualifier examinations" : ""}.`}
+        description={scope.isAdmin ? "Create, distribute, update and audit examinations without exposing raw candidate URLs." : `Your normal exam workspace follows ${scopedNames.join(", ") || "the teaching subjects you select in Settings"}. Entrance and placement examinations are always available.`}
         actions={
           <Link href="/workspace/exams?modal=create-exam" className={adminPrimaryButtonClass}>
             <Plus data-icon="inline-start" />Create exam

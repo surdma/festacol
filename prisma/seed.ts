@@ -435,7 +435,10 @@ async function seedDatabase(subjectFixture: SubjectFixture, classFixture: ClassF
     }
 
     for (const subject of subjectFixture.subjects) {
-      const subjectId = subjectIdByCode.get(subject.code)!;
+      const subjectId = subjectIdByCode.get(subject.code);
+      if (!subjectId) {
+        throw new Error(`Seed subject ${subject.code} did not resolve after upsert.`);
+      }
       for (const rule of subject.curriculum) {
         await client.query(
           `INSERT INTO subject_curriculum_rules(subject_id,level_id,track,participation)

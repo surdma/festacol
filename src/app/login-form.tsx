@@ -12,7 +12,15 @@ import {
   safeStudentDestination,
 } from "@/lib/auth/navigation";
 
-export function StudentLoginForm({ next }: { next?: string }) {
+export function StudentLoginForm({
+  next,
+  submitLabel,
+  onIdentityChange,
+}: {
+  next?: string;
+  submitLabel?: string;
+  onIdentityChange?: (identity: { firstName: string; lastName: string }) => void;
+}) {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -28,13 +36,23 @@ export function StudentLoginForm({ next }: { next?: string }) {
     router.refresh();
   }
 
+  function updateFirstName(value: string) {
+    setFirstName(value);
+    onIdentityChange?.({ firstName: value, lastName });
+  }
+
+  function updateLastName(value: string) {
+    setLastName(value);
+    onIdentityChange?.({ firstName, lastName: value });
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
       const result = await signInStudentAction({ firstName, lastName });
       if (!result.ok) {
-        setError(result.error ?? "Sign in failed.");
+        setError(errorMessage(result.error, continuingToExam));
         return;
       }
 
@@ -53,37 +71,37 @@ export function StudentLoginForm({ next }: { next?: string }) {
       <form onSubmit={submit}>
         <FieldGroup>
           <Field data-invalid={Boolean(error)}>
-            <FieldLabel htmlFor="firstName">First name</FieldLabel>
+            <FieldLabel htmlFor="firstName">Candidate first name</FieldLabel>
             <Input
               id="firstName"
               autoComplete="given-name"
               value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
+              onChange={(e) => updateFirstName(e.target.value)}
               aria-invalid={Boolean(error)}
+              disabled={pending}
             />
           </Field>
           <Field data-invalid={Boolean(error)}>
-            <FieldLabel htmlFor="lastName">Last name</FieldLabel>
+            <FieldLabel htmlFor="lastName">Candidate last name</FieldLabel>
             <Input
               id="lastName"
               type="password"
               autoComplete="family-name"
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => updateLastName(e.target.value)}
               aria-invalid={Boolean(error)}
+              disabled={pending}
             />
           </Field>
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm leading-6 text-destructive" role="alert">
               {error}
             </p>
           ) : null}
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending} className="w-full">
             {pending
-              ? "Signing in…"
-              : continuingToExam
-                ? "Continue to exam"
-                : "Open dashboard"}
+              ? "Confirming candidate identity…"
+              : submitLabel ?? (continuingToExam ? "Continue to examination" : "Open student workspace")}
           </Button>
         </FieldGroup>
       </form>
@@ -98,4 +116,13 @@ export function StudentLoginForm({ next }: { next?: string }) {
       />
     </>
   );
+}
+
+function errorMessage(message: string | undefined, continuingToExam: boolean) {
+  if (!message) return continuingToExam ? "Candidate identity could not be confirmed." : "Student sign-in failed.";
+  if (!continuingToExam) return message;
+  return message
+    .replaceAll("Student login", "Candidate identity")
+    .replaceAll("student sign-in", "candidate identity confirmation")
+    .replaceAll("Student sign-in", "Candidate identity confirmation");
 }

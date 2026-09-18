@@ -25,7 +25,7 @@ export function MajorPicker() {
         <div className="max-w-2xl">
           <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">Editable qualification scope</p>
           <h2 id="qualification-heading" className="mt-1 font-display text-lg font-extrabold text-foreground">Subjects you are qualified to teach</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">This controls subject-level question-bank access. It does not assign you to a class; class-subject assignments are managed separately by an administrator.</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">These subjects define your normal workspace scope across examinations, question bank, reports and activity. Entrance and placement examinations are always available separately.</p>
         </div>
         <Badge variant="outline">{selected.length} selected</Badge>
       </div>
@@ -66,7 +66,7 @@ export function MajorPicker() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <strong className="block truncate text-sm font-semibold text-foreground">{subject.name}</strong>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{active ? "Included in your teaching qualification" : "Not included in your teaching qualification"}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{active ? "Available across your teaching workspace" : "Hidden from your normal teaching workspace"}</span>
                 </span>
                 <Badge variant={active ? "secondary" : "outline"}>{active ? "Selected" : "Available"}</Badge>
               </button>
@@ -94,13 +94,13 @@ export function MajorPicker() {
         <div className="border-t border-border p-4">
           <Alert>
             <AlertTitle>Teaching subjects updated</AlertTitle>
-            <AlertDescription>Your qualification scope is now using the selected subjects.</AlertDescription>
+            <AlertDescription>Your examinations, question bank, reports and activity now follow the selected subjects.</AlertDescription>
           </Alert>
         </div>
       ) : null}
 
       <div className="flex flex-col gap-3 border-t border-border bg-muted/20 px-1 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-3">
-        <p className="text-xs leading-5 text-muted-foreground">Changes affect your subject-level access after the save completes.</p>
+        <p className="text-xs leading-5 text-muted-foreground">Saving immediately refreshes your subject-scoped workspace. Placement and entrance exams remain available.</p>
         <Button type="button" disabled={pending || loading || selected.length === 0} onClick={save}>
           {pending ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Save data-icon="inline-start" />}
           {pending ? "Saving…" : "Save qualifications"}

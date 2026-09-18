@@ -12,6 +12,9 @@ import {
 } from "@/app/actions/question-bank";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/auth/staff";
+import { finalizeActiveExamAttemptsForSession } from "@/lib/exam-finalization";
+import { loadExamRuntimeSession } from "@/lib/exam-session";
+import { activeAllocatedQuestionIds, activeQuestionMutationMessage } from "@/lib/question-integrity";
 import {
   generateStudentNumber,
   normalizeStudentNumber,
@@ -58,6 +61,8 @@ function examId(): string {
 
 async function teacherMayManageClass(ctx: StaffContext, classId: string): Promise<boolean> {
   if (ctx.scope.isAdmin) return true;
+  const staffId = ctx.scope.profileId;
+  if (!staffId) return false;
   const { data: offerings } = await ctx.supabase
     .from("class_subject_offerings")
     .select("id")
@@ -68,7 +73,7 @@ async function teacherMayManageClass(ctx: StaffContext, classId: string): Promis
   const { count } = await ctx.supabase
     .from("teaching_assignments")
     .select("id", { count: "exact", head: true })
-    .eq("staff_id", ctx.scope.profileId!)
+    .eq("staff_id", staffId)
     .in("offering_id", offeringIds)
     .is("ended_at", null);
   return (count ?? 0) > 0;
@@ -93,6 +98,8 @@ export interface ExamWizardInput {
 export async function createExamAction(input: ExamWizardInput): Promise<ActionResult & { id?: string }> {
   try {
     const ctx = await requireStaff();
+    const staffId = ctx.scope.profileId;
+    if (!staffId) return { ok: false, error: "Staff sign-in required." };
     const subjectIds = [...new Set(input.subjectIds.filter(Boolean))];
     const offeringIds = [...new Set(input.offeringIds.filter(Boolean))];
     const classIds = [...new Set(input.classIds.filter(Boolean))];
@@ -111,19 +118,6 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
     }
     if (subjectIds.length && offeringRows.some((row) => !subjectIds.includes(row.subject_id))) {
       return { ok: false, error: "Exam subjects and subject offerings do not match." };
-    }
-
-    if (!ctx.scope.isAdmin && offeringIds.length) {
-      const { data: assignments } = await ctx.supabase
-        .from("teaching_assignments")
-        .select("offering_id")
-        .eq("staff_id", ctx.scope.profileId!)
-        .is("ended_at", null)
-        .in("offering_id", offeringIds);
-      const assigned = new Set(((assignments ?? []) as { offering_id: string }[]).map((row) => row.offering_id));
-      if (offeringIds.some((offeringId) => !assigned.has(offeringId))) {
-        return { ok: false, error: "You may create exams only for subject offerings you teach." };
-      }
     }
 
     const allClassIds = [...new Set([...classIds, ...offeringRows.map((row) => row.class_id)])];
@@ -158,6 +152,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       duration_seconds: Math.min(14400, Math.max(30, input.durationSeconds)),
       question_count: Math.min(200, Math.max(5, input.questionCount)),
       status: input.status,
+      closed_at: input.status === "closed" ? now : null,
       instructions: input.instructions.slice(0, 140),
       starts_at: null,
       ends_at: null,
@@ -170,7 +165,7 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       question_order: true,
       option_order: true,
       minimize_collisions: true,
-      created_by_id: ctx.scope.profileId,
+      created_by_id: staffId,
       created_at: now,
       updated_at: now,
     });
@@ -183,6 +178,10 @@ export async function createExamAction(input: ExamWizardInput): Promise<ActionRe
       }
       if (offeringIds.length) {
         const { error } = await ctx.admin.from("exam_offering_targets").insert(offeringIds.map((offeringId) => ({ session_id: id, offering_id: offeringId })));
+        if (error) throw error;
+      }
+      if (subjectIds.length) {
+        const { error } = await ctx.admin.from("exam_subject_targets").insert(subjectIds.map((subjectId) => ({ session_id: id, subject_id: subjectId })));
         if (error) throw error;
       }
       if (input.mode === "qualifier") {
@@ -210,8 +209,30 @@ export async function updateExamAction(
   patch: { title: string; durationSeconds: number; questionCount: number; instructions: string; status: string; cameraRequired: boolean; warnAfter: number },
 ): Promise<ActionResult> {
   try {
+    if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 14400) {
+      return { ok: false, error: "Duration must be between 30 seconds and 4 hours." };
+    }
+    if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 200) {
+      return { ok: false, error: "Question count must be between 5 and 200." };
+    }
+    if (!Number.isInteger(patch.warnAfter) || patch.warnAfter < 1 || patch.warnAfter > 10) {
+      return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
+    }
+    if (!["open", "draft", "closed"].includes(patch.status)) {
+      return { ok: false, error: "Choose a valid examination status." };
+    }
+
     const ctx = await requireStaff();
-    if (!(await scopedSession(ctx, id))) return { ok: false, error: "Exam not found or outside your scope." };
+    const existingSession = await scopedSession(ctx, id);
+    if (!existingSession) return { ok: false, error: "Exam not found or outside your scope." };
+    const previousStatus = String(existingSession.status ?? "");
+    const previousClosedAt = Number(existingSession.closed_at ?? 0);
+    const now = Date.now();
+    const closedAt = patch.status === "closed"
+      ? previousStatus === "closed" && previousClosedAt > 0
+        ? previousClosedAt
+        : now
+      : null;
     if (patch.status === "open") {
       const { count: offerings } = await ctx.admin.from("exam_offering_targets").select("offering_id", { count: "exact", head: true }).eq("session_id", id);
       const { data: row } = await ctx.admin.from("exam_sessions").select("mode").eq("id", id).maybeSingle();
@@ -225,12 +246,32 @@ export async function updateExamAction(
       question_count: patch.questionCount,
       instructions: patch.instructions.slice(0, 140),
       status: patch.status,
+      closed_at: closedAt,
       camera_required: patch.cameraRequired,
       warn_after: patch.warnAfter,
-      updated_at: Date.now(),
+      updated_at: now,
     }).eq("id", id);
     if (error) return { ok: false, error: error.message };
+
+    if (patch.status === "closed") {
+      const runtime = await loadExamRuntimeSession(ctx.admin, id);
+      if (!runtime) {
+        return {
+          ok: false,
+          error: "The examination is closed, but its active attempts could not be loaded for finalization.",
+        };
+      }
+      const finalization = await finalizeActiveExamAttemptsForSession(runtime.session);
+      if (!finalization.ok) {
+        return {
+          ok: false,
+          error: `The examination is closed, but ${finalization.error ?? "one or more active attempts still need finalization."} Saving Closed again will retry the remaining attempts.`,
+        };
+      }
+    }
+
     revalidatePath("/workspace/exams");
+    revalidatePath("/dashboard");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };
@@ -723,6 +764,10 @@ async function upsertQuestionCore(input: {
     existing = data as { creator_id: string | null; created_at: string | null } | null;
     if (!existing) return { ok: false, error: "Question not found." };
     if (!ctx.scope.isAdmin && existing.creator_id !== ctx.scope.profileId) return { ok: false, error: "Teachers can edit only questions they authored." };
+    const activeReferences = await activeAllocatedQuestionIds(ctx.admin, [input.id]);
+    if (activeReferences.has(input.id)) {
+      return { ok: false, error: activeQuestionMutationMessage(input.id) };
+    }
   }
 
   const id = input.id ?? Number((await ctx.admin.from("questions").select("id").order("id", { ascending: false }).limit(1).maybeSingle()).data?.id ?? 0) + 1;
@@ -747,7 +792,7 @@ async function upsertQuestionCore(input: {
   const write = input.id === undefined
     ? await ctx.admin.from("questions").insert(row)
     : await ctx.admin.from("questions").update(row).eq("id", id);
-  if (write.error) return { ok: false, error: write.error.message };
+  if (write.error) return { ok: false, error: write.error.message.includes("question_in_active_exam") ? activeQuestionMutationMessage(id) : write.error.message };
 
   const requestedLevels = input.levels.length ? input.levels : ["SS1", "SS2", "SS3"];
   const { data: levels } = await ctx.admin.from("academic_levels").select("id,name").in("name", requestedLevels);
@@ -783,8 +828,10 @@ export async function deleteQuestionAction(id: number): Promise<ActionResult> {
     if (!question?.subject_id) return { ok: false, error: "Question not found." };
     if (!questionSubjectVisibleTo(question.subject_id, ctx.scope)) return { ok: false, error: "Outside your subject scope." };
     if (!ctx.scope.isAdmin && question.creator_id !== ctx.scope.profileId) return { ok: false, error: "Only your own questions can be deleted." };
+    const activeReferences = await activeAllocatedQuestionIds(ctx.admin, [id]);
+    if (activeReferences.has(id)) return { ok: false, error: activeQuestionMutationMessage(id) };
     const { error } = await ctx.admin.from("questions").delete().eq("id", id);
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: error.message.includes("question_in_active_exam") ? activeQuestionMutationMessage(id) : error.message };
     revalidatePath("/workspace/questions");
     return { ok: true };
   } catch (error) {
@@ -995,9 +1042,14 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
     if (ctx.scope.isAdmin || !ctx.scope.profileId) return { ok: false, error: "Teachers only." };
     const clean = [...new Set(subjectIds.filter(Boolean))].slice(0, 24);
     if (!clean.length) return { ok: false, error: "Choose at least one subject." };
-    const valid = await ctx.admin.from("subjects").select("id").in("id", clean).eq("active", true);
+    const valid = await ctx.admin
+      .from("subjects")
+      .select("id")
+      .in("id", clean)
+      .eq("active", true)
+      .eq("kind", "curriculum");
     const rows = (valid.data ?? []) as { id: string }[];
-    if (rows.length !== clean.length) return { ok: false, error: "One or more subjects are unavailable." };
+    if (rows.length !== clean.length) return { ok: false, error: "Choose only active teaching subjects. Placement subjects are available automatically." };
     await ctx.admin.from("staff_subject_qualifications").update({ active: false }).eq("staff_id", ctx.scope.profileId);
     const { error } = await ctx.admin.from("staff_subject_qualifications").upsert(
       rows.map((subject) => ({ staff_id: ctx.scope.profileId, subject_id: subject.id, active: true })),
@@ -1005,6 +1057,11 @@ export async function updateMySubjectsAction(subjectIds: string[]): Promise<Acti
     );
     if (error) return { ok: false, error: error.message };
     revalidatePath("/workspace");
+    revalidatePath("/workspace/exams");
+    revalidatePath("/workspace/questions");
+    revalidatePath("/workspace/reports");
+    revalidatePath("/workspace/settings");
+    revalidatePath("/workspace/settings/teaching");
     revalidatePath("/workspace/staff");
     return { ok: true };
   } catch (error) {
