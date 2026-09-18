@@ -257,7 +257,7 @@ export function ReportsTabs({ attempts, titles, feed, initialView }: { attempts:
                         </StatusBadge>
                       </TableCell>
                       <TableCell className="tabular-nums">
-                        {attempt.placement_confidence == null ? "—" : `${Math.round(Number(attempt.placement_confidence))}%`}
+                        {attempt.score == null ? "—" : `${Math.round(Number(attempt.score))}%`}
                       </TableCell>
                       <TableCell>
                         <Link href={`/workspace/reports?view=placements&modal=attempt&attempt=${encodeURIComponent(attempt.id)}`} className="text-xs font-semibold hover:underline">
