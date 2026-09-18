@@ -69,7 +69,7 @@ export default async function AdminSettingsPage() {
   const { data: memberRow } = scope.profileId
     ? await supabase
         .from("school_members")
-        .select("first_name,last_name,staff_number,qualifier_access")
+        .select("first_name,last_name,staff_number")
         .eq("id", scope.profileId)
         .maybeSingle()
     : { data: null };
@@ -77,7 +77,6 @@ export default async function AdminSettingsPage() {
     first_name: string;
     last_name: string;
     staff_number: string | null;
-    qualifier_access: boolean;
   } | null;
 
   if (!scope.isAdmin) {
@@ -116,7 +115,7 @@ export default async function AdminSettingsPage() {
           items={[
             { label: "Qualified subjects", value: `${subjects.length}` },
             { label: "Active assignments", value: `${assignmentCount ?? 0}` },
-            { label: "Qualifier access", value: scope.qualifierAccess ? "Enabled" : "Not assigned" },
+            { label: "Placement & entrance", value: "Always available" },
           ]}
         />
 
@@ -131,7 +130,7 @@ export default async function AdminSettingsPage() {
             <SettingActionRow
               href="/workspace/settings/teaching"
               title="Subject qualifications"
-              description="Choose the subjects you are qualified to teach and use in your question-bank workspace."
+              description="Choose the curriculum subjects that define your examinations, question bank, reports and teaching activity."
               status={subjects.length ? `${subjects.length} selected` : "Needs setup"}
               action="Configure"
               icon={BookOpenCheck}
@@ -148,7 +147,7 @@ export default async function AdminSettingsPage() {
             <SettingActionRow
               href="/workspace/settings/account"
               title="Account & access"
-              description="Review your staff identity, role, sign-in email and qualifier-exam permission."
+              description="Review your staff identity, role and sign-in email. Entrance and placement examinations are available to every teacher."
               status={member?.staff_number ?? "No staff number"}
               action="Open"
               icon={ShieldCheck}
