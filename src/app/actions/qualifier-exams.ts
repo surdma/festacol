@@ -36,10 +36,6 @@ export async function createQualifierExamAction(input: QualifierExamInput): Prom
     if (!current.scope.profileId || (!current.scope.isAdmin && !current.scope.isTeacher)) {
       return { ok: false, error: "Staff sign-in required." };
     }
-    if (!current.scope.qualifierAccess) {
-      return { ok: false, error: "Qualifier examination access is not enabled for this staff account." };
-    }
-
     const title = input.title.trim();
     const subjectIds = [...new Set(input.subjectIds.filter(Boolean))];
     const studentIds = [...new Set(input.studentIds.filter(Boolean))];
