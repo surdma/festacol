@@ -254,6 +254,8 @@ export interface ExamAttemptContextSnapshot {
   academicTerm?: string | null;
   mode?: ExamMode;
   subjectNames?: string[];
+  durationSeconds?: number;
+  questionCount?: number;
 }
 
 export interface ExamAttemptRow {

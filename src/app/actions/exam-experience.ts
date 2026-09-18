@@ -3,9 +3,11 @@
 import { z } from "zod";
 import { paperFromQuestionIds } from "@/lib/assessment";
 import { currentStudent } from "@/lib/auth/current-student";
+import { attemptDurationSeconds } from "@/lib/exam-finalization";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { ExamAttemptContextSnapshot } from "@/types/db";
 import type {
   ExamExperienceContext,
   ExamResultSummary,
@@ -107,6 +109,36 @@ export async function getExamExperienceContextAction(sessionId: string): Promise
   const access = (Array.isArray(accessData) ? accessData[0] : accessData) as AccessRow | null;
   if (!access?.eligible) return { ok: false, error: accessError(access?.denial_reason ?? null) };
 
+  let effectiveSession = runtime.session;
+  if (access.active_attempt_id) {
+    const { data: activeAttempt, error: activeAttemptError } = await ctx.supabase
+      .from("exam_attempts")
+      .select("started_at,last_active_at,remaining_seconds,elapsed_active_seconds,context_snapshot,question_ids")
+      .eq("id", access.active_attempt_id)
+      .eq("student_id", ctx.profile.profile_id)
+      .maybeSingle();
+
+    if (activeAttemptError || !activeAttempt) {
+      return { ok: false, error: "Your active examination timing could not be restored safely. Retry without starting a new attempt." };
+    }
+
+    if (activeAttempt) {
+      const row = activeAttempt as {
+        started_at: number | null;
+        last_active_at: number | null;
+        remaining_seconds: number | null;
+        elapsed_active_seconds: number;
+        context_snapshot: ExamAttemptContextSnapshot;
+        question_ids: number[];
+      };
+      effectiveSession = {
+        ...runtime.session,
+        durationSeconds: attemptDurationSeconds(row, runtime.session),
+        questionCount: row.question_ids.length || Number(row.context_snapshot?.questionCount ?? runtime.session.questionCount),
+      };
+    }
+  }
+
   const [{ data: subjectRows, error: subjectError }, classResult] = await Promise.all([
     runtime.session.subjectIds.length
       ? ctx.supabase.from("subjects").select("id,name").in("id", runtime.session.subjectIds).eq("active", true)
@@ -141,7 +173,7 @@ export async function getExamExperienceContextAction(sessionId: string): Promise
   return {
     ok: true,
     data: {
-      session: runtime.session,
+      session: effectiveSession,
       cameraRequired: runtime.cameraRequired,
       subjectNames,
       candidate: {

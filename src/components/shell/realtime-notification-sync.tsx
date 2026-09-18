@@ -31,6 +31,15 @@ interface ExamLifecycleBroadcastPayload {
   score?: number | null;
 }
 
+interface ExamSessionBroadcastPayload {
+  eventId: string;
+  sessionId: string;
+  sessionTitle: string;
+  status: "draft" | "open" | "closed" | "scheduled";
+  previousStatus: "draft" | "open" | "closed" | "scheduled";
+  updatedAt: number;
+}
+
 interface ExamHelpRequestBroadcastPayload {
   eventId: string;
   requestId: string;
@@ -149,7 +158,38 @@ export function RealtimeNotificationSync({
       const payload = message.payload as ExamLifecycleBroadcastPayload | undefined;
       if (!payload?.eventId || seenRef.current.has(payload.eventId)) return;
       seenRef.current.add(payload.eventId);
+      const activeHere = payload.sessionId === examSessionId && presenceAttemptId === payload.attemptId;
       if (presenceAttemptId === payload.attemptId) void leavePresence();
+      if (!activeHere) router.refresh();
+    };
+
+    const handleStudentSessionChanged = (message: { payload?: unknown }) => {
+      const payload = message.payload as ExamSessionBroadcastPayload | undefined;
+      if (!payload?.eventId || seenRef.current.has(payload.eventId)) return;
+      seenRef.current.add(payload.eventId);
+
+      if (payload.status === "closed") {
+        const activeHere = payload.sessionId === examSessionId && Boolean(presenceAttemptId || activeAttemptId);
+        toast.add({
+          type: "warning",
+          title: `${payload.sessionTitle} has closed`,
+          description: activeHere
+            ? "The examination was closed by staff. Festacol is finalizing the answers already accepted by the server."
+            : "The examination is now closed. Your completed attempt remains recorded in Exam history.",
+          priority: "high",
+        });
+        if (activeHere) {
+          window.dispatchEvent(new CustomEvent("festacol:exam-session-changed", { detail: payload }));
+          return;
+        }
+      } else if (payload.status === "open") {
+        toast.add({
+          type: "info",
+          title: `${payload.sessionTitle} is open`,
+          description: "Examination availability changed. Your dashboard is updating now.",
+        });
+      }
+
       router.refresh();
     };
 
@@ -240,7 +280,8 @@ export function RealtimeNotificationSync({
           channel
             .on("broadcast", { event: "exam_retake_changed" }, handleStudentRetake)
             .on("broadcast", { event: "exam_started" }, handleStudentStarted)
-            .on("broadcast", { event: "exam_submitted" }, handleStudentSubmitted);
+            .on("broadcast", { event: "exam_submitted" }, handleStudentSubmitted)
+            .on("broadcast", { event: "exam_session_changed" }, handleStudentSessionChanged);
         } else {
           channel
             .on("broadcast", { event: "exam_started" }, handleStaffLifecycle)

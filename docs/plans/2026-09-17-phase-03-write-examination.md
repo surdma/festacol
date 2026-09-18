@@ -9,6 +9,8 @@ Selected direction: **F — Focus Capsule**
 
 Phase 03 is no longer open for A–J selection.
 
+Phase 04 Review & Submit is merged into Phase 03. There is no separate review screen or review navigation phase. Submission remains an in-place dialog inside the live Focus Capsule.
+
 The selected live examination direction is **Focus Capsule (F)**. Production must preserve the selected wireframe's spatial grammar rather than reinterpret it as a generic examination dashboard:
 
 - one dominant rounded question capsule;
@@ -20,7 +22,9 @@ The selected live examination direction is **Focus Capsule (F)**. Production mus
 - mobile/tablet fixed bottom navigation;
 - mobile/tablet question navigator expands from the bottom as a Sheet;
 - diagram/media questions stay first-class through the existing enlarge-capable question media surface;
-- final submission is a deliberate **Submit exam** action, not a separate dense review page.
+- final submission is a deliberate **Submit exam** action, not a separate dense review page;
+- unanswered, flagged and generous-time-left states change the confirmation guidance but never block an online manual submission;
+- timeout remains automatic, and timeout/forced-close submission recovery retries automatically when connectivity returns.
 
 ## Student-facing hierarchy
 
@@ -137,7 +141,8 @@ A manipulated browser must not be able to extend the examination or influence ti
 
 The production contract therefore treats attempt time as server-owned:
 
-- the deadline is derived from persisted `started_at + durationSeconds`, capped by the configured session `endsAt`;
+- the deadline is derived from persisted `started_at + attempt-start durationSeconds`, capped by the configured session `endsAt`;
+- duration and requested question count are snapshotted when the attempt is allocated so later administrative edits are future-starter settings rather than live-attempt mutations;
 - candidate save payloads contain responses, position, question timings and flags only — never authoritative remaining/elapsed time;
 - every save returns the trusted server clock so the UI may only reconcile its displayed timer downward;
 - server grading uses server-derived elapsed time for pace/reasoning/placement inputs;
@@ -163,7 +168,12 @@ Focus Capsule keeps the established exam state machine and server authority:
 - elapsed-time reconciliation after returning to the tab;
 - flag persistence;
 - camera ended/restored integrity events when monitoring is configured;
-- automatic time-expiry submission;
+- automatic time-expiry submission with reconnect retry;
+- staff-close finalization for active attempts using server-saved responses;
+- start-time duration snapshots so later duration edits affect only candidates who have not started;
+- immutable allocated question IDs so later question-count edits affect only candidates who have not started;
+- private session-close Realtime notifications while preserving the existing Presence channel;
+- durable recent closure signals on the student dashboard for candidates who already attempted the examination;
 - duplicate-submit recovery;
 - submission retry without losing the visible response state;
 - no-attempt / locked flow;
@@ -181,7 +191,11 @@ Submit confirmation stays available for orientation but final submission is disa
 
 ### Time expires while offline
 
-The attempt enters the existing submission-recovery state. The candidate is instructed to keep the page open and retry once connected.
+The attempt enters submission recovery. The candidate is instructed to keep the page open; when connectivity returns, forced timeout submission retries automatically.
+
+### Staff closes the examination while a candidate is writing
+
+New starts are blocked immediately. The active attempt is finalized from responses already accepted by the server, the writing surface moves into closed-exam finalization, and the candidate receives the private Realtime closure signal. Unsaved browser-only responses cannot be guaranteed after an administrative close.
 
 ### Save failure
 

@@ -78,11 +78,27 @@ if (sanitizeStart < 0) {
 }
 
 const stateAction = await source("src/app/actions/exam-state.ts");
+const finalization = await source("src/lib/exam-finalization.ts");
+const attemptRpc = await source("supabase/auth-rpc.sql");
+const focusCapsule = await source("src/components/exam/exam-focus-capsule.tsx");
 if (!stateAction.includes('paper: ExamPaperQuestionDTO[]')) {
   violations.push("src/app/actions/exam-state.ts: PaperStatus does not expose the answer-free ExamPaperQuestionDTO[] shape");
 }
-if (!stateAction.includes("scoreAttempt")) {
-  violations.push("src/app/actions/exam-state.ts: expected server-side grading path is missing");
+if (!finalization.includes("scoreAttempt")) {
+  violations.push("src/lib/exam-finalization.ts: expected server-side grading path is missing");
+}
+if (!finalization.includes("context_snapshot?.durationSeconds") || !finalization.includes("persistedBudget")) {
+  violations.push("src/lib/exam-finalization.ts: attempt duration is not frozen to the start-time snapshot/fallback budget");
+}
+if (!attemptRpc.includes("'durationSeconds',v_session.duration_seconds") || !attemptRpc.includes("'questionCount',v_session.question_count")) {
+  violations.push("supabase/auth-rpc.sql: attempt allocator does not snapshot duration/question count");
+}
+if (focusCapsule.includes("ExamStatusWatch")) {
+  violations.push("src/components/exam/exam-focus-capsule.tsx: generic session refresh would let future-starter edits disturb active writers");
+}
+
+if (!stateAction.includes("attemptDurationSeconds(state, session)") || !stateAction.includes("paperForStudent({ questions: payload.questions }, attemptSession")) {
+  violations.push("src/app/actions/exam-state.ts: first paper allocation is not pinned to the attempt snapshot");
 }
 
 for (const token of ["patch.remainingSeconds", "patch.elapsedActiveSeconds"]) {
@@ -94,11 +110,20 @@ for (const required of [
   "authoritativeAttemptClock",
   "progressPatchSchema",
   "submitReasonSchema",
-  'admin.from("exam_attempts").update',
-  'admin.from("exam_attempt_responses")',
+  "finalizeExamAttempt",
 ]) {
   if (!stateAction.includes(required)) {
     violations.push(`src/app/actions/exam-state.ts: trusted exam-state boundary is missing ${JSON.stringify(required)}`);
+  }
+}
+
+for (const required of [
+  '.from("exam_attempts")',
+  '.from("exam_attempt_responses")',
+  '"exam-closed"',
+]) {
+  if (!finalization.includes(required)) {
+    violations.push(`src/lib/exam-finalization.ts: trusted finalization boundary is missing ${JSON.stringify(required)}`);
   }
 }
 
@@ -106,6 +131,11 @@ const workspace = await source("src/components/exam/exam-workspace.tsx");
 for (const token of ["remainingSeconds: Math.max", "elapsedActiveSeconds: Math.max"]) {
   if (workspace.includes(token)) {
     violations.push(`src/components/exam/exam-workspace.tsx: candidate save payload still supplies authoritative clock field ${JSON.stringify(token)}`);
+  }
+}
+for (const required of ['submitFinal("exam-closed")', 'processingReason !== "manual"', "festacol:exam-session-changed"]) {
+  if (!workspace.includes(required)) {
+    violations.push(`src/components/exam/exam-workspace.tsx: forced submission recovery is missing ${JSON.stringify(required)}`);
   }
 }
 

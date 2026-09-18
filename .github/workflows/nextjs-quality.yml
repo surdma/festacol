@@ -192,6 +192,7 @@ jobs:
             if not exists (select 1 from pg_trigger where tgname='exam_attempt_retake_source_link' and not tgisinternal) then raise exception 'retake_source_link_trigger_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_retake_realtime_notify' and not tgisinternal) then raise exception 'retake_broadcast_trigger_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_attempt_lifecycle_realtime_notify' and not tgisinternal) then raise exception 'attempt_lifecycle_broadcast_trigger_missing'; end if;
+            if not exists (select 1 from pg_trigger where tgname='exam_session_realtime_notify' and not tgisinternal) then raise exception 'exam_session_broadcast_trigger_missing'; end if;
             if not exists (select 1 from pg_trigger where tgname='exam_support_request_realtime_notify' and not tgisinternal) then raise exception 'exam_support_broadcast_trigger_missing'; end if;
             if not exists (
               select 1 from pg_publication_tables
@@ -221,7 +222,13 @@ jobs:
           prisma/seed.ts
           src/app/actions
           src/app/api/admin
+          src/components/admin/detail-dialogs.tsx
+          src/components/exam/exam-focus-capsule.tsx
+          src/components/exam/exam-workspace.tsx
+          src/components/shell/realtime-notification-sync.tsx
           src/lib/auth
+          src/lib/exam-finalization.ts
           src/lib/exam-session.ts
+          src/lib/student-notifications.ts
           src/lib/supabase/queries.ts
           src/types/db.ts

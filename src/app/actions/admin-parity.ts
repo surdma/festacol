@@ -10,7 +10,10 @@ import {
 } from "@/app/actions/admin";
 import { createQualifierExamAction } from "@/app/actions/qualifier-exams";
 import type { ActionResult } from "@/app/actions/student";
+import { paperForStudent } from "@/lib/assessment";
 import { currentStaff, questionSubjectVisibleTo } from "@/lib/auth/staff";
+import { loadExamRuntimeSession } from "@/lib/exam-session";
+import { loadQuestionPayload } from "@/lib/questions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listClasses } from "@/lib/supabase/queries";
 import type { AcademicTrack } from "@/types/db";
@@ -266,7 +269,7 @@ export async function createExamParityAction(input: ExamCreationInput): Promise<
 
 export async function getExamEditorDetailAction(examId: string) {
   const detail = await getExamDetailAction(examId);
-  return { ...detail, structureLocked: detail.attempts.length > 0 };
+  return { ...detail, structureLocked: false };
 }
 
 export async function updateExamParityAction(
@@ -279,11 +282,29 @@ export async function updateExamParityAction(
     if (!session) return { ok: false, error: "Exam not found or outside your scope." };
     if (patch.title.trim().length < 3) return { ok: false, error: "Enter an exam title of at least 3 characters." };
     if (!Number.isInteger(patch.warnAfter) || patch.warnAfter < 1 || patch.warnAfter > 10) return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
-    if (detail.attempts.length > 0 && (patch.durationSeconds !== Number(session.duration_seconds) || patch.questionCount !== Number(session.question_count))) {
-      return { ok: false, error: "Paper structure is locked after the first allocated attempt." };
-    }
     if (!Number.isInteger(patch.durationSeconds) || patch.durationSeconds < 30 || patch.durationSeconds > 14400) return { ok: false, error: "Duration must be between 30 seconds and 4 hours." };
     if (!Number.isInteger(patch.questionCount) || patch.questionCount < 5 || patch.questionCount > 200) return { ok: false, error: "Question count must be between 5 and 200." };
+    if (!["open", "closed"].includes(patch.status)) return { ok: false, error: "Exam availability must be Open or Closed." };
+
+    if (patch.questionCount !== Number(session.question_count)) {
+      const { admin } = await staffContext();
+      const runtime = await loadExamRuntimeSession(admin, id);
+      if (!runtime) return { ok: false, error: "Exam runtime details could not be loaded for question coverage validation." };
+
+      const payload = await loadQuestionPayload();
+      const candidatePaper = paperForStudent(
+        { questions: payload.questions },
+        { ...runtime.session, questionCount: patch.questionCount },
+        `editor-coverage:${id}`,
+      );
+      if (candidatePaper.length < patch.questionCount) {
+        return {
+          ok: false,
+          error: `Only ${candidatePaper.length} eligible questions are available for this paper.`,
+        };
+      }
+    }
+
     return updateExamAction(id, patch);
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };

@@ -12,6 +12,8 @@ import {
 } from "@/app/actions/question-bank";
 import type { ActionResult } from "@/app/actions/student";
 import { currentStaff, questionSubjectVisibleTo, type StaffScope } from "@/lib/auth/staff";
+import { finalizeActiveExamAttemptsForSession } from "@/lib/exam-finalization";
+import { loadExamRuntimeSession } from "@/lib/exam-session";
 import {
   generateStudentNumber,
   normalizeStudentNumber,
@@ -230,7 +232,26 @@ export async function updateExamAction(
       updated_at: Date.now(),
     }).eq("id", id);
     if (error) return { ok: false, error: error.message };
+
+    if (patch.status === "closed") {
+      const runtime = await loadExamRuntimeSession(ctx.admin, id);
+      if (!runtime) {
+        return {
+          ok: false,
+          error: "The examination is closed, but its active attempts could not be loaded for finalization.",
+        };
+      }
+      const finalization = await finalizeActiveExamAttemptsForSession(runtime.session);
+      if (!finalization.ok) {
+        return {
+          ok: false,
+          error: `The examination is closed, but ${finalization.error ?? "one or more active attempts still need finalization."} Saving Closed again will retry the remaining attempts.`,
+        };
+      }
+    }
+
     revalidatePath("/workspace/exams");
+    revalidatePath("/dashboard");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Update failed." };

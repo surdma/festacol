@@ -12,7 +12,6 @@ import {
   Send,
   WifiOff,
 } from "lucide-react";
-import { ExamStatusWatch } from "@/components/exam-status-watch";
 import { ExamCameraPanel } from "@/components/exam/exam-camera-panel";
 import { ExamQuestionNavigator } from "@/components/exam/exam-question-navigator";
 import { QuestionCard, responseStatus } from "@/components/exam/question-card";
@@ -175,6 +174,7 @@ function SubmissionDialog({
   answeredCount,
   total,
   timeLeft,
+  timerRemaining,
   online,
   onGoToOpen,
   onSubmit,
@@ -185,11 +185,24 @@ function SubmissionDialog({
   answeredCount: number;
   total: number;
   timeLeft: string;
+  timerRemaining: number;
   online: boolean;
   onGoToOpen: () => void;
   onSubmit: () => void;
   trigger: ReactElement;
 }) {
+  const guidance = !online
+    ? "Reconnect before final submission. Your answers stay on this page while you are offline."
+    : openCount > 0
+      ? `You can submit now, but ${openCount} unanswered question${openCount === 1 ? "" : "s"} will be recorded as unanswered.`
+      : flaggedCount > 0
+        ? `All questions are answered. ${flaggedCount} flagged question${flaggedCount === 1 ? "" : "s"} remain only as reminders and do not block submission.`
+        : timerRemaining > 900
+          ? `All questions are answered and you still have ${timeLeft} remaining. You may submit now or continue checking your work.`
+          : timerRemaining <= 60
+            ? "Time is almost up. You may submit now; if the timer reaches zero, Festacol submits automatically."
+            : "All questions are answered. You may submit now or continue checking your work.";
+
   return (
     <AlertDialog>
       <AlertDialogTrigger render={trigger} />
@@ -200,9 +213,15 @@ function SubmissionDialog({
           </AlertDialogMedia>
           <AlertDialogTitle>Submit this examination?</AlertDialogTitle>
           <AlertDialogDescription>
-            Submission is final. You have answered {answeredCount} of {total} questions with {timeLeft} remaining.
+            Submission is final. You have answered {answeredCount} of {total} questions with {timeLeft} remaining. Unanswered or flagged questions never block manual submission.
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <Alert>
+          <CircleAlert />
+          <AlertTitle>{openCount > 0 ? "Submission check" : timerRemaining <= 60 ? "Time nearly finished" : "Ready when you are"}</AlertTitle>
+          <AlertDescription>{guidance}</AlertDescription>
+        </Alert>
 
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-xl border bg-muted/25 p-3">
@@ -351,10 +370,6 @@ export function ExamFocusCapsule({
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[1600px] px-3 pt-3 sm:px-5 lg:px-7">
-        <ExamStatusWatch sessionId={context.session.id} />
-      </div>
-
       {timeNotice ? (
         <div className="mx-auto w-full max-w-5xl px-3 pt-3 sm:px-5" aria-live="polite">
           <Alert>
@@ -465,6 +480,7 @@ export function ExamFocusCapsule({
                   answeredCount={answeredCount}
                   total={paper.length}
                   timeLeft={timerText}
+                  timerRemaining={timerRemaining}
                   online={online}
                   onGoToOpen={goToFirstOpen}
                   onSubmit={onSubmit}
@@ -569,6 +585,7 @@ export function ExamFocusCapsule({
             answeredCount={answeredCount}
             total={paper.length}
             timeLeft={timerText}
+            timerRemaining={timerRemaining}
             online={online}
             onGoToOpen={goToFirstOpen}
             onSubmit={onSubmit}

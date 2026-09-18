@@ -28,11 +28,14 @@ import { getQuestionEditorDetailAction } from "@/app/actions/question-bank";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { AcademicTrack, ExamAttemptContextSnapshot } from "@/types/db";
@@ -55,6 +58,14 @@ function trackLabel(track: AcademicTrack) {
   if (track === "science") return "Science";
   if (track === "humanities") return "Humanities";
   return "Business";
+}
+function formatExamDuration(seconds: number) {
+  if (seconds < 60) return `${seconds} sec`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
 }
 
 export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
@@ -254,7 +265,6 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
                     <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this examination?</AlertDialogTitle><AlertDialogDescription>The session can be deleted only when its relational history permits it. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => act(() => deleteExamAction(examId))}>Delete exam</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                   </AlertDialog>
                 </div>
-                {data?.structureLocked ? <p className="mt-2 text-xs text-muted-foreground">Paper structure locked — first attempt already recorded.</p> : null}
               </div>
             </div>
 
@@ -300,7 +310,6 @@ export function ExamDetailDialog({ examId, onClose }: { examId: string; onClose:
 export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
-  const [locked, setLocked] = useState(false);
   const [title, setTitle] = useState("");
   const [durationSeconds, setDurationSeconds] = useState(3600);
   const [questionCount, setQuestionCount] = useState(50);
@@ -320,10 +329,9 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
       setDurationSeconds(Number(session.duration_seconds ?? 3600));
       setQuestionCount(Number(session.question_count ?? 50));
       setInstructions(String(session.instructions ?? ""));
-      setStatus(String(session.status ?? "draft"));
+      setStatus(String(session.status ?? "draft") === "open" ? "open" : "closed");
       setCameraRequired(detail.cameraRequired);
       setWarnAfter(Number(session.warn_after ?? 2));
-      setLocked(detail.structureLocked);
       setLoaded(true);
     }).catch(() => setError("Exam could not be loaded."));
   }, [examId]);
@@ -331,12 +339,42 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
   return (
     <Dialog open onOpenChange={(value) => { if (!value) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader><DialogTitle>Edit examination</DialogTitle><DialogDescription>{locked ? "Candidate activity exists, so duration and question count are structurally locked." : "Paper structure remains editable until the first candidate starts."}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Edit examination</DialogTitle><DialogDescription>Duration and question-count changes apply only to candidates who start after you save. Candidates already writing keep the time and paper they started with. Closing the exam finalizes active attempts.</DialogDescription></DialogHeader>
         {loaded ? <FieldGroup>
           <Field><FieldLabel htmlFor="ee-title">Title</FieldLabel><Input id="ee-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={72} /></Field>
-          <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-duration">Duration (seconds)</FieldLabel><Input id="ee-duration" type="number" disabled={locked} min={30} max={14400} value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))} /></Field><Field><FieldLabel htmlFor="ee-count">Questions</FieldLabel><Input id="ee-count" type="number" disabled={locked} min={5} max={200} value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} /></Field></div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field>
+              <div className="flex items-center justify-between gap-2"><FieldLabel>Duration</FieldLabel><Badge variant="secondary" className="tabular-nums">{formatExamDuration(durationSeconds)}</Badge></div>
+              <Slider aria-label="Exam duration" min={30} max={14400} step={30} value={[durationSeconds]} onValueChange={(value) => setDurationSeconds(Array.isArray(value) ? (value[0] ?? 30) : value)} />
+              <div className="flex justify-between text-xs text-muted-foreground"><span>30 sec</span><span>4 hrs</span></div>
+              <p className="text-xs text-muted-foreground">Applies only to candidates who have not started yet.</p>
+            </Field>
+            <Field>
+              <div className="flex items-center justify-between gap-2"><FieldLabel>Questions</FieldLabel><Badge variant="secondary" className="tabular-nums">{questionCount} questions</Badge></div>
+              <Slider aria-label="Question count" min={5} max={200} step={1} value={[questionCount]} onValueChange={(value) => setQuestionCount(Array.isArray(value) ? (value[0] ?? 5) : value)} />
+              <div className="flex justify-between text-xs text-muted-foreground"><span>5</span><span>200</span></div>
+              <p className="text-xs text-muted-foreground">Existing attempts keep their allocated question IDs.</p>
+            </Field>
+          </div>
           <Field><FieldLabel htmlFor="ee-instructions">Instructions</FieldLabel><Textarea id="ee-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={140} /></Field>
-          <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="ee-status">Status</FieldLabel><NativeSelect id="ee-status" value={status} onChange={(event) => setStatus(event.target.value)}>{["draft", "open", "closed"].map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}</NativeSelect></Field><Field><FieldLabel htmlFor="ee-warn">Integrity warning threshold</FieldLabel><Input id="ee-warn" type="number" min={1} max={10} value={warnAfter} onChange={(event) => setWarnAfter(Number(event.target.value))} /></Field></div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Exam availability</FieldLabel>
+              <RadioGroup aria-label="Exam availability" value={status} onValueChange={(value) => setStatus(value === "open" ? "open" : "closed")} className="grid grid-cols-2 gap-2">
+                {([
+                  { value: "open", title: "Open", hint: "New candidates can start" },
+                  { value: "closed", title: "Closed", hint: "Finalize active attempts" },
+                ] as const).map((option) => (
+                  <label key={option.value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-3 transition hover:bg-muted/40 has-data-checked:border-neutral-950 has-data-checked:bg-neutral-950 has-data-checked:text-white">
+                    <RadioGroupItem value={option.value} />
+                    <span className="min-w-0"><strong className="block text-sm">{option.title}</strong><span className="mt-0.5 block text-xs opacity-70">{option.hint}</span></span>
+                  </label>
+                ))}
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">Closing blocks new starts and finalizes every active attempt from server-saved responses.</p>
+            </Field>
+            <Field><FieldLabel htmlFor="ee-warn">Integrity warning threshold</FieldLabel><Input id="ee-warn" type="number" min={1} max={10} value={warnAfter} onChange={(event) => setWarnAfter(Number(event.target.value))} /></Field>
+          </div>
           <Field><div className="flex items-center justify-between rounded-xl border p-3"><div><FieldLabel htmlFor="ee-camera">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Require camera permission before the candidate enters the paper.</p></div><Switch id="ee-camera" checked={cameraRequired} onCheckedChange={setCameraRequired} /></div></Field>
         </FieldGroup> : <p className="text-sm text-muted-foreground">Loading examination…</p>}
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

@@ -30,19 +30,23 @@ type BackgroundSnapshot = {
   questionSeconds: number;
 };
 
-function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" }) {
+function ProcessingScreen({ reason }: { reason: "manual" | "time-expired" | "exam-closed" }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center px-5 py-12" aria-live="polite">
       <div className="flex items-center gap-3">
         <Spinner className="size-6" />
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {reason === "time-expired" ? "Time ended" : "Submitting"}
+          {reason === "time-expired" ? "Time ended" : reason === "exam-closed" ? "Exam closed" : "Submitting"}
         </p>
       </div>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{reason === "time-expired" ? "Time has ended" : "Submitting your examination"}</h1>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{reason === "time-expired" ? "Time has ended" : reason === "exam-closed" ? "This examination has closed" : "Submitting your examination"}</h1>
       <div className="mt-6 border-t pt-5">
         <p className="max-w-md text-sm leading-6 text-muted-foreground">
-          {reason === "time-expired" ? "Your saved responses are being finalized and submitted automatically." : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
+          {reason === "time-expired"
+            ? "Your saved responses are being finalized and submitted automatically."
+            : reason === "exam-closed"
+              ? "Staff closed the examination. Festacol is finalizing the responses already accepted by the server."
+              : "Festacol is saving your final responses and completing the submission."} Do not close this window yet.
         </p>
       </div>
     </main>
@@ -84,7 +88,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [processingReason, setProcessingReason] = useState<"manual" | "time-expired">("manual");
+  const [processingReason, setProcessingReason] = useState<"manual" | "time-expired" | "exam-closed">("manual");
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [resultSummary, setResultSummary] = useState<ExamResultSummary | null>(null);
   const [fallbackSummary, setFallbackSummary] = useState<SubmitSummary | null>(null);
@@ -254,7 +258,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     }
   }, [fetchRichResult, session.id]);
 
-  const submitFinal = useCallback(async (reason: "manual" | "time-expired") => {
+  const submitFinal = useCallback(async (reason: "manual" | "time-expired" | "exam-closed") => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setProcessingReason(reason);
@@ -264,18 +268,24 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     captureTiming("");
 
     try {
-      const saved = await persist(true);
       let submissionReason = reason;
-      if (!saved.ok) {
-        if (saved.code === "expired") {
-          submissionReason = "time-expired";
-          setProcessingReason("time-expired");
-        } else {
-          setProcessingError(reason === "time-expired"
-            ? "Time has ended, but Festacol cannot reach the examination service. Reconnect and retry final submission without closing this page."
-            : saved.error);
-          setPhase("submission-failed");
-          return;
+      if (reason === "exam-closed") {
+        // Closing is already authoritative on the server. Do not attempt a normal
+        // progress save after the session has closed; finish any request already in flight.
+        if (saveInFlightRef.current) await saveInFlightRef.current.catch(() => undefined);
+      } else {
+        const saved = await persist(true);
+        if (!saved.ok) {
+          if (saved.code === "expired") {
+            submissionReason = "time-expired";
+            setProcessingReason("time-expired");
+          } else {
+            setProcessingError(reason === "time-expired"
+              ? "Time has ended, but Festacol cannot reach the examination service. Keep this page open; final submission will retry when your connection returns."
+              : saved.error);
+            setPhase("submission-failed");
+            return;
+          }
         }
       }
 
@@ -299,7 +309,11 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
       await fetchRichResult();
       setPhase("submitted");
     } catch {
-      setProcessingError("The final submission could not reach the examination service. Keep this page open and retry when your connection is stable.");
+      setProcessingError(
+        reason === "time-expired" || reason === "exam-closed"
+          ? "Festacol could not reach the examination service. Keep this page open; final submission will retry automatically when your connection returns."
+          : "The final submission could not reach the examination service. Keep this page open and retry when your connection is stable.",
+      );
       setPhase("submission-failed");
     } finally {
       submittingRef.current = false;
@@ -337,7 +351,17 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
     };
     const onOnline = () => {
       setOnline(true);
-      if (timerActive && !document.hidden) void persist(true);
+      if (phase === "submission-failed" && processingReason !== "manual") {
+        void submitFinal(processingReason);
+        return;
+      }
+      if (timerActive && !document.hidden) {
+        void persist(true).then((result) => {
+          if (!result.ok && result.code === "expired") {
+            void submitFinal(result.error.includes("no longer open") ? "exam-closed" : "time-expired");
+          }
+        });
+      }
     };
     const onOffline = () => {
       setOnline(false);
@@ -350,7 +374,22 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [persist, timerActive]);
+  }, [persist, phase, processingReason, submitFinal, timerActive]);
+
+  useEffect(() => {
+    const onSessionChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId?: string; status?: string }>).detail;
+      if (detail?.sessionId !== session.id || detail.status !== "closed") return;
+
+      setTimeNotice("Exam closed by staff");
+      if (!["submitted", "locked", "processing"].includes(phase)) {
+        void submitFinal("exam-closed");
+      }
+    };
+
+    window.addEventListener("festacol:exam-session-changed", onSessionChanged);
+    return () => window.removeEventListener("festacol:exam-session-changed", onSessionChanged);
+  }, [phase, session.id, submitFinal]);
 
   useEffect(() => {
     if (!timerActive) return;
@@ -360,18 +399,30 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
   useEffect(() => {
     if (!timerActive || dirtyTick === 0) return;
     const timeout = window.setTimeout(() => {
-      if (!document.hidden) void persist();
+      if (!document.hidden) {
+        void persist().then((result) => {
+          if (!result.ok && result.code === "expired") {
+            void submitFinal(result.error.includes("no longer open") ? "exam-closed" : "time-expired");
+          }
+        });
+      }
     }, 1200);
     return () => window.clearTimeout(timeout);
-  }, [dirtyTick, persist, timerActive]);
+  }, [dirtyTick, persist, submitFinal, timerActive]);
 
   useEffect(() => {
     if (!timerActive) return;
     const interval = window.setInterval(() => {
-      if (!document.hidden) void persist(true);
+      if (!document.hidden) {
+        void persist(true).then((result) => {
+          if (!result.ok && result.code === "expired") {
+            void submitFinal(result.error.includes("no longer open") ? "exam-closed" : "time-expired");
+          }
+        });
+      }
     }, 10_000);
     return () => window.clearInterval(interval);
-  }, [persist, timerActive]);
+  }, [persist, submitFinal, timerActive]);
 
   useEffect(() => {
     if (!timerActive) {
@@ -590,7 +641,7 @@ export function ExamWorkspace({ context }: { context: ExamExperienceContext }) {
         <h1 className="mb-6 mt-2 text-2xl font-semibold tracking-tight">{session.title}</h1>
         <Alert variant="destructive">
           <CircleAlert />
-          <AlertTitle>{processingReason === "time-expired" && timer.remaining === 0 ? "Time ended, submission needs connection" : "Submission not completed"}</AlertTitle>
+          <AlertTitle>{processingReason === "time-expired" && timer.remaining === 0 ? "Time ended, submission needs connection" : processingReason === "exam-closed" ? "Exam closed, submission needs connection" : "Submission not completed"}</AlertTitle>
           <AlertDescription>{failure}</AlertDescription>
         </Alert>
         <div className="mt-6 flex flex-wrap gap-2 border-t pt-5">

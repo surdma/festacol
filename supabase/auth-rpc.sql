@@ -596,8 +596,15 @@ BEGIN
     current_index,remaining_seconds,elapsed_active_seconds,last_active_at,
     paper_fingerprint,question_ids,created_at,updated_at
   ) VALUES (
-    v_attempt_id,v_session.id,v_student,v_attempt_number,'{}'::jsonb,v_now,
-    0,v_session.duration_seconds,0,v_now,'','{}'::bigint[],v_now,v_now
+    v_attempt_id,v_session.id,v_student,v_attempt_number,
+    jsonb_build_object(
+      'sessionTitle',v_session.title,
+      'studentName',(SELECT concat_ws(' ',m.first_name,m.last_name) FROM public.school_members m WHERE m.id=v_student),
+      'mode',v_session.mode::text,
+      'durationSeconds',v_session.duration_seconds,
+      'questionCount',v_session.question_count
+    ),
+    v_now,0,v_session.duration_seconds,0,v_now,'','{}'::bigint[],v_now,v_now
   );
 
   RETURN QUERY SELECT v_attempt_id,v_attempt_number,false;

@@ -6,8 +6,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { currentStudent } from "@/lib/auth/current-student";
 import { loadExamRuntimeSession } from "@/lib/exam-session";
 import { loadQuestionPayload, sanitizePaper } from "@/lib/questions";
-import { effectiveStatus, hashText, paperForStudent, paperFromQuestionIds, scoreAttempt } from "@/lib/assessment";
-import type { AcademicTrack } from "@/types/db";
+import { effectiveStatus, hashText, paperForStudent, paperFromQuestionIds } from "@/lib/assessment";
+import { attemptDurationSeconds, authoritativeAttemptClock, finalizeExamAttempt } from "@/lib/exam-finalization";
+import type { ExamAttemptContextSnapshot } from "@/types/db";
 import type { ExamPaperQuestionDTO, ExamSessionDTO, QuestionDTO } from "@/types/exam";
 
 const sessionIdSchema = z.string().trim().min(1).max(64).transform((value) => value.toUpperCase());
@@ -18,7 +19,7 @@ const progressPatchSchema = z.object({
   questionTimings: z.record(questionIdKeySchema, z.number().finite().nonnegative().max(86_400)),
   flagged: z.array(questionIdKeySchema).max(10_000),
 }).strip();
-const submitReasonSchema = z.enum(["manual", "time-expired"]);
+const submitReasonSchema = z.enum(["manual", "time-expired", "exam-closed"]);
 const MAX_PROGRESS_PAYLOAD_CHARS = 262_144;
 const EXPIRY_SAVE_GRACE_SECONDS = 15;
 
@@ -38,6 +39,7 @@ interface RuntimeState {
   remaining_seconds: number | null;
   elapsed_active_seconds: number;
   last_active_at: number | null;
+  context_snapshot: ExamAttemptContextSnapshot;
   paper_fingerprint: string;
   question_ids: number[];
   updated_at: number;
@@ -134,26 +136,12 @@ function responseForQuestion(response: RuntimeResponse, question: QuestionDTO | 
   return { [blankKeys[0]]: String(decoded) };
 }
 
-function serializeAnswer(question: QuestionDTO | undefined): string {
-  const answer = (question as { answer?: unknown } | undefined)?.answer;
-  if (Array.isArray(answer)) return answer.map(String).join(", ");
-  if (answer && typeof answer === "object") return JSON.stringify(answer);
-  return String(answer ?? "");
-}
-
-function placementTrack(value: string | undefined): AcademicTrack | null {
-  if (value === "Science") return "science";
-  if (value === "Humanities") return "humanities";
-  if (value === "Business") return "business";
-  return null;
-}
-
 async function stateForAttempt(attemptId: string) {
   const supabase = await createSupabaseServerClient();
   const [{ data: state }, { data: responses }] = await Promise.all([
     supabase
       .from("exam_attempts")
-      .select("id,started_at,current_index,remaining_seconds,elapsed_active_seconds,last_active_at,paper_fingerprint,question_ids,updated_at")
+      .select("id,started_at,current_index,remaining_seconds,elapsed_active_seconds,last_active_at,context_snapshot,paper_fingerprint,question_ids,updated_at")
       .eq("id", attemptId)
       .maybeSingle(),
     supabase.from("exam_attempt_responses").select("question_id,response_text,response_values,seconds,flagged").eq("attempt_id", attemptId),
@@ -161,25 +149,6 @@ async function stateForAttempt(attemptId: string) {
   return {
     state: (state ?? null) as RuntimeState | null,
     responses: (responses ?? []) as RuntimeResponse[],
-  };
-}
-
-function authoritativeAttemptClock(
-  state: Pick<RuntimeState, "started_at" | "last_active_at">,
-  session: ExamSessionDTO,
-  now = Date.now(),
-) {
-  const startedAt = Number(state.started_at ?? state.last_active_at ?? now);
-  const durationMs = Math.max(0, Number(session.durationSeconds) || 0) * 1000;
-  const durationDeadline = startedAt + durationMs;
-  const configuredEnd = session.endsAt === null ? Number.POSITIVE_INFINITY : Number(session.endsAt);
-  const deadline = Math.min(durationDeadline, configuredEnd);
-  const boundedNow = Math.min(now, Math.max(startedAt, deadline));
-
-  return {
-    remainingSeconds: Math.max(0, Math.ceil((deadline - now) / 1000)),
-    elapsedActiveSeconds: Math.max(0, (boundedNow - startedAt) / 1000),
-    overdueSeconds: Math.max(0, (now - deadline) / 1000),
   };
 }
 
@@ -236,7 +205,11 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   if (!runtimeSession) return { status: "unavailable", error: "Exam not found or not assigned to you." };
   const { session, cameraRequired } = runtimeSession;
   const status = effectiveStatus(session);
-  if (status !== "open") return { status: "unavailable", error: `Session unavailable: ${status}.` };
+  if (status !== "open") {
+    const previous = await latestAttempt(session.id);
+    if (previous?.submitted_at) return { status: "locked", score: previous.score };
+    return { status: "unavailable", error: `Session unavailable: ${status}.` };
+  }
 
   const allocation = await allocateAttempt(session.id);
   if (!allocation.ok) {
@@ -251,8 +224,14 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const { state, responses: savedResponses } = await stateForAttempt(attemptId);
   if (!state) return { status: "unavailable", error: "Attempt state is unavailable." };
 
+  const attemptSession: ExamSessionDTO = {
+    ...session,
+    durationSeconds: attemptDurationSeconds(state, session),
+    questionCount: state.question_ids.length || Number(state.context_snapshot?.questionCount ?? session.questionCount),
+  };
+
   const now = Date.now();
-  const clock = authoritativeAttemptClock(state, session, now);
+  const clock = authoritativeAttemptClock(state, attemptSession, now);
   const remaining = clock.remainingSeconds;
   const reconciledElapsed = clock.elapsedActiveSeconds;
   if (remaining <= 0) {
@@ -285,8 +264,8 @@ export async function getExamPaperAction(sessionId: string): Promise<PaperStatus
   const payload = await loadQuestionPayload();
   if (!payload.questions.length) return { status: "unavailable", error: "Question bank is empty." };
   const paper = state.question_ids.length
-    ? paperFromQuestionIds({ questions: payload.questions }, session, attemptId, state.question_ids)
-    : paperForStudent({ questions: payload.questions }, session, attemptId);
+    ? paperFromQuestionIds({ questions: payload.questions }, attemptSession, attemptId, state.question_ids)
+    : paperForStudent({ questions: payload.questions }, attemptSession, attemptId);
   if (!paper.length) return { status: "unavailable", error: "No questions match this exam." };
 
   const fingerprint = state.paper_fingerprint || await hashText(
@@ -475,120 +454,39 @@ export interface SubmitSummary {
   placement?: { assignedTrack: string; confidence: number };
 }
 
-export async function submitExamAction(sessionId: string, reason: string): Promise<{ ok: boolean; summary?: SubmitSummary; error?: string }> {
+export async function submitExamAction(
+  sessionId: string,
+  reason: string,
+): Promise<{ ok: boolean; summary?: SubmitSummary; error?: string }> {
   const parsedSessionId = sessionIdSchema.safeParse(sessionId);
   const parsedReason = submitReasonSchema.safeParse(reason);
-  if (!parsedSessionId.success || !parsedReason.success) return { ok: false, error: "The submission request is invalid." };
+  if (!parsedSessionId.success || !parsedReason.success) {
+    return { ok: false, error: "The submission request is invalid." };
+  }
+
   const ctx = await currentStudent();
   if (!ctx) return { ok: false, error: "Sign in required." };
+
   const runtimeSession = await sessionDTO(parsedSessionId.data);
   if (!runtimeSession) return { ok: false, error: "Exam not found or not assigned to you." };
-  const { session } = runtimeSession;
-  const attempt = await latestAttempt(session.id);
-  if (!attempt || attempt.submitted_at) return { ok: false, error: attempt?.submitted_at ? "Already submitted." : "No active attempt." };
-  const { state, responses: savedResponses } = await stateForAttempt(attempt.id);
-  if (!state) return { ok: false, error: "Attempt state is unavailable." };
-  const submissionClock = authoritativeAttemptClock(state, session);
 
-  const admin = createSupabaseAdminClient();
-  const { data: integrityRows } = await admin.from("exam_integrity_events").select("type,detail,at").eq("attempt_id", attempt.id).order("at");
-  const events = ((integrityRows ?? []) as { type: string; detail: string; at: number }[]).map((event) => ({ type: event.type }));
-  const payload = await loadQuestionPayload();
-  const paper = state.question_ids.length
-    ? paperFromQuestionIds({ questions: payload.questions }, session, attempt.id, state.question_ids)
-    : paperForStudent({ questions: payload.questions }, session, attempt.id);
-  if (!paper.length) return { ok: false, error: "Attempt paper is unavailable." };
+  const attempt = await latestAttempt(runtimeSession.session.id);
+  if (!attempt) return { ok: false, error: "No active attempt." };
+  if (attempt.submitted_at) return { ok: false, error: "Already submitted." };
 
-  const questionById = new Map(paper.map((question) => [question.id, question]));
-  const responses: Record<string, unknown> = {};
-  const timings: Record<string, number> = {};
-  const flaggedByQuestion = new Map<number, boolean>();
-  for (const response of savedResponses) {
-    responses[String(response.question_id)] = responseForQuestion(response, questionById.get(response.question_id));
-    timings[String(response.question_id)] = Number(response.seconds ?? 0);
-    flaggedByQuestion.set(Number(response.question_id), response.flagged);
+  const finalized = await finalizeExamAttempt({
+    session: runtimeSession.session,
+    attemptId: attempt.id,
+    studentId: ctx.profile.profile_id,
+    reason: parsedReason.data,
+  });
+
+  if (!finalized.ok) {
+    return {
+      ok: false,
+      error: finalized.code === "already-submitted" ? "Already submitted." : finalized.error,
+    };
   }
 
-  const result = scoreAttempt(paper, {
-    responses,
-    questionTimings: timings,
-    elapsedActiveSeconds: submissionClock.elapsedActiveSeconds,
-    startedAt: attempt.started_at ?? Date.now(),
-    submittedAt: null,
-    integrityEvents: events,
-  }, session) as unknown as {
-    accuracy: number; completion: number; paceIndex: number; reasoningIndex: number;
-    integrityScore: number; correctCount: number;
-    details: { questionId: number; subjectId: string; subject: string; correct: boolean | null; response: unknown; seconds: number }[];
-    placement?: { assignedTrack: string; confidence: number };
-  };
-  const now = Date.now();
-  const effectiveSubmissionReason = submissionClock.remainingSeconds <= 0 ? "time-expired" : parsedReason.data;
-  const { data: updated, error: updateError } = await admin.from("exam_attempts").update({
-    submitted_at: now,
-    score: result.accuracy,
-    correct_count: result.correctCount,
-    completion: result.completion,
-    pace_index: result.paceIndex,
-    reasoning_index: result.reasoningIndex,
-    integrity_score: result.integrityScore,
-    assigned_track: placementTrack(result.placement?.assignedTrack),
-    placement_confidence: result.placement?.confidence ?? null,
-    submission_reason: effectiveSubmissionReason,
-    remaining_seconds: submissionClock.remainingSeconds,
-    elapsed_active_seconds: submissionClock.elapsedActiveSeconds,
-    last_active_at: now,
-    updated_at: now,
-  }).eq("id", attempt.id)
-    .eq("student_id", ctx.profile.profile_id)
-    .is("submitted_at", null)
-    .select("id")
-    .maybeSingle();
-  if (updateError) return { ok: false, error: updateError.message };
-  if (!updated) return { ok: false, error: "This attempt has already been submitted." };
-
-  if (result.details.length) {
-    const gradedRows = result.details.map((detail) => {
-      const response = splitResponse(detail.response);
-      const question = paper.find((item) => item.id === detail.questionId);
-      return {
-        attempt_id: attempt.id,
-        question_id: detail.questionId,
-        response_text: response.text,
-        response_values: response.values,
-        seconds: detail.seconds,
-        flagged: flaggedByQuestion.get(detail.questionId) ?? false,
-        correct: detail.correct,
-        correct_answer: serializeAnswer(question),
-        graded_at: now,
-        updated_at: now,
-      };
-    });
-    const writeGrading = () => admin.from("exam_attempt_responses").upsert(gradedRows, { onConflict: "attempt_id,question_id" });
-    const firstWrite = await writeGrading();
-    if (firstWrite.error) {
-      const retryWrite = await writeGrading();
-      if (retryWrite.error) {
-        console.error("Submitted attempt grading details could not be persisted", {
-          attemptId: attempt.id,
-          sessionId: session.id,
-          error: retryWrite.error.message,
-        });
-      }
-    }
-  }
-
-  return {
-    ok: true,
-    summary: {
-      accuracy: result.accuracy,
-      completion: result.completion,
-      paceIndex: result.paceIndex,
-      reasoningIndex: result.reasoningIndex,
-      integrityScore: result.integrityScore,
-      correctCount: result.correctCount,
-      total: paper.length,
-      placement: result.placement,
-    },
-  };
+  return { ok: true, summary: finalized.summary };
 }

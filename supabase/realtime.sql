@@ -361,6 +361,55 @@ AFTER INSERT ON public.exam_support_requests
 FOR EACH ROW
 EXECUTE FUNCTION private.broadcast_exam_support_request();
 
+-- Exam availability changes fan out to every student who already has an attempt for
+-- the session. Active writers receive the close event immediately; previously submitted
+-- candidates receive the same event so their dashboard can refresh its durable signal.
+CREATE OR REPLACE FUNCTION private.broadcast_exam_session_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public,private,realtime
+AS $$
+DECLARE
+  v_recipient uuid;
+  v_payload jsonb;
+BEGIN
+  IF OLD.status IS NOT DISTINCT FROM NEW.status THEN
+    RETURN NEW;
+  END IF;
+
+  v_payload := jsonb_build_object(
+    'eventId', 'session:' || NEW.id || ':' || NEW.updated_at::text,
+    'sessionId', NEW.id,
+    'sessionTitle', NEW.title,
+    'status', NEW.status::text,
+    'previousStatus', OLD.status::text,
+    'updatedAt', NEW.updated_at
+  );
+
+  FOR v_recipient IN
+    SELECT DISTINCT a.student_id
+    FROM public.exam_attempts a
+    WHERE a.session_id = NEW.id
+  LOOP
+    PERFORM realtime.send(
+      v_payload,
+      'exam_session_changed',
+      'student:' || v_recipient::text || ':exam',
+      true
+    );
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS exam_session_realtime_notify ON public.exam_sessions;
+CREATE TRIGGER exam_session_realtime_notify
+AFTER UPDATE OF status ON public.exam_sessions
+FOR EACH ROW
+EXECUTE FUNCTION private.broadcast_exam_session_event();
+
 -- ---------------------------------------------------------------- authorization
 -- Supabase owns realtime.messages and already enables RLS on it. Only policies are managed here.
 DROP POLICY IF EXISTS festacol_realtime_receive ON realtime.messages;

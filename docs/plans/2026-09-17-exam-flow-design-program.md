@@ -8,7 +8,7 @@ Target branch: `design/exam-flow-phase-01-brainstorm`
 
 Redesign the student electronic-examination experience as a purpose-built academic assessment journey rather than a sequence of generic application screens.
 
-The product owner has simplified the journey further: students should not experience internal eligibility, instruction, browser-readiness and attempt-preparation mechanics as separate phases. They came to Festacol to identify themselves, understand the paper, write it, review it and finish.
+The product owner has simplified the journey further: students should not experience internal eligibility, instruction, browser-readiness and attempt-preparation mechanics as separate phases. They came to Festacol to identify themselves, understand the paper, write it, submit it and finish.
 
 The redesign may substantially change composition, hierarchy, navigation, motion and visual language. It must not change examination authority, scoring, persistence, access, integrity or retake semantics merely to support a visual idea.
 
@@ -18,7 +18,7 @@ The program separates **low-fidelity design selection** from **high-fidelity Nex
 
 Current production behavior resolves to these states:
 
-`examination link → candidate identity/authentication → academic information when required → examination overview/instructions/device checks/final start → paper allocation/resume → live examination → review/final submit → processing → result or locked state`
+`examination link → candidate identity/authentication → academic information when required → examination overview/instructions/device checks/final start → paper allocation/resume → live examination with in-place submit confirmation → processing → result or locked state`
 
 Authoritative implementation surfaces include:
 
@@ -51,7 +51,7 @@ The visual redesign preserves the current server-owned contracts:
 
 No design concept may invent pass/fail thresholds, ranks, AI-proctor scores, microphone requirements, biometric claims, question data, or server capabilities that do not exist.
 
-## Five student-facing design phases
+## Four student-facing design phases
 
 The old seven-phase design decomposition is superseded. Academic eligibility/placement, briefing/instructions and device readiness/start are now one phase because they are one student job: **get ready and begin writing**.
 
@@ -61,9 +61,8 @@ Each phase receives its own low-fi `brainstorm.html` with **seven full-screen al
 | --- | --- | --- | --- |
 | 01. Arrival & Identity | Understand the examination link and identify/sign in as the candidate | `/exam` + root student auth | **Option A selected and implemented** |
 | 02. Ready to Write | Resolve missing academic information only when necessary, understand the essential examination instructions, satisfy only required device conditions, then Start/Resume | `student-wizard.tsx` + `exam-preflight.tsx` + pre-exam state in `exam-workspace.tsx` | **Seven-option board generated; product selection required** |
-| 03. Write Examination | Read, answer, navigate, flag, save, monitor time and required camera/integrity state | `exam-workspace.tsx`, question/navigator/camera components | Seven low-fi alternatives first |
-| 04. Review & Submit | Resolve unanswered/flagged items, confirm once, survive submission/retry/timeout processing | `exam-workspace.tsx` review/processing/failure states | Seven low-fi alternatives first |
-| 05. Result / Completion | Interpret score/subject performance, review released answers when allowed, or understand locked/retake state | `exam-results.tsx` + locked/completion states | Seven low-fi alternatives first |
+| 03. Write & Submit Examination | Read, answer, navigate, flag, save, monitor time and required camera/integrity state, then confirm submission in place | `exam-workspace.tsx`, Focus Capsule, question/navigator/camera/submission components | **Focus Capsule implemented; Review & Submit merged here** |
+| 04. Result / Completion | Interpret score/subject performance, review released answers when allowed, or understand locked/retake state | `exam-results.tsx` + locked/completion states | Seven low-fi alternatives first |
 
 ## Phase 01 data boundary
 
@@ -211,7 +210,7 @@ For every remaining phase:
 
 The current PR contains a previously merged/unselected refactor touching later examination surfaces, including the student wizard, preflight, live workspace and result components.
 
-Those existing presentation changes do **not** become approved merely because they are present on the branch. Phase 02 remains selection-gated by the new Ready to Write A–G board, and later-phase presentation changes are not automatically approved Phase 03–05 designs.
+Those existing presentation changes do **not** become approved merely because they are present on the branch. Phase 02 remains selection-gated by the new Ready to Write A–G board, and later-phase presentation changes are not automatically approved Phase 03–04 designs.
 
 ## Next gate
 
