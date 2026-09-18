@@ -42,7 +42,7 @@ interface ExamCameraPanelProps {
 function statusLabel(status: ExamCameraStatus) {
   if (status === "active") return "Camera active";
   if (status === "requesting") return "Requesting camera";
-  if (status === "denied") return "Camera permission required";
+  if (status === "denied") return "Camera permission denied";
   if (status === "unavailable") return "Camera unavailable";
   if (status === "disconnected") return "Camera disconnected";
   return "Camera permission not requested";
@@ -140,7 +140,7 @@ export function ExamCameraPanel({
 
   if (variant === "capsule") {
     return (
-      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Required webcam">
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Camera monitoring">
         <div className="flex items-center gap-2 p-1.5 xl:flex-col xl:items-stretch xl:p-2">
           <CameraPreview status={status} stream={stream} videoRef={videoRef} presentation="capsule" />
           <div className="min-w-0 flex-1 xl:px-1 xl:pb-1">
@@ -155,7 +155,7 @@ export function ExamCameraPanel({
               <p className="truncate text-[9px] font-semibold sm:text-[10px]">{status === "active" ? "Camera live" : statusLabel(status)}</p>
             </div>
             <p className="mt-0.5 hidden text-[9px] leading-4 text-muted-foreground xl:block">
-              Required monitoring · no microphone
+              Monitoring requested · no microphone
             </p>
           </div>
           {status !== "active" ? (
@@ -165,7 +165,7 @@ export function ExamCameraPanel({
               variant="ghost"
               onClick={onStart}
               disabled={status === "requesting"}
-              aria-label="Retry required camera"
+              aria-label="Retry camera"
               className="shrink-0"
             >
               {status === "requesting" ? <Spinner /> : <RefreshCw />}
@@ -184,12 +184,12 @@ export function ExamCameraPanel({
       <section className="border-t border-dashed border-border pt-4" aria-labelledby="booklet-camera-title">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 max-w-md">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Camera required</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Camera monitoring</p>
             <h3 id="booklet-camera-title" className="mt-1 text-sm font-semibold">{statusLabel(status)}</h3>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {status === "active"
-                ? "The live camera is ready. Keep it active while you write."
-                : "Allow the camera when you are ready to begin. Festacol does not request microphone access."}
+                ? "The live camera is active for monitoring."
+                : "Festacol requested camera access for monitoring. You can continue writing if access is denied or unavailable; microphone access is not requested."}
             </p>
           </div>
 
@@ -256,7 +256,7 @@ export function ExamCameraPanel({
             <p className="truncate text-xs font-semibold">{statusLabel(status)}</p>
           </div>
           <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
-            {status === "active" ? "Required camera monitoring is active." : error ?? "Restore the required camera before continuing."}
+            {status === "active" ? "Camera monitoring is active." : error ?? "Camera access is unavailable; you can continue writing."}
           </p>
         </div>
         {status !== "active" ? (
@@ -290,12 +290,12 @@ export function ExamCameraPanel({
             )}
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Camera required</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Camera monitoring</p>
             <h3 id="camera-ready-title" className="mt-1 text-sm font-semibold">{statusLabel(status)}</h3>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
               {status === "active"
-                ? "The live camera is ready and must remain active while you write this examination."
-                : "This examination requires a live camera. Festacol will ask for webcam permission only when you choose Allow camera. Microphone access is not requested."}
+                ? "The live camera is active for this examination."
+                : "Festacol requests webcam access automatically for monitoring. If you deny access or no camera is available, the examination still continues. Microphone access is not requested."}
             </p>
           </div>
         </div>

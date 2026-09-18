@@ -320,6 +320,7 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
   const [questionCount, setQuestionCount] = useState(50);
   const [instructions, setInstructions] = useState("");
   const [status, setStatus] = useState("draft");
+  const [allowFillQuestions, setAllowFillQuestions] = useState(false);
   const [cameraRequired, setCameraRequired] = useState(false);
   const [warnAfter, setWarnAfter] = useState(2);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
@@ -356,6 +357,7 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
       setQuestionCount(Number(session.question_count ?? 50));
       setInstructions(String(session.instructions ?? ""));
       setStatus(String(session.status ?? "draft") === "open" ? "open" : "closed");
+      setAllowFillQuestions(Boolean(session.allow_fill_questions));
       setCameraRequired(detail.cameraRequired);
       setWarnAfter(Number(session.warn_after ?? 2));
       setSubjects(options.subjects);
@@ -470,6 +472,7 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
               <p className="text-xs text-muted-foreground">Existing attempts keep their allocated question IDs.</p>
             </Field>
           </div>
+          <Field><div className="flex items-center justify-between gap-4 rounded-xl border p-3"><div><FieldLabel htmlFor="ee-fill-questions">Allow fill-in questions</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Off means future papers use option-based and True/False questions only. Existing attempts keep their allocated question IDs.</p></div><Switch id="ee-fill-questions" checked={allowFillQuestions} onCheckedChange={setAllowFillQuestions} /></div></Field>
           <Field><FieldLabel htmlFor="ee-instructions">Instructions</FieldLabel><Textarea id="ee-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={140} /></Field>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field>
@@ -496,10 +499,10 @@ export function ExamEditDialog({ examId, onClose }: { examId: string; onClose: (
             </Field>
             <Field><FieldLabel htmlFor="ee-warn">Integrity warning threshold</FieldLabel><Input id="ee-warn" type="number" min={1} max={10} value={warnAfter} onChange={(event) => setWarnAfter(Number(event.target.value))} /></Field>
           </div>
-          <Field><div className="flex items-center justify-between rounded-xl border p-3"><div><FieldLabel htmlFor="ee-camera">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Require camera permission before the candidate enters the paper.</p></div><Switch id="ee-camera" checked={cameraRequired} onCheckedChange={setCameraRequired} /></div></Field>
+          <Field><div className="flex items-center justify-between rounded-xl border p-3"><div><FieldLabel htmlFor="ee-camera">Camera monitoring</FieldLabel><p className="mt-1 text-xs text-muted-foreground">Ask for camera access automatically. Denied or unavailable camera access does not block the paper.</p></div><Switch id="ee-camera" checked={cameraRequired} onCheckedChange={setCameraRequired} /></div></Field>
         </FieldGroup> : <p className="text-sm text-muted-foreground">Loading examination…</p>}
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!loaded || pending} onClick={() => startTransition(async () => { setError(null); const result = await updateExamParityAction(examId, { title, durationSeconds, questionCount, instructions, status, cameraRequired, warnAfter, subjectIds, offeringIds }); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{pending ? "Saving…" : "Save changes"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!loaded || pending} onClick={() => startTransition(async () => { setError(null); const result = await updateExamParityAction(examId, { title, durationSeconds, questionCount, instructions, status, allowFillQuestions, cameraRequired, warnAfter, subjectIds, offeringIds }); if (!result.ok) { setError(result.error ?? "Update failed."); return; } onClose(); router.refresh(); })}>{pending ? "Saving…" : "Save changes"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

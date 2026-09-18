@@ -329,7 +329,7 @@ function SubmissionDialog({
           {openCount > 0 ? (
             <AlertDialogCancel variant="secondary" onClick={onGoToOpen}>Go to unanswered</AlertDialogCancel>
           ) : null}
-          <AlertDialogAction disabled={!online} onClick={onSubmit}>Submit final</AlertDialogAction>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!online} onClick={onSubmit}>Submit final</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -366,6 +366,7 @@ export function ExamFocusCapsule({
   const progress = paper.length ? Math.round((answeredCount / paper.length) * 100) : 0;
   const flaggedSet = new Set(flagged);
   const isFlagged = flaggedSet.has(currentQuestionId);
+  const isLastQuestion = paper.length > 0 && currentIndex === paper.length - 1;
   const expandedRail = paper.length > 15;
   const academicPeriod = [context.session.academicSession, context.session.term].filter(Boolean).join(" · ");
   const subjectSummary = context.subjectNames.length ? context.subjectNames.join(" · ") : currentQuestion?.subject ?? "General paper";
@@ -387,21 +388,21 @@ export function ExamFocusCapsule({
   };
 
   const desktopSubmitTrigger = (
-    <Button type="button" size="lg" className="rounded-2xl shadow-sm">
+    <Button type="button" variant="destructive" size="lg" className="rounded-2xl shadow-sm">
       <Send data-icon="inline-start" />
       Submit exam
     </Button>
   );
 
   const mobileSubmitTrigger = (
-    <Button type="button" className="h-14 flex-col gap-1 rounded-2xl px-1 text-[11px]">
+    <Button type="button" variant="destructive" className="h-12 w-full rounded-2xl px-4 text-sm font-semibold shadow-sm">
       <Send className="size-4" />
-      Submit
+      Submit exam
     </Button>
   );
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-primary/5 via-background to-success/5 pb-24 text-foreground xl:pb-8">
+    <div className={cn("relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-primary/5 via-background to-success/5 text-foreground xl:pb-8", isLastQuestion ? "pb-40" : "pb-24")}>
       <header className="sticky top-0 z-40 border-b bg-background/88 backdrop-blur-xl supports-[backdrop-filter]:bg-background/78">
         <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-2 px-3 py-2 sm:gap-3 sm:px-5 lg:px-7">
           <div className="min-w-0 flex-1">
@@ -536,10 +537,12 @@ export function ExamFocusCapsule({
                 >
                   <Flag className={cn(isFlagged && "fill-current")} />
                 </Button>
-                <Button type="button" size="lg" disabled={currentIndex >= paper.length - 1} onClick={onNext}>
-                  Next
-                  <ArrowRight data-icon="inline-end" />
-                </Button>
+                {!isLastQuestion ? (
+                  <Button type="button" size="lg" onClick={onNext}>
+                    Next
+                    <ArrowRight data-icon="inline-end" />
+                  </Button>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2">
@@ -554,18 +557,22 @@ export function ExamFocusCapsule({
                     All questions answered
                   </span>
                 )}
-                <SubmissionDialog
-                  openCount={openQuestions.length}
-                  flaggedCount={flagged.length}
-                  answeredCount={answeredCount}
-                  total={paper.length}
-                  timeLeft={timerText}
-                  timerRemaining={timerRemaining}
-                  online={online}
-                  onGoToOpen={goToFirstOpen}
-                  onSubmit={onSubmit}
-                  trigger={desktopSubmitTrigger}
-                />
+                {isLastQuestion ? (
+                  <div className="border-l pl-4">
+                    <SubmissionDialog
+                      openCount={openQuestions.length}
+                      flaggedCount={flagged.length}
+                      answeredCount={answeredCount}
+                      total={paper.length}
+                      timeLeft={timerText}
+                      timerRemaining={timerRemaining}
+                      online={online}
+                      onGoToOpen={goToFirstOpen}
+                      onSubmit={onSubmit}
+                      trigger={desktopSubmitTrigger}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           </section>
@@ -666,7 +673,23 @@ export function ExamFocusCapsule({
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-background/94 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl xl:hidden">
-        <div className="mx-auto grid max-w-2xl grid-cols-5 gap-1">
+        {isLastQuestion ? (
+          <div className="mx-auto mb-2 max-w-2xl border-b pb-2">
+            <SubmissionDialog
+              openCount={openQuestions.length}
+              flaggedCount={flagged.length}
+              answeredCount={answeredCount}
+              total={paper.length}
+              timeLeft={timerText}
+              timerRemaining={timerRemaining}
+              online={online}
+              onGoToOpen={goToFirstOpen}
+              onSubmit={onSubmit}
+              trigger={mobileSubmitTrigger}
+            />
+          </div>
+        ) : null}
+        <div className={cn("mx-auto grid max-w-2xl gap-1", isLastQuestion ? "grid-cols-3" : "grid-cols-4")}>
           <Button type="button" variant="ghost" className="h-14 flex-col gap-1 rounded-2xl px-1 text-[11px]" disabled={currentIndex === 0} onClick={onPrevious}>
             <ArrowLeft className="size-4" />
             Prev
@@ -703,23 +726,12 @@ export function ExamFocusCapsule({
             </SheetContent>
           </Sheet>
 
-          <Button type="button" variant="ghost" className="h-14 flex-col gap-1 rounded-2xl px-1 text-[11px]" disabled={currentIndex >= paper.length - 1} onClick={onNext}>
-            <ArrowRight className="size-4" />
-            Next
-          </Button>
-
-          <SubmissionDialog
-            openCount={openQuestions.length}
-            flaggedCount={flagged.length}
-            answeredCount={answeredCount}
-            total={paper.length}
-            timeLeft={timerText}
-            timerRemaining={timerRemaining}
-            online={online}
-            onGoToOpen={goToFirstOpen}
-            onSubmit={onSubmit}
-            trigger={mobileSubmitTrigger}
-          />
+          {!isLastQuestion ? (
+            <Button type="button" variant="ghost" className="h-14 flex-col gap-1 rounded-2xl px-1 text-[11px]" onClick={onNext}>
+              <ArrowRight className="size-4" />
+              Next
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

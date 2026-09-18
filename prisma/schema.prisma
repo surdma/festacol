@@ -366,6 +366,7 @@ model ExamSession {
   status             ExamStatus @default(DRAFT)
   durationSeconds    Int        @map("duration_seconds")
   questionCount      Int        @map("question_count")
+  allowFillQuestions Boolean    @default(false) @map("allow_fill_questions")
   instructions       String     @default("")
   startsAt           BigInt?    @map("starts_at")
   endsAt             BigInt?    @map("ends_at")

@@ -137,6 +137,7 @@ function sessionForAttempt(state: AttemptRow, session: ExamSessionDTO): ExamSess
     ...session,
     durationSeconds: attemptDurationSeconds(state, session),
     questionCount: state.question_ids.length || Number(state.context_snapshot?.questionCount ?? session.questionCount),
+    allowFillQuestions: state.context_snapshot?.allowFillQuestions ?? session.allowFillQuestions,
   };
 }
 

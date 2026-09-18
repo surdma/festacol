@@ -150,6 +150,7 @@ export interface ExamSessionRow {
   status: ExamStatus;
   duration_seconds: number;
   question_count: number;
+  allow_fill_questions: boolean;
   instructions: string;
   starts_at: number | null;
   ends_at: number | null;
@@ -257,6 +258,7 @@ export interface ExamAttemptContextSnapshot {
   subjectNames?: string[];
   durationSeconds?: number;
   questionCount?: number;
+  allowFillQuestions?: boolean;
 }
 
 export interface ExamAttemptRow {

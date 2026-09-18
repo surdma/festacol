@@ -191,7 +191,7 @@ function validateExamShape(input: ExamCreationInput): string | null {
 
 async function eligibleQuestionCount(input: ExamCreationInput): Promise<number> {
   const { admin } = await staffContext();
-  let query = admin.from("questions").select("id,subject_id,exam_modes").eq("status", "active").limit(5000);
+  let query = admin.from("questions").select("id,subject_id,exam_modes,qtype").eq("status", "active").limit(5000);
   if (input.subjectIds.length) query = query.in("subject_id", [...new Set(input.subjectIds)]);
   const [{ data: questions }, { data: level }] = await Promise.all([
     query,
@@ -199,8 +199,9 @@ async function eligibleQuestionCount(input: ExamCreationInput): Promise<number> 
   ]);
   const levelId = (level as { id?: string } | null)?.id;
   if (!levelId) return 0;
-  const eligibleByMode = ((questions ?? []) as { id: number; subject_id: string; exam_modes: string[] }[]).filter((question) =>
+  const eligibleByMode = ((questions ?? []) as { id: number; subject_id: string; exam_modes: string[]; qtype: QuestionType }[]).filter((question) =>
     (question.exam_modes ?? []).includes(input.mode)
+      && (input.allowFillQuestions || (question.qtype !== "fill" && question.qtype !== "fill-multi"))
       && (!input.subjectIds.length || input.subjectIds.includes(question.subject_id)),
   );
   if (!eligibleByMode.length) return 0;
@@ -255,6 +256,7 @@ export async function createExamParityAction(input: ExamCreationInput): Promise<
         questionCount: input.questionCount,
         status: input.status,
         instructions: input.instructions,
+        allowFillQuestions: input.allowFillQuestions,
         cameraRequired: input.cameraRequired,
         warnAfter: input.warnAfter,
       });
@@ -271,6 +273,7 @@ export async function createExamParityAction(input: ExamCreationInput): Promise<
       questionCount: input.questionCount,
       status: input.status,
       instructions: input.instructions,
+      allowFillQuestions: input.allowFillQuestions,
       cameraRequired: input.cameraRequired,
       warnAfter: input.warnAfter,
     });
@@ -285,6 +288,7 @@ export interface ExamEditorPatch {
   questionCount: number;
   instructions: string;
   status: string;
+  allowFillQuestions: boolean;
   cameraRequired: boolean;
   warnAfter: number;
   subjectIds: string[];
@@ -356,7 +360,7 @@ export async function updateExamParityAction(
 ): Promise<ActionResult> {
   try {
     const detail = await getExamDetailAction(id);
-    const session = detail.session as { mode?: ExamMode; duration_seconds?: number; question_count?: number } | null;
+    const session = detail.session as { mode?: ExamMode; duration_seconds?: number; question_count?: number; allow_fill_questions?: boolean } | null;
     if (!session) return { ok: false, error: "Exam not found or outside your scope." };
     if (patch.title.trim().length < 3) return { ok: false, error: "Enter an exam title of at least 3 characters." };
     if (!Number.isInteger(patch.warnAfter) || patch.warnAfter < 1 || patch.warnAfter > 10) return { ok: false, error: "Integrity warning threshold must be between 1 and 10." };
@@ -440,14 +444,15 @@ export async function updateExamParityAction(
     }
 
     const subjectChanged = !sameStringSet(previousSubjectIds, subjectIds);
-    if (patch.questionCount !== Number(session.question_count) || subjectChanged) {
+    const fillPolicyChanged = patch.allowFillQuestions !== Boolean(session.allow_fill_questions);
+    if (patch.questionCount !== Number(session.question_count) || subjectChanged || fillPolicyChanged) {
       const runtime = await loadExamRuntimeSession(admin, sessionId);
       if (!runtime) return { ok: false, error: "Exam details could not be loaded for question coverage validation." };
 
       const payload = await loadQuestionPayload();
       const candidatePaper = paperForStudent(
         { questions: payload.questions },
-        { ...runtime.session, subjectIds, questionCount: patch.questionCount },
+        { ...runtime.session, subjectIds, questionCount: patch.questionCount, allowFillQuestions: patch.allowFillQuestions },
         `editor-coverage:${sessionId}`,
       );
       if (candidatePaper.length < patch.questionCount) {
@@ -470,6 +475,7 @@ export async function updateExamParityAction(
       questionCount: patch.questionCount,
       instructions: patch.instructions,
       status: patch.status,
+      allowFillQuestions: patch.allowFillQuestions,
       cameraRequired: patch.cameraRequired,
       warnAfter: patch.warnAfter,
     });
@@ -477,13 +483,14 @@ export async function updateExamParityAction(
     if (!result.ok) {
       const { data: currentSession } = await admin
         .from("exam_sessions")
-        .select("title,duration_seconds,question_count,instructions,status,camera_required,warn_after")
+        .select("title,duration_seconds,question_count,allow_fill_questions,instructions,status,camera_required,warn_after")
         .eq("id", sessionId)
         .maybeSingle();
       const row = currentSession as {
         title?: string;
         duration_seconds?: number;
         question_count?: number;
+        allow_fill_questions?: boolean;
         instructions?: string;
         status?: string;
         camera_required?: boolean;
@@ -494,6 +501,7 @@ export async function updateExamParityAction(
         && row.title === patch.title.trim().slice(0, 72)
         && Number(row.duration_seconds) === patch.durationSeconds
         && Number(row.question_count) === patch.questionCount
+        && Boolean(row.allow_fill_questions) === patch.allowFillQuestions
         && String(row.instructions ?? "") === patch.instructions.slice(0, 140)
         && row.status === patch.status
         && Boolean(row.camera_required) === patch.cameraRequired

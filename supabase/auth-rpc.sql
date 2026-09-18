@@ -659,7 +659,8 @@ BEGIN
       'studentName',(SELECT concat_ws(' ',m.first_name,m.last_name) FROM public.school_members m WHERE m.id=v_student),
       'mode',v_session.mode::text,
       'durationSeconds',v_session.duration_seconds,
-      'questionCount',v_session.question_count
+      'questionCount',v_session.question_count,
+      'allowFillQuestions',v_session.allow_fill_questions
     ),
     v_now,0,v_session.duration_seconds,0,v_now,'','{}'::bigint[],v_now,v_now
   );

@@ -29,7 +29,7 @@ export function useExamCamera(required: boolean) {
     if (!required) return false;
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus("unavailable");
-      setError("This browser cannot provide camera access. Use a supported browser or device.");
+      setError("This browser cannot provide camera access. You can continue writing without camera monitoring.");
       return false;
     }
 
@@ -54,7 +54,7 @@ export function useExamCamera(required: boolean) {
       if (!track) throw new Error("No camera stream was returned.");
       track.addEventListener("ended", () => {
         setStatus("disconnected");
-        setError("The camera stream stopped. Reconnect it before continuing the examination.");
+        setError("The camera stream stopped. You can continue writing and retry camera monitoring when convenient.");
       }, { once: true });
       streamRef.current = nextStream;
       setStream(nextStream);
@@ -81,7 +81,7 @@ export function useExamCamera(required: boolean) {
       const name = cameraError instanceof DOMException ? cameraError.name : "";
       if (name === "NotAllowedError" || name === "SecurityError") {
         setStatus("denied");
-        setError("Camera permission was denied. Allow camera access in your browser, then retry.");
+        setError("Camera permission was denied. You can continue writing or allow camera access in your browser and retry.");
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         setStatus("unavailable");
         setError("No usable camera was found on this device.");
